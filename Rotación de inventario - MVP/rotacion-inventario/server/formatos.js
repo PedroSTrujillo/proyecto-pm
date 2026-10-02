@@ -1,0 +1,128 @@
+'use strict';
+
+// Formatos de archivo que el producto reconoce.
+//
+// IMPORTANTE PARA EL EQUIPO: el documento del MVP pide que las plantillas usen los
+// mismos nombres de columna y el mismo orden que el export real de cada probador.
+// Cuando tengan el export de ejemplo de cada uno:
+//   1. Agreguen los nombres de columna que traiga su software a la lista de
+//      sinónimos de cada campo (abajo, en CAMPOS). Se escriben en minúscula, sin
+//      tildes ni signos; el lector normaliza los encabezados igual.
+//   2. Si todos usan el mismo software, cambien PLANTILLA_EXPORT y PLANTILLA_LISTA
+//      para que la plantilla descargable sea idéntica a ese export.
+// No hace falta tocar nada más: el lector busca la fila de encabezados, reconoce
+// las columnas por estos sinónimos y acepta varias hojas o varios archivos.
+
+// Palabras que se ignoran al comparar encabezados ("Código del producto" = "codigo producto").
+const PALABRAS_VACIAS = new Set(['a', 'de', 'del', 'la', 'el', 'los', 'las', 'en', 'por', 'y', 'no', 'nro', 'num', 'n']);
+
+// Cada campo tiene sinónimos en orden de preferencia: si un archivo trae dos
+// columnas que sirven, gana la que aparece primero en la lista.
+const CAMPOS = {
+  codigo: {
+    nombre: 'código de producto',
+    sinonimos: [
+      'codigo producto', 'codigo', 'cod producto', 'cod', 'codigo item', 'cod item', 'item',
+      'codigo articulo', 'cod articulo', 'articulo', 'referencia', 'ref', 'codigo referencia',
+      'sku', 'material', 'codigo material', 'id producto', 'codigo interno', 'plu',
+      'producto codigo', 'cod prod', 'codprod', 'codigo prod', 'item code', 'product code', 'code',
+    ],
+  },
+  nombre: {
+    nombre: 'nombre del producto',
+    sinonimos: [
+      'nombre producto', 'nombre', 'descripcion', 'descripcion producto', 'producto',
+      'nombre item', 'descripcion item', 'nombre articulo', 'descripcion articulo',
+      'texto breve material', 'denominacion', 'detalle', 'nombre referencia',
+      'descripcion referencia', 'description', 'product name', 'name',
+    ],
+  },
+  fecha: {
+    nombre: 'fecha',
+    sinonimos: [
+      'fecha', 'fecha documento', 'fecha factura', 'fecha venta', 'fecha elaboracion',
+      'fecha movimiento', 'fecha contabilizacion', 'fecha comprobante', 'fecha emision',
+      'fecha transaccion', 'fecha doc', 'fec documento', 'fecha remision', 'dia', 'date',
+      'periodo', 'mes', 'ano mes', 'mes ano',
+    ],
+  },
+  cantidad: {
+    nombre: 'cantidad vendida',
+    sinonimos: [
+      'cantidad vendida', 'unidades vendidas', 'cant vendida', 'ventas unidades',
+      'ventas cantidad', 'cantidad facturada', 'cant facturada', 'cantidad', 'cant',
+      'unidades', 'salidas', 'cantidad salida', 'salida', 'cantidad salidas',
+      'qty', 'quantity', 'ctd',
+    ],
+  },
+  existencias: {
+    nombre: 'existencias',
+    sinonimos: [
+      'existencias', 'existencia', 'existencias actuales', 'existencia actual', 'saldo cantidad',
+      'saldo unidades', 'cantidad saldo', 'saldo', 'saldo final', 'saldo actual', 'stock',
+      'stock actual', 'inventario', 'inventario actual', 'disponible', 'cantidad disponible',
+      'unidades disponibles', 'cant disponible', 'libre utilizacion', 'inv actual',
+      'existencia fisica', 'cantidad existencia', 'cant existencia', 'saldo inventario',
+      'unidades stock', 'on hand',
+    ],
+  },
+  // Cantidad en la lista de pedido (la hoja con la que arman el pedido).
+  pedir: {
+    nombre: 'cantidad a pedir',
+    sinonimos: [
+      'cantidad pedir', 'cant pedir', 'pedir', 'cantidad pedido', 'cantidad pedida',
+      'cant pedido', 'pedido', 'pedido final', 'cantidad comprar', 'comprar',
+      'cantidad solicitada', 'solicitado', 'cantidad', 'cant', 'unidades',
+      'cantidad sugerida', 'sugerido',
+    ],
+  },
+};
+
+// Plantilla descargable del export de ventas y existencias (nombres y orden de columnas).
+const PLANTILLA_EXPORT = {
+  archivo: 'plantilla-export-ventas-existencias.xlsx',
+  ventas: { hoja: 'Ventas', columnas: ['Código', 'Nombre', 'Fecha', 'Cantidad'] },
+  existencias: { hoja: 'Existencias', columnas: ['Código', 'Nombre', 'Existencias'] },
+};
+
+// Plantilla de la lista de pedido: forma de un informe de mínimos para la reunión de compras.
+// Solo se leen Código y Cantidad a pedir (Descripción se usa como nombre si viene).
+const PLANTILLA_LISTA = {
+  archivo: 'plantilla-lista-pedido.xlsx',
+  hoja: 'Pedido',
+  columnas: ['Código', 'Descripción', 'Proveedor', 'Existencia', 'Mínimo', 'Máximo', 'Cantidad a pedir'],
+};
+
+function normalizarEncabezado(texto) {
+  if (texto === null || texto === undefined) return '';
+  return String(texto)
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter((p) => p && !PALABRAS_VACIAS.has(p))
+    .join(' ');
+}
+
+// Índice: encabezado normalizado -> [{campo, prioridad}]
+const INDICE = new Map();
+for (const [campo, def] of Object.entries(CAMPOS)) {
+  def.sinonimos.forEach((s, i) => {
+    const k = normalizarEncabezado(s);
+    if (!INDICE.has(k)) INDICE.set(k, []);
+    INDICE.get(k).push({ campo, prioridad: i });
+  });
+}
+
+function camposDeEncabezado(texto) {
+  return INDICE.get(normalizarEncabezado(texto)) || [];
+}
+
+module.exports = {
+  CAMPOS,
+  PLANTILLA_EXPORT,
+  PLANTILLA_LISTA,
+  normalizarEncabezado,
+  camposDeEncabezado,
+};

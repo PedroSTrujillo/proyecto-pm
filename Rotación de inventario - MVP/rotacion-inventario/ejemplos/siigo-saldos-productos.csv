@@ -1,0 +1,221 @@
+Código;Nombre;Bodega;Saldo cantidad
+TOR-1000;Tornillo drywall 6x1";Principal;0
+PUN-1001;Puntilla con cabeza 1";Principal;0
+TUB-1002;Tubo PVC presión 1/2";Principal;487
+TUB-1002;Tubo PVC presión 1/2";Sucursal Norte;209
+CIN-1003;Cinta aislante negra;Principal;11
+CIN-1003;Cinta aislante negra;Sucursal Norte;6
+BRO-1004;Brocha 1";Principal;7
+BRO-1004;Brocha 1";Sucursal Norte;3
+LIJ-1005;Lija agua #80;Principal;10
+LIJ-1005;Lija agua #80;Sucursal Norte;5
+CAN-1006;Candado 30 mm;Principal;688
+CAN-1006;Candado 30 mm;Sucursal Norte;295
+MAN-1007;Manguera jardín 1/2" x 15 m;Principal;0
+TOR-1008;Tornillo drywall 6x2";Principal;88
+TOR-1008;Tornillo drywall 6x2";Sucursal Norte;39
+PUN-1009;Puntilla con cabeza 2";Principal;3
+PUN-1009;Puntilla con cabeza 2";Sucursal Norte;2
+TUB-1010;Tubo PVC presión 3/4";Principal;14
+TUB-1010;Tubo PVC presión 3/4";Sucursal Norte;7
+CIN-1011;Cinta enmascarar 1";Principal;0
+BRO-1012;Brocha 2";Principal;37
+BRO-1012;Brocha 2";Sucursal Norte;17
+LIJ-1013;Lija agua #120;Principal;0
+CAN-1014;Candado 40 mm;Principal;2
+CAN-1014;Candado 40 mm;Sucursal Norte;2
+MAN-1015;Manguera jardín 1/2" x 30 m;Principal;2
+MAN-1015;Manguera jardín 1/2" x 30 m;Sucursal Norte;2
+TOR-1016;Tornillo madera 8x1";Principal;0
+PUN-1017;Puntilla sin cabeza 1 1/2";Principal;580
+PUN-1017;Puntilla sin cabeza 1 1/2";Sucursal Norte;249
+TUB-1018;Tubo PVC sanitario 2";Principal;0
+CIN-1019;Cinta teflón 1/2";Principal;2
+CIN-1019;Cinta teflón 1/2";Sucursal Norte;2
+BRO-1020;Brocha 3";Principal;1
+BRO-1020;Brocha 3";Sucursal Norte;1
+LIJ-1021;Lija agua #220;Principal;44
+LIJ-1021;Lija agua #220;Sucursal Norte;20
+CAN-1022;Candado 50 mm;Principal;0
+CAN-1022;Candado 50 mm;Sucursal Norte;1
+MAN-1023;Manguera nivel 5 m;Principal;214
+MAN-1023;Manguera nivel 5 m;Sucursal Norte;92
+TOR-1024;Tornillo autoperforante 10x3/4";Principal;26
+TOR-1024;Tornillo autoperforante 10x3/4";Sucursal Norte;12
+PUN-1025;Puntilla acero 2";Principal;313
+PUN-1025;Puntilla acero 2";Sucursal Norte;135
+TUB-1026;Tubo PVC sanitario 4";Principal;3
+TUB-1026;Tubo PVC sanitario 4";Sucursal Norte;2
+CIN-1027;Cinta doble faz;Principal;0
+CIN-1027;Cinta doble faz;Sucursal Norte;1
+BRO-1028;Brocha 4";Principal;0
+LIJ-1029;Lija madera #100;Principal;35
+LIJ-1029;Lija madera #100;Sucursal Norte;15
+CAN-1030;Candado 30 mm;Principal;37
+CAN-1030;Candado 30 mm;Sucursal Norte;16
+MAN-1031;Manguera jardín 1/2" x 15 m;Principal;7
+MAN-1031;Manguera jardín 1/2" x 15 m;Sucursal Norte;3
+TOR-1032;Tornillo estufa 1/4x2";Principal;15
+TOR-1032;Tornillo estufa 1/4x2";Sucursal Norte;7
+PUN-1033;Puntilla con cabeza 1";Principal;4
+PUN-1033;Puntilla con cabeza 1";Sucursal Norte;2
+TUB-1034;Tubo PVC presión 1/2";Principal;226
+TUB-1034;Tubo PVC presión 1/2";Sucursal Norte;98
+CIN-1035;Cinta aislante negra;Principal;0
+BRO-1036;Brocha 1";Principal;3
+BRO-1036;Brocha 1";Sucursal Norte;2
+LIJ-1037;Lija agua #80;Principal;21
+LIJ-1037;Lija agua #80;Sucursal Norte;10
+CAN-1038;Candado 40 mm;Principal;57
+CAN-1038;Candado 40 mm;Sucursal Norte;25
+MAN-1039;Manguera jardín 1/2" x 30 m;Principal;14
+MAN-1039;Manguera jardín 1/2" x 30 m;Sucursal Norte;6
+TOR-1040;Tornillo drywall 6x1" ref 40;Principal;758
+TOR-1040;Tornillo drywall 6x1" ref 40;Sucursal Norte;325
+PUN-1041;Puntilla con cabeza 2" ref 41;Principal;36
+PUN-1041;Puntilla con cabeza 2" ref 41;Sucursal Norte;16
+TUB-1042;Tubo PVC presión 3/4" ref 42;Principal;74
+TUB-1042;Tubo PVC presión 3/4" ref 42;Sucursal Norte;33
+CIN-1043;Cinta enmascarar 1" ref 43;Principal;13
+CIN-1043;Cinta enmascarar 1" ref 43;Sucursal Norte;6
+BRO-1044;Brocha 2" ref 44;Principal;0
+LIJ-1045;Lija agua #120 ref 45;Principal;0
+CAN-1046;Candado 50 mm ref 46;Principal;0
+MAN-1047;Manguera nivel 5 m ref 47;Principal;49
+MAN-1047;Manguera nivel 5 m ref 47;Sucursal Norte;22
+TOR-1048;Tornillo drywall 6x2" ref 48;Principal;18
+TOR-1048;Tornillo drywall 6x2" ref 48;Sucursal Norte;8
+PUN-1049;Puntilla sin cabeza 1 1/2" ref 49;Principal;577
+PUN-1049;Puntilla sin cabeza 1 1/2" ref 49;Sucursal Norte;248
+TUB-1050;Tubo PVC sanitario 2" ref 50;Principal;14
+TUB-1050;Tubo PVC sanitario 2" ref 50;Sucursal Norte;6
+CIN-1051;Cinta teflón 1/2" ref 51;Principal;0
+CIN-1051;Cinta teflón 1/2" ref 51;Sucursal Norte;1
+BRO-1052;Brocha 3" ref 52;Principal;30
+BRO-1052;Brocha 3" ref 52;Sucursal Norte;13
+LIJ-1053;Lija agua #220 ref 53;Principal;53
+LIJ-1053;Lija agua #220 ref 53;Sucursal Norte;24
+CAN-1054;Candado 30 mm ref 54;Principal;32
+CAN-1054;Candado 30 mm ref 54;Sucursal Norte;15
+MAN-1055;Manguera jardín 1/2" x 15 m ref 55;Principal;130
+MAN-1055;Manguera jardín 1/2" x 15 m ref 55;Sucursal Norte;57
+TOR-1056;Tornillo madera 8x1" ref 56;Principal;3
+TOR-1056;Tornillo madera 8x1" ref 56;Sucursal Norte;2
+PUN-1057;Puntilla acero 2" ref 57;Principal;26
+PUN-1057;Puntilla acero 2" ref 57;Sucursal Norte;12
+TUB-1058;Tubo PVC sanitario 4" ref 58;Principal;2
+TUB-1058;Tubo PVC sanitario 4" ref 58;Sucursal Norte;1
+CIN-1059;Cinta doble faz ref 59;Principal;17
+CIN-1059;Cinta doble faz ref 59;Sucursal Norte;8
+BRO-1060;Brocha 4" ref 60;Principal;213
+BRO-1060;Brocha 4" ref 60;Sucursal Norte;92
+LIJ-1061;Lija madera #100 ref 61;Principal;0
+CAN-1062;Candado 40 mm ref 62;Principal;5
+CAN-1062;Candado 40 mm ref 62;Sucursal Norte;3
+MAN-1063;Manguera jardín 1/2" x 30 m ref 63;Principal;201
+MAN-1063;Manguera jardín 1/2" x 30 m ref 63;Sucursal Norte;87
+TOR-1064;Tornillo autoperforante 10x3/4" ref 64;Principal;72
+TOR-1064;Tornillo autoperforante 10x3/4" ref 64;Sucursal Norte;31
+PUN-1065;Puntilla con cabeza 1" ref 65;Principal;18
+PUN-1065;Puntilla con cabeza 1" ref 65;Sucursal Norte;8
+TUB-1066;Tubo PVC presión 1/2" ref 66;Principal;15
+TUB-1066;Tubo PVC presión 1/2" ref 66;Sucursal Norte;7
+CIN-1067;Cinta aislante negra ref 67;Principal;0
+CIN-1067;Cinta aislante negra ref 67;Sucursal Norte;1
+BRO-1068;Brocha 1" ref 68;Principal;0
+LIJ-1069;Lija agua #80 ref 69;Principal;65
+LIJ-1069;Lija agua #80 ref 69;Sucursal Norte;29
+CAN-1070;Candado 50 mm ref 70;Principal;0
+MAN-1071;Manguera nivel 5 m ref 71;Principal;3
+MAN-1071;Manguera nivel 5 m ref 71;Sucursal Norte;2
+TOR-1072;Tornillo estufa 1/4x2" ref 72;Principal;1
+TOR-1072;Tornillo estufa 1/4x2" ref 72;Sucursal Norte;1
+PUN-1073;Puntilla con cabeza 2" ref 73;Principal;11
+PUN-1073;Puntilla con cabeza 2" ref 73;Sucursal Norte;6
+TUB-1074;Tubo PVC presión 3/4" ref 74;Principal;3
+TUB-1074;Tubo PVC presión 3/4" ref 74;Sucursal Norte;2
+CIN-1075;Cinta enmascarar 1" ref 75;Principal;28
+CIN-1075;Cinta enmascarar 1" ref 75;Sucursal Norte;13
+BRO-1076;Brocha 2" ref 76;Principal;23
+BRO-1076;Brocha 2" ref 76;Sucursal Norte;11
+LIJ-1077;Lija agua #120 ref 77;Principal;1
+LIJ-1077;Lija agua #120 ref 77;Sucursal Norte;1
+CAN-1078;Candado 30 mm ref 78;Principal;10
+CAN-1078;Candado 30 mm ref 78;Sucursal Norte;5
+MAN-1079;Manguera jardín 1/2" x 15 m ref 79;Principal;37
+MAN-1079;Manguera jardín 1/2" x 15 m ref 79;Sucursal Norte;17
+TOR-1080;Tornillo drywall 6x1" ref 80;Principal;54
+TOR-1080;Tornillo drywall 6x1" ref 80;Sucursal Norte;24
+PUN-1081;Puntilla sin cabeza 1 1/2" ref 81;Principal;0
+TUB-1082;Tubo PVC sanitario 2" ref 82;Principal;296
+TUB-1082;Tubo PVC sanitario 2" ref 82;Sucursal Norte;127
+CIN-1083;Cinta teflón 1/2" ref 83;Principal;49
+CIN-1083;Cinta teflón 1/2" ref 83;Sucursal Norte;22
+BRO-1084;Brocha 3" ref 84;Principal;36
+BRO-1084;Brocha 3" ref 84;Sucursal Norte;16
+LIJ-1085;Lija agua #220 ref 85;Principal;0
+LIJ-1085;Lija agua #220 ref 85;Sucursal Norte;1
+CAN-1086;Candado 40 mm ref 86;Principal;21
+CAN-1086;Candado 40 mm ref 86;Sucursal Norte;10
+MAN-1087;Manguera jardín 1/2" x 30 m ref 87;Principal;9
+MAN-1087;Manguera jardín 1/2" x 30 m ref 87;Sucursal Norte;5
+TOR-1088;Tornillo drywall 6x2" ref 88;Principal;0
+TOR-1088;Tornillo drywall 6x2" ref 88;Sucursal Norte;1
+PUN-1089;Puntilla acero 2" ref 89;Principal;0
+TUB-1090;Tubo PVC sanitario 4" ref 90;Principal;28
+TUB-1090;Tubo PVC sanitario 4" ref 90;Sucursal Norte;12
+CIN-1091;Cinta doble faz ref 91;Principal;60
+CIN-1091;Cinta doble faz ref 91;Sucursal Norte;26
+BRO-1092;Brocha 4" ref 92;Principal;2
+BRO-1092;Brocha 4" ref 92;Sucursal Norte;2
+LIJ-1093;Lija madera #100 ref 93;Principal;4
+LIJ-1093;Lija madera #100 ref 93;Sucursal Norte;2
+CAN-1094;Candado 50 mm ref 94;Principal;3
+CAN-1094;Candado 50 mm ref 94;Sucursal Norte;2
+MAN-1095;Manguera nivel 5 m ref 95;Principal;47
+MAN-1095;Manguera nivel 5 m ref 95;Sucursal Norte;21
+TOR-1096;Tornillo madera 8x1" ref 96;Principal;14
+TOR-1096;Tornillo madera 8x1" ref 96;Sucursal Norte;6
+PUN-1097;Puntilla con cabeza 1" ref 97;Principal;0
+TUB-1098;Tubo PVC presión 1/2" ref 98;Principal;70
+TUB-1098;Tubo PVC presión 1/2" ref 98;Sucursal Norte;30
+CIN-1099;Cinta aislante negra ref 99;Principal;15
+CIN-1099;Cinta aislante negra ref 99;Sucursal Norte;7
+BRO-1100;Brocha 1" ref 100;Principal;4
+BRO-1100;Brocha 1" ref 100;Sucursal Norte;3
+LIJ-1101;Lija agua #80 ref 101;Principal;0
+LIJ-1101;Lija agua #80 ref 101;Sucursal Norte;1
+CAN-1102;Candado 30 mm ref 102;Principal;25
+CAN-1102;Candado 30 mm ref 102;Sucursal Norte;12
+MAN-1103;Manguera jardín 1/2" x 15 m ref 103;Principal;12
+MAN-1103;Manguera jardín 1/2" x 15 m ref 103;Sucursal Norte;6
+TOR-1104;Tornillo autoperforante 10x3/4" ref 104;Principal;27
+TOR-1104;Tornillo autoperforante 10x3/4" ref 104;Sucursal Norte;12
+PUN-1105;Puntilla con cabeza 2" ref 105;Principal;0
+PUN-1105;Puntilla con cabeza 2" ref 105;Sucursal Norte;1
+TUB-1106;Tubo PVC presión 3/4" ref 106;Principal;13
+TUB-1106;Tubo PVC presión 3/4" ref 106;Sucursal Norte;6
+CIN-1107;Cinta enmascarar 1" ref 107;Principal;2
+CIN-1107;Cinta enmascarar 1" ref 107;Sucursal Norte;1
+BRO-1108;Brocha 2" ref 108;Principal;0
+BRO-1108;Brocha 2" ref 108;Sucursal Norte;1
+LIJ-1109;Lija agua #120 ref 109;Principal;16
+LIJ-1109;Lija agua #120 ref 109;Sucursal Norte;7
+CAN-1110;Candado 40 mm ref 110;Principal;60
+CAN-1110;Candado 40 mm ref 110;Sucursal Norte;27
+MAN-1111;Manguera jardín 1/2" x 30 m ref 111;Principal;3
+MAN-1111;Manguera jardín 1/2" x 30 m ref 111;Sucursal Norte;2
+TOR-1112;Tornillo estufa 1/4x2" ref 112;Principal;4
+TOR-1112;Tornillo estufa 1/4x2" ref 112;Sucursal Norte;3
+PUN-1113;Puntilla sin cabeza 1 1/2" ref 113;Principal;0
+TUB-1114;Tubo PVC sanitario 2" ref 114;Principal;307
+TUB-1114;Tubo PVC sanitario 2" ref 114;Sucursal Norte;132
+CIN-1115;Cinta teflón 1/2" ref 115;Principal;0
+CIN-1115;Cinta teflón 1/2" ref 115;Sucursal Norte;1
+BRO-1116;Brocha 3" ref 116;Principal;0
+LIJ-1117;Lija agua #220 ref 117;Principal;5
+LIJ-1117;Lija agua #220 ref 117;Sucursal Norte;3
+CAN-1118;Candado 50 mm ref 118;Principal;140
+CAN-1118;Candado 50 mm ref 118;Sucursal Norte;60
+MAN-1119;Manguera nivel 5 m ref 119;Principal;452
+MAN-1119;Manguera nivel 5 m ref 119;Sucursal Norte;194

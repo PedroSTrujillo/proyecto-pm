@@ -1,0 +1,131 @@
+'use strict';
+
+// Resultados de la prueba, solo para el equipo. Todo sale de los datos guardados.
+//
+// Hipótesis: 3 de 5 usuarios cambian 5 o más líneas de su pedido en 14 días.
+// Pivote:    3 o más de los 5 no cambian ninguna línea o cambian solo una.
+//
+// Para cada usuario se cuentan los pedidos cuya lista final guardó dentro de sus
+// 14 días de prueba (desde que guardó su primera lista inicial) y se toma el
+// pedido con más líneas cambiadas.
+
+const express = require('express');
+const db = require('./db');
+const { requiereEquipo } = require('./cuentas');
+const { pasoDe } = require('./pedidos');
+
+const DIAS_PRUEBA = 14;
+const META_LINEAS = 5;
+const META_USUARIOS = 3;
+const PIVOTE_LINEAS = 1;
+const PIVOTE_USUARIOS = 3;
+const USUARIOS_ESPERADOS = 5;
+
+function evaluarUsuario(pedidos) {
+  const iniciales = pedidos.filter((p) => p.inicialGuardadaEn).map((p) => new Date(p.inicialGuardadaEn).getTime());
+  if (!iniciales.length) return { inicio: null, fin: null, mejor: null, categoria: 'sin_pedido' };
+  const inicio = Math.min(...iniciales);
+  const fin = inicio + DIAS_PRUEBA * 86400000;
+  let mejor = null;
+  for (const p of pedidos) {
+    if (!p.finalGuardadaEn || !p.conteo) continue;
+    const t = new Date(p.finalGuardadaEn).getTime();
+    p.dentroDePrueba = t <= fin;
+    if (!p.dentroDePrueba) continue;
+    if (!mejor || p.conteo.total > mejor.conteo.total || (p.conteo.total === mejor.conteo.total && p.tipo === 'real' && mejor.tipo !== 'real')) mejor = p;
+  }
+  let categoria = 'sin_pedido';
+  if (mejor) {
+    if (mejor.conteo.total >= META_LINEAS) categoria = 'cumple';
+    else if (mejor.conteo.total <= PIVOTE_LINEAS) categoria = 'no_cambia';
+    else categoria = 'intermedio';
+  }
+  return { inicio: new Date(inicio), fin: new Date(fin), mejor: mejor ? { id: mejor.id, total: mejor.conteo.total, tipo: mejor.tipo } : null, categoria };
+}
+
+function resumirPrueba(usuarios) {
+  const cuenta = (cat) => usuarios.filter((u) => u.evaluacion.categoria === cat);
+  const cumplen = cuenta('cumple');
+  const noCambian = cuenta('no_cambia');
+  let veredicto = 'en_curso';
+  if (cumplen.length >= META_USUARIOS) veredicto = 'meta_cumplida';
+  else if (noCambian.length >= PIVOTE_USUARIOS) veredicto = 'pivotar';
+  return {
+    usuarios: usuarios.length,
+    usuariosEsperados: USUARIOS_ESPERADOS,
+    cumplen: cumplen.length,
+    cumplenReal: cumplen.filter((u) => u.evaluacion.mejor.tipo === 'real').length,
+    cumplenSimulado: cumplen.filter((u) => u.evaluacion.mejor.tipo === 'simulado').length,
+    noCambian: noCambian.length,
+    intermedios: cuenta('intermedio').length,
+    sinPedido: cuenta('sin_pedido').length,
+    veredicto,
+    reglas: { diasPrueba: DIAS_PRUEBA, metaLineas: META_LINEAS, metaUsuarios: META_USUARIOS, pivoteLineas: PIVOTE_LINEAS, pivoteUsuarios: PIVOTE_USUARIOS },
+  };
+}
+
+const rutas = express.Router();
+rutas.use(requiereEquipo);
+
+rutas.get('/resultados', async (_req, res) => {
+  const usuarios = await db.query("SELECT id, nombre, email, creado_en FROM usuarios WHERE rol = 'usuario' ORDER BY creado_en");
+  const pedidos = await db.query(
+    `SELECT p.id, p.usuario_id, p.proveedor, p.tipo, p.creado_en, p.inicial_guardada_en, p.export_id,
+            p.reporte_visto_en, p.final_guardada_en, p.terminado_en, p.por_que,
+            p.comparacion->'conteo' AS conteo, jsonb_array_length(p.lista_inicial) AS lineas_inicial,
+            CASE WHEN p.lista_final IS NULL THEN NULL ELSE jsonb_array_length(p.lista_final) END AS lineas_final
+       FROM pedidos p JOIN usuarios u ON u.id = p.usuario_id
+      WHERE u.rol = 'usuario' ORDER BY p.creado_en`,
+  );
+  const eventos = await db.query(
+    `SELECT e.usuario_id, e.tipo, e.pedido_id, e.detalle, e.creado_en
+       FROM eventos e JOIN usuarios u ON u.id = e.usuario_id
+      WHERE u.rol = 'usuario' AND e.tipo IN ('ingreso', 'archivo_subido', 'lista_inicial_guardada', 'reporte_visto', 'lista_final_guardada', 'pedido_terminado')
+      ORDER BY e.creado_en`,
+  );
+  const archivos = await db.query(
+    `SELECT a.usuario_id, a.tipo, count(*)::int AS n FROM archivos a JOIN usuarios u ON u.id = a.usuario_id
+      WHERE u.rol = 'usuario' GROUP BY a.usuario_id, a.tipo`,
+  );
+
+  const lista = usuarios.map((u) => {
+    const suyos = pedidos.filter((p) => p.usuario_id === u.id).map((p) => ({
+      id: p.id,
+      proveedor: p.proveedor,
+      tipo: p.tipo,
+      creadoEn: p.creado_en,
+      paso: pasoDe(p),
+      inicialGuardadaEn: p.inicial_guardada_en,
+      reporteVistoEn: p.reporte_visto_en,
+      finalGuardadaEn: p.final_guardada_en,
+      terminadoEn: p.terminado_en,
+      lineasInicial: p.lineas_inicial,
+      lineasFinal: p.lineas_final,
+      conteo: p.conteo,
+      porQue: p.por_que,
+    }));
+    const evaluacion = evaluarUsuario(suyos);
+    const actividad = eventos.filter((e) => e.usuario_id === u.id).map((e) => ({ tipo: e.tipo, pedidoId: e.pedido_id, detalle: e.detalle, en: e.creado_en }));
+    const ingresos = actividad.filter((e) => e.tipo === 'ingreso');
+    const nArchivos = (tipo) => (archivos.find((a) => a.usuario_id === u.id && a.tipo === tipo) || { n: 0 }).n;
+    return {
+      id: u.id,
+      nombre: u.nombre,
+      email: u.email,
+      creadoEn: u.creado_en,
+      ingresos: ingresos.length,
+      ultimoIngreso: ingresos.length ? ingresos[ingresos.length - 1].en : null,
+      exportsSubidos: actividad.filter((e) => e.tipo === 'archivo_subido' && e.detalle && e.detalle.tipo === 'export').length,
+      archivosExport: nArchivos('export'),
+      archivosLista: nArchivos('lista'),
+      diasConActividad: new Set(actividad.map((e) => new Date(e.en).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }))).size,
+      pedidos: suyos,
+      evaluacion,
+      actividad,
+    };
+  });
+
+  res.json({ resumen: resumirPrueba(lista), usuarios: lista, generadoEn: new Date() });
+});
+
+module.exports = { rutas, evaluarUsuario, resumirPrueba };

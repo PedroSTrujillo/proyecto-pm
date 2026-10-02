@@ -1,0 +1,24 @@
+{
+  "name": "rotacion-inventario",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MVP Alpha 0.1 · Reporte de rotación de inventario por producto",
+  "main": "server/index.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node --test test/*.test.js",
+    "ejemplos": "node scripts/generar-ejemplos.js"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.3.16",
+    "express": "^5.2.1",
+    "multer": "^2.4.0",
+    "pg": "^8.23.1",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  }
+}
