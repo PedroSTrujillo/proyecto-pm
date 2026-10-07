@@ -1,30 +1,45 @@
 import { ChevronDown } from 'lucide-react'
+import { URL_PLANTILLA_EXPORT } from '@/lib/app'
 import { SectionHeading } from './section-heading'
 
-const faqs = [
+const faqs: { q: string; a: React.ReactNode }[] = [
   {
-    q: '¿Qué datos necesito para empezar?',
-    a: 'Un Excel o CSV con sus ventas de las últimas 12 semanas por producto, sacado de su POS o software contable, y su conteo de inventario más reciente. Con eso basta para una primera sugerencia útil.',
+    q: '¿Qué archivo necesito?',
+    a: (
+      <>
+        El que sacas de tu software contable con las ventas de uno a dos años (código del producto, fecha y cantidad
+        vendida) y las existencias de hoy. Puede ser un Excel con dos hojas o dos archivos aparte, en Excel o CSV. Si
+        quieres ver cómo se ve, descarga la{' '}
+        <a href={URL_PLANTILLA_EXPORT} className="text-primary underline underline-offset-2 hover:text-primary-hover">
+          plantilla con un ejemplo
+        </a>
+        .
+      </>
+    ),
   },
   {
-    q: '¿Tengo que conectar Siigo, Alegra o mi POS?',
-    a: 'No. Por ahora trabajamos con el archivo que usted ya puede exportar. Usted indica qué columna es la fecha, cuál el producto y cuál la cantidad, y nosotros hacemos el resto.',
+    q: '¿Tengo que conectar Siigo, SAP o mi POS?',
+    a: 'No. Subes el archivo tal como sale y reconocemos las columnas. Si alguna no la reconocemos, nos dices cuál es cuál una sola vez y la próxima vez la leemos sin preguntar.',
   },
   {
-    q: '¿La herramienta hace los pedidos por mí?',
-    a: 'Nunca. El producto propone y usted decide. Puede cambiar cualquier cantidad con un clic y dejar la razón. Luego exporta el pedido como texto para WhatsApp o PDF y lo envía como siempre.',
+    q: '¿La herramienta me dice cuánto pedir?',
+    a: 'No, y es a propósito. Te muestra para cuántas semanas te alcanza cada producto y tú decides. El pedido se lo sigues mandando al proveedor como siempre.',
   },
   {
-    q: '¿Qué pasa si mis datos están desordenados?',
-    a: 'Le avisamos qué se ve raro: semanas vacías, cantidades negativas o productos duplicados. Por eso trabajamos con ventas, que suelen ser el dato más limpio, y con su conteo físico en lugar del inventario del sistema.',
+    q: '¿Por qué tengo que anotar mi pedido antes de ver el reporte?',
+    a: 'Para poder comparar. Tu primera lista queda fija cuando la guardas, y la final la cambias todo lo que quieras. Al terminar ves, línea por línea, qué cambió después de mirar la rotación.',
   },
   {
-    q: '¿Cómo sé si la sugerencia está bien?',
-    a: 'Cada semana comparamos lo sugerido, lo que usted pidió y lo que realmente vendió, producto por producto. Así ve con sus propios datos si el número le ayuda.',
+    q: '¿Tiene que ser un pedido de verdad?',
+    a: 'No. Puedes marcarlo como simulado y armarlo como si fueras a pedir hoy. Igual ves el reporte completo con tus datos.',
+  },
+  {
+    q: '¿Y si mi archivo tiene cosas raras?',
+    a: 'Te lo decimos. Si algo no se puede leer, te indicamos la fila y la columna. En el reporte también te avisamos si hay productos que no aparecen en las ventas o en las existencias, existencias negativas o menos de seis meses de ventas.',
   },
   {
     q: '¿Quién puede ver mi información?',
-    a: 'Solo su negocio. Cada cuenta está aislada con reglas de acceso en la base de datos, y sus archivos se almacenan de forma privada.',
+    a: 'Tus pedidos y tus archivos solo los ves tú. Mientras dura la prueba, el equipo que hace la herramienta ve cuántas líneas cambiaste y lo que respondes sobre por qué, para saber si te está sirviendo.',
   },
 ]
 

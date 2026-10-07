@@ -5,12 +5,12 @@ const costs = [
   {
     icon: PackageMinus,
     title: 'Quedarse corto',
-    body: 'El pedido falla cada mes y se parcha con pedidos extra, llamadas urgentes y clientes que se van sin su producto.',
+    body: 'Te enteras de que algo se acabó cuando un cliente lo pide. El pedido falla cada mes y se arregla con pedidos extra, llamadas de afán y clientes que se van sin su producto.',
   },
   {
     icon: PackagePlus,
     title: 'Comprar de más',
-    body: 'El proveedor ofrece descuento por volumen, pero nadie sabe si vale la pena llevar más, sobre todo en productos que no rotan igual.',
+    body: 'Se repite el pedido de siempre y la bodega se va llenando de lo que casi no se vende. Es plata quieta que nadie ve hasta el próximo inventario.',
   },
 ]
 
@@ -22,7 +22,7 @@ export function ProblemSection() {
           id="problema-title"
           eyebrow="El problema"
           title="Los datos para pedir mejor ya existen. Solo llegan tarde."
-          description="Sus ventas están en el POS, en el software contable o en las facturas electrónicas. Pero nadie las convierte a tiempo en un número para decidir, y el pedido se sigue armando con experiencia, conteos a mano e informes que llegan cuando ya pasó la semana."
+          description="Tus ventas y tus existencias ya están en el software contable. Pero nadie las convierte a tiempo en algo que sirva para decidir, y el pedido se sigue armando con experiencia, conteos a mano e informes que llegan cuando ya pasó la semana."
         />
         <div className="flex flex-col gap-4">
           {costs.map((cost) => (
@@ -36,7 +36,7 @@ export function ProblemSection() {
               </div>
             </div>
           ))}
-          <blockquote className="rounded-xl border-l-4 border-highlight bg-highlight/15 p-5">
+          <blockquote className="rounded-xl border-l-4 border-primary bg-secondary p-5">
             <p className="text-pretty leading-relaxed">
               {
                 '"La tocineta no va en todas las hamburguesas, así que no sabemos cuánta vamos a usar ni si nos conviene el descuento."'

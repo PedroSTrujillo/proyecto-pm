@@ -1,50 +1,22 @@
-import Link from 'next/link'
-import { Check } from 'lucide-react'
+import { Check, Minus } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
+import { URL_CREAR_CUENTA } from '@/lib/app'
 import { cn } from '@/lib/utils'
 import { SectionHeading } from './section-heading'
 
-const plans = [
-  {
-    name: 'Piloto',
-    price: 'Gratis',
-    period: '4 semanas',
-    description: 'Le acompañamos con sus productos más difíciles antes de que pague un peso.',
-    features: [
-      'Análisis de 12 semanas de ventas',
-      'De 5 a 10 productos críticos',
-      'Sugerencia semanal por WhatsApp o correo',
-      'Comparación sugerido vs. vendido',
-    ],
-    cta: 'Empezar el piloto',
-    featured: true,
-  },
-  {
-    name: 'Esencial',
-    price: '$150.000',
-    period: 'COP / mes',
-    description: 'Para negocios con un punto de venta y un día de pedido fijo.',
-    features: [
-      'Carga de Excel o CSV ilimitada',
-      'Pedido sugerido con rango y explicación',
-      'Exportación a WhatsApp y PDF',
-      'Alertas de datos sucios',
-    ],
-    cta: 'Hablar con nosotros',
-  },
-  {
-    name: 'Crecimiento',
-    price: '$300.000',
-    period: 'COP / mes',
-    description: 'Para distribuidoras con más referencias y varios proveedores.',
-    features: [
-      'Todo lo de Esencial',
-      'Calculadora de descuento por volumen',
-      'Ajuste por estacionalidad anual',
-      'Enlace para compartir con su equipo',
-    ],
-    cta: 'Hablar con nosotros',
-  },
+const incluye = [
+  'Reporte de rotación de todos tus productos',
+  'Excel o CSV, en uno o en varios archivos',
+  'Tu lista de antes y la de después, comparadas',
+  'Pedidos reales o simulados',
+  'Plantillas de ejemplo para descargar',
+]
+
+const noHace = [
+  'No te dice cuánto pedir. Eso lo decides tú.',
+  'No ajusta por temporada ni por el tiempo de entrega del proveedor.',
+  'No se conecta a tu software contable: tú subes el archivo.',
+  'No manda alertas ni hace pedidos por ti.',
 ]
 
 export function PricingSection() {
@@ -54,62 +26,59 @@ export function PricingSection() {
         <SectionHeading
           id="precio-title"
           eyebrow="Precio"
-          title="Primero pruébelo con sus datos. Después decide."
-          description="Una suscripción mensual por negocio, sin contratos de permanencia ni costos de implementación."
+          title="Por ahora no cuesta nada."
+          description="Estamos probando la herramienta con un grupo pequeño de distribuidoras. Úsala en tus próximos pedidos y cuéntanos qué te sirvió y qué no. No pedimos tarjeta ni hay nada que firmar."
         />
-        <div className="mt-14 grid gap-4 lg:grid-cols-3">
-          {plans.map((plan) => (
-            <div
-              key={plan.name}
-              className={cn(
-                'flex flex-col rounded-2xl border p-6 md:p-8',
-                plan.featured ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background',
-              )}
-            >
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold">{plan.name}</h3>
-                {plan.featured ? (
-                  <span className="rounded-full bg-highlight px-2.5 py-1 text-xs font-medium text-highlight-foreground">
-                    Recomendado
-                  </span>
-                ) : null}
-              </div>
-              <p className="mt-6">
-                <span className="font-mono text-4xl font-semibold tracking-tight">{plan.price}</span>{' '}
-                <span className={cn('text-sm', plan.featured ? 'text-primary-foreground/70' : 'text-muted-foreground')}>
-                  {plan.period}
-                </span>
-              </p>
-              <p
-                className={cn(
-                  'mt-3 leading-relaxed',
-                  plan.featured ? 'text-primary-foreground/80' : 'text-muted-foreground',
-                )}
-              >
-                {plan.description}
-              </p>
-              <ul className="mt-6 flex flex-1 flex-col gap-3 text-sm">
-                {plan.features.map((feature) => (
-                  <li key={feature} className="flex gap-2">
-                    <Check
-                      className={cn('mt-0.5 size-4 shrink-0', plan.featured ? 'text-highlight' : 'text-primary')}
-                      aria-hidden="true"
-                    />
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-              <Link
-                href="#piloto"
-                className={cn(
-                  buttonVariants({ variant: plan.featured ? 'secondary' : 'outline', size: 'lg' }),
-                  'mt-8 h-11 w-full text-base',
-                )}
-              >
-                {plan.cta}
-              </Link>
+        <div className="mt-14 grid gap-4 lg:grid-cols-2">
+          <div className="flex flex-col rounded-2xl border border-primary bg-primary p-6 text-primary-foreground md:p-8">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">Versión de prueba</h3>
+              <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">
+                Abierta
+              </span>
             </div>
-          ))}
+            <p className="mt-6">
+              <span className="text-4xl font-bold tracking-tight">Gratis</span>{' '}
+              <span className="text-sm text-primary-foreground/75">mientras dure la prueba</span>
+            </p>
+            <p className="mt-3 leading-relaxed text-primary-foreground/85">
+              Todo lo que hace la herramienta hoy, para todos los pedidos que quieras preparar.
+            </p>
+            <ul className="mt-6 flex flex-1 flex-col gap-3 text-sm">
+              {incluye.map((item) => (
+                <li key={item} className="flex gap-2">
+                  <Check className="mt-0.5 size-4 shrink-0 text-secondary" aria-hidden="true" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+            <a
+              href={URL_CREAR_CUENTA}
+              className={cn(buttonVariants({ variant: 'secondary', size: 'lg' }), 'mt-8 h-11 w-full text-base')}
+            >
+              Crear mi cuenta
+            </a>
+          </div>
+
+          <div className="flex flex-col rounded-2xl border border-border bg-background p-6 md:p-8">
+            <h3 className="font-semibold">Lo que no hace, a propósito</h3>
+            <p className="mt-3 leading-relaxed text-muted-foreground">
+              Lo dejamos por fuera para mantenerla simple. Primero queremos saber si ver la rotación te cambia el
+              pedido; lo demás puede venir después.
+            </p>
+            <ul className="mt-6 mb-8 flex flex-col gap-3 text-sm">
+              {noHace.map((item) => (
+                <li key={item} className="flex gap-2">
+                  <Minus className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-auto rounded-xl border border-border bg-card p-4 text-sm leading-relaxed text-muted-foreground">
+              Para eso está tu criterio: tú sabes cuándo llega la temporada, qué proveedor se demora y qué cliente
+              grande viene en camino.
+            </p>
+          </div>
         </div>
       </div>
     </section>

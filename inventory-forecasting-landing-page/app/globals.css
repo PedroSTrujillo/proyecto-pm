@@ -5,8 +5,8 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -17,13 +17,13 @@
   --color-border: var(--border);
   --color-destructive: var(--destructive);
   --color-highlight: var(--highlight);
-  --color-highlight-foreground: var(--highlight-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
   --color-muted: var(--muted);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-secondary: var(--secondary);
+  --color-primary-hover: var(--primary-hover);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
   --color-popover-foreground: var(--popover-foreground);
@@ -32,6 +32,17 @@
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
+  /* Estados del reporte, iguales a los de la aplicación */
+  --color-rojo: var(--rojo);
+  --color-rojo-fondo: var(--rojo-fondo);
+  --color-rojo-borde: var(--rojo-borde);
+  --color-azul: var(--azul);
+  --color-azul-fondo: var(--azul-fondo);
+  --color-azul-borde: var(--azul-borde);
+  --color-verde: var(--verde);
+  --color-verde-fondo: var(--verde-fondo);
+  --color-ambar: var(--ambar);
+  --color-ambar-fondo: var(--ambar-fondo);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -41,33 +52,44 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* Mismos colores que la aplicación (public/estilos.css). */
 :root {
   color-scheme: light;
-  --background: oklch(0.982 0.008 85);
-  --foreground: oklch(0.22 0.025 165);
-  --card: oklch(0.995 0.004 85);
-  --card-foreground: oklch(0.22 0.025 165);
-  --popover: oklch(0.995 0.004 85);
-  --popover-foreground: oklch(0.22 0.025 165);
-  --primary: oklch(0.4 0.08 162);
-  --primary-foreground: oklch(0.985 0.006 85);
-  --secondary: oklch(0.945 0.018 150);
-  --secondary-foreground: oklch(0.3 0.06 162);
-  --muted: oklch(0.955 0.01 85);
-  --muted-foreground: oklch(0.47 0.02 165);
-  --accent: oklch(0.945 0.018 150);
-  --accent-foreground: oklch(0.3 0.06 162);
-  --highlight: oklch(0.82 0.13 78);
-  --highlight-foreground: oklch(0.28 0.05 60);
-  --destructive: oklch(0.56 0.19 30);
-  --border: oklch(0.9 0.012 85);
-  --input: oklch(0.88 0.012 85);
-  --ring: oklch(0.55 0.08 162);
-  --chart-1: oklch(0.4 0.08 162);
-  --chart-2: oklch(0.82 0.13 78);
-  --chart-3: oklch(0.6 0.05 165);
-  --chart-4: oklch(0.7 0.02 85);
-  --chart-5: oklch(0.3 0.04 165);
+  --background: #f5f6f8;
+  --foreground: #1d2433;
+  --card: #ffffff;
+  --card-foreground: #1d2433;
+  --popover: #ffffff;
+  --popover-foreground: #1d2433;
+  --primary: #0f766e;
+  --primary-hover: #0b5d57;
+  --primary-foreground: #ffffff;
+  --secondary: #e6f4f2;
+  --secondary-foreground: #0b5d57;
+  --muted: #f1f3f6;
+  --muted-foreground: #5b6475;
+  --accent: #e6f4f2;
+  --accent-foreground: #0b5d57;
+  --highlight: #7cc4bc;
+  --destructive: #b42318;
+  --border: #e2e5ea;
+  --input: #c9ced6;
+  --ring: #7cc4bc;
+  --rojo: #b42318;
+  --rojo-fondo: #fef0ee;
+  --rojo-borde: #f6c9c2;
+  --azul: #1d5bbf;
+  --azul-fondo: #eef4fd;
+  --azul-borde: #c7daf6;
+  --verde: #12703f;
+  --verde-fondo: #e9f7ef;
+  --ambar: #8a5a00;
+  --ambar-fondo: #fff6e0;
+  --chart-1: #0f766e;
+  --chart-2: #1d5bbf;
+  --chart-3: #b42318;
+  --chart-4: #8a5a00;
+  --chart-5: #5b6475;
   --radius: 0.625rem;
 }
 

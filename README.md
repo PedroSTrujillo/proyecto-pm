@@ -34,6 +34,18 @@ npm run ejemplos
 
 `npm test` corre 34 pruebas automáticas: cálculo, comparación de listas, lector de archivos y API. `npm run ejemplos` crea en `ejemplos/` exports inventados con formatos distintos (CSV estilo Siigo, Excel estilo SAP, informe con una columna por mes, un catálogo de 3.000 productos y un informe de mínimos), para hacer demos y pruebas.
 
+## Landing page
+
+La carpeta `inventory-forecasting-landing-page/` tiene la página de presentación, hecha en Next.js. Usa los mismos colores, el mismo logo, los mismos umbrales (2 y 12 semanas) y los mismos textos que la aplicación, y sus botones llevan a crear cuenta, a entrar y a la plantilla de ejemplo.
+
+```bash
+cd inventory-forecasting-landing-page
+pnpm install
+NEXT_PUBLIC_APP_URL=http://localhost:3000 pnpm dev -p 3001
+```
+
+Al publicarla (por ejemplo en Vercel), configura `NEXT_PUBLIC_APP_URL` con la URL de la aplicación en Render. Sin esa variable, los botones apuntan a `http://localhost:3000`.
+
 ## Variables de entorno
 
 | Variable | Para qué | Ejemplo |
@@ -110,6 +122,7 @@ server/
   listas.js       validación y comparación de listas
   plantillas.js   plantillas descargables
 public/           index.html, estilos.css, js/ (app, hoja tipo Excel, reporte)
+inventory-forecasting-landing-page/   página de presentación (Next.js)
 docs/             modelo matemático
 test/             pruebas automáticas (node --test)
 scripts/          generador de archivos de ejemplo

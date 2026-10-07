@@ -4,26 +4,26 @@ import { SectionHeading } from './section-heading'
 const traits = [
   {
     icon: Repeat,
-    title: 'Compra seguido a los mismos proveedores',
-    body: 'Pedidos semanales o quincenales, con productos que se repiten.',
+    title: 'Le compras seguido a los mismos proveedores',
+    body: 'Pedidos cada semana o cada quince días, con productos que se repiten.',
   },
   {
     icon: Receipt,
-    title: 'Sus ventas ya quedan registradas',
-    body: 'En el POS, la facturación electrónica o un software contable del que puede sacar un Excel.',
+    title: 'Tus ventas ya quedan en el sistema',
+    body: 'En Siigo, SAP, SIESA, CGUNO, World Office o cualquier programa del que puedas sacar un Excel.',
   },
   {
     icon: Scale,
-    title: 'Decide la cantidad sin un número calculado',
-    body: 'Con experiencia, conteos o informes de los puntos, y lo corrige con pedidos extra.',
+    title: 'Decides cuánto pedir sin un número a la mano',
+    body: 'Con experiencia, conteos o el informe de mínimos, y lo corriges con pedidos extra.',
   },
 ]
 
 const principles = [
-  'Explicamos cada concepto sin jerga financiera.',
-  'Trabajamos en pasos pequeños y claros.',
-  'Usamos su conteo físico, no el inventario del sistema.',
-  'Nunca hacemos pedidos por usted.',
+  'Cada número viene con su cuenta.',
+  'Pasos cortos y claros.',
+  'Tu archivo, tal como sale.',
+  'Nunca pedimos por ti.',
 ]
 
 export function AudienceSection() {
@@ -34,7 +34,7 @@ export function AudienceSection() {
           id="para-quien-title"
           eyebrow="Para quién es"
           title="Hecho para distribuidoras y comercializadoras de 10 a 50 empleados."
-          description="Para el encargado de inventario o administrador que proyecta la rotación y coordina el reabastecimiento. Si se reconoce en estas tres cosas, es para usted."
+          description="Para quien lleva el inventario o administra el negocio y se encarga de que no falte nada sin llenar la bodega. Si te reconoces en estas tres cosas, es para ti."
         />
         <div className="mt-14 grid gap-4 md:grid-cols-3">
           {traits.map((trait) => (
@@ -46,7 +46,7 @@ export function AudienceSection() {
           ))}
         </div>
         <div className="mt-6 flex flex-col gap-4 rounded-2xl bg-secondary p-6 md:flex-row md:items-center md:justify-between">
-          <p className="font-semibold text-secondary-foreground">Su experiencia no se reemplaza. Se apoya.</p>
+          <p className="font-semibold text-secondary-foreground">Tu experiencia sigue mandando.</p>
           <ul className="flex flex-wrap gap-2">
             {principles.map((p) => (
               <li key={p} className="rounded-full bg-card px-3 py-1.5 text-sm text-foreground">

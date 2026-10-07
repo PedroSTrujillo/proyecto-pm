@@ -1,52 +1,55 @@
-import { SectionHeading } from './section-heading'
+import { SEMANAS_EJEMPLO, productoEjemplo } from '@/lib/ejemplo'
+import { SEMANAS_SE_AGOTA, SEMANAS_SOBRA, numero, semanas, ventasSemana } from '@/lib/rotacion'
+
+const ejemplo = productoEjemplo('TOR-0610')
 
 const pieces = [
   {
-    label: 'Demanda esperada',
-    body: 'Promedio ponderado de las últimas 8 semanas, con más peso en las recientes. Con más de un año de historia, se ajusta por estacionalidad del mes.',
-    example: '28 kg / semana',
+    label: 'Semanas de ventas',
+    body: 'Contamos desde la primera hasta la última fecha de tu archivo. Lo ideal es que traiga uno o dos años.',
+    example: `${SEMANAS_EJEMPLO * 7} días = ${SEMANAS_EJEMPLO} semanas`,
   },
   {
-    label: 'Cobertura',
-    body: 'La demanda se multiplica por las semanas hasta el siguiente pedido más el tiempo de entrega del proveedor.',
-    example: '× 1,3 semanas',
+    label: 'Ventas por semana',
+    body: 'Todo lo que vendiste del producto en ese tiempo, dividido entre esas semanas. Las devoluciones se restan.',
+    example: `${numero(ejemplo.vendido)} ÷ ${SEMANAS_EJEMPLO} = ${ventasSemana(ejemplo.promedioSemanal)}`,
   },
   {
-    label: 'Colchón',
-    body: 'Un margen según qué tanto varían las ventas. Poco para productos estables, más para los que suben y bajan. En perecederos, se limita por la vida útil.',
-    example: '+ 3,6 kg',
+    label: 'Semanas de inventario',
+    body: 'Lo que tienes hoy dividido entre lo que vendes por semana. Si el producto está en varias bodegas, se suma todo.',
+    example: `${numero(ejemplo.existencias)} ÷ ${ventasSemana(ejemplo.promedioSemanal)} = ${semanas(ejemplo.semanasInventario)}`,
   },
   {
-    label: 'Pedido sugerido',
-    body: 'Cobertura más colchón, menos lo que tiene hoy, redondeado a la presentación en que compra: kilos, cajas o paquetes.',
-    example: '− 6 kg = 34 kg',
+    label: 'Se agota o sobra',
+    body: `Menos de ${SEMANAS_SE_AGOTA} semanas: se agota y va arriba, en rojo. Más de ${SEMANAS_SOBRA} semanas, o sin ventas: sobra, en azul.`,
+    example: `${semanas(ejemplo.semanasInventario)} → se agota`,
   },
 ]
 
 export function MethodSection() {
   return (
     <section
-      id="metodo"
-      aria-labelledby="metodo-title"
+      id="calculo"
+      aria-labelledby="calculo-title"
       className="scroll-mt-20 bg-primary text-primary-foreground"
     >
       <div className="mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
         <div className="grid gap-12 lg:grid-cols-[1fr_1.2fr] lg:gap-16">
           <div>
-            <p className="font-mono text-xs font-medium uppercase tracking-widest text-highlight">El método</p>
-            <h2 id="metodo-title" className="mt-3 text-balance text-3xl font-semibold tracking-tight md:text-4xl">
-              Un número que puede explicarle a su jefe.
+            <p className="font-mono text-xs font-medium uppercase tracking-widest text-secondary">El cálculo</p>
+            <h2 id="calculo-title" className="mt-3 text-balance text-3xl font-bold tracking-tight md:text-4xl">
+              Un número que puedes explicarle a tu jefe.
             </h2>
-            <p className="mt-4 text-pretty text-lg leading-relaxed text-primary-foreground/80">
-              Combinamos métodos clásicos de pronóstico financiero con aprendizaje automático, pero nunca le
-              entregamos una caja negra. Cada cantidad viene con sus supuestos a la vista y un rango de mínimo a
-              máximo que le deja espacio a su criterio.
+            <p className="mt-4 text-pretty text-lg leading-relaxed text-primary-foreground/85">
+              No hay fórmulas escondidas ni nada que configurar. Son dos divisiones con los datos de tu propio archivo,
+              y en el reporte te mostramos la cuenta hecha con uno de tus productos.
             </p>
             <div className="mt-8 rounded-xl border border-primary-foreground/15 bg-primary-foreground/5 p-5">
-              <p className="text-sm text-primary-foreground/70">Medimos la calidad del número</p>
+              <p className="text-sm text-primary-foreground/75">¿Por qué usamos todo el histórico?</p>
               <p className="mt-2 leading-relaxed">
-                Comparamos el error de la sugerencia contra lo que realmente vendió, y contra el error del pedido que
-                usted hizo por su cuenta. Así sabe, con datos, si le está sirviendo.
+                Si un producto se vende una vez cada mes y medio y solo miras las últimas cuatro semanas, la mitad de
+                las veces te va a salir en cero. Con un año de ventas eso casi no pasa, y no das por muerto algo que sí
+                se mueve.
               </p>
             </div>
           </div>
@@ -56,14 +59,14 @@ export function MethodSection() {
                 key={piece.label}
                 className="grid gap-3 rounded-xl border border-primary-foreground/15 bg-primary-foreground/5 p-5 sm:grid-cols-[auto_1fr_auto] sm:items-start sm:gap-5"
               >
-                <span className="flex size-8 items-center justify-center rounded-full bg-highlight font-mono text-sm font-semibold text-highlight-foreground">
+                <span className="flex size-8 items-center justify-center rounded-full bg-secondary text-sm font-bold text-secondary-foreground">
                   {index + 1}
                 </span>
                 <div>
                   <h3 className="font-semibold">{piece.label}</h3>
-                  <p className="mt-1 text-sm leading-relaxed text-primary-foreground/75">{piece.body}</p>
+                  <p className="mt-1 text-sm leading-relaxed text-primary-foreground/80">{piece.body}</p>
                 </div>
-                <span className="font-mono text-sm text-highlight sm:text-right">{piece.example}</span>
+                <span className="font-mono text-sm whitespace-nowrap text-secondary sm:text-right">{piece.example}</span>
               </li>
             ))}
           </ol>
