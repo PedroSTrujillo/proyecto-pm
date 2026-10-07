@@ -1,36 +1,32 @@
-import { BarChart3, ClipboardList, FileSpreadsheet, MessageCircle, SlidersHorizontal, Store } from 'lucide-react'
+import { BarChart3, ClipboardList, Clock, FileSpreadsheet, MessageCircle, SlidersHorizontal } from 'lucide-react'
 import { SectionHeading } from './section-heading'
 
+// Los mismos 5 pasos de la aplicación, con los mismos nombres.
 const steps = [
   {
-    icon: Store,
-    title: 'Registre su negocio',
-    body: 'Nombre, día de pedido y sus proveedores principales. Nada más.',
+    icon: ClipboardList,
+    title: 'Anota lo que ibas a pedir',
+    body: 'Antes de ver el reporte, escribe tu pedido como lo harías hoy. Puedes pegar filas desde Excel o importar tu archivo de pedido.',
   },
   {
     icon: FileSpreadsheet,
-    title: 'Suba su Excel o CSV',
-    body: 'Indique qué columna es la fecha, el producto y la cantidad. Le avisamos si hay semanas vacías, cantidades negativas o productos duplicados.',
-  },
-  {
-    icon: ClipboardList,
-    title: 'Ingrese su conteo',
-    body: 'Lo que tiene hoy en bodega para los productos que va a pedir. Su conteo físico, no el inventario del sistema.',
+    title: 'Sube el export de ventas y existencias',
+    body: 'De uno a dos años de ventas y lo que tienes hoy, tal como sale de Siigo, SAP, SIESA, CGUNO, World Office u otro programa.',
   },
   {
     icon: BarChart3,
-    title: 'Vea el pedido sugerido',
-    body: 'Cantidad sugerida, un rango de mínimo a máximo y la explicación de cada número en una línea.',
+    title: 'Mira la rotación',
+    body: 'Cada producto con sus semanas de inventario. Lo que se agota en menos de dos semanas sale en rojo; lo que sobra, en azul.',
   },
   {
     icon: SlidersHorizontal,
-    title: 'Ajuste y confirme',
-    body: 'Cambie las cantidades que quiera y, si desea, deje la razón. Su criterio sigue mandando.',
+    title: 'Ajusta tu lista',
+    body: 'Arrancas con una copia de tu lista y la cambias con el reporte al lado, hasta que quede lo que de verdad vas a pedir.',
   },
   {
     icon: MessageCircle,
-    title: 'Envíelo al proveedor',
-    body: 'Exporte el pedido como texto listo para WhatsApp o como PDF para compartir con su jefe o socios.',
+    title: 'Cuéntanos por qué',
+    body: 'Ves qué agregaste, qué quitaste y qué cantidades cambiaste, y nos cuentas por qué. Si no cambiaste nada, también nos sirve saberlo.',
   },
 ]
 
@@ -41,8 +37,8 @@ export function HowItWorks() {
         <SectionHeading
           id="como-funciona-title"
           eyebrow="Cómo funciona"
-          title="Se ancla en el pedido que ya iba a hacer. El mismo día, el mismo canal."
-          description="No cambia su forma de trabajar: le entrega un número mejor justo antes de decidir."
+          title="Empieza por el pedido que ya ibas a hacer."
+          description="No cambias tu forma de trabajar. Anotas tu pedido como siempre, miras la rotación y decides si algo cambia."
         />
         <ol className="mt-14 grid gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-3">
           {steps.map((step, index) => (
@@ -61,6 +57,18 @@ export function HowItWorks() {
               </div>
             </li>
           ))}
+          <li className="flex flex-col gap-4 bg-secondary p-6 text-secondary-foreground">
+            <span className="flex size-10 items-center justify-center rounded-lg bg-card text-primary">
+              <Clock className="size-5" aria-hidden="true" />
+            </span>
+            <div>
+              <h3 className="font-semibold">¿Cuánto toma?</h3>
+              <p className="mt-2 leading-relaxed">
+                Unos cinco minutos si tienes el export a mano. Si te toca parar, el borrador se guarda solo y sigues
+                después.
+              </p>
+            </div>
+          </li>
         </ol>
       </div>
     </section>

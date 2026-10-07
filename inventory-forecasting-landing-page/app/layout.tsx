@@ -1,15 +1,11 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
 
-const geistSans = Geist({ subsets: ['latin'], variable: '--font-geist-sans' })
-const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono' })
-
 export const metadata: Metadata = {
-  title: 'Pedido Sugerido · Pronóstico de inventario para distribuidoras',
+  title: 'Rotación de inventario · Qué se agota y qué sobra, producto por producto',
   description:
-    'Suba su Excel o CSV de ventas y reciba cada semana una cantidad sugerida por producto, calculada con sus propios datos y explicada en una línea. El producto propone; usted decide.',
+    'Sube el export de tu software contable y mira, en semanas de inventario, qué productos se agotan primero y cuáles sobran.',
   generator: 'v0.app',
   icons: {
     icon: [
@@ -32,7 +28,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   colorScheme: 'light',
-  themeColor: '#f9f7f1',
+  themeColor: '#ffffff',
 }
 
 export default function RootLayout({
@@ -41,7 +37,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="es" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="es">
       <body className="font-sans antialiased">
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}

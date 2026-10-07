@@ -3,8 +3,8 @@ import { Hero } from '@/components/landing/hero'
 import { ProblemSection } from '@/components/landing/problem-section'
 import { HowItWorks } from '@/components/landing/how-it-works'
 import { MethodSection } from '@/components/landing/method-section'
-import { DiscountSection } from '@/components/landing/discount-section'
-import { ResultsSection } from '@/components/landing/results-section'
+import { CalculatorSection } from '@/components/landing/calculator-section'
+import { ComparisonSection } from '@/components/landing/comparison-section'
 import { AudienceSection } from '@/components/landing/audience-section'
 import { PricingSection } from '@/components/landing/pricing-section'
 import { FaqSection } from '@/components/landing/faq-section'
@@ -20,8 +20,8 @@ export default function Page() {
         <ProblemSection />
         <HowItWorks />
         <MethodSection />
-        <DiscountSection />
-        <ResultsSection />
+        <CalculatorSection />
+        <ComparisonSection />
         <AudienceSection />
         <PricingSection />
         <FaqSection />
