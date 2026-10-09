@@ -10,7 +10,7 @@ const reassurances = ['Lee tu Excel o CSV tal como sale', 'No hay que conectar n
 export function Hero() {
   return (
     <section aria-labelledby="hero-title" className="relative overflow-hidden">
-      <div className="mx-auto grid max-w-6xl gap-12 px-4 pb-20 pt-16 md:px-6 md:pt-24 lg:grid-cols-[1.05fr_1fr] lg:items-center lg:gap-16">
+      <div className="mx-auto grid max-w-7xl gap-12 px-4 pb-20 pt-16 md:px-6 md:pt-24 lg:grid-cols-[0.9fr_1.2fr] lg:items-center lg:gap-12">
         <div>
           <p className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
             <span className="size-1.5 rounded-full bg-primary" aria-hidden="true" />

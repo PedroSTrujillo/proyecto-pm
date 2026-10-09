@@ -38,11 +38,13 @@ export function ProblemSection() {
           ))}
           <blockquote className="rounded-xl border-l-4 border-primary bg-secondary p-5">
             <p className="text-pretty leading-relaxed">
-              {
-                '"La tocineta no va en todas las hamburguesas, así que no sabemos cuánta vamos a usar ni si nos conviene el descuento."'
-              }
+              La información sale del software contable, se exporta a Excel y depende de que una persona la revise,
+              la filtre y la analice a mano. Lo que más piden son alertas a tiempo, no informes que alguien tenga que
+              descargar.
             </p>
-            <footer className="mt-3 text-sm text-muted-foreground">Dueño de una cadena de hamburguesas</footer>
+            <footer className="mt-3 text-sm text-muted-foreground">
+              Lo que nos contó una persona que asesora el reabastecimiento de pequeñas empresas
+            </footer>
           </blockquote>
         </div>
       </div>

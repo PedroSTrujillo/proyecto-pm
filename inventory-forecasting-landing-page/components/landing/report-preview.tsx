@@ -40,13 +40,13 @@ export function ReportPreview() {
               <th scope="col" className="py-2 pl-5 pr-2 font-semibold">
                 Producto
               </th>
-              <th scope="col" className="hidden w-20 whitespace-nowrap px-2 py-2 text-right font-semibold sm:table-cell">
+              <th scope="col" className="hidden w-28 whitespace-nowrap px-3 py-2 text-right font-semibold sm:table-cell">
                 Por semana
               </th>
-              <th scope="col" className="hidden w-[5.25rem] px-2 py-2 text-right font-semibold sm:table-cell">
+              <th scope="col" className="hidden w-28 px-3 py-2 text-right font-semibold sm:table-cell">
                 Existencias
               </th>
-              <th scope="col" className="w-32 py-2 pl-2 pr-5 text-right font-semibold">
+              <th scope="col" className="w-40 py-2 pl-3 pr-5 text-right font-semibold">
                 Semanas
               </th>
             </tr>
@@ -82,15 +82,15 @@ function Fila({ p }: { p: ProductoEjemplo }) {
   const seAgota = p.estado === 'se_agota'
   return (
     <tr className={cn(seAgota && 'bg-rojo-fondo', p.sobra && 'bg-azul-fondo')}>
-      <td className="py-2.5 pl-5 pr-2">
+      <td className="py-3 pl-5 pr-3">
         <span className="block font-mono text-[0.7rem] text-muted-foreground">{p.codigo}</span>
         <span className="block truncate font-medium" title={p.nombre}>
           {p.nombre}
         </span>
       </td>
-      <td className="hidden px-2 py-2.5 text-right tabular-nums sm:table-cell">{ventasSemana(p.promedioSemanal)}</td>
-      <td className="hidden px-2 py-2.5 text-right tabular-nums sm:table-cell">{numero(p.existencias)}</td>
-      <td className="py-2.5 pl-2 pr-5 text-right">
+      <td className="hidden px-3 py-3 text-right tabular-nums sm:table-cell">{ventasSemana(p.promedioSemanal)}</td>
+      <td className="hidden px-3 py-3 text-right tabular-nums sm:table-cell">{numero(p.existencias)}</td>
+      <td className="py-3 pl-3 pr-5 text-right">
         <span className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
           {p.semanasInventario === null ? (
             <span className="text-xs italic text-muted-foreground">Sin ventas</span>
