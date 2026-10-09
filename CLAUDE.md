@@ -1,0 +1,108 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Qué es este proyecto
+
+MVP Alpha 0.1 del Grupo 1 (curso Diseño de Productos, Uniandes). Es una app web donde un gerente o administrador de inventario sube el export de ventas y existencias de su software contable y ve sus productos ordenados por **semanas de inventario restantes**.
+
+El producto existe para probar una sola hipótesis (Entregable 2, pestaña 2):
+
+> Creemos que un reporte de rotación por producto calculado desde el export del software contable, para gerentes y administradores de inventario que coordinan el reabastecimiento, logrará que **3 de 5 cambien 5 o más líneas de su pedido en 14 días**, medido por las líneas que agrega, quita o ajusta.
+
+**Pivote:** 3 o más de los 5 cambian 0 o 1 línea, o cambian líneas "por probar la herramienta" y no porque el dato les pareciera correcto.
+
+Cualquier cambio se juzga por si ayuda o estorba a medir esa hipótesis. Una funcionalidad que no sirve para medirla no entra en Alpha 0.1.
+
+Fuentes de contexto fuera del repo, en la carpeta padre (`../`):
+- `../Entregable 2.xlsx`: ICP + JTBD revisado, hipótesis MVP, plan de prueba, Market Product Fit, cambios y reflexión, rúbrica. **El plan de prueba de la pestaña 2 es lo que se califica en la Entrega 3.**
+- `../Conversaciones Grupo 1.xlsx`: registro de entrevistas, con fecha, actor y hallazgo clave. Las transcripciones están en un Drive enlazado desde el Entregable 2.
+- No son legibles con las herramientas de texto. Para leerlos: `node -e 'const X=require("xlsx");const wb=X.readFile("../Entregable 2.xlsx");for(const s of wb.SheetNames)console.log(s,X.utils.sheet_to_csv(wb.Sheets[s]))'` desde la raíz del repo, después de `npm install`. Las fechas salen como números seriales de Excel: 46281 = 2026-09-16.
+
+`README.md` documenta el despliegue (Render + Neon), las variables de entorno y la tabla "Cómo se cumple el documento", que relaciona cada requisito con el archivo donde se implementa. `docs/modelo-rotacion.md` es la fuente de verdad del modelo matemático y de la métrica.
+
+## Comandos
+
+Requiere Node.js 20 o superior. Las pruebas fallan si no se ha corrido `npm install`.
+
+```bash
+npm install
+TEAM_EMAILS=tu-correo@ejemplo.com npm start    # http://localhost:3000; PGlite en data/pglite/
+npm run dev                                      # igual, con node --watch
+npm test                                         # node --test test/*.test.js (34 pruebas)
+node --test test/rotacion.test.js                # un solo archivo
+node --test --test-name-pattern="M = 5" test/listas.test.js   # una prueba por nombre
+npm run ejemplos                                 # regenera los exports inventados de ejemplos/
+```
+
+No hay linter, formateador ni paso de compilación. `DATA_DIR=memory://` deja la base en memoria (lo usan las pruebas). Para empezar con la base local vacía, borra `data/pglite/`.
+
+## Arquitectura
+
+**Backend** (`server/`, CommonJS con `'use strict'`): Express 5. Usa PostgreSQL con `pg` si existe `DATABASE_URL`; si no, usa PGlite embebido. `db.js` expone la misma interfaz para los dos (`query`, `uno`, `tx`). El esquema es una lista de `CREATE TABLE IF NOT EXISTS` que se corre al arrancar. **No hay migraciones**: para cambiar una columna existente hay que agregar un `ALTER TABLE … IF NOT EXISTS` a `ESQUEMA`, porque la base de Neon ya tiene las tablas creadas.
+
+**Frontend** (`public/`): HTML, CSS y módulos ES nativos, sin framework. `app.js` es un router por hash (`#/`, `#/pedido/:id/:paso`, `#/equipo`) que pinta vistas con la plantilla `html` de `util.js`, que escapa los valores. `hoja.js` es la hoja tipo Excel donde se pegan las listas y `reporte.js` pinta la tabla de rotación. La CSP de `app.js` es `default-src 'self'`: no se pueden usar scripts ni estilos inline ni CDNs externos.
+
+**El flujo de 5 pasos es la herramienta de medición, y sus reglas se hacen cumplir en el servidor** (`server/pedidos.js`), no solo en pantalla:
+1. Lista inicial: se autoguarda como borrador con `PUT` y se fija con `POST`. Después de eso queda inmutable (`WHERE inicial_guardada_en IS NULL`; editarla responde 409).
+2. Subir export: sin lista inicial guardada responde 403. Los archivos se guardan crudos en `archivos` (BYTEA). `procesarExport` los lee con `lector.js`, calcula con `rotacion.js` y guarda el reporte ya calculado en `exports.reporte` (JSONB).
+3. Ver reporte: la primera vez que se pide marca `reporte_visto_en`.
+4. Lista final: es editable solo después de ver el reporte. Al guardarla, `compararListas` (`listas.js`) calcula la métrica y la guarda en `pedidos.comparacion`.
+5. ¿Por qué cambió?: texto libre. Al enviarlo, el pedido queda terminado.
+
+`pasoDe(p)` deduce el paso a partir de las marcas de tiempo del pedido. No existe una columna de estado.
+
+Consecuencias que no se ven leyendo un solo archivo:
+- El reporte se calcula **una vez, al subir el archivo**. Si cambias `rotacion.js`, los reportes ya guardados no se recalculan. Los exports originales sí quedan en `archivos`, así que se pueden reprocesar.
+- `equipo.js` calcula el veredicto de la prueba a partir de los datos guardados: una ventana de 14 días desde la primera lista inicial de cada usuario y el pedido con mayor M dentro de esa ventana. Las constantes de la hipótesis (`META_LINEAS`, `DIAS_PRUEBA`, etc.) están al comienzo de ese archivo. Cambiarlas cambia el resultado del experimento, así que hay que reflejar el cambio en el Entregable.
+- La identidad de un producto es `claveCodigo` (`valores.js`): sin espacios, sin importar mayúsculas y sin ceros a la izquierda. La usan igual el reporte y la comparación de listas. Si la cambias en un lado, cámbiala en el otro, y también en la copia de `public/js/util.js`.
+- El rol `equipo` se asigna con `TEAM_EMAILS` al crear la cuenta o al iniciar sesión. Las cuentas del equipo no cuentan como probadores.
+- Cada consulta sobre datos de usuario filtra por `usuario_id`. Las rutas nuevas tienen que hacerlo también (ver `pedidoDe`).
+- La tabla `eventos` registra los ingresos, los archivos subidos y los pedidos. Volver con la sesión abierta después de 30 minutos sin actividad cuenta como un nuevo ingreso (`cuentas.js`).
+
+**Lector de archivos** (`lector.js` + `formatos.js`): busca la fila de encabezados y reconoce las columnas por sinónimos normalizados (minúsculas, sin tildes, sin palabras vacías). Acepta CSV con `;` o `,` en UTF-8 o ANSI, varias hojas o archivos, columnas por mes, y fechas y números en formato colombiano. Si falta un campo, devuelve las hojas con columnas de muestra para que el usuario elija la columna desde la pantalla, y el mapeo se recuerda por firma de encabezados en `usuarios.mapeos`. **Para adaptar un formato nuevo se agregan sinónimos en `formatos.js`, sin tocar `lector.js`.** Rechaza imágenes y PDFs a propósito.
+
+## Lineamientos
+
+- **El documento del MVP manda sobre las decisiones técnicas** (regla escrita en `docs/modelo-rotacion.md`). El modelo implementa exactamente S = existencias ÷ (vendido ÷ T), con T calculado sobre todo el histórico y común a todos los productos. Los umbrales son 2 semanas para "se agota" y 12 para "sobra".
+- **Fuera de alcance a propósito:** sugerir cuánto pedir, ajustar por temporada o por tiempo de entrega, conectarse al software contable y enviar alertas. Varios entrevistados piden esto (ver vacíos). Si una tarea lo pide, avisa que contradice el alcance declarado antes de construirlo. `docs/modelo-rotacion.md` §5 ya describe cómo se extendería el modelo.
+- **Todo lo que ve el usuario va en español sencillo**, sin jerga financiera. Esto viene de la ansiedad "caja negra" que señalaron Sandra Sánchez, Daniel Coral y Francisco Lozano. Los errores para el usuario se lanzan con `new ErrorUsuario(mensaje, estado)` y el manejador de `app.js` los devuelve como `{ error }`. Los errores de archivo tienen que decir la fila y la columna.
+- El reporte siempre explica el cálculo con un producto del propio archivo del usuario (`elegirEjemplo`). No lo quites: es la respuesta al requisito de que el número se entienda.
+- El código, los identificadores, los comentarios y los mensajes de commit están en español. Hay que mantener el estilo: funciones pequeñas, comentarios que explican el porqué y sin dependencias nuevas salvo que sean necesarias. El stack es deliberadamente mínimo.
+- Si cambias el modelo, la métrica o el flujo, actualiza `docs/modelo-rotacion.md` y la tabla "Cómo se cumple el documento" del README. Cualquier diferencia con el Entregable tiene que quedar como fila en "4 · Cambios y Reflexión", con la evidencia que la causó. Si no, la rúbrica la cuenta como **desconexión**.
+- El equipo debe declarar el uso de IA en cada entrega (herramientas, dónde ayudó y dónde falló). Lo que Claude construya aquí entra en esa declaración.
+
+## Vacíos en el planteamiento que hay que atender
+
+Están ordenados por cuánto ponen en riesgo la prueba o la Entrega 3.
+
+**Diferencias entre lo declarado y lo construido** (se califican en la Entrega 3):
+1. **Stack.** El plan de prueba declara "Next.js con Postgres y autenticación". Lo construido es Express con JS sin framework. Hay que registrar el cambio en Cambios o justificarlo.
+2. **Lista inicial por imagen.** El plan dice que el usuario "la importa o adjunta una imagen". La app rechaza imágenes a propósito, porque no se pueden comparar por código. Hay que declarar el recorte.
+3. **"Dos pantallas"** en el plan contra un flujo de 5 pasos en la app. Es compatible, pero hay que explicarlo.
+4. En el Entregable 2 quedaron vacíos el campo "Qué sostiene lo que no cambió" y la columna de sustentación (ninguna fila marcada Sí, así que no hay bono de revisión).
+
+**Formatos de los probadores, todavía sin validar:**
+5. No hay ningún export real de los 5 probadores. Los sinónimos se basan en nombres habituales de Siigo, SAP, SIESA, CGUNO y World Office.
+6. **Juan José Aya (Muebles Aya) usa Helisa** (entrevista del 2026-09-17), y Helisa no está entre los formatos considerados. Claudia Mueces usa Siigo. No se sabe qué usan Ecorac ni Disferral.
+7. Un kardex que mezcla entradas y salidas en una columna con un "tipo" se leería como si todo fueran ventas. Hay que confirmar cómo exporta cada probador.
+
+**Validez de la métrica:**
+8. **Tiempo de entrega contra umbral fijo.** "Se agota" es menos de 2 semanas para todos los productos. Para un importador (Muebles Aya, Ecorac), un producto con 8 semanas puede ya estar tarde. El reporte puede confirmar un pedido equivocado o no mover líneas que sí debería mover.
+9. **El umbral de 12 semanas para "sobra"** sale de benchmarks de distribuidores, no de los usuarios. No se ha validado con ninguno.
+10. **Demanda de proyectos.** Claudia Mueces (2026-09-24) y Ricardo Osorio separan la demanda de comercialización de la de proyectos o clientes puntuales. Una venta grande por proyecto infla el promedio. El modelo no las distingue.
+11. **No hay grupo de control.** Reescribir la lista ya puede producir cambios sin el reporte. Además, ajustar una sola unidad cuenta igual que quitar una referencia, y M no distingue un cambio relevante de ruido. Conviene decidir antes de la prueba si se reporta también la magnitud del cambio.
+12. **El pivote "cambió por probar la herramienta"** lo juzga el equipo leyendo el "¿por qué?". No hay un criterio escrito para clasificar esas respuestas.
+13. **Independencia de los probadores.** Orlando Álvarez y Nohora Rodríguez son de la misma empresa (Disferral) y pueden compartir export y pedido. Claudia Mueces es asesora y prepara el informe de mínimos, pero no está claro si es quien decide el pedido.
+14. **Pedidos simulados.** No se sabe cada cuánto pide cada probador (lo dice el Entregable 2 en "Qué seguimos sin saber"). Si la mayoría simula, la evidencia es débil, aunque la app marca real o simulado.
+
+**Producto y adopción:**
+15. **Stickiness es el eslabón más débil** (lo declara el mismo Entregable) y la prueba no lo mide. No hay recordatorio ni alerta que haga volver al usuario, y la ventana de 14 días mide un solo pedido. Claudia Mueces pide explícitamente alertas en vez de "informes pasivos que alguien tiene que descargar".
+16. **Contraste con su Excel.** Claudia Mueces pide poder comparar el resultado con el análisis que ya hacen. Tomás Buendía (2026-09-24) acepta ayuda solo si se mantiene el criterio del equipo. El flujo actual no muestra junto al reporte los mínimos y máximos que ya trae su informe.
+17. **Costo de equivocarse, sin cuantificar.** Nadie ha dicho cuántos agotados tiene ni cuánto capital tiene quieto. Sin eso no hay argumento de valor después de la prueba.
+
+**Operación de la prueba:**
+18. **El repo no tiene `.gitignore`**, aunque el README dice que sí. Hay que crearlo con `node_modules/`, `data/` y `.DS_Store` (este último ya está versionado) antes de que alguien suba `data/pglite/` con datos de prueba.
+19. **No hay recuperación de contraseña.** Si un probador olvida la suya, el equipo tiene que restablecerla a mano en la base de datos, y no hay script para hacerlo.
+20. **Datos comerciales de terceros.** Los exports de los probadores se guardan completos en la base. No hay acuerdo de uso de datos ni un procedimiento para borrarlos al terminar la prueba.
+21. En el plan gratuito de Render, el servidor se apaga tras 15 minutos sin uso y la primera visita tarda unos 50 segundos (ver README). Antes de la prueba hay que borrar los datos de prueba o usar una base nueva, para que el resumen cuente solo a los 5 probadores.
