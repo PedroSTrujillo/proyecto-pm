@@ -105,6 +105,7 @@ async function iniciar() {
   } else {
     const { PGlite } = require('@electric-sql/pglite');
     const dir = process.env.DATA_DIR || path.join(__dirname, '..', 'data', 'pglite');
+    require('fs').mkdirSync(path.dirname(dir), { recursive: true });
     const pg = new PGlite(dir);
     await pg.waitReady;
     motor = {
