@@ -1,4 +1,4 @@
-import { html, montar, api, fecha, fechaHora, numero, plural, debounce, mensajeError, claveCodigo, semanas } from './util.js';
+import { html, montar, api, fecha, fechaHora, dia, numero, plural, debounce, mensajeError, claveCodigo, semanas } from './util.js';
 import { crearHoja } from './hoja.js';
 import { pintarReporte } from './reporte.js';
 
@@ -504,10 +504,60 @@ async function paso3(cont, pedido) {
       </div>
       ${pedido.terminado ? '' : html`<a class="boton primario" href="#/pedido/${pedido.id}/4">Seguir: arma tu lista final →</a>`}
     </div>
+    <div class="recordatorio"></div>
     <div class="reporte"></div>
     ${pedido.terminado ? '' : html`<div class="acciones"><a class="boton primario" href="#/pedido/${pedido.id}/4">Seguir: arma tu lista final →</a></div>`}
   </section>`);
   pintarReporte(cont.querySelector('.reporte'), reporte);
+  pintarRecordatorio(cont.querySelector('.recordatorio'), pedido);
+}
+
+// Stickiness del Entregable: al ver el reporte se ofrece un aviso por correo 3 días antes de
+// que un producto con buen nivel hoy llegue a 2 semanas de inventario.
+async function pintarRecordatorio(caja, pedido) {
+  let datos;
+  try {
+    datos = await api('GET', `/pedidos/${pedido.id}/recordatorio`);
+  } catch {
+    return; // sin el ofrecimiento el reporte sigue sirviendo
+  }
+
+  const responder = async (activo, boton) => {
+    boton.disabled = true;
+    try {
+      datos = await api('POST', `/pedidos/${pedido.id}/recordatorio`, { activo });
+      dibujar();
+    } catch (e) {
+      boton.disabled = false;
+      montar(caja.querySelector('.error-recordatorio'), mensajeError(e));
+    }
+  };
+
+  function dibujar() {
+    const { plan, respuesta, email } = datos;
+    const activo = respuesta && respuesta.activo;
+    const deEste = respuesta && respuesta.pedidoId === pedido.id;
+    const p = plan.primero;
+    let contenido;
+    if (activo && deEste) {
+      contenido = html`<p><strong>Listo: te avisaremos a ${email}.</strong> ${respuesta.proximoAviso ? `El primer correo sale hacia el ${dia(respuesta.proximoAviso)}.` : 'Ya te enviamos todos los avisos de este reporte.'}</p>
+        <div class="acciones"><button type="button" class="boton chico" data-activo="false">Dejar de recibir avisos</button></div>`;
+    } else if (activo) {
+      contenido = html`<p>Tienes avisos por correo activos con el reporte del ${dia(respuesta.fechaReporte)}.${plan.productos ? ` ¿Prefieres que usemos este, del ${dia(plan.fechaReporte)}?` : ''}</p>
+        <div class="acciones">${plan.productos ? html`<button type="button" class="boton chico primario" data-activo="true">Usar este reporte</button>` : ''}<button type="button" class="boton chico" data-activo="false">Dejar de recibir avisos</button></div>`;
+    } else if (plan.productos) {
+      contenido = html`<p><strong>¿Te avisamos antes de que se agoten?</strong>
+        ${plural(plan.productos, 'producto tiene', 'productos tienen')} hoy más de ${plan.semanasBuenNivel} semanas de inventario. Si sigues vendiendo al mismo ritmo, el primero en bajar de 2 semanas es ${p.codigo}${p.nombre ? ` (${p.nombre})` : ''}, hacia el ${dia(p.fechaUmbral)}.
+        Te escribimos a ${email} ${plan.diasAntes} días antes, como máximo un correo por semana.</p>
+        <div class="acciones">${respuesta ? '' : html`<button type="button" class="boton chico" data-activo="false">No, gracias</button>`}<button type="button" class="boton chico primario" data-activo="true">${respuesta ? 'Activar avisos' : 'Sí, avísame'}</button></div>`;
+    } else {
+      contenido = '';
+    }
+    montar(caja, contenido ? html`<div class="mensaje info">${contenido}<div class="error-recordatorio"></div></div>` : '');
+    caja.querySelectorAll('button[data-activo]').forEach((b) => b.addEventListener('click', () => responder(b.dataset.activo === 'true', b)));
+  }
+
+  dibujar();
 }
 
 // --- Paso 4: lista final --------------------------------------------------------------------
@@ -686,7 +736,21 @@ const TEXTO_EVENTO = {
   reporte_visto: (e) => `Vio el reporte del pedido #${e.pedidoId}`,
   lista_final_guardada: (e) => `Guardó la lista final del pedido #${e.pedidoId}${e.detalle ? ` (${e.detalle.total} cambios)` : ''}`,
   pedido_terminado: (e) => `Terminó el pedido #${e.pedidoId}`,
+  recordatorio_respondido: (e) => (e.detalle && e.detalle.activo ? `Pidió avisos por correo (${plural(e.detalle.productos, 'producto', 'productos')})` : 'Dijo que no quiere avisos por correo'),
+  recordatorio_enviado: (e) => `Le enviamos un aviso por correo (${e.detalle ? plural(e.detalle.productos, 'producto', 'productos') : ''}${e.detalle && e.detalle.via === 'prueba' ? ', modo prueba: no salió' : ''})`,
 };
+
+function textoCoherencia(c) {
+  if (!c || !c.total) return '—';
+  return html`${c.coherentes} de ${c.total}${c.contrarias ? html`<span class="senal">${plural(c.contrarias, 'en contra del reporte', 'en contra del reporte')}</span>` : ''}`;
+}
+
+function textoRecordatorio(r) {
+  if (!r || r.activo === null) return 'sin responder';
+  const estado = r.activo ? 'activo' : 'no lo quiso';
+  if (!r.correosEnviados) return estado;
+  return `${estado} · ${plural(r.correosEnviados, 'correo enviado', 'correos enviados')} · entró ${r.ingresosTrasCorreo} ${r.ingresosTrasCorreo === 1 ? 'vez' : 'veces'} después`;
+}
 
 const CATEGORIAS = {
   cumple: html`<span class="etiqueta verde">Cambió 5 o más líneas</span>`,
@@ -719,13 +783,20 @@ async function vistaEquipo() {
       ${r.veredicto === 'en_curso' ? html`<p><strong>Por ahora: ${r.cumplen} de ${r.usuarios} cambiaron ${r.reglas.metaLineas} o más líneas y ${r.noCambian} cambiaron 0 o 1${r.sinPedido ? `; ${r.sinPedido} aún no ${r.sinPedido === 1 ? 'guarda' : 'guardan'} su lista final` : ''}.</strong></p>` : ''}
       <p>Meta: ${r.reglas.metaUsuarios} de ${r.usuariosEsperados} usuarios cambian ${r.reglas.metaLineas} o más líneas de su pedido en ${r.reglas.diasPrueba} días.
         Pivote: ${r.reglas.pivoteUsuarios} o más no cambian ninguna línea o cambian solo una.</p>
-      <p class="nota">Revisa también las respuestas a "¿por qué cambió?": si cambiaron por probar la herramienta y no porque el dato les pareciera correcto, también toca pivotar.</p>
+      <p class="nota">Revisa también las respuestas a "¿por qué cambió?": si cambiaron por probar la herramienta y no porque el dato les pareciera correcto, también toca pivotar.
+        ${r.cumplen ? `Como apoyo: de los ${r.cumplen} que cumplen, ${r.cumplenCoherentes} movieron la mayoría de sus líneas en la dirección que indica el reporte (subir lo que se agota, bajar lo que sobra).` : ''}</p>
     </section>
     <div class="cifras">
       <div class="cifra verde"><strong>${r.cumplen} de ${r.usuarios}</strong><span>cambiaron ${r.reglas.metaLineas} o más líneas (meta: ${r.reglas.metaUsuarios})${r.cumplen ? ` · ${r.cumplenReal} en pedido real, ${r.cumplenSimulado} simulado` : ''}</span></div>
       <div class="cifra roja"><strong>${r.noCambian} de ${r.usuarios}</strong><span>cambiaron 0 o 1 líneas (pivote si son ${r.reglas.pivoteUsuarios} o más)</span></div>
       <div class="cifra"><strong>${r.intermedios}</strong><span>cambiaron entre 2 y 4</span></div>
       <div class="cifra"><strong>${r.sinPedido}</strong><span>aún sin lista final</span></div>
+    </div>
+    <h2 class="subtitulo">Stickiness: el aviso por correo</h2>
+    <div class="cifras">
+      <div class="cifra"><strong>${r.aceptaronRecordatorio} de ${r.usuarios}</strong><span>tienen activo el aviso por correo</span></div>
+      <div class="cifra"><strong>${r.recibieronCorreo}</strong><span>ya recibieron al menos un aviso</span></div>
+      <div class="cifra verde"><strong>${r.volvieronTrasCorreo} de ${r.recibieronCorreo}</strong><span>volvieron a entrar después del aviso</span></div>
     </div>
     <p class="nota">Para cada usuario se toma el pedido con más líneas cambiadas (agregadas + quitadas + con cantidad distinta) cuya lista final guardó dentro de sus primeros ${r.reglas.diasPrueba} días, contados desde que guardó su primera lista inicial.
       ${r.usuarios !== r.usuariosEsperados ? `Hoy hay ${r.usuarios} cuentas de prueba; la meta está pensada para ${r.usuariosEsperados}.` : ''}</p>
@@ -738,9 +809,10 @@ async function vistaEquipo() {
         <span>Días con actividad: <strong>${u.diasConActividad}</strong></span>
         <span>Cuenta creada: ${fecha(u.creadoEn)}</span>
         ${u.evaluacion.inicio ? html`<span>Sus 14 días: ${fecha(u.evaluacion.inicio)} – ${fecha(u.evaluacion.fin)}</span>` : ''}
+        <span>Aviso por correo: <strong>${textoRecordatorio(u.recordatorio)}</strong></span>
       </div>
       ${u.pedidos.length ? html`<div class="marco-tabla"><table class="datos">
-        <thead><tr><th>Pedido</th><th>Tipo</th><th>Lista inicial</th><th>Lista final</th><th class="numero">Agregadas</th><th class="numero">Quitadas</th><th class="numero">Cantidad distinta</th><th class="numero">Total</th><th>¿Por qué cambió?</th></tr></thead>
+        <thead><tr><th>Pedido</th><th>Tipo</th><th>Lista inicial</th><th>Lista final</th><th class="numero">Agregadas</th><th class="numero">Quitadas</th><th class="numero">Cantidad distinta</th><th class="numero">Total</th><th class="numero" title="Cambios en la dirección que indica el reporte: subir o agregar lo que se agota, bajar o quitar lo que sobra">Coherentes con el reporte</th><th class="numero" title="Unidades agregadas, quitadas o cambiadas, sobre las unidades de la lista inicial">Unidades movidas</th><th>¿Por qué cambió?</th></tr></thead>
         <tbody>${u.pedidos.map((p) => html`<tr>
           <td>#${p.id}${p.proveedor ? ` · ${p.proveedor}` : ''}${p.paso < 6 ? html`<span class="senal">Va en el paso ${p.paso} de 5</span>` : ''}${p.finalGuardadaEn && p.dentroDePrueba === false ? html`<span class="senal">Fuera de sus 14 días</span>` : ''}${u.evaluacion.mejor && u.evaluacion.mejor.id === p.id ? html`<span class="senal">Es el que cuenta</span>` : ''}</td>
           <td>${p.tipo === 'real' ? 'Real' : p.tipo === 'simulado' ? 'Simulado' : '—'}</td>
@@ -750,6 +822,8 @@ async function vistaEquipo() {
           <td class="numero">${p.conteo ? p.conteo.quitadas : '—'}</td>
           <td class="numero">${p.conteo ? p.conteo.cambiadas : '—'}</td>
           <td class="numero"><strong>${p.conteo ? p.conteo.total : '—'}</strong></td>
+          <td class="numero">${textoCoherencia(p.coherencia)}</td>
+          <td class="numero">${p.magnitud && p.magnitud.porcentaje !== null ? `${numero(p.magnitud.porcentaje * 100, 0)} %` : '—'}${p.magnitud ? html`<span class="senal">${numero(p.magnitud.unidadesMovidas)} de ${numero(p.magnitud.unidadesIniciales)}</span>` : ''}</td>
           <td class="por-que">${p.porQue || '—'}</td>
         </tr>`)}</tbody></table></div>` : html`<p class="vacio">Todavía no ha empezado ningún pedido.</p>`}
       ${u.actividad.length ? html`<details class="notas"><summary>Actividad con fecha (${u.actividad.length})</summary>

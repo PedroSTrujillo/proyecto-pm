@@ -71,6 +71,27 @@ const ESQUEMA = [
     detalle JSONB,
     creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
+  // Recordatorio por correo (server/recordatorios.js). Las fechas van como texto "YYYY-MM-DD"
+  // en hora de Colombia, para que no se corran por la zona horaria del servidor.
+  `CREATE TABLE IF NOT EXISTS recordatorios (
+    usuario_id INTEGER PRIMARY KEY REFERENCES usuarios(id) ON DELETE CASCADE,
+    pedido_id INTEGER REFERENCES pedidos(id) ON DELETE SET NULL,
+    activo BOOLEAN NOT NULL,
+    fecha_reporte TEXT,
+    respondido_en TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
+  `CREATE TABLE IF NOT EXISTS avisos (
+    id SERIAL PRIMARY KEY,
+    usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    pedido_id INTEGER REFERENCES pedidos(id) ON DELETE SET NULL,
+    codigo TEXT NOT NULL,
+    nombre TEXT NOT NULL DEFAULT '',
+    semanas DOUBLE PRECISION NOT NULL,
+    fecha_umbral TEXT NOT NULL,
+    fecha_aviso TEXT NOT NULL,
+    enviado_en TIMESTAMPTZ
+  )`,
+  'CREATE INDEX IF NOT EXISTS avisos_pendientes ON avisos(usuario_id, fecha_aviso) WHERE enviado_en IS NULL',
   'CREATE INDEX IF NOT EXISTS pedidos_usuario ON pedidos(usuario_id)',
   'CREATE INDEX IF NOT EXISTS exports_pedido ON exports(pedido_id)',
   'CREATE INDEX IF NOT EXISTS archivos_export ON archivos(export_id)',

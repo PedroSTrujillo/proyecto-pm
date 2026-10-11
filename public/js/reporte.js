@@ -9,7 +9,19 @@ const SENALES = {
   no_en_existencias: 'No aparece en las existencias (se tomó 0)',
   existencias_negativas: 'Existencias negativas en el archivo',
   devoluciones: 'Las devoluciones igualan o superan las ventas',
+  pico_recortado: (f) => `Mes fuera de lo normal: en ${mes(f.pico.mes)} vendió ${numero(f.pico.vendido)} y se contaron ${numero(f.pico.contado)}`,
+  producto_nuevo: (f) => `Empezó a venderse hace poco: se cuentan ${semanas(f.semanasProducto)} semanas`,
 };
+
+function textoSenal(s, f) {
+  const t = SENALES[s];
+  return typeof t === 'function' ? t(f) : t || s;
+}
+
+const fmtMes = new Intl.DateTimeFormat('es-CO', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+function mes(texto) {
+  return fmtMes.format(new Date(`${texto}-01T00:00:00Z`));
+}
 
 function etiquetaEstado(f, umbrales) {
   if (f.estado === 'se_agota') return html`<span class="etiqueta roja" title="Menos de ${umbrales.seAgota} semanas">Se agota</span>`;
@@ -21,14 +33,41 @@ function filaHTML(f, umbrales) {
   const clase = f.estado === 'se_agota' ? 'se-agota' : f.sobra ? 'sobra' : '';
   return html`<tr class="${clase}">
     <td class="codigo">${f.codigo}</td>
-    <td>${f.nombre || html`<span class="sin-ventas">Sin nombre en el archivo</span>`}${f.senales.map((s) => html`<span class="senal">${SENALES[s] || s}</span>`)}</td>
-    <td class="numero">${f.estado === 'sin_ventas' ? '0' : ventasSemana(f.promedioSemanal)}</td>
+    <td>${f.nombre || html`<span class="sin-ventas">Sin nombre en el archivo</span>`}${f.senales.map((s) => html`<span class="senal">${textoSenal(s, f)}</span>`)}</td>
+    <td class="numero" title="${f.promedioSimple !== undefined && f.estado !== 'sin_ventas' ? `Sin ajustes: ${ventasSemana(f.promedioSimple)} por semana` : ''}">${f.estado === 'sin_ventas' ? '0' : ventasSemana(f.promedioSemanal)}</td>
     <td class="numero">${numero(f.existencias)}</td>
     <td class="numero semanas">${f.semanasInventario === null ? html`<span class="sin-ventas">Sin ventas en el periodo</span>` : semanas(f.semanasInventario)}${etiquetaEstado(f, umbrales)}</td>
   </tr>`;
 }
 
+// El cálculo paso a paso, con un producto del propio archivo. Los reportes guardados antes de
+// los ajustes (sin `r.ajustes`) se explican con el promedio simple con que se calcularon.
 function explicacion(r) {
+  if (!r.ajustes) return explicacionSimple(r);
+  const p = r.periodo;
+  const e = r.ejemplo;
+  const a = r.ajustes;
+  const s = r.resumen;
+  return html`<div class="explicacion">
+    <h3>¿De dónde sale el número?</h3>
+    <p><span class="formula">Semanas de inventario</span> = existencias ÷ ventas por semana: cuántas semanas te alcanza lo que tienes si sigues vendiendo al mismo ritmo.</p>
+    <p><span class="formula">Ventas por semana</span> sale de lo vendido en tu archivo (del ${dia(p.desde)} al ${dia(p.hasta)}, ${semanas(p.semanas)} semanas), con tres ajustes:</p>
+    <ol class="ajustes">
+      <li><strong>Lo reciente cuenta doble.</strong> Lo vendido desde el ${dia(p.recientesDesde)} (las últimas ${semanas(p.semanasRecientes)} semanas) pesa el doble, porque dice más de lo que viene que lo de hace un año.</li>
+      <li><strong>Un mes fuera de lo normal no infla el promedio.</strong> Si un mes vendió más de ${a.vecesLoNormal} veces lo normal de ese producto y más del doble que cualquier otro mes (por ejemplo, una venta para un proyecto), se cuenta como ${a.vecesLoNormal} veces lo normal.${s.picosRecortados ? ` Pasó en ${plural(s.picosRecortados, 'producto', 'productos')}.` : ''}</li>
+      <li><strong>Un producto nuevo no sale lento.</strong> Si su primera venta llegó mucho después del inicio del archivo (más de ${a.semanasMinimasProducto} semanas, y no porque se venda de vez en cuando), se cuentan las semanas desde esa primera venta y no todo el archivo.${s.productosNuevos ? ` Pasó en ${plural(s.productosNuevos, 'producto', 'productos')}.` : ''}</li>
+    </ol>
+    ${e ? html`<div class="ejemplo"><strong>Ejemplo con tu archivo: ${e.codigo}${e.nombre ? ` (${e.nombre})` : ''}</strong>
+      <ol class="pasos-calculo">
+        <li>Vendió ${numero(e.vendidoAjustado)} unidades en ${semanas(e.semanasProducto)} semanas; ${numero(e.vendidoReciente)} de ellas en las últimas ${semanas(e.semanasRecientes)}.</li>
+        <li>Ventas por semana = (${numero(e.vendidoAjustado)} + ${numero(e.vendidoReciente)}) ÷ (${semanas(e.semanasProducto)} + ${semanas(e.semanasRecientes)}) = <strong>${ventasSemana(e.promedioSemanal)}</strong>.
+          <span class="nota">Sin el ajuste serían ${numero(e.vendido)} ÷ ${semanas(e.semanasHistorico)} = ${ventasSemana(e.promedioSimple)}.</span></li>
+        <li>Semanas de inventario = ${numero(e.existencias)} en existencias ÷ ${ventasSemana(e.promedioSemanal)} = <strong>${semanas(e.semanasInventario)} semanas</strong>.</li>
+      </ol></div>` : ''}
+  </div>`;
+}
+
+function explicacionSimple(r) {
   const p = r.periodo;
   const e = r.ejemplo;
   const T = semanas(p.semanas);
@@ -83,7 +122,7 @@ export function pintarReporte(contenedor, r, { compacto = false } = {}) {
     <div class="marco-tabla ${compacto ? 'limitado' : ''}">
       <table class="datos">
         <thead><tr>
-          <th>Código</th><th>Producto</th><th class="numero">Ventas promedio por semana</th><th class="numero">Existencias</th><th class="numero">Semanas de inventario</th>
+          <th>Código</th><th>Producto</th><th class="numero">${r.ajustes ? 'Ventas por semana' : 'Ventas promedio por semana'}</th><th class="numero">Existencias</th><th class="numero">Semanas de inventario</th>
         </tr></thead>
         <tbody></tbody>
       </table>

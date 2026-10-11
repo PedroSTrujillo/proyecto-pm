@@ -84,6 +84,12 @@ function compararListas(inicial, final) {
     if (!fin.has(clave)) quitadas.push({ codigo: l.codigo, nombre: l.nombre, cantidad: l.cantidad });
   }
 
+  // Cuánto se movió el pedido en unidades. En M, cambiar una unidad cuenta igual que
+  // quitar una referencia; esto deja ver si el cambio fue de fondo o de ajuste.
+  const suma = (xs) => Math.round(xs.reduce((s, x) => s + x, 0) * 1e6) / 1e6;
+  const unidadesMovidas = suma([...agregadas.map((l) => l.cantidad), ...quitadas.map((l) => l.cantidad), ...cambiadas.map((l) => Math.abs(l.despues - l.antes))]);
+  const unidadesIniciales = suma([...ini.values()].map((l) => l.cantidad));
+
   return {
     agregadas,
     quitadas,
@@ -95,7 +101,36 @@ function compararListas(inicial, final) {
       cambiadas: cambiadas.length,
       total: agregadas.length + quitadas.length + cambiadas.length,
     },
+    magnitud: { unidadesMovidas, unidadesIniciales, porcentaje: unidadesIniciales > 0 ? unidadesMovidas / unidadesIniciales : null },
   };
+}
+
+/**
+ * ¿Los cambios van en la dirección que indica el reporte? Sirve para juzgar el segundo
+ * criterio de pivote ("cambió por probar la herramienta y no porque el dato le pareciera
+ * correcto") con un número y no solo leyendo el "¿por qué?".
+ *   coherente: sube o agrega algo que se agota, o baja o quita algo que sobra
+ *   contraria: lo opuesto (sube lo que sobra, baja lo que se agota)
+ *   neutra:    el producto está normal o no aparece en el reporte
+ */
+function coherenciaConReporte(comparacion, filasReporte) {
+  const reporte = new Map((filasReporte || []).map((f) => [claveCodigo(f.codigo), f]));
+  const cambios = [
+    ...comparacion.agregadas.map((l) => ({ codigo: l.codigo, sube: true })),
+    ...comparacion.quitadas.map((l) => ({ codigo: l.codigo, sube: false })),
+    ...comparacion.cambiadas.map((l) => ({ codigo: l.codigo, sube: l.despues > l.antes })),
+  ];
+  const cuenta = { coherentes: 0, contrarias: 0, neutras: 0 };
+  const detalle = cambios.map((c) => {
+    const f = reporte.get(claveCodigo(c.codigo));
+    const estado = !f ? 'fuera_del_reporte' : f.estado === 'se_agota' ? 'se_agota' : f.sobra ? 'sobra' : 'normal';
+    let clase = 'neutra';
+    if ((c.sube && estado === 'se_agota') || (!c.sube && estado === 'sobra')) clase = 'coherente';
+    else if ((c.sube && estado === 'sobra') || (!c.sube && estado === 'se_agota')) clase = 'contraria';
+    cuenta[`${clase}s`]++;
+    return { codigo: c.codigo, direccion: c.sube ? 'sube' : 'baja', estado, clase };
+  });
+  return { ...cuenta, total: cambios.length, porcentaje: cambios.length ? cuenta.coherentes / cambios.length : null, detalle };
 }
 
 function unir(nums) {
@@ -107,4 +142,4 @@ function formatear(n) {
   return new Intl.NumberFormat('es-CO', { maximumFractionDigits: 3 }).format(n);
 }
 
-module.exports = { revisarLista, compararListas };
+module.exports = { revisarLista, compararListas, coherenciaConReporte };

@@ -19,6 +19,8 @@ Fuentes de contexto fuera del repo, en la carpeta padre (`../`):
 - `../Conversaciones Grupo 1.xlsx`: registro de entrevistas, con fecha, actor y hallazgo clave. Las transcripciones están en un Drive enlazado desde el Entregable 2.
 - No son legibles con las herramientas de texto. Para leerlos: `node -e 'const X=require("xlsx");const wb=X.readFile("../Entregable 2.xlsx");for(const s of wb.SheetNames)console.log(s,X.utils.sheet_to_csv(wb.Sheets[s]))'` desde la raíz del repo, después de `npm install`. Las fechas salen como números seriales de Excel: 46281 = 2026-09-16.
 
+**Al empezar una sesión, lee la entrada de más arriba de `docs/HANDOFF.md`; al terminar, agrega una entrada nueva arriba con la plantilla de ese archivo** (estado, archivos, verificación y siguiente paso exacto).
+
 `README.md` documenta el despliegue (Render + Neon), las variables de entorno y la tabla "Cómo se cumple el documento", que relaciona cada requisito con el archivo donde se implementa. `docs/modelo-rotacion.md` es la fuente de verdad del modelo matemático y de la métrica.
 
 ## Comandos
@@ -29,7 +31,7 @@ Requiere Node.js 20 o superior. Las pruebas fallan si no se ha corrido `npm inst
 npm install
 TEAM_EMAILS=tu-correo@ejemplo.com npm start    # http://localhost:3000; PGlite en data/pglite/
 npm run dev                                      # igual, con node --watch
-npm test                                         # node --test test/*.test.js (34 pruebas)
+npm test                                         # node --test test/*.test.js (48 pruebas)
 node --test test/rotacion.test.js                # un solo archivo
 node --test --test-name-pattern="M = 5" test/listas.test.js   # una prueba por nombre
 npm run ejemplos                                 # regenera los exports inventados de ejemplos/
@@ -46,8 +48,8 @@ No hay linter, formateador ni paso de compilación. `DATA_DIR=memory://` deja la
 **El flujo de 5 pasos es la herramienta de medición, y sus reglas se hacen cumplir en el servidor** (`server/pedidos.js`), no solo en pantalla:
 1. Lista inicial: se autoguarda como borrador con `PUT` y se fija con `POST`. Después de eso queda inmutable (`WHERE inicial_guardada_en IS NULL`; editarla responde 409).
 2. Subir export: sin lista inicial guardada responde 403. Los archivos se guardan crudos en `archivos` (BYTEA). `procesarExport` los lee con `lector.js`, calcula con `rotacion.js` y guarda el reporte ya calculado en `exports.reporte` (JSONB).
-3. Ver reporte: la primera vez que se pide marca `reporte_visto_en`.
-4. Lista final: es editable solo después de ver el reporte. Al guardarla, `compararListas` (`listas.js`) calcula la métrica y la guarda en `pedidos.comparacion`.
+3. Ver reporte: la primera vez que se pide marca `reporte_visto_en`. Ahí mismo se ofrece el aviso por correo (`GET/POST /:id/recordatorio`, `server/recordatorios.js`); responderlo no cambia el paso.
+4. Lista final: es editable solo después de ver el reporte. Al guardarla, `compararListas` (`listas.js`) calcula la métrica y la magnitud, y `coherenciaConReporte` la coherencia con el reporte; todo se guarda en `pedidos.comparacion`. La coherencia no se le devuelve al usuario (`vistaPedido` la quita) para no sugerirle la respuesta del paso 5.
 5. ¿Por qué cambió?: texto libre. Al enviarlo, el pedido queda terminado.
 
 `pasoDe(p)` deduce el paso a partir de las marcas de tiempo del pedido. No existe una columna de estado.
@@ -59,13 +61,14 @@ Consecuencias que no se ven leyendo un solo archivo:
 - El rol `equipo` se asigna con `TEAM_EMAILS` al crear la cuenta o al iniciar sesión. Las cuentas del equipo no cuentan como probadores.
 - Cada consulta sobre datos de usuario filtra por `usuario_id`. Las rutas nuevas tienen que hacerlo también (ver `pedidoDe`).
 - La tabla `eventos` registra los ingresos, los archivos subidos y los pedidos. Volver con la sesión abierta después de 30 minutos sin actividad cuenta como un nuevo ingreso (`cuentas.js`).
+- **Recordatorios** (`recordatorios.js`, tablas `recordatorios` y `avisos`): una fila por usuario con su última respuesta y los avisos pendientes de su último "sí". `enviarPendientes` marca cada aviso antes de enviarlo, así que se puede llamar desde la revisión de cada hora (`programarEnvios`, en `index.js`) y desde `POST /api/tareas/recordatorios` (cron externo con `CRON_SECRET`) sin duplicar correos. Sin `BREVO_API_KEY`, `correo.js` imprime el correo en la consola. Las fechas de avisos son texto `YYYY-MM-DD` en hora de Bogotá.
 
 **Lector de archivos** (`lector.js` + `formatos.js`): busca la fila de encabezados y reconoce las columnas por sinónimos normalizados (minúsculas, sin tildes, sin palabras vacías). Acepta CSV con `;` o `,` en UTF-8 o ANSI, varias hojas o archivos, columnas por mes, y fechas y números en formato colombiano. Si falta un campo, devuelve las hojas con columnas de muestra para que el usuario elija la columna desde la pantalla, y el mapeo se recuerda por firma de encabezados en `usuarios.mapeos`. **Para adaptar un formato nuevo se agregan sinónimos en `formatos.js`, sin tocar `lector.js`.** Rechaza imágenes y PDFs a propósito.
 
 ## Lineamientos
 
-- **El documento del MVP manda sobre las decisiones técnicas** (regla escrita en `docs/modelo-rotacion.md`). El modelo implementa exactamente S = existencias ÷ (vendido ÷ T), con T calculado sobre todo el histórico y común a todos los productos. Los umbrales son 2 semanas para "se agota" y 12 para "sobra".
-- **Fuera de alcance a propósito:** sugerir cuánto pedir, ajustar por temporada o por tiempo de entrega, conectarse al software contable y enviar alertas. Varios entrevistados piden esto (ver vacíos). Si una tarea lo pide, avisa que contradice el alcance declarado antes de construirlo. `docs/modelo-rotacion.md` §5 ya describe cómo se extendería el modelo.
+- **El documento del MVP manda sobre las decisiones técnicas** (regla escrita en `docs/modelo-rotacion.md`). El modelo implementa S = existencias ÷ ventas por semana. Desde el 2026-10-11 las ventas por semana llevan tres ajustes (lo reciente cuenta doble, un mes pico aislado se recorta y los productos nuevos se promedian desde su primera venta), descritos en §3.6 del modelo; sin ajustes que aplicar dan el promedio simple vendido ÷ T. Los umbrales son 2 semanas para "se agota" y 12 para "sobra". Cada fila del reporte guarda el desglose (`vendidoAjustado`, `vendidoReciente`, `semanasProducto`, `semanasRecientes`, `pico`, `promedioSimple`) y `reporte.js` lo explica paso a paso; los reportes guardados antes no traen `ajustes` y se explican con el texto anterior.
+- **Fuera de alcance a propósito:** sugerir cuánto pedir, ajustar por temporada o por tiempo de entrega y conectarse al software contable. (Las alertas salieron de esta lista el 2026-10-07: la corrección del Entregable cambió el stickiness a un aviso por correo, y ya está construido.) Varios entrevistados piden esto (ver vacíos). Si una tarea lo pide, avisa que contradice el alcance declarado antes de construirlo. `docs/modelo-rotacion.md` §6 ya describe cómo se extendería el modelo.
 - **Todo lo que ve el usuario va en español sencillo**, sin jerga financiera. Esto viene de la ansiedad "caja negra" que señalaron Sandra Sánchez, Daniel Coral y Francisco Lozano. Los errores para el usuario se lanzan con `new ErrorUsuario(mensaje, estado)` y el manejador de `app.js` los devuelve como `{ error }`. Los errores de archivo tienen que decir la fila y la columna.
 - El reporte siempre explica el cálculo con un producto del propio archivo del usuario (`elegirEjemplo`). No lo quites: es la respuesta al requisito de que el número se entienda.
 - El código, los identificadores, los comentarios y los mensajes de commit están en español. Hay que mantener el estilo: funciones pequeñas, comentarios que explican el porqué y sin dependencias nuevas salvo que sean necesarias. El stack es deliberadamente mínimo.
@@ -90,14 +93,14 @@ Están ordenados por cuánto ponen en riesgo la prueba o la Entrega 3.
 **Validez de la métrica:**
 8. **Tiempo de entrega contra umbral fijo.** "Se agota" es menos de 2 semanas para todos los productos. Para un importador (Muebles Aya, Ecorac), un producto con 8 semanas puede ya estar tarde. El reporte puede confirmar un pedido equivocado o no mover líneas que sí debería mover.
 9. **El umbral de 12 semanas para "sobra"** sale de benchmarks de distribuidores, no de los usuarios. No se ha validado con ninguno.
-10. **Demanda de proyectos.** Claudia Mueces (2026-09-24) y Ricardo Osorio separan la demanda de comercialización de la de proyectos o clientes puntuales. Una venta grande por proyecto infla el promedio. El modelo no las distingue.
-11. **No hay grupo de control.** Reescribir la lista ya puede producir cambios sin el reporte. Además, ajustar una sola unidad cuenta igual que quitar una referencia, y M no distingue un cambio relevante de ruido. Conviene decidir antes de la prueba si se reporta también la magnitud del cambio.
-12. **El pivote "cambió por probar la herramienta"** lo juzga el equipo leyendo el "¿por qué?". No hay un criterio escrito para clasificar esas respuestas.
+10. **Demanda de proyectos.** Claudia Mueces (2026-09-24) y Ricardo Osorio separan la demanda de comercialización de la de proyectos o clientes puntuales. Una venta grande por proyecto infla el promedio. *Atendido en parte (2026-10-11):* un mes pico aislado se recorta a 3 veces lo normal. Una venta por proyecto que se reparte en varios meses sigue contando.
+11. **No hay grupo de control.** Reescribir la lista ya puede producir cambios sin el reporte. Además, ajustar una sola unidad cuenta igual que quitar una referencia, y M no distingue un cambio relevante de ruido. Conviene decidir antes de la prueba si se reporta también la magnitud del cambio. *Atendido (2026-10-11):* la vista del equipo muestra las unidades movidas sobre las de la lista inicial. El grupo de control sigue sin existir.
+12. **El pivote "cambió por probar la herramienta"** lo juzga el equipo leyendo el "¿por qué?". No hay un criterio escrito para clasificar esas respuestas. *Apoyo desde el 2026-10-11:* la coherencia con el reporte (§4.3 del modelo) dice qué parte de los cambios fue en la dirección que indicaba el dato. El criterio de clasificación del texto sigue pendiente.
 13. **Independencia de los probadores.** Orlando Álvarez y Nohora Rodríguez son de la misma empresa (Disferral) y pueden compartir export y pedido. Claudia Mueces es asesora y prepara el informe de mínimos, pero no está claro si es quien decide el pedido.
 14. **Pedidos simulados.** No se sabe cada cuánto pide cada probador (lo dice el Entregable 2 en "Qué seguimos sin saber"). Si la mayoría simula, la evidencia es débil, aunque la app marca real o simulado.
 
 **Producto y adopción:**
-15. **Stickiness es el eslabón más débil** (lo declara el mismo Entregable) y la prueba no lo mide. No hay recordatorio ni alerta que haga volver al usuario, y la ventana de 14 días mide un solo pedido. Claudia Mueces pide explícitamente alertas en vez de "informes pasivos que alguien tiene que descargar".
+15. **Stickiness es el eslabón más débil** (lo declara el mismo Entregable). Claudia Mueces pide explícitamente alertas en vez de "informes pasivos que alguien tiene que descargar". *Atendido (2026-10-11):* el aviso por correo de la corrección del Entregable está construido y la vista del equipo mide quién lo activó y quién volvió después del aviso. Falta configurar Brevo y el cron en producción (README).
 16. **Contraste con su Excel.** Claudia Mueces pide poder comparar el resultado con el análisis que ya hacen. Tomás Buendía (2026-09-24) acepta ayuda solo si se mantiene el criterio del equipo. El flujo actual no muestra junto al reporte los mínimos y máximos que ya trae su informe.
 17. **Costo de equivocarse, sin cuantificar.** Nadie ha dicho cuántos agotados tiene ni cuánto capital tiene quieto. Sin eso no hay argumento de valor después de la prueba.
 

@@ -13,7 +13,8 @@ const db = require('./db');
 const { requiereUsuario, registrarEvento, ErrorUsuario } = require('./cuentas');
 const { leerExport, leerLista } = require('./lector');
 const { calcularRotacion } = require('./rotacion');
-const { revisarLista, compararListas } = require('./listas');
+const { revisarLista, compararListas, coherenciaConReporte } = require('./listas');
+const recordatorios = require('./recordatorios');
 
 const MAX_LINEAS = 5000;
 const subida = multer({
@@ -79,7 +80,9 @@ async function vistaPedido(p) {
     reporteVistoEn: p.reporte_visto_en,
     listaFinal: p.reporte_visto_en ? listaFinal : null,
     finalGuardadaEn: p.final_guardada_en,
-    comparacion: p.comparacion,
+    // La coherencia con el reporte es solo para el equipo: mostrarla antes del
+    // "¿por qué cambió?" le diría al usuario qué respuesta esperamos.
+    comparacion: p.comparacion ? { ...p.comparacion, coherencia: undefined } : null,
     porQue: p.por_que,
     terminadoEn: p.terminado_en,
   };
@@ -315,7 +318,52 @@ rutas.get('/:id/reporte', async (req, res) => {
   res.json({ reporte: { ...e.reporte, subidoEn: e.subido_en, archivos: archivos.map((a) => a.nombre) } });
 });
 
+// --- Recordatorio por correo (se ofrece al ver el reporte) ---------------------------------
+
+async function planDelPedido(p) {
+  if (!p.reporte_visto_en || !p.export_id) throw new ErrorUsuario('Primero mira el reporte de rotación.', 409);
+  const e = await db.uno("SELECT subido_en, reporte->'filas' AS filas FROM exports WHERE id = $1 AND estado = 'ok'", [p.export_id]);
+  if (!e) throw new ErrorUsuario('Primero sube tu export de ventas y existencias.', 409);
+  const fechaReporte = recordatorios.fechaBogota(e.subido_en);
+  return { fechaReporte, avisos: recordatorios.planearAvisos(e.filas || [], fechaReporte) };
+}
+
+async function vistaRecordatorio(req, p) {
+  const plan = await planDelPedido(p);
+  const primero = plan.avisos[0] || null;
+  return {
+    email: req.usuario.email,
+    plan: {
+      fechaReporte: plan.fechaReporte,
+      productos: plan.avisos.length,
+      primero: primero && { codigo: primero.codigo, nombre: primero.nombre, fechaUmbral: primero.fechaUmbral, fechaAviso: primero.fechaAviso },
+      semanasBuenNivel: recordatorios.SEMANAS_BUEN_NIVEL,
+      diasAntes: recordatorios.DIAS_ANTES,
+    },
+    respuesta: await recordatorios.estadoDe(req.usuario.id),
+  };
+}
+
+rutas.get('/:id/recordatorio', async (req, res) => {
+  res.json(await vistaRecordatorio(req, await pedidoDe(req)));
+});
+
+rutas.post('/:id/recordatorio', async (req, res) => {
+  const p = await pedidoDe(req);
+  if (typeof req.body?.activo !== 'boolean') throw new ErrorUsuario('Elige si quieres recibir los avisos.');
+  const plan = await planDelPedido(p);
+  if (req.body.activo && !plan.avisos.length) throw new ErrorUsuario(`Ningún producto de este reporte tiene más de ${recordatorios.SEMANAS_BUEN_NIVEL} semanas de inventario, así que no hay nada que avisar.`);
+  await recordatorios.responder(req.usuario.id, p.id, req.body.activo, plan.avisos, plan.fechaReporte);
+  res.json(await vistaRecordatorio(req, p));
+});
+
 // --- Paso 4: lista final --------------------------------------------------------------------
+
+async function filasDelReporte(exportId) {
+  if (!exportId) return [];
+  const e = await db.uno("SELECT reporte->'filas' AS filas FROM exports WHERE id = $1", [exportId]);
+  return (e && e.filas) || [];
+}
 
 function exigirListaFinalEditable(p) {
   exigirInicialGuardada(p);
@@ -337,6 +385,7 @@ rutas.post('/:id/lista-final', async (req, res) => {
   if (revision.errores.length) throw errorLista(revision);
   if (req.body?.revisar) return res.json({ lineas: revision.lineas.length, avisos: revision.avisos });
   const comparacion = compararListas(p.lista_inicial, revision.lineas);
+  comparacion.coherencia = coherenciaConReporte(comparacion, await filasDelReporte(p.export_id));
   const actualizado = await db.uno(
     `UPDATE pedidos SET lista_final = $1::jsonb, comparacion = $2::jsonb, final_guardada_en = now()
       WHERE id = $3 AND terminado_en IS NULL RETURNING *`,
@@ -364,4 +413,4 @@ rutas.post('/:id/por-que', async (req, res) => {
   res.json({ pedido: await vistaPedido(actualizado) });
 });
 
-module.exports = { rutas, pasoDe };
+module.exports = { rutas, pasoDe, filasDelReporte };

@@ -28,13 +28,19 @@ El producto usa la **cobertura en semanas** por tres razones:
 Para cada producto *i* del archivo:
 
 ```
-T   = semanas del histórico      = (último día − primer día + 1) ÷ 7
-Qᵢ  = total vendido de i         = Σ cantidades vendidas de i en el histórico (netas de devoluciones)
-d̄ᵢ  = ventas promedio por semana = Qᵢ ÷ T
-Iᵢ  = existencias actuales de i  (si hay varias filas, como varias bodegas, se suman)
-Sᵢ  = semanas de inventario      = Iᵢ ÷ d̄ᵢ            si Qᵢ > 0
-                                 = "sin ventas en el periodo"   si Qᵢ ≤ 0
+T    = semanas del histórico   = (último día − primer día + 1) ÷ 7
+Qᵢ   = total vendido de i      = Σ cantidades vendidas de i (netas de devoluciones),
+                                 con su mes fuera de lo normal recortado (ajuste 2)
+Tᵢ   = semanas del producto    = T, o las semanas desde su primera venta si es nuevo (ajuste 3)
+Rᵢ   = semanas recientes       = mín(13, Tᵢ)
+Qᵢʳ  = vendido en lo reciente  = lo que vendió i en esas Rᵢ semanas
+d̄ᵢ   = ventas por semana       = (Qᵢ + Qᵢʳ) ÷ (Tᵢ + Rᵢ)       (ajuste 1: lo reciente cuenta doble)
+Iᵢ   = existencias actuales de i (si hay varias filas, como varias bodegas, se suman)
+Sᵢ   = semanas de inventario   = Iᵢ ÷ d̄ᵢ            si Qᵢ > 0
+                               = "sin ventas en el periodo"   si Qᵢ ≤ 0
 ```
+
+La estructura es la del documento del MVP (Sᵢ = existencias ÷ ventas por semana). Lo que cambió el 2026-10-11 es cómo se calculan las ventas por semana: antes era el promedio simple Qᵢ ÷ T; ahora lleva los tres ajustes de §3.6. Sin ajustes que aplicar (histórico de 13 semanas o menos, sin picos, sin productos nuevos) d̄ᵢ da exactamente Qᵢ ÷ T. El reporte muestra el promedio simple en el título de cada celda, para comparar.
 
 **Clasificación** (solo para resaltar y filtrar; el producto no le dice al usuario cuánto pedir):
 
@@ -48,14 +54,14 @@ Sᵢ  = semanas de inventario      = Iᵢ ÷ d̄ᵢ            si Qᵢ > 0
 
 ### Ejemplo resuelto (plantilla descargable)
 
-El producto `TOR-0610` vendió 608 unidades en un histórico de 364 días:
+El producto `TOR-0610` vendió 608 unidades en un histórico de 364 días, 158 de ellas en las últimas 13 semanas:
 
-- T = 364 ÷ 7 = **52 semanas**
-- d̄ = 608 ÷ 52 = **11,7 unidades por semana**
+- T = 364 ÷ 7 = **52 semanas**; no es nuevo ni tiene picos, así que Tᵢ = 52 y Qᵢ = 608
+- d̄ = (608 + 158) ÷ (52 + 13) = **11,8 unidades por semana** (el promedio simple daría 608 ÷ 52 = 11,7)
 - I = 18 unidades
-- S = 18 ÷ 11,7 = **1,5 semanas**: se agota (menos de 2).
+- S = 18 ÷ 11,8 = **1,5 semanas**: se agota (menos de 2).
 
-Esto mismo aparece en la pantalla del reporte, con los números del archivo de cada usuario.
+Esto mismo aparece en la pantalla del reporte, paso a paso, con los números del archivo de cada usuario.
 
 ## 3. Por qué este modelo y no otro
 
@@ -80,11 +86,13 @@ Existen métodos que reaccionan más rápido a los cambios de demanda:
 - La **suavización exponencial simple** queda sesgada cuando la demanda es intermitente.
 - El método de **Croston** separa el tamaño de cada venta del intervalo entre ventas, pero sobreestima la demanda. La corrección de Syntetos y Boylan (SBA) reduce ese sesgo.
 
-Todos piden elegir parámetros (α) y no se explican en una frase. Eso choca con dos requisitos del documento: no exigir configuración y que el usuario entienda de dónde sale el número. El costo de usar el promedio simple está aceptado: no reacciona a tendencias ni temporadas, y el ajuste por temporada está fuera del alcance de esta versión (sección 6 del documento).
+Todos piden elegir parámetros (α) y no se explican en una frase. Eso choca con dos requisitos del documento: no exigir configuración y que el usuario entienda de dónde sale el número. En vez de eso, el promedio lleva tres ajustes fijos que sí se explican en una frase cada uno (§3.6). El ajuste por temporada sigue fuera del alcance de esta versión (sección 6 del documento).
 
-### 3.3 Un mismo T para todos los productos
+### 3.3 Un mismo T para todos los productos, salvo los nuevos
 
-Las semanas se cuentan entre la primera y la última fecha de **todo el archivo**, no de cada producto. Si se contaran desde la primera venta de cada producto, uno que se vendió una sola vez hace dos semanas tendría un promedio inflado y parecería de alta rotación. La desventaja es que un producto que entró al catálogo hace poco queda con un promedio más bajo del real. Es una limitación conocida; se ve en la tabla y el usuario decide.
+Las semanas se cuentan entre la primera y la última fecha de **todo el archivo**, no de cada producto. Si se contaran desde la primera venta de cada producto, uno que se vendió una sola vez hace dos semanas tendría un promedio inflado y parecería de alta rotación. Además, un producto que se vende de vez en cuando tarda en aparecer en el archivo sin ser nuevo.
+
+La excepción es el producto que de verdad es nuevo: con un T común quedaba con un promedio más bajo del real y parecía que sobraba. Desde el 2026-10-11 (ajuste 3 de §3.6), un producto cuenta como nuevo solo si su primera venta llega **más de 13 semanas después del inicio del archivo y más de 3 veces lo que suele tardar entre una venta y otra**. A ese se le cuentan las semanas desde su primera venta, con un mínimo de 13. El mínimo acota el error de la venta única: con 52 semanas de histórico, el promedio de un producto nuevo puede quedar como mucho 4 veces por encima del que daría el T común, y no 26 veces.
 
 Si el export viene **agrupado por mes** (una fecha por mes, o una columna por mes), el último mes se cuenta completo hasta su último día, para no recortar el periodo.
 
@@ -110,6 +118,23 @@ Un producto con más de 12 semanas de inventario rota menos de 52 ÷ 12 ≈ 4,3 
 | Varias bodegas | Las existencias se suman. |
 | Códigos `00123` y `123` | Son el mismo producto (Excel suele borrar los ceros a la izquierda). Tampoco importan las mayúsculas ni los espacios sobrantes. |
 | Histórico de menos de 26 semanas | Se calcula igual y se avisa que es más confiable con uno o dos años. |
+| Histórico de 13 semanas o menos | Todo es "reciente": d̄ᵢ = (Qᵢ + Qᵢ) ÷ (T + T) = Qᵢ ÷ T, el promedio simple. |
+| Más devoluciones que ventas en lo reciente | Lo reciente no suma doble ni resta doble: Qᵢʳ se toma como 0. |
+| Pico en un mes reciente | El exceso recortado se descuenta también de Qᵢʳ, en la proporción de ese mes que cae en lo reciente. |
+
+### 3.6 Los tres ajustes del promedio (2026-10-11)
+
+Vienen de la lista de pendientes del equipo ("complejizar el cálculo de semanas de inventario, pero explicarlo desglosado") y de tres vacíos que dejaba el promedio simple. Las constantes están al comienzo de `server/rotacion.js`; ninguna la configura el usuario.
+
+| # | Ajuste | Regla | Por qué |
+|---|---|---|---|
+| 1 | Lo reciente cuenta doble | Lo vendido en las últimas 13 semanas (o los últimos 3 meses completos si el archivo viene por mes) pesa 2 y lo demás pesa 1: d̄ᵢ = (Qᵢ + Qᵢʳ) ÷ (Tᵢ + Rᵢ). | Con 104 semanas iguales, un producto que se aceleró parece lento. Pesar el último trimestre 2 a 1 reacciona a la tendencia sin perder lo que el histórico largo protege (§3.1). Es una ponderación común en planeación de inventarios: simple de explicar y sin parámetros que el usuario tenga que elegir. |
+| 2 | Un mes fuera de lo normal no infla el promedio | Si un solo mes vende **más de 3 veces la mediana de los otros meses con venta y más del doble que cualquier otro mes**, se cuenta como 3 veces la mediana. Hacen falta al menos 6 meses con venta. | Vacío #10: Claudia Mueces y Ricardo Osorio separan la demanda de proyectos de la de comercialización; una venta por proyecto infla el promedio y el reporte termina pidiendo de más. La segunda condición deja quieta una subida sostenida (varios meses altos seguidos), que es demanda real y que el ajuste 1 debe recoger. Con la primera condición sola, la prueba automática de este repo mostró que una subida de tres meses se recortaba como si fuera un pico. |
+| 3 | Un producto nuevo no sale lento | Ver §3.3. | Un producto que entró al catálogo hace dos meses salía como "sobra" con un T de dos años. |
+
+Lo que no se ajustó a propósito: la demanda que no se pudo vender porque el producto estaba agotado (las semanas en cero de un producto agotado bajan su promedio). El export de ventas y existencias no dice cuándo estuvo en cero, así que no hay con qué corregirlo. Corregirlo requiere registrar los pedidos que no se pudieron despachar; aquí queda como limitación.
+
+**Efecto en los archivos de ejemplo** (`ejemplos/`): cambian de estado (se agota, normal, sobra) entre 0 % y 3 % de los productos. Son datos inventados, sin tendencias ni proyectos, así que el efecto real solo se verá con los exports de los probadores.
 
 ## 4. La métrica de la prueba
 
@@ -141,7 +166,42 @@ La prueba automática `test/listas.test.js` verifica la comparación contra un c
 - El segundo criterio de pivote (cambiaron por probar la herramienta) es cualitativo. La pantalla del equipo muestra la respuesta a "¿por qué cambió?" al lado de cada pedido para que el equipo lo juzgue.
 - Cada pedido queda marcado como **real** o **simulado**, y el resumen dice cuántos de los que cumplen lo hicieron con un pedido real.
 
-## 5. Lo que queda para después (no construido)
+### 4.3 Coherencia con el reporte y magnitud del cambio (apoyo, no cambian el veredicto)
+
+M cuenta líneas, pero no dice si el cambio lo produjo el dato. Para el segundo criterio de pivote (vacío #12) y para el ruido de M (vacío #11), la vista del equipo muestra dos números más por pedido. Los dos se calculan solos al guardar la lista final (`coherenciaConReporte` y `compararListas` en `server/listas.js`):
+
+```
+Para cada línea cambiada c, dirección(c) = sube  si se agregó o subió su cantidad
+                                         = baja  si se quitó o bajó su cantidad
+coherente(c)  ⇔  (sube y c se agota en el reporte)  o  (baja y c sobra en el reporte)
+contraria(c)  ⇔  (sube y c sobra)                   o  (baja y c se agota)
+neutra(c)     ⇔  c está normal o no aparece en el reporte
+
+Coherencia = coherentes ÷ M
+Magnitud   = Σ |qᶠ(c) − qᴵ(c)| ÷ Σ qᴵ(c)          (una línea agregada o quitada aporta toda su cantidad)
+```
+
+En el ejemplo de §4.1, con un reporte donde F se agota, G y D sobran, B está normal y E no aparece: coherentes = 2 (F y D), contrarias = 1 (G), neutras = 2, **coherencia = 2 ÷ 5 = 40 %**; magnitud = 16 ÷ 27 = **59 %**. Lo verifica `test/listas.test.js`.
+
+El resumen dice cuántos de los que cumplen movieron **la mayoría** (≥ 50 %) de sus líneas en la dirección del reporte (`COHERENCIA_MAYORIA` en `server/equipo.js`). Es una ayuda para leer los "¿por qué?", no un criterio nuevo: el veredicto sigue siendo el de §4.2. Al usuario no se le muestra, para no sugerirle qué responder en el paso 5. Los pedidos guardados antes del 2026-10-11 se completan solos la primera vez que se abre la vista del equipo, con las listas y el reporte que ya están en la base.
+
+## 5. Recordatorio por correo (stickiness)
+
+La corrección del Entregable 2 (2026-10-07, fila de Stickiness en "Cambios") cambió el mecanismo que trae de vuelta al usuario: *"se le pregunta al usuario si quisiera recibir un recordatorio vía correo electrónico 3 días antes de cuando la aplicación estima que productos con buen nivel actual de inventario (más de 4 semanas) van a llegar al umbral de reabastecimiento (2 semanas)"*. Está en `server/recordatorios.js`.
+
+```
+t₀              = día en que se subió el export (las existencias son de ese día), en hora de Colombia
+fecha umbral(i) = t₀ + ⌊7 · (Sᵢ − 2)⌋ días     para los productos con Sᵢ > 4
+fecha aviso(i)  = fecha umbral(i) − 3 días
+```
+
+- Supone que se sigue vendiendo al ritmo d̄ᵢ del reporte, así que el correo pide subir un export nuevo para confirmar. Redondea hacia abajo: es mejor avisar un día antes que un día tarde.
+- Un correo junta los productos cuyo aviso cae en los 7 días siguientes al primero, así que llega como máximo uno por semana.
+- Se ofrece en el paso 3, al ver el reporte. Un "sí" en un reporte nuevo reemplaza los avisos pendientes del anterior; "Dejar de recibir avisos" los borra.
+- La vista del equipo mide el stickiness: quién lo activó, a quién le llegó un aviso y quién volvió a entrar después del primer aviso. Es el dato que el Entregable dice que la prueba no medía (eslabón más débil).
+- El servidor revisa cada hora mientras está despierto. En el plan gratis de Render se duerme, así que un cron externo llama `POST /api/tareas/recordatorios` una vez al día (ver README).
+
+## 6. Lo que queda para después (no construido)
 
 El modelo deja la base para las funciones de la sección 6 del documento. No se construyen ahora; esto solo deja escrito cómo se extendería el cálculo:
 
@@ -151,6 +211,8 @@ El modelo deja la base para las funciones de la sección 6 del documento. No se 
 | Tiempo de entrega del proveedor | Punto de reorden: ROP = d̄ᵢ·L + z·σᵢ·√L, donde L es el tiempo de entrega en semanas, σᵢ la desviación de las ventas semanales y z el nivel de servicio. |
 | Sugerencia de cuánto pedir | Pedido = máx(0, d̄ᵢ·(L + R) + stock de seguridad − Iᵢ), donde R son las semanas entre pedidos; o el lote económico EOQ = √(2DS/H). |
 | Demanda intermitente | Croston con la corrección SBA para los productos con ADI > 1,32. |
+| Demanda perdida por agotados | Sumar a las ventas lo que se pidió y no se pudo despachar. Requiere un dato que el export no trae. |
+| Nivel de servicio por producto | Clase ABC por plata vendida (A = el 80 % de la venta) y un z distinto por clase en el punto de reorden (por ejemplo z = 1,88 / 1,41 / 1,04, es decir, 97 % / 92 % / 85 % de nivel de servicio). Requiere que el export traiga valores. |
 
 ## Fuentes
 

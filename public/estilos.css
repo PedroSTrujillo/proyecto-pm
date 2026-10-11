@@ -239,6 +239,13 @@ table.hoja.solo-lectura td { padding: .35rem .5rem; }
 .explicacion h3 { font-size: 1rem; margin-bottom: .3rem; }
 .explicacion p { margin-bottom: .4rem; }
 .explicacion .ejemplo { margin: 0; }
+.explicacion ol { margin: .25rem 0 .6rem; padding-left: 1.3rem; }
+.explicacion li { margin-bottom: .25rem; }
+.explicacion .pasos-calculo { margin-bottom: 0; }
+.explicacion .nota { display: block; }
+.recordatorio .mensaje { margin-top: 0; }
+.recordatorio .acciones { margin-top: .5rem; justify-content: flex-start; }
+.subtitulo { margin: 1.5rem 0 .5rem; font-size: 1.05rem; }
 .formula { font-weight: 600; }
 details.notas { margin-bottom: 1rem; font-size: .93rem; }
 details.notas summary { cursor: pointer; color: var(--tinta-suave); font-weight: 600; }

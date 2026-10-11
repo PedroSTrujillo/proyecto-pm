@@ -32,7 +32,7 @@ npm test
 npm run ejemplos
 ```
 
-`npm test` corre 34 pruebas automáticas: cálculo, comparación de listas, lector de archivos y API. `npm run ejemplos` crea en `ejemplos/` exports inventados con formatos distintos (CSV estilo Siigo, Excel estilo SAP, informe con una columna por mes, un catálogo de 3.000 productos y un informe de mínimos), para hacer demos y pruebas.
+`npm test` corre 48 pruebas automáticas: cálculo, comparación de listas, recordatorios, lector de archivos y API. `npm run ejemplos` crea en `ejemplos/` exports inventados con formatos distintos (CSV estilo Siigo, Excel estilo SAP, informe con una columna por mes, un catálogo de 3.000 productos y un informe de mínimos), para hacer demos y pruebas.
 
 ## Landing page
 
@@ -55,6 +55,10 @@ Al publicarla (por ejemplo en Vercel), configura `NEXT_PUBLIC_APP_URL` con la UR
 | `NODE_ENV` | En `production`, la cookie de sesión exige HTTPS. | `production` |
 | `PORT` | Puerto (lo pone el hosting). | `3000` |
 | `DATA_DIR` | Carpeta de PGlite. `memory://` la deja en memoria. | `./data/pglite` |
+| `BREVO_API_KEY` | Para enviar los avisos por correo con [Brevo](https://www.brevo.com) (gratis hasta 300 correos al día). Sin ella, los correos se imprimen en la consola del servidor. | `xkeysib-…` |
+| `CORREO_REMITENTE` | El correo que verificaron en Brevo como remitente. | `avisos@grupo1.co` |
+| `APP_URL` | La dirección pública de la app, para el enlace del correo. | `https://rotacion-inventario.onrender.com` |
+| `CRON_SECRET` | Clave para que un cron externo dispare el envío de avisos (ver abajo). Sin ella, esa ruta no existe. | una cadena larga al azar |
 
 Una cuenta queda con rol de **equipo** si su correo está en `TEAM_EMAILS` al crearla o al iniciar sesión. Las cuentas del equipo no cuentan como usuarios de prueba.
 
@@ -70,6 +74,12 @@ Notas:
 - El plan gratis de Render apaga el servidor tras 15 minutos sin uso, y la primera visita tarda unos 50 segundos en despertarlo. Antes de una sesión con un probador, abran la página un minuto antes. Para evitarlo del todo, usen el plan Starter de Render.
 - No usen PGlite en Render: el disco del plan gratis se borra en cada despliegue. Por eso se pide `DATABASE_URL`, y el servidor avisa al arrancar si falta.
 - Cualquier hosting de Node sirve igual (Railway, Fly.io, un VPS): `npm install` y `npm start` con las variables de arriba.
+
+### Avisos por correo en producción
+
+1. Creen una cuenta gratis en Brevo, verifiquen un remitente (un clic en el correo que les llega) y saquen una API key en *SMTP & API*. Pónganlas en Render como `BREVO_API_KEY` y `CORREO_REMITENTE`, junto con `APP_URL`.
+2. El servidor revisa los avisos cada hora mientras está despierto, pero en el plan gratis de Render se duerme. Por eso el repo trae `.github/workflows/recordatorios.yml`, que una vez al día (7 a. m. de Colombia) llama `POST /api/tareas/recordatorios` y de paso despierta el servidor. Para activarlo, en GitHub vayan a *Settings → Secrets and variables → Actions* y creen `APP_URL` y `CRON_SECRET` con los mismos valores que en Render. GitHub solo corre los workflows programados de la rama principal.
+3. Para probar sin esperar: en GitHub, *Actions → Recordatorios por correo → Run workflow*.
 
 ## Antes de la prueba con los 5 probadores
 
@@ -101,9 +111,12 @@ El documento pide que las plantillas sean iguales al export real de cada probado
 | Comparación por código (agregadas, quitadas, cantidad cambiada, total) y "¿Por qué cambiaste lo que cambiaste?" | `compararListas` en `server/listas.js`, paso 5 |
 | Vista del equipo con resumen (cuántos cambiaron 5 o más; cuántos 0 o 1) calculado de los datos | `server/equipo.js`, `vistaEquipo` en `public/js/app.js` |
 | Registro con fecha de cada ingreso, archivo subido y pedido | Tabla `eventos`. Volver con la sesión abierta después de 30 minutos sin actividad cuenta como un nuevo ingreso. |
+| Stickiness corregido (2026-10-07): aviso por correo 3 días antes de que un producto con más de 4 semanas llegue a 2 | `server/recordatorios.js` (cálculo y envío), `server/correo.js`, tarjeta en el paso 3, cifras de stickiness en la vista del equipo |
+| Cálculo de semanas más completo, explicado desglosado (pendiente del equipo) | Tres ajustes en `server/rotacion.js` (§3.6 del modelo) y explicación paso a paso en `public/js/reporte.js` |
+| Ayuda para el segundo criterio de pivote | Coherencia con el reporte y magnitud del cambio en `server/listas.js`, columnas en la vista del equipo |
 | Todo en español sencillo | Textos de la interfaz y mensajes del servidor |
 
-**Lo que el producto no hace, a propósito** (sección 1 y sección 6 del documento): no sugiere cuánto pedir, no ajusta por temporada ni por tiempo de entrega, no se conecta al software contable, no manda alertas.
+**Lo que el producto no hace, a propósito** (sección 1 y sección 6 del documento): no sugiere cuánto pedir, no ajusta por temporada ni por tiempo de entrega y no se conecta al software contable. Las alertas sí entraron: el aviso por correo es el stickiness que pidió la corrección del Entregable 2.
 
 ## Estructura
 
@@ -115,6 +128,8 @@ server/
   cuentas.js      cuentas, sesiones (cookie HttpOnly), eventos
   pedidos.js      flujo de 5 pasos y sus reglas
   equipo.js       resultados de la prueba
+  recordatorios.js  aviso por correo antes de que un producto se agote
+  correo.js       envío de correos (Brevo, o la consola en local)
   lector.js       lectura de exports y listas (Excel/CSV)
   valores.js      códigos, números y fechas
   formatos.js     sinónimos de columnas y plantillas  ← lo que el equipo ajusta

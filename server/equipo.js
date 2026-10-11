@@ -12,7 +12,8 @@
 const express = require('express');
 const db = require('./db');
 const { requiereEquipo } = require('./cuentas');
-const { pasoDe } = require('./pedidos');
+const { pasoDe, filasDelReporte } = require('./pedidos');
+const { compararListas, coherenciaConReporte } = require('./listas');
 
 const DIAS_PRUEBA = 14;
 const META_LINEAS = 5;
@@ -20,6 +21,9 @@ const META_USUARIOS = 3;
 const PIVOTE_LINEAS = 1;
 const PIVOTE_USUARIOS = 3;
 const USUARIOS_ESPERADOS = 5;
+// Apoyo para el segundo criterio de pivote, no cambia el veredicto: de los que cumplen,
+// cuántos movieron la mayoría de sus líneas en la dirección que indica el reporte.
+const COHERENCIA_MAYORIA = 0.5;
 
 function evaluarUsuario(pedidos) {
   const iniciales = pedidos.filter((p) => p.inicialGuardadaEn).map((p) => new Date(p.inicialGuardadaEn).getTime());
@@ -40,12 +44,14 @@ function evaluarUsuario(pedidos) {
     else if (mejor.conteo.total <= PIVOTE_LINEAS) categoria = 'no_cambia';
     else categoria = 'intermedio';
   }
-  return { inicio: new Date(inicio), fin: new Date(fin), mejor: mejor ? { id: mejor.id, total: mejor.conteo.total, tipo: mejor.tipo } : null, categoria };
+  const coherencia = mejor && mejor.coherencia ? mejor.coherencia.porcentaje : null;
+  return { inicio: new Date(inicio), fin: new Date(fin), mejor: mejor ? { id: mejor.id, total: mejor.conteo.total, tipo: mejor.tipo, coherencia } : null, categoria };
 }
 
 function resumirPrueba(usuarios) {
   const cuenta = (cat) => usuarios.filter((u) => u.evaluacion.categoria === cat);
   const cumplen = cuenta('cumple');
+  const recordatorio = (u) => u.recordatorio || {};
   const noCambian = cuenta('no_cambia');
   let veredicto = 'en_curso';
   if (cumplen.length >= META_USUARIOS) veredicto = 'meta_cumplida';
@@ -56,11 +62,42 @@ function resumirPrueba(usuarios) {
     cumplen: cumplen.length,
     cumplenReal: cumplen.filter((u) => u.evaluacion.mejor.tipo === 'real').length,
     cumplenSimulado: cumplen.filter((u) => u.evaluacion.mejor.tipo === 'simulado').length,
+    cumplenCoherentes: cumplen.filter((u) => u.evaluacion.mejor.coherencia !== null && u.evaluacion.mejor.coherencia >= COHERENCIA_MAYORIA).length,
     noCambian: noCambian.length,
     intermedios: cuenta('intermedio').length,
     sinPedido: cuenta('sin_pedido').length,
     veredicto,
-    reglas: { diasPrueba: DIAS_PRUEBA, metaLineas: META_LINEAS, metaUsuarios: META_USUARIOS, pivoteLineas: PIVOTE_LINEAS, pivoteUsuarios: PIVOTE_USUARIOS },
+    // Stickiness: quién pidió el recordatorio y quién volvió después de recibirlo.
+    aceptaronRecordatorio: usuarios.filter((u) => recordatorio(u).activo).length,
+    recibieronCorreo: usuarios.filter((u) => recordatorio(u).correosEnviados > 0).length,
+    volvieronTrasCorreo: usuarios.filter((u) => recordatorio(u).ingresosTrasCorreo > 0).length,
+    reglas: { diasPrueba: DIAS_PRUEBA, metaLineas: META_LINEAS, metaUsuarios: META_USUARIOS, pivoteLineas: PIVOTE_LINEAS, pivoteUsuarios: PIVOTE_USUARIOS, coherenciaMayoria: COHERENCIA_MAYORIA },
+  };
+}
+
+// Los pedidos guardados antes de que existieran la coherencia y la magnitud se completan
+// con los datos que ya están en la base (las dos listas y el reporte que vio el usuario).
+async function completarComparaciones() {
+  const viejos = await db.query(
+    `SELECT id, export_id, lista_inicial, lista_final FROM pedidos
+      WHERE comparacion IS NOT NULL AND lista_final IS NOT NULL
+        AND (comparacion->'coherencia' IS NULL OR comparacion->'magnitud' IS NULL)`,
+  );
+  for (const p of viejos) {
+    const c = compararListas(p.lista_inicial, p.lista_final);
+    c.coherencia = coherenciaConReporte(c, await filasDelReporte(p.export_id));
+    await db.query('UPDATE pedidos SET comparacion = $1::jsonb WHERE id = $2', [JSON.stringify(c), p.id]);
+  }
+}
+
+function resumenRecordatorio(fila, actividad) {
+  const envios = actividad.filter((e) => e.tipo === 'recordatorio_enviado');
+  const primerEnvio = envios.length ? new Date(envios[0].en).getTime() : null;
+  return {
+    activo: fila ? fila.activo : null,
+    respondidoEn: fila ? fila.respondido_en : null,
+    correosEnviados: envios.length,
+    ingresosTrasCorreo: primerEnvio === null ? 0 : actividad.filter((e) => e.tipo === 'ingreso' && new Date(e.en).getTime() > primerEnvio).length,
   };
 }
 
@@ -68,11 +105,13 @@ const rutas = express.Router();
 rutas.use(requiereEquipo);
 
 rutas.get('/resultados', async (_req, res) => {
+  await completarComparaciones();
   const usuarios = await db.query("SELECT id, nombre, email, creado_en FROM usuarios WHERE rol = 'usuario' ORDER BY creado_en");
   const pedidos = await db.query(
     `SELECT p.id, p.usuario_id, p.proveedor, p.tipo, p.creado_en, p.inicial_guardada_en, p.export_id,
             p.reporte_visto_en, p.final_guardada_en, p.terminado_en, p.por_que,
-            p.comparacion->'conteo' AS conteo, jsonb_array_length(p.lista_inicial) AS lineas_inicial,
+            p.comparacion->'conteo' AS conteo, p.comparacion->'magnitud' AS magnitud,
+            (p.comparacion->'coherencia') - 'detalle'::text AS coherencia, jsonb_array_length(p.lista_inicial) AS lineas_inicial,
             CASE WHEN p.lista_final IS NULL THEN NULL ELSE jsonb_array_length(p.lista_final) END AS lineas_final
        FROM pedidos p JOIN usuarios u ON u.id = p.usuario_id
       WHERE u.rol = 'usuario' ORDER BY p.creado_en`,
@@ -80,9 +119,10 @@ rutas.get('/resultados', async (_req, res) => {
   const eventos = await db.query(
     `SELECT e.usuario_id, e.tipo, e.pedido_id, e.detalle, e.creado_en
        FROM eventos e JOIN usuarios u ON u.id = e.usuario_id
-      WHERE u.rol = 'usuario' AND e.tipo IN ('ingreso', 'archivo_subido', 'lista_inicial_guardada', 'reporte_visto', 'lista_final_guardada', 'pedido_terminado')
+      WHERE u.rol = 'usuario' AND e.tipo IN ('ingreso', 'archivo_subido', 'lista_inicial_guardada', 'reporte_visto', 'lista_final_guardada', 'pedido_terminado', 'recordatorio_respondido', 'recordatorio_enviado')
       ORDER BY e.creado_en`,
   );
+  const recordatorios = await db.query('SELECT usuario_id, activo, respondido_en FROM recordatorios');
   const archivos = await db.query(
     `SELECT a.usuario_id, a.tipo, count(*)::int AS n FROM archivos a JOIN usuarios u ON u.id = a.usuario_id
       WHERE u.rol = 'usuario' GROUP BY a.usuario_id, a.tipo`,
@@ -102,6 +142,8 @@ rutas.get('/resultados', async (_req, res) => {
       lineasInicial: p.lineas_inicial,
       lineasFinal: p.lineas_final,
       conteo: p.conteo,
+      magnitud: p.magnitud,
+      coherencia: p.coherencia,
       porQue: p.por_que,
     }));
     const evaluacion = evaluarUsuario(suyos);
@@ -121,6 +163,7 @@ rutas.get('/resultados', async (_req, res) => {
       diasConActividad: new Set(actividad.map((e) => new Date(e.en).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }))).size,
       pedidos: suyos,
       evaluacion,
+      recordatorio: resumenRecordatorio(recordatorios.find((r) => r.usuario_id === u.id), actividad),
       actividad,
     };
   });

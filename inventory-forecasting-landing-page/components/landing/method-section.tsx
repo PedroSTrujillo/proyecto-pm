@@ -11,7 +11,7 @@ const pieces = [
   },
   {
     label: 'Ventas por semana',
-    body: 'Todo lo que vendiste del producto en ese tiempo, dividido entre esas semanas. Las devoluciones se restan.',
+    body: 'Todo lo que vendiste del producto en ese tiempo, dividido entre esas semanas. Lo de los últimos 3 meses cuenta doble y un mes fuera de lo normal, como una venta para un proyecto, no infla el número. Las devoluciones se restan.',
     example: `${numero(ejemplo.vendido)} ÷ ${SEMANAS_EJEMPLO} = ${ventasSemana(ejemplo.promedioSemanal)}`,
   },
   {
@@ -42,7 +42,7 @@ export function MethodSection() {
             </h2>
             <p className="mt-4 text-pretty text-lg leading-relaxed text-primary-foreground/85">
               No hay fórmulas escondidas ni nada que configurar. Son dos divisiones con los datos de tu propio archivo,
-              y en el reporte te mostramos la cuenta hecha con uno de tus productos.
+              con tres ajustes, y en el reporte te mostramos la cuenta paso a paso con uno de tus productos.
             </p>
             <div className="mt-8 rounded-xl border border-primary-foreground/15 bg-primary-foreground/5 p-5">
               <p className="text-sm text-primary-foreground/75">¿Por qué usamos todo el histórico?</p>

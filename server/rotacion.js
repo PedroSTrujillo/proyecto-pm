@@ -2,19 +2,30 @@
 
 // Cálculo de la rotación por producto (ver docs/modelo-rotacion.md).
 //
-//   T  = semanas del histórico = (último día − primer día + 1) / 7
-//   d̄ᵢ = ventas promedio por semana del producto i = (Σ cantidades vendidas de i) / T
-//   Sᵢ = semanas de inventario restantes = existencias de i / d̄ᵢ
+//   T   = semanas del histórico = (último día − primer día + 1) / 7
+//   Tᵢ  = semanas que cuentan para el producto i: todo el histórico, o desde su primera
+//         venta si empezó a venderse hace poco (mínimo 13 semanas)
+//   Qᵢ  = total vendido de i, con su mes fuera de lo normal recortado a 3 veces lo normal
+//   Rᵢ  = semanas recientes (las últimas 13, o Tᵢ si es menor); Q⁽ʳ⁾ᵢ = lo vendido en ellas
+//   d̄ᵢ  = ventas por semana = (Qᵢ + Q⁽ʳ⁾ᵢ) / (Tᵢ + Rᵢ)   (lo reciente cuenta doble)
+//   Sᵢ  = semanas de inventario restantes = existencias de i / d̄ᵢ
 //
 // Se usa todo el histórico (uno o dos años) porque en catálogos grandes muchos
-// productos de baja rotación saldrían en cero si se mirara un periodo corto.
+// productos de baja rotación saldrían en cero si se mirara un periodo corto. Los tres
+// ajustes acercan el promedio a lo que se va a vender sin pedirle nada al usuario.
 
-const { claveCodigo, finDeMes, textoDia } = require('./valores');
+const { claveCodigo, finDeMes, textoDia, MS_DIA } = require('./valores');
 
 const SEMANAS_SE_AGOTA = 2; // menos de esto: se resalta como "se agota"
 const SEMANAS_SOBRA = 12; // más de esto (unos 3 meses): "sobra"
 const SEMANAS_HISTORICO_MINIMO = 26;
 const SEMANAS_HISTORICO_MAXIMO = 110;
+const SEMANAS_RECIENTES = 13; // unos 3 meses: lo vendido aquí cuenta doble
+const SEMANAS_MINIMAS_PRODUCTO = 13; // un producto nuevo se promedia sobre al menos esto
+const VECES_INTERVALO = 3; // nuevo = apareció tarde comparado con cada cuánto se vende
+const MESES_MINIMOS_PICO = 6; // con menos meses con venta no se sabe qué es "lo normal"
+const VECES_LO_NORMAL = 3; // un mes que vende más que esto × la mediana de los demás se recorta...
+const VECES_OTRO_MES = 2; // ...si además vende más del doble que cualquier otro mes (pico aislado)
 
 /**
  * ventas: [{ codigo, nombre, dia, cantidad }]  (dia = días desde 1970-01-01)
@@ -33,13 +44,15 @@ function calcularRotacion({ ventas, existencias, mensual = false }) {
   if (mensual) hasta = finDeMes(hasta); // el último mes cuenta completo
   const dias = hasta - desde + 1;
   const semanasHistorico = dias / 7;
+  const inicioReciente = Math.max(desde, inicioDeLoReciente(hasta, mensual));
+  const semanasRecientes = (hasta - inicioReciente + 1) / 7;
 
   const productos = new Map();
   const producto = (codigo, nombre) => {
     const clave = claveCodigo(codigo);
     let p = productos.get(clave);
     if (!p) {
-      p = { clave, codigo, nombre: nombre || '', vendido: 0, filasVenta: 0, existencias: 0, filasExistencias: 0 };
+      p = { clave, codigo, nombre: nombre || '', vendido: 0, reciente: 0, primeraVenta: null, diasConVenta: new Set(), meses: new Map(), filasVenta: 0, existencias: 0, filasExistencias: 0 };
       productos.set(clave, p);
     }
     return p;
@@ -47,7 +60,18 @@ function calcularRotacion({ ventas, existencias, mensual = false }) {
 
   for (const v of ventas) {
     const p = producto(v.codigo, v.nombre);
+    const esReciente = v.dia >= inicioReciente;
     p.vendido += v.cantidad;
+    if (esReciente) p.reciente += v.cantidad;
+    if (v.cantidad > 0) {
+      if (p.primeraVenta === null || v.dia < p.primeraVenta) p.primeraVenta = v.dia;
+      p.diasConVenta.add(v.dia);
+    }
+    const mes = mesDe(v.dia);
+    const m = p.meses.get(mes) || { total: 0, reciente: 0 };
+    m.total += v.cantidad;
+    if (esReciente) m.reciente += v.cantidad;
+    p.meses.set(mes, m);
     p.filasVenta++;
     if (!p.nombre && v.nombre) p.nombre = v.nombre;
   }
@@ -66,12 +90,15 @@ function calcularRotacion({ ventas, existencias, mensual = false }) {
     if (p.filasExistencias > 1) variasBodegas++;
     const existenciasActuales = enExistencias ? redondear(p.existencias) : 0;
     const vendido = redondear(p.vendido);
-    const promedioSemanal = vendido > 0 ? vendido / semanasHistorico : 0;
+    const ajuste = vendido > 0 ? ventasPorSemana(p, { desde, hasta, semanasHistorico, semanasRecientes }) : null;
+    const promedioSemanal = ajuste ? ajuste.promedioSemanal : 0;
     const senales = [];
     if (!enVentas) senales.push('no_en_ventas');
     if (!enExistencias) senales.push('no_en_existencias');
     if (existenciasActuales < 0) senales.push('existencias_negativas');
     if (enVentas && vendido <= 0) senales.push('devoluciones');
+    if (ajuste && ajuste.pico) senales.push('pico_recortado');
+    if (ajuste && ajuste.semanasProducto < semanasHistorico) senales.push('producto_nuevo');
 
     let semanasInventario = null;
     let estado;
@@ -90,6 +117,13 @@ function calcularRotacion({ ventas, existencias, mensual = false }) {
       nombre: p.nombreExistencias || p.nombre,
       vendido,
       promedioSemanal,
+      // El desglose del promedio, para explicarlo producto por producto.
+      promedioSimple: vendido > 0 ? vendido / semanasHistorico : 0,
+      vendidoAjustado: ajuste ? ajuste.vendidoAjustado : vendido,
+      vendidoReciente: ajuste ? ajuste.vendidoReciente : 0,
+      semanasProducto: ajuste ? ajuste.semanasProducto : semanasHistorico,
+      semanasRecientes: ajuste ? ajuste.semanasRecientes : 0,
+      pico: ajuste ? ajuste.pico : null,
       existencias: existenciasActuales,
       semanasInventario,
       estado,
@@ -115,6 +149,8 @@ function calcularRotacion({ ventas, existencias, mensual = false }) {
     sinExistenciaCero: cuenta((f) => f.semanasInventario === 0),
     noEnVentas: cuenta((f) => f.senales.includes('no_en_ventas')),
     noEnExistencias: cuenta((f) => f.senales.includes('no_en_existencias')),
+    picosRecortados: cuenta((f) => f.senales.includes('pico_recortado')),
+    productosNuevos: cuenta((f) => f.senales.includes('producto_nuevo')),
     filasVenta: ventas.length,
   };
 
@@ -123,6 +159,8 @@ function calcularRotacion({ ventas, existencias, mensual = false }) {
     hasta: textoDia(hasta),
     dias,
     semanas: semanasHistorico,
+    recientesDesde: textoDia(inicioReciente),
+    semanasRecientes,
     mensual,
   };
 
@@ -137,8 +175,90 @@ function calcularRotacion({ ventas, existencias, mensual = false }) {
   if (variasBodegas) avisos.push(`${plural(variasBodegas, 'producto aparece', 'productos aparecen')} en varias filas de existencias (por ejemplo, varias bodegas). Se sumaron.`);
   const negativas = cuenta((f) => f.senales.includes('existencias_negativas'));
   if (negativas) avisos.push(`${plural(negativas, 'producto tiene', 'productos tienen')} existencias negativas en el archivo. Se cuentan como 0 semanas.`);
+  if (resumen.picosRecortados) avisos.push(`En ${plural(resumen.picosRecortados, 'producto', 'productos')} un mes vendió más de ${VECES_LO_NORMAL} veces lo normal (por ejemplo, una venta para un proyecto). Ese mes se contó como ${VECES_LO_NORMAL} veces lo normal.`);
+  if (resumen.productosNuevos) avisos.push(`${plural(resumen.productosNuevos, 'producto empezó', 'productos empezaron')} a venderse hace poco. Su promedio se calcula desde su primera venta (mínimo ${SEMANAS_MINIMAS_PRODUCTO} semanas) y no sobre todo el archivo.`);
 
-  return { filas, resumen, periodo, ejemplo: elegirEjemplo(filas, semanasHistorico), avisos, umbrales: { seAgota: SEMANAS_SE_AGOTA, sobra: SEMANAS_SOBRA } };
+  return {
+    filas,
+    resumen,
+    periodo,
+    ejemplo: elegirEjemplo(filas, semanasHistorico),
+    avisos,
+    umbrales: { seAgota: SEMANAS_SE_AGOTA, sobra: SEMANAS_SOBRA },
+    ajustes: { semanasRecientes: SEMANAS_RECIENTES, semanasMinimasProducto: SEMANAS_MINIMAS_PRODUCTO, vecesLoNormal: VECES_LO_NORMAL, vecesOtroMes: VECES_OTRO_MES, mesesMinimosPico: MESES_MINIMOS_PICO },
+  };
+}
+
+// Lo reciente: las últimas 13 semanas, o los últimos 3 meses completos si el archivo viene por mes.
+function inicioDeLoReciente(hasta, mensual) {
+  if (!mensual) return hasta - SEMANAS_RECIENTES * 7 + 1;
+  const d = new Date(hasta * MS_DIA);
+  return Math.round(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 2, 1) / MS_DIA);
+}
+
+function mesDe(dia) {
+  const d = new Date(dia * MS_DIA);
+  return d.getUTCFullYear() * 12 + d.getUTCMonth();
+}
+
+function textoMes(mes) {
+  return `${Math.floor(mes / 12)}-${String((mes % 12) + 1).padStart(2, '0')}`;
+}
+
+/**
+ * Ventas por semana de un producto con los tres ajustes. Devuelve también cada paso,
+ * para que el reporte pueda mostrar el cálculo desglosado.
+ */
+function ventasPorSemana(p, { desde, hasta, semanasHistorico, semanasRecientes }) {
+  const pico = mesFueraDeLoNormal(p.meses);
+  const vendidoAjustado = redondear(p.vendido - (pico ? pico.exceso : 0));
+  // Si en lo reciente hubo más devoluciones que ventas, eso no suma doble (ni resta doble).
+  const vendidoReciente = redondear(Math.max(p.reciente - (pico ? pico.excesoReciente : 0), 0));
+  const semanasProducto = esNuevo(p, desde, hasta)
+    ? Math.min(semanasHistorico, Math.max(SEMANAS_MINIMAS_PRODUCTO, (hasta - p.primeraVenta + 1) / 7))
+    : semanasHistorico;
+  const semanasRecientesProducto = Math.min(semanasRecientes, semanasProducto);
+  const promedioSemanal = Math.max(vendidoAjustado + vendidoReciente, 0) / (semanasProducto + semanasRecientesProducto);
+  return {
+    promedioSemanal,
+    vendidoAjustado,
+    vendidoReciente,
+    semanasProducto,
+    semanasRecientes: semanasRecientesProducto,
+    pico: pico ? { mes: pico.mes, vendido: redondear(pico.vendido), contado: redondear(pico.tope) } : null,
+  };
+}
+
+// Nuevo = su primera venta llega mucho después del inicio del archivo: más de 13 semanas y más
+// de 3 veces lo que suele tardar entre una venta y otra. Así, un producto que se vende de vez en
+// cuando (y por eso tardó en aparecer) no se toma por nuevo ni se le infla el promedio.
+function esNuevo(p, desde, hasta) {
+  if (p.primeraVenta === null) return false;
+  const espera = p.primeraVenta - desde;
+  const intervalo = (hasta - p.primeraVenta + 1) / p.diasConVenta.size;
+  return espera >= SEMANAS_MINIMAS_PRODUCTO * 7 && espera > VECES_INTERVALO * intervalo;
+}
+
+// Un solo mes que vende más de 3 veces lo normal del producto (la mediana de sus otros
+// meses con venta) y más del doble que cualquier otro mes es casi siempre una venta
+// puntual, como un proyecto: se cuenta como 3 veces lo normal. La segunda condición
+// deja quieta una subida sostenida (varios meses altos seguidos), que es demanda real
+// y que el peso doble de lo reciente debe recoger.
+function mesFueraDeLoNormal(meses) {
+  const conVenta = [...meses].filter(([, m]) => m.total > 0).sort((a, b) => b[1].total - a[1].total);
+  if (conVenta.length < MESES_MINIMOS_PICO) return null;
+  const [mes, mayor] = conVenta[0];
+  if (mayor.total <= VECES_OTRO_MES * conVenta[1][1].total) return null;
+  const tope = VECES_LO_NORMAL * mediana(conVenta.slice(1).map(([, m]) => m.total));
+  if (mayor.total <= tope) return null;
+  const exceso = mayor.total - tope;
+  return { mes: textoMes(mes), vendido: mayor.total, tope, exceso, excesoReciente: exceso * Math.max(mayor.reciente, 0) / mayor.total };
+}
+
+function mediana(valores) {
+  const v = [...valores].sort((a, b) => a - b);
+  const m = Math.floor(v.length / 2);
+  return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
 }
 
 // Un producto del propio archivo para explicar el cálculo con sus números.
@@ -154,6 +274,12 @@ function elegirEjemplo(filas, semanasHistorico) {
     nombre: elegido.nombre,
     vendido: elegido.vendido,
     semanasHistorico,
+    vendidoAjustado: elegido.vendidoAjustado,
+    vendidoReciente: elegido.vendidoReciente,
+    semanasProducto: elegido.semanasProducto,
+    semanasRecientes: elegido.semanasRecientes,
+    pico: elegido.pico,
+    promedioSimple: elegido.promedioSimple,
     promedioSemanal: elegido.promedioSemanal,
     existencias: elegido.existencias,
     semanasInventario: elegido.semanasInventario,

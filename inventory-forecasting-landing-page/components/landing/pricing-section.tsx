@@ -10,13 +10,14 @@ const incluye = [
   'Tu lista de antes y la de después, comparadas',
   'Pedidos reales o simulados',
   'Plantillas de ejemplo para descargar',
+  'Aviso por correo antes de que un producto se agote, si lo pides',
 ]
 
 const noHace = [
   'No te dice cuánto pedir. Eso lo decides tú.',
   'No ajusta por temporada ni por el tiempo de entrega del proveedor.',
   'No se conecta a tu software contable: tú subes el archivo.',
-  'No manda alertas ni hace pedidos por ti.',
+  'No hace pedidos por ti.',
 ]
 
 export function PricingSection() {

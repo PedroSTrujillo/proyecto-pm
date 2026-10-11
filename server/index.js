@@ -2,6 +2,7 @@
 
 const db = require('./db');
 const { crearApp } = require('./app');
+const { programarEnvios } = require('./recordatorios');
 
 const PUERTO = Number(process.env.PORT) || 3000;
 
@@ -17,7 +18,11 @@ async function main() {
     if (!process.env.TEAM_EMAILS) {
       console.log('Aviso: TEAM_EMAILS no está configurado; nadie tendrá acceso a la vista del equipo.');
     }
+    if (!process.env.BREVO_API_KEY) {
+      console.log('Aviso: BREVO_API_KEY no está configurado; los recordatorios se imprimen aquí en vez de enviarse.');
+    }
   });
+  programarEnvios();
 }
 
 main().catch((e) => {
