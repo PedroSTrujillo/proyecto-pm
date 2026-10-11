@@ -185,21 +185,21 @@ En el ejemplo de §4.1, con un reporte donde F se agota, G y D sobran, B está n
 
 El resumen dice cuántos de los que cumplen movieron **la mayoría** (≥ 50 %) de sus líneas en la dirección del reporte (`COHERENCIA_MAYORIA` en `server/equipo.js`). Es una ayuda para leer los "¿por qué?", no un criterio nuevo: el veredicto sigue siendo el de §4.2. Al usuario no se le muestra, para no sugerirle qué responder en el paso 5. Los pedidos guardados antes del 2026-10-11 se completan solos la primera vez que se abre la vista del equipo, con las listas y el reporte que ya están en la base.
 
-## 5. Recordatorio por correo (stickiness)
+## 5. Recordatorio antes de que se agote (stickiness)
 
 La corrección del Entregable 2 (2026-10-07, fila de Stickiness en "Cambios") cambió el mecanismo que trae de vuelta al usuario: *"se le pregunta al usuario si quisiera recibir un recordatorio vía correo electrónico 3 días antes de cuando la aplicación estima que productos con buen nivel actual de inventario (más de 4 semanas) van a llegar al umbral de reabastecimiento (2 semanas)"*. Está en `server/recordatorios.js`.
 
 ```
-t₀              = día en que se subió el export (las existencias son de ese día), en hora de Colombia
-fecha umbral(i) = t₀ + ⌊7 · (Sᵢ − 2)⌋ días     para los productos con Sᵢ > 4
-fecha aviso(i)  = fecha umbral(i) − 3 días
+t₀                     = día en que se subió el export (las existencias son de ese día), en hora de Colombia
+fecha umbral(i)        = t₀ + ⌊7 · (Sᵢ − 2)⌋ días     para los productos con Sᵢ > 4
+fecha recordatorio(i)  = fecha umbral(i) − 3 días
 ```
 
-- Supone que se sigue vendiendo al ritmo d̄ᵢ del reporte, así que el correo pide subir un export nuevo para confirmar. Redondea hacia abajo: es mejor avisar un día antes que un día tarde.
-- Un correo junta los productos cuyo aviso cae en los 7 días siguientes al primero, así que llega como máximo uno por semana.
-- Se ofrece en el paso 3, al ver el reporte. Un "sí" en un reporte nuevo reemplaza los avisos pendientes del anterior; "Dejar de recibir avisos" los borra.
-- La vista del equipo mide el stickiness: quién lo activó, a quién le llegó un aviso y quién volvió a entrar después del primer aviso. Es el dato que el Entregable dice que la prueba no medía (eslabón más débil).
-- El servidor revisa cada hora mientras está despierto. En el plan gratis de Render se duerme, así que un cron externo llama `POST /api/tareas/recordatorios` una vez al día (ver README).
+- **Sin tareas programadas.** Un envío programado necesita un servidor siempre despierto o un cron externo, y en el plan gratis de Render el servidor se duerme. Por eso el recordatorio es un **archivo de calendario (.ics)**: el usuario lo descarga al decir que sí, lo abre, y es su Google Calendar, Outlook o celular el que avisa en la fecha, a las 8 a. m. Si se configura el correo (`BREVO_API_KEY`), la misma invitación le llega también al correo en ese momento; es un envío inmediato, no programado.
+- Supone que se sigue vendiendo al ritmo d̄ᵢ del reporte, así que cada recordatorio pide subir un export nuevo para confirmar. Redondea hacia abajo: es mejor avisar un día antes que un día tarde.
+- Solo se programan los productos que llegan a 2 semanas dentro de los próximos 3 meses (`SEMANAS_HORIZONTE`). Más allá, la estimación ya no vale y lo correcto es subir otro export.
+- Un recordatorio junta los productos de los 7 días siguientes al primero, así que llega como máximo uno por semana.
+- La vista del equipo mide el stickiness: quién lo pidió, quién descargó el calendario, a quién ya le llegó la fecha de su primer recordatorio y quién volvió a entrar desde ese día. El recordatorio vive en el calendario del usuario, así que no se sabe si lo abrió; volver a entrar desde esa fecha es la señal.
 
 ## 6. Lo que queda para después (no construido)
 

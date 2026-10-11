@@ -512,8 +512,9 @@ async function paso3(cont, pedido) {
   pintarRecordatorio(cont.querySelector('.recordatorio'), pedido);
 }
 
-// Stickiness del Entregable: al ver el reporte se ofrece un aviso por correo 3 días antes de
-// que un producto con buen nivel hoy llegue a 2 semanas de inventario.
+// Stickiness del Entregable: al ver el reporte se ofrece un recordatorio 3 días antes de que
+// un producto con buen nivel hoy llegue a 2 semanas de inventario. Es un archivo de calendario
+// (y, si el correo está configurado, también llega como invitación al correo).
 async function pintarRecordatorio(caja, pedido) {
   let datos;
   try {
@@ -534,22 +535,24 @@ async function pintarRecordatorio(caja, pedido) {
   };
 
   function dibujar() {
-    const { plan, respuesta, email } = datos;
+    const { plan, respuesta, email, correo } = datos;
     const activo = respuesta && respuesta.activo;
     const deEste = respuesta && respuesta.pedidoId === pedido.id;
     const p = plan.primero;
+    const descargar = html`<a class="boton chico primario" href="/api/pedidos/${pedido.id}/recordatorio.ics" download>Descargar para mi calendario</a>`;
     let contenido;
     if (activo && deEste) {
-      contenido = html`<p><strong>Listo: te avisaremos a ${email}.</strong> ${respuesta.proximoAviso ? `El primer correo sale hacia el ${dia(respuesta.proximoAviso)}.` : 'Ya te enviamos todos los avisos de este reporte.'}</p>
-        <div class="acciones"><button type="button" class="boton chico" data-activo="false">Dejar de recibir avisos</button></div>`;
+      contenido = html`<p><strong>Listo.</strong> ${correo === 'enviado' ? `Te enviamos la invitación a ${email}. ` : ''}${correo === 'fallo' ? 'No pudimos enviarte el correo, pero puedes descargar el archivo. ' : ''}
+        Descarga el archivo y ábrelo: tu calendario (Google Calendar, Outlook o el del celular) te avisará. El primer recordatorio es el ${dia(respuesta.primerAviso)}.</p>
+        <div class="acciones">${descargar}<button type="button" class="boton chico" data-activo="false">Ya no lo quiero</button></div>`;
     } else if (activo) {
-      contenido = html`<p>Tienes avisos por correo activos con el reporte del ${dia(respuesta.fechaReporte)}.${plan.productos ? ` ¿Prefieres que usemos este, del ${dia(plan.fechaReporte)}?` : ''}</p>
-        <div class="acciones">${plan.productos ? html`<button type="button" class="boton chico primario" data-activo="true">Usar este reporte</button>` : ''}<button type="button" class="boton chico" data-activo="false">Dejar de recibir avisos</button></div>`;
+      contenido = html`<p>Tienes recordatorios con el reporte del ${dia(respuesta.fechaReporte)}.${plan.productos ? ` ¿Prefieres usar este, del ${dia(plan.fechaReporte)}?` : ''}</p>
+        <div class="acciones">${plan.productos ? html`<button type="button" class="boton chico primario" data-activo="true">Usar este reporte</button>` : ''}<button type="button" class="boton chico" data-activo="false">Ya no lo quiero</button></div>`;
     } else if (plan.productos) {
-      contenido = html`<p><strong>¿Te avisamos antes de que se agoten?</strong>
-        ${plural(plan.productos, 'producto tiene', 'productos tienen')} hoy más de ${plan.semanasBuenNivel} semanas de inventario. Si sigues vendiendo al mismo ritmo, el primero en bajar de 2 semanas es ${p.codigo}${p.nombre ? ` (${p.nombre})` : ''}, hacia el ${dia(p.fechaUmbral)}.
-        Te escribimos a ${email} ${plan.diasAntes} días antes, como máximo un correo por semana.</p>
-        <div class="acciones">${respuesta ? '' : html`<button type="button" class="boton chico" data-activo="false">No, gracias</button>`}<button type="button" class="boton chico primario" data-activo="true">${respuesta ? 'Activar avisos' : 'Sí, avísame'}</button></div>`;
+      contenido = html`<p><strong>¿Te recordamos antes de que se agoten?</strong>
+        ${plural(plan.productos, 'producto que hoy tiene', 'productos que hoy tienen')} más de ${plan.semanasBuenNivel} semanas de inventario ${plan.productos === 1 ? 'baja' : 'bajan'} de 2 semanas en los próximos 3 meses, si sigues vendiendo al mismo ritmo. El primero es ${p.codigo}${p.nombre ? ` (${p.nombre})` : ''}, hacia el ${dia(p.fechaUmbral)}.
+        Te dejamos un recordatorio en tu calendario ${plan.diasAntes} días antes${plan.correo ? ` y te lo mandamos a ${email}` : ''}, como máximo uno por semana.</p>
+        <div class="acciones">${respuesta ? '' : html`<button type="button" class="boton chico" data-activo="false">No, gracias</button>`}<button type="button" class="boton chico primario" data-activo="true">Sí, recuérdamelo</button></div>`;
     } else {
       contenido = '';
     }
@@ -736,8 +739,9 @@ const TEXTO_EVENTO = {
   reporte_visto: (e) => `Vio el reporte del pedido #${e.pedidoId}`,
   lista_final_guardada: (e) => `Guardó la lista final del pedido #${e.pedidoId}${e.detalle ? ` (${e.detalle.total} cambios)` : ''}`,
   pedido_terminado: (e) => `Terminó el pedido #${e.pedidoId}`,
-  recordatorio_respondido: (e) => (e.detalle && e.detalle.activo ? `Pidió avisos por correo (${plural(e.detalle.productos, 'producto', 'productos')})` : 'Dijo que no quiere avisos por correo'),
-  recordatorio_enviado: (e) => `Le enviamos un aviso por correo (${e.detalle ? plural(e.detalle.productos, 'producto', 'productos') : ''}${e.detalle && e.detalle.via === 'prueba' ? ', modo prueba: no salió' : ''})`,
+  recordatorio_respondido: (e) => (e.detalle && e.detalle.activo ? `Pidió recordatorios (${plural(e.detalle.productos, 'producto', 'productos')})` : 'Dijo que no quiere recordatorios'),
+  recordatorio_enviado: () => 'Le llegó la invitación de calendario al correo',
+  calendario_descargado: (e) => `Descargó los recordatorios del pedido #${e.pedidoId}`,
 };
 
 function textoCoherencia(c) {
@@ -747,9 +751,11 @@ function textoCoherencia(c) {
 
 function textoRecordatorio(r) {
   if (!r || r.activo === null) return 'sin responder';
-  const estado = r.activo ? 'activo' : 'no lo quiso';
-  if (!r.correosEnviados) return estado;
-  return `${estado} · ${plural(r.correosEnviados, 'correo enviado', 'correos enviados')} · entró ${r.ingresosTrasCorreo} ${r.ingresosTrasCorreo === 1 ? 'vez' : 'veces'} después`;
+  if (!r.activo) return 'no lo quiso';
+  const partes = [`sí, el primero el ${dia(r.primerAviso)}`];
+  partes.push(r.descargoCalendario ? 'descargó el calendario' : r.correoEnviado ? 'lo recibió por correo' : 'no ha descargado el calendario');
+  if (r.yaLlego) partes.push(`entró ${r.ingresosDesdeAviso} ${r.ingresosDesdeAviso === 1 ? 'vez' : 'veces'} desde ese día`);
+  return partes.join(' · ');
 }
 
 const CATEGORIAS = {
@@ -792,11 +798,11 @@ async function vistaEquipo() {
       <div class="cifra"><strong>${r.intermedios}</strong><span>cambiaron entre 2 y 4</span></div>
       <div class="cifra"><strong>${r.sinPedido}</strong><span>aún sin lista final</span></div>
     </div>
-    <h2 class="subtitulo">Stickiness: el aviso por correo</h2>
+    <h2 class="subtitulo">Stickiness: el recordatorio</h2>
     <div class="cifras">
-      <div class="cifra"><strong>${r.aceptaronRecordatorio} de ${r.usuarios}</strong><span>tienen activo el aviso por correo</span></div>
-      <div class="cifra"><strong>${r.recibieronCorreo}</strong><span>ya recibieron al menos un aviso</span></div>
-      <div class="cifra verde"><strong>${r.volvieronTrasCorreo} de ${r.recibieronCorreo}</strong><span>volvieron a entrar después del aviso</span></div>
+      <div class="cifra"><strong>${r.aceptaronRecordatorio} de ${r.usuarios}</strong><span>pidieron el recordatorio</span></div>
+      <div class="cifra"><strong>${r.conRecordatorioVencido}</strong><span>ya pasaron la fecha de su primer recordatorio</span></div>
+      <div class="cifra verde"><strong>${r.volvieronTrasRecordatorio} de ${r.conRecordatorioVencido}</strong><span>volvieron a entrar desde ese día</span></div>
     </div>
     <p class="nota">Para cada usuario se toma el pedido con más líneas cambiadas (agregadas + quitadas + con cantidad distinta) cuya lista final guardó dentro de sus primeros ${r.reglas.diasPrueba} días, contados desde que guardó su primera lista inicial.
       ${r.usuarios !== r.usuariosEsperados ? `Hoy hay ${r.usuarios} cuentas de prueba; la meta está pensada para ${r.usuariosEsperados}.` : ''}</p>
@@ -809,7 +815,7 @@ async function vistaEquipo() {
         <span>Días con actividad: <strong>${u.diasConActividad}</strong></span>
         <span>Cuenta creada: ${fecha(u.creadoEn)}</span>
         ${u.evaluacion.inicio ? html`<span>Sus 14 días: ${fecha(u.evaluacion.inicio)} – ${fecha(u.evaluacion.fin)}</span>` : ''}
-        <span>Aviso por correo: <strong>${textoRecordatorio(u.recordatorio)}</strong></span>
+        <span>Recordatorio: <strong>${textoRecordatorio(u.recordatorio)}</strong></span>
       </div>
       ${u.pedidos.length ? html`<div class="marco-tabla"><table class="datos">
         <thead><tr><th>Pedido</th><th>Tipo</th><th>Lista inicial</th><th>Lista final</th><th class="numero">Agregadas</th><th class="numero">Quitadas</th><th class="numero">Cantidad distinta</th><th class="numero">Total</th><th class="numero" title="Cambios en la dirección que indica el reporte: subir o agregar lo que se agota, bajar o quitar lo que sobra">Coherentes con el reporte</th><th class="numero" title="Unidades agregadas, quitadas o cambiadas, sobre las unidades de la lista inicial">Unidades movidas</th><th>¿Por qué cambió?</th></tr></thead>

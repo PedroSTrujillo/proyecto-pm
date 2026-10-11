@@ -1,13 +1,11 @@
 'use strict';
 
 const path = require('path');
-const crypto = require('crypto');
 const express = require('express');
 const multer = require('multer');
 const cuentas = require('./cuentas');
 const pedidos = require('./pedidos');
 const equipo = require('./equipo');
-const { enviarPendientes } = require('./recordatorios');
 const { plantillaExport, plantillaLista } = require('./plantillas');
 const { PLANTILLA_EXPORT, PLANTILLA_LISTA } = require('./formatos');
 
@@ -42,13 +40,6 @@ function crearApp() {
   app.get('/plantillas/export.xlsx', enviarXlsx(PLANTILLA_EXPORT.archivo, plantillaExport));
   app.get('/plantillas/lista-pedido.xlsx', enviarXlsx(PLANTILLA_LISTA.archivo, plantillaLista));
 
-  // Lo llama un cron externo una vez al día (en Render gratis el servidor se duerme y su
-  // revisión de cada hora no corre). Sin CRON_SECRET la ruta no existe.
-  app.post('/api/tareas/recordatorios', async (req, res, next) => {
-    if (!process.env.CRON_SECRET || !mismoSecreto(req.get('authorization'), `Bearer ${process.env.CRON_SECRET}`)) return next();
-    res.json(await enviarPendientes());
-  });
-
   app.get('/salud', (_req, res) => res.json({ ok: true }));
   app.use('/api', (_req, _res, next) => next(new cuentas.ErrorUsuario('No encontramos eso.', 404)));
   app.use(express.static(path.join(__dirname, '..', 'public'), { extensions: ['html'], maxAge: 0 }));
@@ -74,12 +65,6 @@ function crearApp() {
   });
 
   return app;
-}
-
-function mismoSecreto(recibido, esperado) {
-  const a = Buffer.from(String(recibido || ''));
-  const b = Buffer.from(esperado);
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
 module.exports = { crearApp };

@@ -13,12 +13,10 @@ services:
         sync: false
       - key: TEAM_EMAILS
         sync: false
-      # Aviso por correo (server/recordatorios.js). Ver "Avisos por correo en producción" en el README.
+      # Opcional: manda el recordatorio de calendario también por correo (server/correo.js).
       - key: BREVO_API_KEY
         sync: false
       - key: CORREO_REMITENTE
         sync: false
       - key: APP_URL
         sync: false
-      - key: CRON_SECRET
-        generateValue: true

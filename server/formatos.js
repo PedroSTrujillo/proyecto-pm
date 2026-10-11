@@ -115,8 +115,23 @@ for (const [campo, def] of Object.entries(CAMPOS)) {
   });
 }
 
-function camposDeEncabezado(texto) {
-  return INDICE.get(normalizarEncabezado(texto)) || [];
+// Encabezados que cambian de significado según las otras columnas de la misma tabla.
+// En el detalle de facturas de Helisa, "Cantidad Disponible" es lo facturado menos las
+// "Unidades Devueltas" de esa línea: la venta neta, no lo que hay en bodega. Leída como
+// existencias, el reporte salía con el inventario de cada producto inventado.
+const SEGUN_CONTEXTO = [
+  { encabezado: 'cantidad disponible', siHay: 'unidades devueltas', campo: 'cantidad' },
+];
+
+// vecinos (opcional): encabezados normalizados de la misma fila.
+function camposDeEncabezado(texto, vecinos = null) {
+  const k = normalizarEncabezado(texto);
+  if (vecinos) {
+    for (const r of SEGUN_CONTEXTO) {
+      if (k === normalizarEncabezado(r.encabezado) && vecinos.has(normalizarEncabezado(r.siHay))) return [{ campo: r.campo, prioridad: -1 }];
+    }
+  }
+  return INDICE.get(k) || [];
 }
 
 module.exports = {

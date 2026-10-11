@@ -48,7 +48,7 @@ No hay linter, formateador ni paso de compilación. `DATA_DIR=memory://` deja la
 **El flujo de 5 pasos es la herramienta de medición, y sus reglas se hacen cumplir en el servidor** (`server/pedidos.js`), no solo en pantalla:
 1. Lista inicial: se autoguarda como borrador con `PUT` y se fija con `POST`. Después de eso queda inmutable (`WHERE inicial_guardada_en IS NULL`; editarla responde 409).
 2. Subir export: sin lista inicial guardada responde 403. Los archivos se guardan crudos en `archivos` (BYTEA). `procesarExport` los lee con `lector.js`, calcula con `rotacion.js` y guarda el reporte ya calculado en `exports.reporte` (JSONB).
-3. Ver reporte: la primera vez que se pide marca `reporte_visto_en`. Ahí mismo se ofrece el aviso por correo (`GET/POST /:id/recordatorio`, `server/recordatorios.js`); responderlo no cambia el paso.
+3. Ver reporte: la primera vez que se pide marca `reporte_visto_en`. Ahí mismo se ofrece el recordatorio (`GET/POST /:id/recordatorio` y `GET /:id/recordatorio.ics`, `server/recordatorios.js`); responderlo no cambia el paso.
 4. Lista final: es editable solo después de ver el reporte. Al guardarla, `compararListas` (`listas.js`) calcula la métrica y la magnitud, y `coherenciaConReporte` la coherencia con el reporte; todo se guarda en `pedidos.comparacion`. La coherencia no se le devuelve al usuario (`vistaPedido` la quita) para no sugerirle la respuesta del paso 5.
 5. ¿Por qué cambió?: texto libre. Al enviarlo, el pedido queda terminado.
 
@@ -61,7 +61,7 @@ Consecuencias que no se ven leyendo un solo archivo:
 - El rol `equipo` se asigna con `TEAM_EMAILS` al crear la cuenta o al iniciar sesión. Las cuentas del equipo no cuentan como probadores.
 - Cada consulta sobre datos de usuario filtra por `usuario_id`. Las rutas nuevas tienen que hacerlo también (ver `pedidoDe`).
 - La tabla `eventos` registra los ingresos, los archivos subidos y los pedidos. Volver con la sesión abierta después de 30 minutos sin actividad cuenta como un nuevo ingreso (`cuentas.js`).
-- **Recordatorios** (`recordatorios.js`, tablas `recordatorios` y `avisos`): una fila por usuario con su última respuesta y los avisos pendientes de su último "sí". `enviarPendientes` marca cada aviso antes de enviarlo, así que se puede llamar desde la revisión de cada hora (`programarEnvios`, en `index.js`) y desde `POST /api/tareas/recordatorios` (cron externo con `CRON_SECRET`) sin duplicar correos. Sin `BREVO_API_KEY`, `correo.js` imprime el correo en la consola. Las fechas de avisos son texto `YYYY-MM-DD` en hora de Bogotá.
+- **Recordatorios** (`recordatorios.js`, tabla `recordatorios`): una fila por usuario con su última respuesta y la fecha de su primer recordatorio. **No hay tareas programadas ni cron, a propósito** (decisión del equipo, 2026-10-11): el recordatorio es un archivo .ics que el usuario descarga y que su calendario dispara. Si hay `BREVO_API_KEY` y `CORREO_REMITENTE`, al decir que sí se le manda además la misma invitación por correo, en ese momento. Las fechas son texto `YYYY-MM-DD` en hora de Bogotá.
 
 **Lector de archivos** (`lector.js` + `formatos.js`): busca la fila de encabezados y reconoce las columnas por sinónimos normalizados (minúsculas, sin tildes, sin palabras vacías). Acepta CSV con `;` o `,` en UTF-8 o ANSI, varias hojas o archivos, columnas por mes, y fechas y números en formato colombiano. Si falta un campo, devuelve las hojas con columnas de muestra para que el usuario elija la columna desde la pantalla, y el mapeo se recuerda por firma de encabezados en `usuarios.mapeos`. **Para adaptar un formato nuevo se agregan sinónimos en `formatos.js`, sin tocar `lector.js`.** Rechaza imágenes y PDFs a propósito.
 
@@ -87,7 +87,7 @@ Están ordenados por cuánto ponen en riesgo la prueba o la Entrega 3.
 
 **Formatos de los probadores, todavía sin validar:**
 5. No hay ningún export real de los 5 probadores. Los sinónimos se basan en nombres habituales de Siigo, SAP, SIESA, CGUNO y World Office.
-6. **Juan José Aya (Muebles Aya) usa Helisa** (entrevista del 2026-09-17), y Helisa no está entre los formatos considerados. Claudia Mueces usa Siigo. No se sabe qué usan Ecorac ni Disferral.
+6. **Juan José Aya (Muebles Aya) usa Helisa** (entrevista del 2026-09-17), y Helisa no está entre los formatos considerados. Claudia Mueces usa Siigo. No se sabe qué usan Ecorac ni Disferral. *Actualización 2026-10-11:* el detalle de facturas de Helisa ya se lee bien (ver README, "Limitaciones conocidas"); los informes de Helisa con forma de página de impresión y el listado de inventario con salidas del periodo siguen pendientes.
 7. Un kardex que mezcla entradas y salidas en una columna con un "tipo" se leería como si todo fueran ventas. Hay que confirmar cómo exporta cada probador.
 
 **Validez de la métrica:**
@@ -100,7 +100,7 @@ Están ordenados por cuánto ponen en riesgo la prueba o la Entrega 3.
 14. **Pedidos simulados.** No se sabe cada cuánto pide cada probador (lo dice el Entregable 2 en "Qué seguimos sin saber"). Si la mayoría simula, la evidencia es débil, aunque la app marca real o simulado.
 
 **Producto y adopción:**
-15. **Stickiness es el eslabón más débil** (lo declara el mismo Entregable). Claudia Mueces pide explícitamente alertas en vez de "informes pasivos que alguien tiene que descargar". *Atendido (2026-10-11):* el aviso por correo de la corrección del Entregable está construido y la vista del equipo mide quién lo activó y quién volvió después del aviso. Falta configurar Brevo y el cron en producción (README).
+15. **Stickiness es el eslabón más débil** (lo declara el mismo Entregable). Claudia Mueces pide explícitamente alertas en vez de "informes pasivos que alguien tiene que descargar". *Atendido (2026-10-11):* el recordatorio de la corrección del Entregable está construido como archivo de calendario (sin cron), y la vista del equipo mide quién lo pidió y quién volvió desde la fecha de su primer recordatorio. El envío por correo es opcional (Brevo).
 16. **Contraste con su Excel.** Claudia Mueces pide poder comparar el resultado con el análisis que ya hacen. Tomás Buendía (2026-09-24) acepta ayuda solo si se mantiene el criterio del equipo. El flujo actual no muestra junto al reporte los mínimos y máximos que ya trae su informe.
 17. **Costo de equivocarse, sin cuantificar.** Nadie ha dicho cuántos agotados tiene ni cuánto capital tiene quieto. Sin eso no hay argumento de valor después de la prueba.
 

@@ -14,6 +14,7 @@ const db = require('./db');
 const { requiereEquipo } = require('./cuentas');
 const { pasoDe, filasDelReporte } = require('./pedidos');
 const { compararListas, coherenciaConReporte } = require('./listas');
+const { fechaBogota } = require('./recordatorios');
 
 const DIAS_PRUEBA = 14;
 const META_LINEAS = 5;
@@ -67,10 +68,11 @@ function resumirPrueba(usuarios) {
     intermedios: cuenta('intermedio').length,
     sinPedido: cuenta('sin_pedido').length,
     veredicto,
-    // Stickiness: quién pidió el recordatorio y quién volvió después de recibirlo.
+    // Stickiness: quién pidió el recordatorio, a quién ya le llegó la fecha del primero y
+    // quién volvió a entrar desde ese día.
     aceptaronRecordatorio: usuarios.filter((u) => recordatorio(u).activo).length,
-    recibieronCorreo: usuarios.filter((u) => recordatorio(u).correosEnviados > 0).length,
-    volvieronTrasCorreo: usuarios.filter((u) => recordatorio(u).ingresosTrasCorreo > 0).length,
+    conRecordatorioVencido: usuarios.filter((u) => recordatorio(u).yaLlego).length,
+    volvieronTrasRecordatorio: usuarios.filter((u) => recordatorio(u).ingresosDesdeAviso > 0).length,
     reglas: { diasPrueba: DIAS_PRUEBA, metaLineas: META_LINEAS, metaUsuarios: META_USUARIOS, pivoteLineas: PIVOTE_LINEAS, pivoteUsuarios: PIVOTE_USUARIOS, coherenciaMayoria: COHERENCIA_MAYORIA },
   };
 }
@@ -90,14 +92,19 @@ async function completarComparaciones() {
   }
 }
 
-function resumenRecordatorio(fila, actividad) {
-  const envios = actividad.filter((e) => e.tipo === 'recordatorio_enviado');
-  const primerEnvio = envios.length ? new Date(envios[0].en).getTime() : null;
+// El recordatorio vive en el calendario del usuario, así que no sabemos si lo abrió: se cuenta
+// si volvió a entrar desde el día de su primer recordatorio.
+function resumenRecordatorio(fila, actividad, hoy = fechaBogota()) {
+  const primerAviso = fila && fila.activo ? fila.primer_aviso : null;
+  const yaLlego = Boolean(primerAviso && primerAviso <= hoy);
   return {
     activo: fila ? fila.activo : null,
     respondidoEn: fila ? fila.respondido_en : null,
-    correosEnviados: envios.length,
-    ingresosTrasCorreo: primerEnvio === null ? 0 : actividad.filter((e) => e.tipo === 'ingreso' && new Date(e.en).getTime() > primerEnvio).length,
+    primerAviso,
+    yaLlego,
+    descargoCalendario: actividad.some((e) => e.tipo === 'calendario_descargado'),
+    correoEnviado: actividad.some((e) => e.tipo === 'recordatorio_enviado'),
+    ingresosDesdeAviso: yaLlego ? actividad.filter((e) => e.tipo === 'ingreso' && fechaBogota(e.en) >= primerAviso).length : 0,
   };
 }
 
@@ -119,10 +126,10 @@ rutas.get('/resultados', async (_req, res) => {
   const eventos = await db.query(
     `SELECT e.usuario_id, e.tipo, e.pedido_id, e.detalle, e.creado_en
        FROM eventos e JOIN usuarios u ON u.id = e.usuario_id
-      WHERE u.rol = 'usuario' AND e.tipo IN ('ingreso', 'archivo_subido', 'lista_inicial_guardada', 'reporte_visto', 'lista_final_guardada', 'pedido_terminado', 'recordatorio_respondido', 'recordatorio_enviado')
+      WHERE u.rol = 'usuario' AND e.tipo IN ('ingreso', 'archivo_subido', 'lista_inicial_guardada', 'reporte_visto', 'lista_final_guardada', 'pedido_terminado', 'recordatorio_respondido', 'recordatorio_enviado', 'calendario_descargado')
       ORDER BY e.creado_en`,
   );
-  const recordatorios = await db.query('SELECT usuario_id, activo, respondido_en FROM recordatorios');
+  const recordatorios = await db.query('SELECT usuario_id, activo, respondido_en, primer_aviso FROM recordatorios');
   const archivos = await db.query(
     `SELECT a.usuario_id, a.tipo, count(*)::int AS n FROM archivos a JOIN usuarios u ON u.id = a.usuario_id
       WHERE u.rol = 'usuario' GROUP BY a.usuario_id, a.tipo`,

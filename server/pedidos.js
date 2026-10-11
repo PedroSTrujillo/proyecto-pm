@@ -15,6 +15,7 @@ const { leerExport, leerLista } = require('./lector');
 const { calcularRotacion } = require('./rotacion');
 const { revisarLista, compararListas, coherenciaConReporte } = require('./listas');
 const recordatorios = require('./recordatorios');
+const { correoConfigurado } = require('./correo');
 
 const MAX_LINEAS = 5000;
 const subida = multer({
@@ -328,7 +329,7 @@ async function planDelPedido(p) {
   return { fechaReporte, avisos: recordatorios.planearAvisos(e.filas || [], fechaReporte) };
 }
 
-async function vistaRecordatorio(req, p) {
+async function vistaRecordatorio(req, p, extra = {}) {
   const plan = await planDelPedido(p);
   const primero = plan.avisos[0] || null;
   return {
@@ -336,11 +337,15 @@ async function vistaRecordatorio(req, p) {
     plan: {
       fechaReporte: plan.fechaReporte,
       productos: plan.avisos.length,
+      recordatorios: recordatorios.agruparPorSemana(plan.avisos).length,
       primero: primero && { codigo: primero.codigo, nombre: primero.nombre, fechaUmbral: primero.fechaUmbral, fechaAviso: primero.fechaAviso },
       semanasBuenNivel: recordatorios.SEMANAS_BUEN_NIVEL,
+      semanasHorizonte: recordatorios.SEMANAS_HORIZONTE,
       diasAntes: recordatorios.DIAS_ANTES,
+      correo: correoConfigurado(),
     },
     respuesta: await recordatorios.estadoDe(req.usuario.id),
+    ...extra,
   };
 }
 
@@ -352,9 +357,20 @@ rutas.post('/:id/recordatorio', async (req, res) => {
   const p = await pedidoDe(req);
   if (typeof req.body?.activo !== 'boolean') throw new ErrorUsuario('Elige si quieres recibir los avisos.');
   const plan = await planDelPedido(p);
-  if (req.body.activo && !plan.avisos.length) throw new ErrorUsuario(`Ningún producto de este reporte tiene más de ${recordatorios.SEMANAS_BUEN_NIVEL} semanas de inventario, así que no hay nada que avisar.`);
-  await recordatorios.responder(req.usuario.id, p.id, req.body.activo, plan.avisos, plan.fechaReporte);
-  res.json(await vistaRecordatorio(req, p));
+  if (req.body.activo && !plan.avisos.length) throw new ErrorUsuario(`Ningún producto de este reporte llega a 2 semanas de inventario en los próximos ${recordatorios.SEMANAS_HORIZONTE} semanas, así que no hay nada que recordar.`);
+  const envio = await recordatorios.responder({ usuario: req.usuario, pedidoId: p.id, activo: req.body.activo, avisos: plan.avisos, fechaReporte: plan.fechaReporte });
+  res.json(await vistaRecordatorio(req, p, envio));
+});
+
+// El archivo de calendario: Google Calendar, Outlook y los celulares lo abren y agregan los recordatorios.
+rutas.get('/:id/recordatorio.ics', async (req, res) => {
+  const p = await pedidoDe(req);
+  const plan = await planDelPedido(p);
+  if (!plan.avisos.length) throw new ErrorUsuario('Este reporte no tiene productos para recordar.', 404);
+  await registrarEvento(req.usuario.id, 'calendario_descargado', { pedidoId: p.id, detalle: { productos: plan.avisos.length } });
+  res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="recordatorios-inventario-pedido-${p.id}.ics"`);
+  res.send(recordatorios.calendarioIcs({ avisos: plan.avisos, fechaReporte: plan.fechaReporte, url: `${recordatorios.urlApp()}/#/`, idBase: `${req.usuario.id}-${p.id}` }));
 });
 
 // --- Paso 4: lista final --------------------------------------------------------------------

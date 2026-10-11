@@ -148,3 +148,21 @@ test('fechas en los formatos de los exports', () => {
   assert.equal(t(new Date(Date.UTC(2026, 0, 15))), '2026-01-15');
   assert.equal(diaDe(2026, 1, 15), leerFecha('15/01/2026').dia);
 });
+
+test('detalle de facturas de Helisa: "Cantidad Disponible" es la venta neta de devoluciones, no existencias', () => {
+  // Mismas columnas que el informe real; los datos son inventados.
+  const facturas = xlsx({ Facturas: [
+    ['Tipo Doc.', 'Documento', 'Fecha', 'Beneficiario Nombre', 'Cantidad', 'Unidades Devueltas', 'Cantidad Disponible', 'Vr. Unitario', 'Bodega Nombre', 'Referencia'],
+    ['FED', 'FED 1', '2026/08/05', 'CLIENTE UNO', '4.00', '0.00', '4.00', '2,500.00', 'PRINCIPAL', 'XY-100'],
+    ['FED', 'FED 2', '2026/09/10', 'CLIENTE DOS', '10.00', '3.00', '7.00', '1,000.00', 'PRINCIPAL', 'XY-100'],
+  ] });
+  const soloFacturas = leerExport([{ nombre: 'facturas.xls', buffer: facturas }]);
+  assert.equal(soloFacturas.ok, false, 'sin un archivo de existencias no se inventan');
+  assert.match(soloFacturas.errores.join(' '), /existencias/);
+
+  const saldos = csv('Referencia;Saldo\nXY-100;25\n', 'saldos.csv');
+  const r = leerExport([{ nombre: 'facturas.xls', buffer: facturas }, saldos]);
+  assert.equal(r.ok, true, JSON.stringify(r.errores));
+  assert.deepEqual(r.ventas.map((v) => v.cantidad), [4, 7], 'se toma lo facturado menos lo devuelto');
+  assert.deepEqual(r.existencias.map((e) => e.existencias), [25]);
+});

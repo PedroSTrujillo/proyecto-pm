@@ -10,7 +10,7 @@ const incluye = [
   'Tu lista de antes y la de después, comparadas',
   'Pedidos reales o simulados',
   'Plantillas de ejemplo para descargar',
-  'Aviso por correo antes de que un producto se agote, si lo pides',
+  'Recordatorio en tu calendario antes de que un producto se agote, si lo pides',
 ]
 
 const noHace = [

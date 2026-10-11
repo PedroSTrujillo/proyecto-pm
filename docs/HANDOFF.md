@@ -27,6 +27,36 @@
 
 ---
 
+## 2026-10-11 (2) — Claude — recordatorio sin cron, lectura de facturas de Helisa y alcance cerrado
+
+- **Rama:** `mejoras-modelo` (dos commits sobre `main`, solo en local; todavía no está en GitHub).
+- **Decisión del equipo:** el modelo matemático y lo demás **quedan así** para la prueba. No se agregan funciones nuevas;
+  lo que sigue son correcciones para que los probadores puedan usarlo (ver "Siguiente paso").
+- **Estado:**
+  - **Recordatorio sin cron:** ya no hay tareas programadas, ruta para cron ni workflow de GitHub. Al decir que sí,
+    el usuario descarga un archivo de calendario (.ics) con un recordatorio por semana (8 a. m., 3 días antes de
+    que cada producto llegue a 2 semanas, solo para los próximos 3 meses). Si se configura Brevo, la invitación
+    llega además al correo en ese momento. Probado en el navegador: 23 productos → 8 recordatorios.
+  - **Helisa, detalle de facturas:** el lector tomaba la columna "Cantidad Disponible" como existencias (en ese
+    informe es lo facturado menos lo devuelto) y el reporte salía con el inventario inventado, sin avisar. Ahora
+    es la cantidad vendida, y la app pide el archivo de existencias aparte. Regla en `SEGUN_CONTEXTO`
+    (`server/formatos.js`); prueba con datos inventados en `test/lector.test.js`.
+- **Archivos tocados:** `server/{recordatorios,correo,pedidos,equipo,db,formatos,lector}.js`, `public/js/app.js`,
+  pruebas, `docs/modelo-rotacion.md` §5, `README.md`, `CLAUDE.md`, `render.yaml`, texto de la landing. Se borró
+  `.github/workflows/recordatorios.yml`.
+- **Base de datos:** la tabla `recordatorios` ahora tiene `primer_aviso` y desapareció `avisos`. Nunca llegaron
+  a Neon, así que no hace falta migrar nada. En local hubo que borrar `data/pglite/`.
+- **Verificación:** `npm test` → 48/48. En el navegador: tarjeta del recordatorio, descarga del .ics (text/calendar,
+  8 eventos), vista del equipo.
+- **Siguiente paso exacto (en este orden):**
+  1. Subir la rama, revisarla en grupo y fusionarla con `main` antes de la prueba.
+  2. Leer los formatos de Helisa que faltan: (a) el listado de inventario con la casilla de salidas de un periodo
+     (sin fecha por venta: hay que pedirle al usuario el periodo) y (b) los informes con forma de página de impresión.
+  3. Pedirle a cada probador su export real y subirlo con una cuenta del equipo antes de empezar.
+  4. Borrar los datos de prueba de Neon antes de empezar (README, "Antes de la prueba").
+- **Notas y bloqueos:** los datos reales de cualquier empresa se miran solo en local. Nunca se copian al repo,
+  ni siquiera en pruebas: los ejemplos de prueba se inventan con las mismas columnas.
+
 ## 2026-10-11 (1) — Claude — modelo con ajustes, coherencia y aviso por correo
 
 - **Rama:** `mejoras-modelo`, sacada de `main` (4271337). Commit solo en local; **todavía no está en GitHub**.

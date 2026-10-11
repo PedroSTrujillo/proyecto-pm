@@ -163,8 +163,9 @@ function buscarEncabezado(hoja, campos) {
 // Asigna a cada campo la columna que mejor le sirve (cada columna, un solo campo).
 function detectarColumnas(encabezados, campos) {
   const candidatos = [];
+  const vecinos = new Set(encabezados.map((e) => normalizarEncabezado(e)));
   encabezados.forEach((texto, col) => {
-    for (const m of camposDeEncabezado(texto)) {
+    for (const m of camposDeEncabezado(texto, vecinos)) {
       if (campos.includes(m.campo)) candidatos.push({ ...m, col });
     }
   });

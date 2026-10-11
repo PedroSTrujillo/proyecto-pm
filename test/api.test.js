@@ -42,6 +42,7 @@ function cliente() {
     return { estado: r.status, ...datos };
   }
   return {
+    cookie: () => cookie,
     get: (ruta) => pedir('GET', ruta),
     post: (ruta, cuerpo) => pedir('POST', ruta, cuerpo ?? {}),
     put: (ruta, cuerpo) => pedir('PUT', ruta, cuerpo),
@@ -203,8 +204,7 @@ test('la coherencia con el reporte se guarda para el equipo y no se le muestra a
   assert.equal(guardado.c.detalle[0].codigo, 'CAN-0040');
 });
 
-test('recordatorio: se pide después del reporte, se envía en su fecha una sola vez y se puede apagar', async () => {
-  const { enviarPendientes } = require('../server/recordatorios');
+test('recordatorio: se ofrece después del reporte, se descarga como calendario y se puede apagar', async () => {
   const fer = await nuevoUsuario('Fer', 'fer@prueba.co');
   const { pedido } = await fer.post('/api/pedidos');
   await fer.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
@@ -214,42 +214,25 @@ test('recordatorio: se pide después del reporte, se envía en su fecha una sola
 
   const oferta = await fer.get(`/api/pedidos/${pedido.id}/recordatorio`);
   assert.equal(oferta.respuesta, null);
-  assert.ok(oferta.plan.productos > 0, 'la plantilla trae productos con más de 4 semanas');
+  assert.ok(oferta.plan.productos > 0, 'la plantilla trae productos que llegan a 2 semanas en 3 meses');
+  assert.equal(oferta.plan.correo, false, 'en pruebas no hay correo configurado');
   const si = await fer.post(`/api/pedidos/${pedido.id}/recordatorio`, { activo: true });
   assert.equal(si.respuesta.activo, true);
-  assert.equal(si.respuesta.proximoAviso, si.plan.primero.fechaAviso);
+  assert.equal(si.respuesta.primerAviso, si.plan.primero.fechaAviso);
+  assert.equal(si.correo, 'no_configurado');
 
-  const enviados = [];
-  const enviar = async (c) => { enviados.push(c); return { via: 'prueba' }; };
-  assert.equal((await enviarPendientes({ hoy: '2000-01-01', enviar })).enviados, 0, 'antes de la fecha no sale nada');
-  assert.equal((await enviarPendientes({ hoy: si.plan.primero.fechaAviso, enviar })).enviados, 1);
-  assert.equal(enviados[0].para, 'fer@prueba.co');
-  assert.match(enviados[0].texto, new RegExp(si.plan.primero.codigo));
-  assert.equal((await enviarPendientes({ hoy: si.plan.primero.fechaAviso, enviar })).enviados, 0, 'el mismo aviso no se manda dos veces');
+  const r = await fetch(`${base}/api/pedidos/${pedido.id}/recordatorio.ics`, { headers: { Cookie: fer.cookie() } });
+  assert.equal(r.status, 200);
+  assert.ok(r.headers.get('content-type').startsWith('text/calendar'));
+  assert.ok((await r.text()).includes('SUMMARY:Revisar inventario:'));
 
   const no = await fer.post(`/api/pedidos/${pedido.id}/recordatorio`, { activo: false });
   assert.equal(no.respuesta.activo, false);
-  assert.equal(no.respuesta.proximoAviso, null);
-  assert.equal((await enviarPendientes({ hoy: '2100-01-01', enviar })).enviados, 0, 'apagado no manda nada más');
-  assert.equal(enviados.length, 1);
+  assert.equal(no.respuesta.primerAviso, null);
 
   const equipo = cliente();
   await equipo.post('/api/cuenta/entrar', { email: 'equipo@prueba.co', clave: 'clave-segura' });
-  const r = await equipo.get('/api/equipo/resultados');
-  const suyo = r.usuarios.find((u) => u.email === 'fer@prueba.co').recordatorio;
-  assert.deepEqual({ activo: suyo.activo, correos: suyo.correosEnviados }, { activo: false, correos: 1 });
-});
-
-test('la tarea de recordatorios solo responde con el secreto correcto', async () => {
-  const pedir = (auth) => fetch(`${base}/api/tareas/recordatorios`, { method: 'POST', headers: auth ? { Authorization: auth } : {} });
-  assert.equal((await pedir('Bearer algo')).status, 404, 'sin CRON_SECRET la ruta no existe');
-  process.env.CRON_SECRET = 'secreto-de-prueba';
-  try {
-    assert.equal((await pedir('Bearer otro')).status, 404);
-    const r = await pedir('Bearer secreto-de-prueba');
-    assert.equal(r.status, 200);
-    assert.equal(typeof (await r.json()).enviados, 'number');
-  } finally {
-    delete process.env.CRON_SECRET;
-  }
+  const res = await equipo.get('/api/equipo/resultados');
+  const suyo = res.usuarios.find((u) => u.email === 'fer@prueba.co').recordatorio;
+  assert.deepEqual({ activo: suyo.activo, descargo: suyo.descargoCalendario }, { activo: false, descargo: true });
 });

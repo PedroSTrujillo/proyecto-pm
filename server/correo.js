@@ -1,29 +1,27 @@
 'use strict';
 
 // Envío de correos con la API de Brevo (plan gratis: 300 correos al día). Brevo deja
-// verificar un solo remitente con un clic, sin tener dominio propio.
-// Sin BREVO_API_KEY, el correo no sale: se imprime en la consola del servidor (modo prueba).
+// verificar un solo remitente con un clic, sin tener dominio propio. Es opcional: sin
+// BREVO_API_KEY la app no manda correos y el recordatorio se descarga desde la pantalla.
 
-async function enviarCorreo({ para, nombre, asunto, texto }) {
-  const clave = process.env.BREVO_API_KEY;
-  if (!clave) {
-    console.log(`[correo de prueba] Para: ${para}\nAsunto: ${asunto}\n\n${texto}\n`);
-    return { via: 'prueba' };
-  }
-  const remitente = process.env.CORREO_REMITENTE;
-  if (!remitente) throw new Error('Falta CORREO_REMITENTE (el correo verificado en Brevo).');
+function correoConfigurado() {
+  return Boolean(process.env.BREVO_API_KEY && process.env.CORREO_REMITENTE);
+}
+
+// adjuntos: [{ nombre, contenido (texto) }]
+async function enviarCorreo({ para, nombre, asunto, texto, adjuntos = [] }) {
   const r = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
-    headers: { 'api-key': clave, 'Content-Type': 'application/json', Accept: 'application/json' },
+    headers: { 'api-key': process.env.BREVO_API_KEY, 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({
-      sender: { name: 'Rotación de inventario', email: remitente },
+      sender: { name: 'Rotación de inventario', email: process.env.CORREO_REMITENTE },
       to: [{ email: para, name: nombre }],
       subject: asunto,
       textContent: texto,
+      ...(adjuntos.length ? { attachment: adjuntos.map((a) => ({ name: a.nombre, content: Buffer.from(a.contenido).toString('base64') })) } : {}),
     }),
   });
   if (!r.ok) throw new Error(`Brevo respondió ${r.status}: ${(await r.text()).slice(0, 300)}`);
-  return { via: 'brevo' };
 }
 
-module.exports = { enviarCorreo };
+module.exports = { enviarCorreo, correoConfigurado };
