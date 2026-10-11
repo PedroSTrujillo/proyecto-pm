@@ -82,7 +82,7 @@ export function WeeksCalculator() {
 
       <div className="mt-8 border-t border-border pt-6" aria-live="polite">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Stat label="Vendes por semana" value={semanasPeriodo > 0 ? ventasSemana(r.promedioSemanal) : '—'} />
+          <Stat label="Ventas/semana" value={semanasPeriodo > 0 ? ventasSemana(r.promedioSemanal) : '—'} />
           <Stat
             label="Te alcanza para"
             value={!(semanasPeriodo > 0) ? '—' : alcanza === null ? 'Sin ventas' : `${semanas(alcanza)} semanas`}

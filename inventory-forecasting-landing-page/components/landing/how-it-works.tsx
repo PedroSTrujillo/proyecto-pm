@@ -21,7 +21,7 @@ const steps = [
   {
     icon: SlidersHorizontal,
     title: 'Ajusta tu lista',
-    body: 'Arrancas con una copia de tu lista y la cambias con el reporte al lado, hasta que quede lo que de verdad vas a pedir.',
+    body: 'Arrancas con una copia de tu lista y la cambias con el reporte al lado, hasta que quede lo que vas a pedir.',
   },
   {
     icon: MessageCircle,

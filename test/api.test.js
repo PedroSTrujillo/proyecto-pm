@@ -236,3 +236,49 @@ test('recordatorio: se ofrece después del reporte, se descarga como calendario 
   const suyo = res.usuarios.find((u) => u.email === 'fer@prueba.co').recordatorio;
   assert.deepEqual({ activo: suyo.activo, descargo: suyo.descargoCalendario }, { activo: false, descargo: true });
 });
+
+test('export con el total vendido de un periodo: la app pregunta el periodo y con eso calcula', async () => {
+  const gabi = await nuevoUsuario('Gabi', 'gabi@prueba.co');
+  const { pedido } = await gabi.post('/api/pedidos');
+  await gabi.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: [{ codigo: 'AB-1', cantidad: '10' }], tipo: 'real' });
+  const listado = Buffer.from('Referencia;Descripción;Salidas;Saldo\nAB-1;Tornillo;520;30\nAB-2;Tuerca;0;12\n');
+  const r = await gabi.subir(`/api/pedidos/${pedido.id}/export`, [['listado.csv', listado]]);
+  assert.equal(r.ok, false);
+  assert.equal(r.necesitaPeriodo, true);
+  assert.equal((await gabi.post(`/api/pedidos/${pedido.id}/export/${r.exportId}/periodo`, { desde: '2026-03-01', hasta: '2026-02-01' })).estado, 400, 'la fecha final no puede ir antes');
+  const ok = await gabi.post(`/api/pedidos/${pedido.id}/export/${r.exportId}/periodo`, { desde: '2025-07-01', hasta: '2026-06-29' }); // 364 días = 52 semanas
+  assert.equal(ok.ok, true, JSON.stringify(ok.errores));
+  const { reporte } = await gabi.get(`/api/pedidos/${pedido.id}/reporte`);
+  assert.equal(reporte.periodo.totales, true);
+  const ab1 = reporte.filas.find((f) => f.codigo === 'AB-1');
+  assert.equal(ab1.promedioSemanal, 10); // 520 ÷ 52
+  assert.equal(ab1.semanasInventario, 3);
+});
+
+test('cuenta: programa contable, cambiar contraseña y restablecerla con el enlace que genera el equipo', async () => {
+  const hugo = await nuevoUsuario('Hugo', 'hugo@prueba.co');
+  const d = await hugo.put('/api/cuenta/datos', { sistema: 'alegra' });
+  assert.equal(d.usuario.sistema, 'alegra');
+  assert.equal((await hugo.put('/api/cuenta/datos', { sistema: '<script>' })).estado, 400);
+
+  assert.equal((await hugo.put('/api/cuenta/clave', { actual: 'mala', nueva: 'otra-clave-1' })).estado, 400);
+  assert.equal((await hugo.put('/api/cuenta/clave', { actual: 'clave-segura', nueva: 'otra-clave-1' })).ok, true);
+
+  assert.deepEqual(await cliente().post('/api/cuenta/olvide', { email: 'hugo@prueba.co' }), { estado: 200, correo: false }, 'sin correo configurado, se avisa');
+
+  const equipo = cliente();
+  await equipo.post('/api/cuenta/entrar', { email: 'equipo@prueba.co', clave: 'clave-segura' });
+  const [{ id }] = await db.query("SELECT id FROM usuarios WHERE email = 'hugo@prueba.co'");
+  assert.equal((await hugo.post(`/api/equipo/usuarios/${id}/restablecer`)).estado, 403, 'solo el equipo genera enlaces');
+  const { enlace } = await equipo.post(`/api/equipo/usuarios/${id}/restablecer`);
+  const token = enlace.split('/#/restablecer/')[1];
+  assert.ok(token);
+
+  const otro = cliente();
+  assert.equal((await otro.post('/api/cuenta/restablecer', { token, clave: 'corta' })).estado, 400);
+  const r = await otro.post('/api/cuenta/restablecer', { token, clave: 'clave-nueva-2' });
+  assert.equal(r.usuario.email, 'hugo@prueba.co');
+  assert.equal((await otro.post('/api/cuenta/restablecer', { token, clave: 'clave-nueva-3' })).estado, 400, 'el enlace sirve una sola vez');
+  assert.equal((await hugo.get('/api/pedidos')).estado, 401, 'las sesiones anteriores se cierran');
+  assert.equal((await cliente().post('/api/cuenta/entrar', { email: 'hugo@prueba.co', clave: 'clave-nueva-2' })).estado, 200);
+});

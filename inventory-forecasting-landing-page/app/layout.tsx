@@ -3,7 +3,7 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Rotación de inventario · Qué se agota y qué sobra, producto por producto',
+  title: 'SINESC · Qué se agota y qué sobra, producto por producto',
   description:
     'Sube el export de tu software contable y mira, en semanas de inventario, qué productos se agotan primero y cuáles sobran.',
   generator: 'v0.app',

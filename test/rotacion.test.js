@@ -179,3 +179,14 @@ test('un producto que se vende de vez en cuando no se toma por nuevo aunque apar
   assert.ok(!i.senales.includes('producto_nuevo'));
   assert.equal(r.resumen.productosNuevos, 0);
 });
+
+test('con totales de un periodo se usa el promedio simple sobre ese periodo, sin ajustes', () => {
+  const periodo = { desde: d('2026-01-01'), hasta: d('2026-03-31') }; // 90 días
+  const r = calcularRotacion({ ventas: [{ codigo: 'T', dia: periodo.hasta, cantidad: 90 }], existencias: [{ codigo: 'T', existencias: 14 }], periodo });
+  assert.equal(r.periodo.dias, 90);
+  assert.equal(r.periodo.totales, true);
+  const t = r.filas[0];
+  assert.ok(Math.abs(t.promedioSemanal - 7) < 1e-9); // 90 ÷ (90 ÷ 7)
+  assert.ok(Math.abs(t.semanasInventario - 2) < 1e-9);
+  assert.deepEqual(t.senales, [], 'sin fechas no hay picos ni productos nuevos');
+});

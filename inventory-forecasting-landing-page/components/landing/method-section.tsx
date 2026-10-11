@@ -10,7 +10,7 @@ const pieces = [
     example: `${SEMANAS_EJEMPLO * 7} días = ${SEMANAS_EJEMPLO} semanas`,
   },
   {
-    label: 'Ventas por semana',
+    label: 'Ventas/semana',
     body: 'Todo lo que vendiste del producto en ese tiempo, dividido entre esas semanas. Lo de los últimos 3 meses cuenta doble y un mes fuera de lo normal, como una venta para un proyecto, no infla el número. Las devoluciones se restan.',
     example: `${numero(ejemplo.vendido)} ÷ ${SEMANAS_EJEMPLO} = ${ventasSemana(ejemplo.promedioSemanal)}`,
   },

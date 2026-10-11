@@ -32,7 +32,7 @@ npm test
 npm run ejemplos
 ```
 
-`npm test` corre 48 pruebas automáticas: cálculo, comparación de listas, recordatorios, lector de archivos y API. `npm run ejemplos` crea en `ejemplos/` exports inventados con formatos distintos (CSV estilo Siigo, Excel estilo SAP, informe con una columna por mes, un catálogo de 3.000 productos y un informe de mínimos), para hacer demos y pruebas.
+`npm test` corre 53 pruebas automáticas: cálculo, comparación de listas, recordatorios, lector de archivos y API. `npm run ejemplos` crea en `ejemplos/` exports inventados con formatos distintos (CSV estilo Siigo, Excel estilo SAP, informe con una columna por mes, un catálogo de 3.000 productos y un informe de mínimos), para hacer demos y pruebas.
 
 ## Landing page
 
@@ -57,7 +57,8 @@ Al publicarla (por ejemplo en Vercel), configura `NEXT_PUBLIC_APP_URL` con la UR
 | `DATA_DIR` | Carpeta de PGlite. `memory://` la deja en memoria. | `./data/pglite` |
 | `BREVO_API_KEY` | Opcional. Para que el recordatorio de calendario llegue también por correo, con [Brevo](https://www.brevo.com) (gratis hasta 300 correos al día). Sin ella, el recordatorio solo se descarga. | `xkeysib-…` |
 | `CORREO_REMITENTE` | El correo que verificaron en Brevo como remitente. | `avisos@grupo1.co` |
-| `APP_URL` | La dirección pública de la app, para el enlace de los recordatorios. | `https://rotacion-inventario.onrender.com` |
+| `APP_URL` | La dirección pública de la app, para el enlace de los recordatorios y de "cambiar contraseña". | `https://rotacion-inventario.onrender.com` |
+| `LANDING_URL` | La página de presentación, para el enlace "Página principal". | `https://proyecto-pm.vercel.app` |
 
 Una cuenta queda con rol de **equipo** si su correo está en `TEAM_EMAILS` al crearla o al iniciar sesión. Las cuentas del equipo no cuentan como usuarios de prueba.
 
@@ -110,6 +111,9 @@ El documento pide que las plantillas sean iguales al export real de cada probado
 | Registro con fecha de cada ingreso, archivo subido y pedido | Tabla `eventos`. Volver con la sesión abierta después de 30 minutos sin actividad cuenta como un nuevo ingreso. |
 | Stickiness corregido (2026-10-07): recordatorio 3 días antes de que un producto con más de 4 semanas llegue a 2 | `server/recordatorios.js` (cálculo y archivo de calendario), `server/correo.js` (opcional), tarjeta en el paso 3, cifras de stickiness en la vista del equipo |
 | Cálculo de semanas más completo, explicado desglosado (pendiente del equipo) | Tres ajustes en `server/rotacion.js` (§3.6 del modelo) y explicación paso a paso en `public/js/reporte.js` |
+| Guía para sacar los archivos según el programa contable (paso 2) | `public/js/sistemas.js`: Siigo Nube, Alegra, World Office, Helisa, SAP Business One y guía general. Cada ruta de menú lleva su fuente; lo que no se pudo confirmar se dice. La elección se guarda en `usuarios.sistema` y el equipo la ve |
+| Ventas como total de un periodo (sin fecha por venta) | `server/lector.js` (`necesitaPeriodo`), `exports.periodo`, `POST /:id/export/:exportId/periodo` |
+| Página de cuenta, cambiar y restablecer contraseña | `server/cuentas.js` (`/datos`, `/clave`, `/olvide`, `/restablecer`), tabla `restablecimientos`; el equipo genera el enlace desde su vista |
 | Ayuda para el segundo criterio de pivote | Coherencia con el reporte y magnitud del cambio en `server/listas.js`, columnas en la vista del equipo |
 | Todo en español sencillo | Textos de la interfaz y mensajes del servidor |
 

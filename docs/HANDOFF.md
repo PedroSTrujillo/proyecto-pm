@@ -27,6 +27,32 @@
 
 ---
 
+## 2026-10-11 (3) — Claude — programas contables, ventas por periodo y pendientes del profesor
+
+- **Rama:** `mejoras-modelo` (tres commits sobre `main`, solo en local).
+- **Estado:**
+  - **Guía por programa contable** (paso 2, `public/js/sistemas.js`): el usuario elige su programa y ve cómo sacar
+    los dos archivos. Con rutas confirmadas: Siigo Nube y Alegra (ayuda oficial), World Office (existencias, por una
+    guía de usuario y un boletín oficial) y Helisa (cómo lo hacen sus usuarios, sin ruta pública). SAP Business One,
+    Siigo Pyme, Siesa, Loggro, ContaPyme y "Otro" muestran la guía general. Cada guía cita su fuente; lo no
+    confirmado se dice. La elección queda en `usuarios.sistema` y el equipo la ve.
+  - **Ventas como total de un periodo:** si la tabla trae código y cantidad sin fechas (Ventas por ítems de Alegra,
+    listado de inventario con salidas), la app pregunta el periodo y usa el promedio simple sobre él. Probado en el
+    navegador de punta a punta.
+  - **Pendientes del profesor (TODO.md):** nombre SINESC en app y landing, "Ventas/semana", sin "plata", nuevo título
+    de "El problema", más contraste y letra más grande, página "Mi cuenta", cambiar y restablecer contraseña (el
+    equipo genera el enlace), botón claro para crear cuenta, enlace a la página principal. Texto de la portada
+    revisado con las reglas de stop-slop; quedó como `npm run texto`.
+- **Base de datos:** `ALTER TABLE` para `exports.periodo` y `usuarios.sistema`, tabla nueva `restablecimientos`.
+  Se aplican solas al arrancar, también en Neon.
+- **Verificación:** `npm test` → 53/53. Navegador: entrar, olvidé mi contraseña, Mi cuenta, guía de Alegra, subir
+  un listado sin fechas → periodo → reporte, vista del equipo con el enlace para restablecer; sin desborde a 390 px.
+  Landing compila sin errores de consola.
+- **Siguiente paso exacto:** responder las preguntas abiertas del TODO (tocineta, frase cortada, Clerk, logo,
+  despliegue) y probar la guía con un export real de Alegra: no sabemos los nombres exactos de sus columnas, y si
+  "Inventario valorizado" trae la existencia como "Cantidad", la app pedirá elegir las columnas.
+- **Notas y bloqueos:** el detalle de facturas de Helisa no trae existencias; la guía pide el listado con saldo.
+
 ## 2026-10-11 (2) — Claude — recordatorio sin cron, lectura de facturas de Helisa y alcance cerrado
 
 - **Rama:** `mejoras-modelo` (dos commits sobre `main`, solo en local; todavía no está en GitHub).

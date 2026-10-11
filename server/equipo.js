@@ -11,7 +11,7 @@
 
 const express = require('express');
 const db = require('./db');
-const { requiereEquipo } = require('./cuentas');
+const { requiereEquipo, crearEnlaceRestablecer, baseDe, registrarEvento, ErrorUsuario } = require('./cuentas');
 const { pasoDe, filasDelReporte } = require('./pedidos');
 const { compararListas, coherenciaConReporte } = require('./listas');
 const { fechaBogota } = require('./recordatorios');
@@ -113,7 +113,7 @@ rutas.use(requiereEquipo);
 
 rutas.get('/resultados', async (_req, res) => {
   await completarComparaciones();
-  const usuarios = await db.query("SELECT id, nombre, email, creado_en FROM usuarios WHERE rol = 'usuario' ORDER BY creado_en");
+  const usuarios = await db.query("SELECT id, nombre, email, sistema, creado_en FROM usuarios WHERE rol = 'usuario' ORDER BY creado_en");
   const pedidos = await db.query(
     `SELECT p.id, p.usuario_id, p.proveedor, p.tipo, p.creado_en, p.inicial_guardada_en, p.export_id,
             p.reporte_visto_en, p.final_guardada_en, p.terminado_en, p.por_que,
@@ -161,6 +161,7 @@ rutas.get('/resultados', async (_req, res) => {
       id: u.id,
       nombre: u.nombre,
       email: u.email,
+      sistema: u.sistema,
       creadoEn: u.creado_en,
       ingresos: ingresos.length,
       ultimoIngreso: ingresos.length ? ingresos[ingresos.length - 1].en : null,
@@ -176,6 +177,15 @@ rutas.get('/resultados', async (_req, res) => {
   });
 
   res.json({ resumen: resumirPrueba(lista), usuarios: lista, generadoEn: new Date() });
+});
+
+// Sin correo configurado, el equipo genera el enlace y se lo manda al probador (por ejemplo, por WhatsApp).
+rutas.post('/usuarios/:id/restablecer', async (req, res) => {
+  const u = await db.uno('SELECT id FROM usuarios WHERE id = $1', [Number(req.params.id)]);
+  if (!u) throw new ErrorUsuario('Ese usuario no existe.', 404);
+  const r = await crearEnlaceRestablecer(u.id, baseDe(req));
+  await registrarEvento(req.usuario.id, 'enlace_restablecer_creado', { detalle: { para: u.id } });
+  res.json(r);
 });
 
 module.exports = { rutas, evaluarUsuario, resumirPrueba };

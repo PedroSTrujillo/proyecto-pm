@@ -166,3 +166,26 @@ test('detalle de facturas de Helisa: "Cantidad Disponible" es la venta neta de d
   assert.deepEqual(r.ventas.map((v) => v.cantidad), [4, 7], 'se toma lo facturado menos lo devuelto');
   assert.deepEqual(r.existencias.map((e) => e.existencias), [25]);
 });
+
+test('total vendido de un periodo (sin fecha por venta): se pide el periodo y luego se lee', () => {
+  // Como el listado de inventario con la casilla de salidas, o "Ventas por ítems": datos inventados.
+  const listado = csv('Referencia;Descripción;Entradas;Salidas;Saldo\nAB-1;Tornillo;100;120;30\nAB-2;Tuerca;0;0;12\nAB-3;Arandela;10;8;0\n', 'listado.csv');
+  const sinPeriodo = leerExport([listado]);
+  assert.equal(sinPeriodo.ok, false);
+  assert.equal(sinPeriodo.necesitaPeriodo, true);
+
+  const r = leerExport([listado], {}, { periodo: { desde: '2026-01-01', hasta: '2026-03-31' } });
+  assert.equal(r.ok, true, JSON.stringify(r.errores));
+  assert.deepEqual(r.ventas.map((v) => [v.codigo, v.cantidad, v.dia]), [['AB-1', 120, diaDe(2026, 3, 31)], ['AB-3', 8, diaDe(2026, 3, 31)]]);
+  assert.deepEqual(r.existencias.map((e) => [e.codigo, e.existencias]), [['AB-1', 30], ['AB-2', 12], ['AB-3', 0]]);
+  assert.deepEqual(r.periodo, { desde: diaDe(2026, 1, 1), hasta: diaDe(2026, 3, 31) });
+});
+
+test('un archivo de existencias con columna "Cantidad" no se toma por ventas si vinieron ventas con fecha', () => {
+  const ventas = csv('Código;Fecha;Cantidad\nAB-1;15/01/2026;5\nAB-1;20/02/2026;7\n', 'ventas.csv');
+  const stock = csv('Código;Saldo\nAB-1;9\n', 'stock.csv');
+  const r = leerExport([ventas, stock]);
+  assert.equal(r.ok, true, JSON.stringify(r.errores));
+  assert.equal(r.periodo, null);
+  assert.equal(r.ventas.length, 2);
+});

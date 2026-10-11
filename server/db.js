@@ -82,6 +82,17 @@ const ESQUEMA = [
     primer_aviso TEXT,
     respondido_en TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
+  // Columnas agregadas después de crear las tablas (la base de Neon ya las tiene creadas).
+  'ALTER TABLE exports ADD COLUMN IF NOT EXISTS periodo JSONB', // { desde, hasta } si las ventas son totales de un periodo
+  'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS sistema TEXT', // programa contable que eligió (public/js/sistemas.js)
+  // Enlaces para restablecer la contraseña: se guarda el hash del token, nunca el token.
+  `CREATE TABLE IF NOT EXISTS restablecimientos (
+    token_hash TEXT PRIMARY KEY,
+    usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expira_en TIMESTAMPTZ NOT NULL,
+    usado_en TIMESTAMPTZ
+  )`,
   'CREATE INDEX IF NOT EXISTS pedidos_usuario ON pedidos(usuario_id)',
   'CREATE INDEX IF NOT EXISTS exports_pedido ON exports(pedido_id)',
   'CREATE INDEX IF NOT EXISTS archivos_export ON archivos(export_id)',

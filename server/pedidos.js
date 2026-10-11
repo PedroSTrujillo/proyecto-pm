@@ -240,18 +240,34 @@ rutas.post('/:id/importar-lista', subida.single('archivo'), async (req, res) => 
 
 // --- Paso 2: export de ventas y existencias -----------------------------------------------
 
+// Periodo de un informe que trae el total vendido sin fecha por venta: "YYYY-MM-DD".
+function leerPeriodo(body) {
+  const desde = String(body?.desde || '').trim();
+  const hasta = String(body?.hasta || '').trim();
+  if (!desde && !hasta) return null;
+  const valida = (t) => /^\d{4}-\d{2}-\d{2}$/.test(t) && !Number.isNaN(Date.parse(`${t}T00:00:00Z`));
+  if (!valida(desde) || !valida(hasta)) throw new ErrorUsuario('Escribe las dos fechas del periodo.');
+  const dias = (Date.parse(`${hasta}T00:00:00Z`) - Date.parse(`${desde}T00:00:00Z`)) / 86400000 + 1;
+  if (dias < 7) throw new ErrorUsuario('El periodo tiene que ser de al menos una semana, y la fecha final no puede ser antes de la inicial.');
+  if (dias > 366 * 5) throw new ErrorUsuario('El periodo no puede ser de más de cinco años.');
+  if (Date.parse(`${hasta}T00:00:00Z`) > Date.now() + 86400000) throw new ErrorUsuario('La fecha final no puede ser después de hoy.');
+  return { desde, hasta };
+}
+
 async function procesarExport(usuarioId, pedido, exportId, manual) {
   const archivos = await db.query('SELECT nombre, contenido FROM archivos WHERE export_id = $1 ORDER BY id', [exportId]);
+  const { periodo } = await db.uno('SELECT periodo FROM exports WHERE id = $1', [exportId]);
   const mapeos = await mapeosDe(usuarioId);
   const lectura = leerExport(
     archivos.map((a) => ({ nombre: a.nombre, buffer: Buffer.from(a.contenido) })),
     manual ? { porClave: manual } : { porFirma: mapeos.export },
+    { periodo },
   );
   if (!lectura.ok) {
     await db.query("UPDATE exports SET estado = 'error', errores = $1::jsonb, hojas = $2::jsonb WHERE id = $3", [JSON.stringify(lectura.errores), JSON.stringify(lectura.hojas), exportId]);
-    return { ok: false, errores: lectura.errores, hojas: lectura.hojas, exportId };
+    return { ok: false, errores: lectura.errores, hojas: lectura.hojas, necesitaPeriodo: Boolean(lectura.necesitaPeriodo), exportId };
   }
-  const rotacion = calcularRotacion({ ventas: lectura.ventas, existencias: lectura.existencias, mensual: lectura.mensual });
+  const rotacion = calcularRotacion({ ventas: lectura.ventas, existencias: lectura.existencias, mensual: lectura.mensual, periodo: lectura.periodo });
   const reporte = {
     ...rotacion,
     avisos: [...lectura.avisos, ...rotacion.avisos],
@@ -277,7 +293,8 @@ rutas.post('/:id/export', subida.array('archivos', 5), async (req, res) => {
   if (p.terminado_en) throw new ErrorUsuario('Este pedido ya está terminado.', 409);
   if (!req.files || !req.files.length) throw new ErrorUsuario('Elige el archivo de ventas y existencias.');
 
-  const exp = await db.uno("INSERT INTO exports (usuario_id, pedido_id, estado) VALUES ($1, $2, 'procesando') RETURNING id", [req.usuario.id, p.id]);
+  const periodo = leerPeriodo(req.body);
+  const exp = await db.uno("INSERT INTO exports (usuario_id, pedido_id, estado, periodo) VALUES ($1, $2, 'procesando', $3::jsonb) RETURNING id", [req.usuario.id, p.id, periodo ? JSON.stringify(periodo) : null]);
   const nombres = [];
   for (const f of req.files) {
     const nombre = Buffer.from(f.originalname, 'latin1').toString('utf8');
@@ -301,6 +318,19 @@ rutas.post('/:id/export/:exportId/columnas', async (req, res) => {
   const manual = leerMapeoManual(req.body?.mapeo);
   if (!manual) throw new ErrorUsuario('Elige las columnas.');
   res.json(await procesarExport(req.usuario.id, p, exp.id, manual));
+});
+
+// El archivo trae el total vendido sin fecha por venta: el usuario dice de qué periodo es.
+rutas.post('/:id/export/:exportId/periodo', async (req, res) => {
+  const p = await pedidoDe(req);
+  exigirInicialGuardada(p);
+  if (p.terminado_en) throw new ErrorUsuario('Este pedido ya está terminado.', 409);
+  const exp = await db.uno('SELECT id FROM exports WHERE id = $1 AND pedido_id = $2 AND usuario_id = $3', [Number(req.params.exportId), p.id, req.usuario.id]);
+  if (!exp) throw new ErrorUsuario('No encontramos ese archivo. Vuelve a subirlo.', 404);
+  const periodo = leerPeriodo(req.body);
+  if (!periodo) throw new ErrorUsuario('Escribe las dos fechas del periodo.');
+  await db.query('UPDATE exports SET periodo = $1::jsonb WHERE id = $2', [JSON.stringify(periodo), exp.id]);
+  res.json(await procesarExport(req.usuario.id, p, exp.id, leerMapeoManual(req.body?.mapeo)));
 });
 
 // --- Paso 3: reporte ----------------------------------------------------------------------

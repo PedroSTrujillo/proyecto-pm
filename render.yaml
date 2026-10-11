@@ -20,3 +20,5 @@ services:
         sync: false
       - key: APP_URL
         sync: false
+      - key: LANDING_URL
+        sync: false

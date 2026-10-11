@@ -1,15 +1,17 @@
 import { html, montar, api, fecha, fechaHora, dia, numero, plural, debounce, mensajeError, claveCodigo, semanas } from './util.js';
 import { crearHoja } from './hoja.js';
 import { pintarReporte } from './reporte.js';
+import { SISTEMAS, GENERICA, sistemaPorId } from './sistemas.js';
 
 const app = document.getElementById('app');
 const menu = document.getElementById('menu');
 let usuario = null;
+let landing = null; // dirección de la página de presentación
 let destinoTrasEntrar = null;
 let alSalirDeVista = []; // p. ej. guardar el borrador antes de cambiar de pantalla
 
 const NOMBRES_PASOS = ['Lista inicial', 'Subir export', 'Ver reporte', 'Lista final', '¿Por qué cambió?'];
-const LEMA = 'Sube el export de tu software contable y mira, en semanas de inventario, qué productos se agotan primero y cuáles sobran.';
+const LEMA = 'Sube lo que exportas de tu programa contable y mira, en semanas de inventario, qué productos se agotan primero y cuáles sobran.';
 
 // --- Navegación ---------------------------------------------------------------------
 
@@ -24,22 +26,29 @@ async function enrutar() {
   }
   const partes = (location.hash.replace(/^#/, '') || '/').split('/').filter(Boolean);
   window.scrollTo(0, 0);
+  if (partes[0] === 'restablecer' && partes[1]) return vistaRestablecer(partes[1]);
+  const publicas = ['entrar', 'crear-cuenta', 'olvide'];
   if (!usuario) {
-    if (partes[0] !== 'entrar' && partes[0] !== 'crear-cuenta' && partes.length) destinoTrasEntrar = location.hash;
-    return partes[0] === 'crear-cuenta' ? vistaCrearCuenta() : vistaEntrar();
+    if (!publicas.includes(partes[0]) && partes.length) destinoTrasEntrar = location.hash;
+    if (partes[0] === 'crear-cuenta') return vistaCrearCuenta();
+    if (partes[0] === 'olvide') return vistaOlvide();
+    return vistaEntrar();
   }
-  if (partes[0] === 'entrar' || partes[0] === 'crear-cuenta') return ir('#/');
+  if (publicas.includes(partes[0])) return ir('#/');
+  if (partes[0] === 'cuenta') return vistaCuenta();
   if (partes[0] === 'pedido' && partes[1]) return vistaPedido(Number(partes[1]), partes[2] ? Number(partes[2]) : null);
   if (partes[0] === 'equipo') return vistaEquipo();
   return vistaInicio();
 }
 
 function pintarMenu() {
-  if (!usuario) { menu.innerHTML = ''; return; }
+  const principal = landing ? html`<a href="${landing}">Página principal</a>` : '';
+  if (!usuario) { montar(menu, principal); return; }
   montar(menu, html`
-    <span class="quien">${usuario.nombre}</span>
+    ${principal}
     <a href="#/">Mis pedidos</a>
     ${usuario.rol === 'equipo' ? html`<a href="#/equipo">Resultados de la prueba</a>` : ''}
+    <a href="#/cuenta" class="quien" title="Mi cuenta">${usuario.nombre}</a>
     <button type="button" class="enlace salir">Salir</button>`);
   menu.querySelector('.salir').addEventListener('click', async () => {
     for (const f of alSalirDeVista.splice(0)) { try { await f(); } catch { /* nada */ } }
@@ -78,6 +87,10 @@ function formularioCuenta({ titulo, boton, conNombre, enviar, pie }) {
         <button class="boton primario" type="submit">${boton}</button>
         <p class="nota">${pie}</p>
       </form>
+      ${conNombre ? '' : html`<div class="tarjeta crear-cuenta-aviso">
+        <p><strong>¿Es tu primera vez?</strong> Para usar SINESC necesitas una cuenta. Es gratis y toma un minuto.</p>
+        <a class="boton" href="#/crear-cuenta">Crear una cuenta</a>
+      </div>`}
     </div>`);
   const form = app.querySelector('form');
   form.querySelector('input').focus();
@@ -104,7 +117,7 @@ function vistaEntrar() {
     titulo: 'Entra a tu cuenta',
     boton: 'Entrar',
     enviar: (d) => api('POST', '/cuenta/entrar', d),
-    pie: html`¿No tienes cuenta? <a href="#/crear-cuenta">Crea una</a>.`,
+    pie: html`<a href="#/olvide">¿Olvidaste tu contraseña?</a>`,
   });
 }
 
@@ -115,6 +128,122 @@ function vistaCrearCuenta() {
     conNombre: true,
     enviar: (d) => api('POST', '/cuenta/crear', d),
     pie: html`¿Ya tienes cuenta? <a href="#/entrar">Entra</a>.`,
+  });
+}
+
+function vistaOlvide() {
+  montar(app, html`
+    <div class="caja-cuenta">
+      <h1>¿Olvidaste tu contraseña?</h1>
+      <form class="tarjeta" novalidate>
+        <label class="campo">Tu correo <input type="email" name="email" required autocomplete="email"></label>
+        <div class="mensajes"></div>
+        <button class="boton primario" type="submit">Pedir un enlace para cambiarla</button>
+        <p class="nota"><a href="#/entrar">Volver a entrar</a></p>
+      </form>
+    </div>`);
+  const form = app.querySelector('form');
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const b = form.querySelector('button[type="submit"]');
+    b.disabled = true;
+    try {
+      const r = await api('POST', '/cuenta/olvide', Object.fromEntries(new FormData(form)));
+      montar(form.querySelector('.mensajes'), r.correo
+        ? html`<div class="mensaje ok">Si hay una cuenta con ese correo, te enviamos un enlace para cambiar la contraseña. Revisa también la carpeta de correo no deseado.</div>`
+        : html`<div class="mensaje info">Escríbele al equipo que te invitó a la prueba: ellos te mandan un enlace para poner una contraseña nueva.</div>`);
+    } catch (e) {
+      error(form.querySelector('.mensajes'), e);
+      b.disabled = false;
+    }
+  });
+}
+
+function vistaRestablecer(token) {
+  montar(app, html`
+    <div class="caja-cuenta">
+      <h1>Pon una contraseña nueva</h1>
+      <form class="tarjeta" novalidate>
+        <label class="campo">Contraseña nueva <span class="opcional">(mínimo 8 caracteres)</span>
+          <input type="password" name="clave" required autocomplete="new-password"></label>
+        <label class="campo">Escríbela otra vez <input type="password" name="repetida" required autocomplete="new-password"></label>
+        <div class="mensajes"></div>
+        <button class="boton primario" type="submit">Guardar y entrar</button>
+      </form>
+    </div>`);
+  const form = app.querySelector('form');
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const { clave, repetida } = Object.fromEntries(new FormData(form));
+    if (clave !== repetida) return montar(form.querySelector('.mensajes'), html`<div class="mensaje error">Las dos contraseñas no son iguales.</div>`);
+    const b = form.querySelector('button[type="submit"]');
+    b.disabled = true;
+    try {
+      ({ usuario } = await api('POST', '/cuenta/restablecer', { token, clave }));
+      pintarMenu();
+      ir('#/');
+    } catch (e) {
+      error(form.querySelector('.mensajes'), e);
+      b.disabled = false;
+    }
+  });
+}
+
+function opcionesSistema(elegido) {
+  return html`<option value="">Elige tu programa</option>${SISTEMAS.map((s) => html`<option value="${s.id}" ${s.id === elegido ? 'selected' : ''}>${s.nombre}</option>`)}`;
+}
+
+async function guardarSistema(sistema) {
+  ({ usuario } = await api('PUT', '/cuenta/datos', { sistema: sistema || null }));
+}
+
+function vistaCuenta() {
+  montar(app, html`
+    <h1>Mi cuenta</h1>
+    <section class="tarjeta">
+      <h2>Tus datos</h2>
+      <form class="datos" novalidate>
+        <label class="campo">Nombre <input type="text" name="nombre" required value="${usuario.nombre}" autocomplete="name"></label>
+        <label class="campo">Correo <input type="email" value="${usuario.email}" disabled></label>
+        <label class="campo">Programa contable <select name="sistema">${opcionesSistema(usuario.sistema)}</select></label>
+        <div class="mensajes"></div>
+        <div class="acciones"><button class="boton primario" type="submit">Guardar</button></div>
+      </form>
+    </section>
+    <section class="tarjeta">
+      <h2>Cambiar contraseña</h2>
+      <form class="clave" novalidate>
+        <label class="campo">Contraseña actual <input type="password" name="actual" required autocomplete="current-password"></label>
+        <label class="campo">Contraseña nueva <span class="opcional">(mínimo 8 caracteres)</span>
+          <input type="password" name="nueva" required autocomplete="new-password"></label>
+        <div class="mensajes"></div>
+        <div class="acciones"><button class="boton primario" type="submit">Cambiar contraseña</button></div>
+      </form>
+    </section>`);
+
+  const datos = app.querySelector('form.datos');
+  datos.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const { nombre, sistema } = Object.fromEntries(new FormData(datos));
+    try {
+      ({ usuario } = await api('PUT', '/cuenta/datos', { nombre, sistema: sistema || null }));
+      pintarMenu();
+      montar(datos.querySelector('.mensajes'), html`<div class="mensaje ok">Guardado.</div>`);
+    } catch (e) {
+      error(datos.querySelector('.mensajes'), e);
+    }
+  });
+
+  const clave = app.querySelector('form.clave');
+  clave.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    try {
+      await api('PUT', '/cuenta/clave', Object.fromEntries(new FormData(clave)));
+      clave.reset();
+      montar(clave.querySelector('.mensajes'), html`<div class="mensaje ok">Listo, cambiaste tu contraseña. Si tenías la sesión abierta en otro computador, allá tendrás que entrar de nuevo.</div>`);
+    } catch (e) {
+      error(clave.querySelector('.mensajes'), e);
+    }
   });
 }
 
@@ -227,6 +356,29 @@ function irAPaso(pedido, n) {
 }
 
 // Formulario para elegir columnas cuando no las reconocemos.
+// Guía para sacar los archivos desde el programa contable del usuario (public/js/sistemas.js).
+function guiaSistema(id) {
+  const s = sistemaPorId(id);
+  if (!s) return '';
+  const sinRuta = !s.ventas && !s.existencias;
+  const lista = (pasos) => html`<ol>${pasos.map((p) => html`<li>${p}</li>`)}</ol>`;
+  return html`<div class="guia">
+    ${sinRuta ? html`<p class="nota">${s.id === 'otro' ? 'Estos pasos sirven en casi cualquier programa contable.' : `Todavía no tenemos los nombres exactos de los menús de ${s.nombre}. Estos pasos sirven en casi cualquier programa contable.`}</p>` : ''}
+    ${s.notaGeneral ? html`<p>${s.notaGeneral}</p>` : ''}
+    <h3>1. Lo que vendiste</h3>
+    ${lista(s.ventas || GENERICA.ventas)}
+    ${!s.ventas && !sinRuta ? html`<p class="nota">No encontramos la ruta exacta de este informe en ${s.nombre}: los pasos son generales.</p>` : ''}
+    ${s.ventasNota ? html`<p class="nota">${s.ventasNota}</p>` : ''}
+    <h3>2. Lo que tienes hoy</h3>
+    ${s.existencias ? lista(s.existencias) : s.existenciasNota ? '' : lista(GENERICA.existencias)}
+    ${s.existenciasNota ? html`<p>${s.existenciasNota}</p>` : ''}
+    <h3>3. Súbelos aquí abajo</h3>
+    <p>Los dos archivos juntos, tal como salen. Si no reconocemos alguna columna, te preguntamos cuál es una sola vez.</p>
+    ${s.sinRutaConfirmada ? html`<p class="nota">${s.sinRutaConfirmada}</p>` : ''}
+    ${s.fuentes.length ? html`<p class="nota">Fuentes, consultadas en octubre de 2026: ${s.fuentes.map((x, i) => html`${i ? ' · ' : ''}<a href="${x.url}" target="_blank" rel="noopener noreferrer">${x.texto}</a>`)}.</p>` : ''}
+  </div>`;
+}
+
 function formularioColumnas(cont, hojas, campos, alEnviar) {
   const utiles = hojas.filter((h) => h.encabezados.length);
   if (!utiles.length) return;
@@ -425,14 +577,12 @@ function paso1(cont, pedido) {
 function paso2(cont, pedido) {
   const terminado = pedido.terminado;
   montar(cont, html`<section class="tarjeta">
-    <h2>Paso 2 · Sube el export de ventas y existencias</h2>
-    <p class="ayuda">Necesitamos el archivo que sacas de tu software contable (Siigo, SAP, SIESA, CGUNO u otro) con:</p>
-    <ul class="ayuda">
-      <li>las <strong>ventas de uno a dos años</strong>: código del producto, fecha y cantidad vendida;</li>
-      <li>las <strong>existencias actuales</strong> de cada producto.</li>
-    </ul>
-    <p class="ayuda">Puede ser un Excel con las dos hojas, o dos archivos (uno de ventas y otro de existencias). Súbelo tal como sale: reconocemos las columnas.
-      <a href="/plantillas/export.xlsx" download>Descargar plantilla con un ejemplo</a></p>
+    <h2>Paso 2 · Sube tus ventas y existencias</h2>
+    <p class="ayuda">Necesitamos dos cosas de tu programa contable: <strong>lo que vendiste</strong> de cada producto en el último año (o los dos últimos) y <strong>lo que tienes hoy</strong> en existencias. Pueden venir en un archivo o en dos, tal como salen.</p>
+    ${terminado ? '' : html`<label class="campo campo-sistema">¿Qué programa contable usas?
+      <select class="sistema">${opcionesSistema(usuario.sistema)}</select></label>
+    <div class="guia-sistema"></div>`}
+    <p class="ayuda"><a href="/plantillas/export.xlsx" download>Descargar una plantilla con un ejemplo</a></p>
     ${pedido.export ? html`<div class="mensaje ok">Ya subiste ${pedido.export.archivos.map((a) => `"${a.nombre}"`).join(' y ')} el ${fechaHora(pedido.export.subidoEn)}.
       ${terminado ? '' : html`<a href="#/pedido/${pedido.id}/3">Ver el reporte →</a>`}</div>` : ''}
     ${terminado ? '' : html`<label class="zona-archivo">
@@ -449,6 +599,13 @@ function paso2(cont, pedido) {
   const zona = cont.querySelector('.zona-archivo');
   const input = zona.querySelector('input');
   const resultado = cont.querySelector('.resultado');
+  const selector = cont.querySelector('select.sistema');
+  const guia = cont.querySelector('.guia-sistema');
+  montar(guia, guiaSistema(usuario.sistema));
+  selector.addEventListener('change', () => {
+    montar(guia, guiaSistema(selector.value));
+    guardarSistema(selector.value).catch(() => {}); // si no se guarda, se vuelve a preguntar la próxima vez
+  });
 
   async function procesar(promesa) {
     montar(resultado, html`<div class="mensaje info">Leyendo tu archivo y calculando la rotación… (con archivos grandes puede tardar unos segundos)</div>`);
@@ -459,11 +616,34 @@ function paso2(cont, pedido) {
       return error(resultado, e);
     }
     if (r.ok) return irAPaso(pedido, 3);
+    if (r.necesitaPeriodo) return pedirPeriodo(r.exportId);
     montar(resultado, html`${mensajeError({ message: 'No pudimos usar el archivo:', datos: { errores: r.errores } })}
       <p class="nota">Corrige el archivo y vuelve a subirlo${r.hojas && r.hojas.some((h) => h.encabezados.length) ? ', o indícanos abajo qué columna es cuál' : ''}.</p>
       <div class="mapeo-export"></div>`);
     formularioColumnas(resultado.querySelector('.mapeo-export'), r.hojas || [], CAMPOS_EXPORT, (mapeo) => {
       procesar(api('POST', `/pedidos/${pedido.id}/export/${r.exportId}/columnas`, { mapeo }));
+    });
+  }
+
+  // El archivo trae el total vendido de cada producto, sin la fecha de cada venta.
+  function pedirPeriodo(exportId) {
+    const hoy = new Date();
+    const haceUnAno = new Date(hoy.getFullYear() - 1, hoy.getMonth(), hoy.getDate() + 1);
+    const iso = (x) => x.toLocaleDateString('en-CA');
+    montar(resultado, html`<form class="periodo mensaje info" novalidate>
+      <p><strong>Tu archivo trae el total vendido de cada producto, pero no la fecha de cada venta.</strong>
+        ¿De qué fecha a qué fecha son esas ventas? Es el rango que elegiste al sacar el informe.</p>
+      <div class="fechas">
+        <label class="campo">Desde <input type="date" name="desde" required value="${iso(haceUnAno)}"></label>
+        <label class="campo">Hasta <input type="date" name="hasta" required value="${iso(hoy)}" max="${iso(hoy)}"></label>
+      </div>
+      <div class="mensajes"></div>
+      <div class="acciones"><button type="submit" class="boton primario">Calcular con este periodo</button></div>
+    </form>`);
+    const form = resultado.querySelector('form');
+    form.addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      procesar(api('POST', `/pedidos/${pedido.id}/export/${exportId}/periodo`, Object.fromEntries(new FormData(form))));
     });
   }
 
@@ -809,6 +989,9 @@ async function vistaEquipo() {
     ${datos.usuarios.length ? '' : html`<div class="mensaje info">Todavía no hay usuarios de prueba registrados.</div>`}
     ${datos.usuarios.map((u) => html`<section class="tarjeta usuario-prueba">
       <header><h2>${u.nombre} <span class="opcional">${u.email}</span></h2>${CATEGORIAS[u.evaluacion.categoria]}</header>
+      <p class="nota">Programa contable: <strong>${u.sistema ? (sistemaPorId(u.sistema) || { nombre: u.sistema }).nombre : 'no lo ha dicho'}</strong>
+        · <button type="button" class="enlace enlace-clave" data-id="${u.id}">Enlace para que cambie su contraseña</button></p>
+      <div class="enlace-generado"></div>
       <div class="metricas-usuario">
         <span>Entró <strong>${u.ingresos}</strong> ${u.ingresos === 1 ? 'vez' : 'veces'}${u.ultimoIngreso ? ` (última: ${fechaHora(u.ultimoIngreso)})` : ''}</span>
         <span>Subió <strong>${u.archivosExport}</strong> ${u.archivosExport === 1 ? 'archivo' : 'archivos'} de export${u.archivosLista ? ` y ${u.archivosLista} de lista` : ''}</span>
@@ -836,13 +1019,26 @@ async function vistaEquipo() {
         <ul class="actividad">${u.actividad.slice().reverse().map((e) => html`<li>${fechaHora(e.en)} · ${(TEXTO_EVENTO[e.tipo] || (() => e.tipo))(e)}</li>`)}</ul></details>` : ''}
     </section>`)}`);
   app.querySelector('.actualizar').addEventListener('click', vistaEquipo);
+  app.querySelectorAll('.enlace-clave').forEach((b) => b.addEventListener('click', async () => {
+    const caja = b.closest('section').querySelector('.enlace-generado');
+    try {
+      const r = await api('POST', `/equipo/usuarios/${b.dataset.id}/restablecer`);
+      montar(caja, html`<div class="mensaje info"><p>Mándale este enlace (por ejemplo, por WhatsApp). Sirve una sola vez y durante ${r.horas} horas:</p>
+        <input type="text" readonly class="enlace-copiar" value="${r.enlace}" aria-label="Enlace para cambiar la contraseña"></div>`);
+      const campo = caja.querySelector('input');
+      campo.select();
+      navigator.clipboard?.writeText(r.enlace).catch(() => {});
+    } catch (e) {
+      error(caja, e);
+    }
+  }));
 }
 
 // --- Arranque -----------------------------------------------------------------------------------
 
 async function iniciar() {
   try {
-    ({ usuario } = await api('GET', '/cuenta/yo'));
+    ({ usuario, landing } = await api('GET', '/cuenta/yo'));
   } catch {
     usuario = null;
   }

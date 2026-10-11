@@ -31,10 +31,11 @@ Requiere Node.js 20 o superior. Las pruebas fallan si no se ha corrido `npm inst
 npm install
 TEAM_EMAILS=tu-correo@ejemplo.com npm start    # http://localhost:3000; PGlite en data/pglite/
 npm run dev                                      # igual, con node --watch
-npm test                                         # node --test test/*.test.js (48 pruebas)
+npm test                                         # node --test test/*.test.js (53 pruebas)
 node --test test/rotacion.test.js                # un solo archivo
 node --test --test-name-pattern="M = 5" test/listas.test.js   # una prueba por nombre
 npm run ejemplos                                 # regenera los exports inventados de ejemplos/
+npm run texto                                    # revisa los textos buscando marcas de IA (reglas de stop-slop)
 ```
 
 No hay linter, formateador ni paso de compilación. `DATA_DIR=memory://` deja la base en memoria (lo usan las pruebas). Para empezar con la base local vacía, borra `data/pglite/`.
@@ -62,6 +63,12 @@ Consecuencias que no se ven leyendo un solo archivo:
 - Cada consulta sobre datos de usuario filtra por `usuario_id`. Las rutas nuevas tienen que hacerlo también (ver `pedidoDe`).
 - La tabla `eventos` registra los ingresos, los archivos subidos y los pedidos. Volver con la sesión abierta después de 30 minutos sin actividad cuenta como un nuevo ingreso (`cuentas.js`).
 - **Recordatorios** (`recordatorios.js`, tabla `recordatorios`): una fila por usuario con su última respuesta y la fecha de su primer recordatorio. **No hay tareas programadas ni cron, a propósito** (decisión del equipo, 2026-10-11): el recordatorio es un archivo .ics que el usuario descarga y que su calendario dispara. Si hay `BREVO_API_KEY` y `CORREO_REMITENTE`, al decir que sí se le manda además la misma invitación por correo, en ese momento. Las fechas son texto `YYYY-MM-DD` en hora de Bogotá.
+
+**Programas contables** (`public/js/sistemas.js`): la guía que ve el usuario en el paso 2 para sacar los archivos de su programa. **Regla: un paso solo nombra un menú si se confirmó en una fuente, y la fuente va en `fuentes`.** Lo que no se pudo confirmar se marca así (`ventas: null` usa la guía general). No inventen nombres de menús.
+
+**Ventas como total de un periodo:** si una tabla trae código y cantidad pero ninguna fecha, `leerExport` devuelve `necesitaPeriodo` y la app le pregunta al usuario desde y hasta cuándo (se guarda en `exports.periodo`). Con eso, `calcularRotacion` usa el promedio simple sobre ese periodo (`periodo.totales`). Solo se considera así si no vino ninguna tabla de ventas con fecha.
+
+**Cuentas:** `/api/cuenta/datos` (nombre y programa contable), `/clave` (cambiar), `/olvide` y `/restablecer` (enlace de un solo uso, 24 horas, tabla `restablecimientos` con el hash del token). Sin correo configurado, el enlace lo genera el equipo desde "Resultados de la prueba".
 
 **Lector de archivos** (`lector.js` + `formatos.js`): busca la fila de encabezados y reconoce las columnas por sinónimos normalizados (minúsculas, sin tildes, sin palabras vacías). Acepta CSV con `;` o `,` en UTF-8 o ANSI, varias hojas o archivos, columnas por mes, y fechas y números en formato colombiano. Si falta un campo, devuelve las hojas con columnas de muestra para que el usuario elija la columna desde la pantalla, y el mapeo se recuerda por firma de encabezados en `usuarios.mapeos`. **Para adaptar un formato nuevo se agregan sinónimos en `formatos.js`, sin tocar `lector.js`.** Rechaza imágenes y PDFs a propósito.
 

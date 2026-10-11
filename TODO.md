@@ -1,33 +1,33 @@
 # Pendientes Entregable 3
 
+`[x]` hecho · `[~]` hecho en parte · `[ ]` pendiente. El detalle de lo hecho está en `docs/HANDOFF.md`.
 
+[~] Integrar el nombre SINESC (Sistema de Inteligencia de Negocio para Softwares Contables) a todo y crear un logo que vaya mejor con esto *(el nombre ya está en la app y la landing; el logo sigue siendo el de las barras: falta decidir el nuevo)*
 
-[ ] Integrar el nombre SINESC (Sistema de Inteligencia de Negocio para Softwares Contables) a todo.
+[x] Por semana pasa a ser "Ventas/Semana" *(reporte, landing y calculadora)*
 
-[ ] Por semana pasa a ser "Ventas/Semana"
+[~] Reducir exceso de texto por IA USANDO ALGUN REPOSITORIO MUY BUENO DE IA SLOP *(se usaron las reglas de stop-slop, github.com/hardikpandya/stop-slop, adaptadas al español en `npm run texto`; portada y "El problema" recortadas; falta repasar el resto de la landing con el script)*
 
-[ ] Reducir exceso de texto por IA
+[x] Mejorar heading de El Problema
 
-[ ] Mejorar heading de El Problema
+[ ] Corregir lo de la tocineta *(¿qué es? No aparece en el código)*
 
-[ ] Corregir lo de la tocineta
+[x] Complejizar el cálculo de semanas de inventario pero explicarlo desglosada *(tres ajustes, explicados paso a paso en el reporte)*
 
-[ ] Complejizar el cálculo de semanas de inventario pero explicarlo desglosada
+[ ] Mejorar formato en producto para que las cosas importantes sean más llamativas. Reducir texto y usar *(la frase quedó cortada: ¿usar qué?)*
 
-[ ] Mejorar formato en producto para que las cosas importantes sean más llamativas. Reducir texto y usar 
+[x] Quitar "plata" del landing page
 
-[ ] Quitar "plata" del landing page
+[x] Mejorar el contraste y aumentar un poco el tamaño de la página web *(texto secundario más oscuro y letra de 16 a 17 px, en la app y en la landing)*
 
-[ ] Mejorar el contraste y aumentar un poco el tamaño de la página web
+[~] Mejorar le inicio de sesión y creación de cuenta - usar Clerk para autenticación opcional *(pantalla mejorada; Clerk pendiente de decidir)*
 
-[ ] Mejorar le inicio de sesión y creación de cuenta - usar Clerk para autenticación opcional
+[x] Hacer una página de cuenta mínima *(Mi cuenta: nombre, programa contable y cambiar contraseña)*
 
-[ ] Hacer una página de cuenta mínima
+[x] Poder volver a la landing page desde la app *(enlace "Página principal"; la dirección va en `LANDING_URL`)*
 
-[ ] Poder volver a la landing page
+[ ] Desplegar todo como un conjunto *(pendiente de decidir, ver HANDOFF)*
 
-[ ] Desplegar todo como un conjunto
+[x] Reestablecer contraseña *(el equipo genera el enlace desde su vista; si se configura Brevo, también llega por correo)*
 
-[ ] Reestablecer contraseña
-
-[ ] Hacer más claro que toca crear cuenta con un botón
+[x] Hacer más claro que toca crear cuenta con un botón

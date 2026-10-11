@@ -5,7 +5,7 @@ import { URL_CREAR_CUENTA } from '@/lib/app'
 import { cn } from '@/lib/utils'
 import { ReportPreview } from './report-preview'
 
-const reassurances = ['Lee tu Excel o CSV tal como sale', 'No hay que conectar ningún sistema', 'Unos 5 minutos por pedido']
+const reassurances = ['Siigo, Alegra, World Office, Helisa y otros', 'Lee tu Excel o CSV tal como sale', 'Unos 5 minutos por pedido']
 
 export function Hero() {
   return (
@@ -14,7 +14,7 @@ export function Hero() {
         <div>
           <p className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
             <span className="size-1.5 rounded-full bg-primary" aria-hidden="true" />
-            Rotación de inventario para distribuidoras y comercializadoras
+            SINESC · Rotación de inventario para distribuidoras y comercializadoras
           </p>
           <h1
             id="hero-title"
@@ -23,9 +23,8 @@ export function Hero() {
             Mira qué se agota y qué sobra. <span className="text-primary">Tú decides cuánto pedir.</span>
           </h1>
           <p className="mt-6 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground">
-            Sube el export de tu software contable tal como sale y mira para cuántas semanas te alcanza cada
-            producto. Arriba aparece lo que se te acaba primero y, marcado aparte, lo que te sobra. Lo ves antes de
-            hacer el pedido, no después.
+            Sube lo que exportas de tu programa contable y mira para cuántas semanas te alcanza cada producto:
+            arriba lo que se acaba primero, aparte lo que sobra. Lo ves antes de armar el pedido.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <a href={URL_CREAR_CUENTA} className={cn(buttonVariants({ size: 'lg' }), 'h-11 px-5 text-base')}>

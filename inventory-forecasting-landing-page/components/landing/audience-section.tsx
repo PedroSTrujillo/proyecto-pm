@@ -10,7 +10,7 @@ const traits = [
   {
     icon: Receipt,
     title: 'Tus ventas ya quedan en el sistema',
-    body: 'En Siigo, SAP, SIESA, CGUNO, World Office o cualquier programa del que puedas sacar un Excel.',
+    body: 'En Siigo, Alegra, World Office, Helisa, SAP o el programa del que sacas tus informes en Excel.',
   },
   {
     icon: Scale,
@@ -23,7 +23,7 @@ const principles = [
   'Cada número viene con su cuenta.',
   'Pasos cortos y claros.',
   'Tu archivo, tal como sale.',
-  'Nunca pedimos por ti.',
+  'Tú decides cuánto pedir.',
 ]
 
 export function AudienceSection() {

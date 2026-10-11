@@ -296,10 +296,15 @@ const CAMPOS_EXPORT = ['codigo', 'nombre', 'fecha', 'cantidad', 'existencias'];
 /**
  * archivos: [{ nombre, buffer }]
  * mapeo: { porClave: { "0:Ventas": {codigo: 0, ...} }, porFirma: { firma: {...} } }
- * Devuelve { ok: true, ventas, existencias, mensual, hojasUsadas, avisos }
+ * Devuelve { ok: true, ventas, existencias, mensual, periodo, hojasUsadas, avisos }
+ *
+ * opciones.periodo = { desde, hasta } ("YYYY-MM-DD"): para los informes que traen el total
+ * vendido de cada producto en un periodo, sin una fecha por venta (por ejemplo, "Ventas por
+ * ítems" de Alegra o el listado de inventario con la casilla de salidas). Si el archivo es así
+ * y no viene el periodo, se devuelve { ok: false, necesitaPeriodo: true } para preguntarlo.
  *       o  { ok: false, errores, hojas } (hojas sirve para que el usuario elija columnas)
  */
-function leerExport(archivos, mapeo = {}) {
+function leerExport(archivos, mapeo = {}, opciones = {}) {
   const errores = [];
   const avisos = [];
   const hojasLeidas = [];
@@ -324,16 +329,36 @@ function leerExport(archivos, mapeo = {}) {
     const tieneCodigo = c.codigo !== undefined;
     const esVentas = tieneCodigo && ((c.fecha !== undefined && c.cantidad !== undefined) || analisis.meses.length >= 2);
     const esExistencias = tieneCodigo && c.existencias !== undefined;
-    return { indiceArchivo, hoja, clave, analisis, esVentas, esExistencias };
+    // Código y cantidad sin ninguna fecha: es el total vendido de un periodo.
+    const esVentasPeriodo = tieneCodigo && !esVentas && c.cantidad !== undefined;
+    return { indiceArchivo, hoja, clave, analisis, esVentas, esExistencias, esVentasPeriodo };
   });
 
-  const hojasVentas = analizadas.filter((h) => h.esVentas);
+  let hojasVentas = analizadas.filter((h) => h.esVentas);
+  // Solo si no hay ventas con fecha: un archivo de existencias con una columna "Cantidad"
+  // no debe confundirse con ventas cuando sí vinieron las ventas de verdad.
+  const porPeriodo = hojasVentas.length ? [] : analizadas.filter((h) => h.esVentasPeriodo);
+  if (porPeriodo.length) hojasVentas = porPeriodo;
   const soloExistencias = analizadas.filter((h) => h.esExistencias && !h.esVentas);
   const hojasExistencias = soloExistencias.length ? soloExistencias : analizadas.filter((h) => h.esExistencias);
   const resumenHojas = analizadas.map((h) => resumenParaMapeo(h.indiceArchivo, h.hoja, h.analisis, CAMPOS_EXPORT));
 
   if (!hojasVentas.length || !hojasExistencias.length) {
     return { ok: false, errores: explicarFaltantes(analizadas, hojasVentas.length > 0, hojasExistencias.length > 0, varias), hojas: resumenHojas };
+  }
+  let periodo = null;
+  if (porPeriodo.length) {
+    if (!opciones.periodo) {
+      return {
+        ok: false,
+        necesitaPeriodo: true,
+        errores: ['Tu archivo trae el total vendido de cada producto, pero no la fecha de cada venta. Dinos de qué fecha a qué fecha son esas ventas.'],
+        hojas: resumenHojas,
+      };
+    }
+    const dia = (t) => V.diaDe(...t.split('-').map(Number));
+    periodo = { desde: dia(opciones.periodo.desde), hasta: dia(opciones.periodo.hasta) };
+    avisos.push(`Tu archivo trae el total vendido de cada producto del ${opciones.periodo.desde} al ${opciones.periodo.hasta}, sin la fecha de cada venta.`);
   }
 
   // Ventas
@@ -360,6 +385,15 @@ function leerExport(archivos, mapeo = {}) {
       filasDatos++;
       if (!codigo) { problemas.push({ tipo: 'sin_codigo', fila, donde }); continue; }
       const nombre = c.nombre !== undefined && f[c.nombre] !== null ? String(f[c.nombre]).trim() : '';
+      if (periodo) {
+        const bruto = f[c.cantidad];
+        if (bruto === null || bruto === undefined) continue; // sin ventas en el periodo
+        const cantidad = V.leerNumero(bruto, decimal);
+        if (cantidad === null) { problemas.push({ tipo: 'cantidad', fila, donde, valor: textoValor(bruto), columna: describirColumna(hoja, analisis, c.cantidad) }); continue; }
+        if (cantidad !== 0) ventas.push({ codigo, nombre, dia: periodo.hasta, cantidad });
+        todasMensuales = false;
+        continue;
+      }
       if (analisis.meses.length) {
         for (const m of analisis.meses) {
           const bruto = f[m.col];
@@ -458,7 +492,7 @@ function leerExport(archivos, mapeo = {}) {
       manual: h.analisis.manual,
     }));
 
-  return { ok: true, ventas, existencias, mensual: todasMensuales, hojasUsadas, avisos, hojas: resumenHojas };
+  return { ok: true, ventas, existencias, mensual: todasMensuales, periodo, hojasUsadas, avisos, hojas: resumenHojas };
 }
 
 function explicarFaltantes(analizadas, hayVentas, hayExistencias, varias) {
@@ -472,7 +506,7 @@ function explicarFaltantes(analizadas, hayVentas, hayExistencias, varias) {
     if (cand && cand.f.length < 3) {
       errores.push(`Para las ventas, en ${nombreHoja(cand.h.hoja, varias)} ${cand.f.length === 1 ? 'falta la columna' : 'faltan las columnas'} de ${listaCampos(cand.f)}.`);
     } else {
-      errores.push('No encontramos las ventas: falta una tabla con código de producto, fecha y cantidad vendida.');
+      errores.push('No encontramos las ventas: falta una tabla con código de producto y cantidad vendida (con la fecha de cada venta, o el total de un periodo).');
     }
   }
   if (!hayExistencias) {

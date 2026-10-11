@@ -31,8 +31,11 @@ const VECES_OTRO_MES = 2; // ...si además vende más del doble que cualquier ot
  * ventas: [{ codigo, nombre, dia, cantidad }]  (dia = días desde 1970-01-01)
  * existencias: [{ codigo, nombre, existencias }]
  * mensual: true si las ventas vienen agrupadas por mes (la fecha es el día 1 de cada mes)
+ * periodo: { desde, hasta } (días) si las ventas son totales de un periodo, sin fecha por venta.
+ *   Sin fechas no se sabe qué es reciente, qué mes fue un pico ni cuándo empezó un producto,
+ *   así que se usa el promedio simple Q ÷ T.
  */
-function calcularRotacion({ ventas, existencias, mensual = false }) {
+function calcularRotacion({ ventas, existencias, mensual = false, periodo: totales = null }) {
   if (!ventas.length) throw new Error('No hay ventas para calcular.');
 
   let desde = Infinity;
@@ -42,6 +45,7 @@ function calcularRotacion({ ventas, existencias, mensual = false }) {
     if (v.dia > hasta) hasta = v.dia;
   }
   if (mensual) hasta = finDeMes(hasta); // el último mes cuenta completo
+  if (totales) ({ desde, hasta } = totales);
   const dias = hasta - desde + 1;
   const semanasHistorico = dias / 7;
   const inicioReciente = Math.max(desde, inicioDeLoReciente(hasta, mensual));
@@ -90,7 +94,9 @@ function calcularRotacion({ ventas, existencias, mensual = false }) {
     if (p.filasExistencias > 1) variasBodegas++;
     const existenciasActuales = enExistencias ? redondear(p.existencias) : 0;
     const vendido = redondear(p.vendido);
-    const ajuste = vendido > 0 ? ventasPorSemana(p, { desde, hasta, semanasHistorico, semanasRecientes }) : null;
+    const ajuste = vendido <= 0 ? null
+      : totales ? promedioSimple(vendido, semanasHistorico)
+        : ventasPorSemana(p, { desde, hasta, semanasHistorico, semanasRecientes });
     const promedioSemanal = ajuste ? ajuste.promedioSemanal : 0;
     const senales = [];
     if (!enVentas) senales.push('no_en_ventas');
@@ -162,6 +168,7 @@ function calcularRotacion({ ventas, existencias, mensual = false }) {
     recientesDesde: textoDia(inicioReciente),
     semanasRecientes,
     mensual,
+    totales: Boolean(totales),
   };
 
   const avisos = [];
@@ -187,6 +194,10 @@ function calcularRotacion({ ventas, existencias, mensual = false }) {
     umbrales: { seAgota: SEMANAS_SE_AGOTA, sobra: SEMANAS_SOBRA },
     ajustes: { semanasRecientes: SEMANAS_RECIENTES, semanasMinimasProducto: SEMANAS_MINIMAS_PRODUCTO, vecesLoNormal: VECES_LO_NORMAL, vecesOtroMes: VECES_OTRO_MES, mesesMinimosPico: MESES_MINIMOS_PICO },
   };
+}
+
+function promedioSimple(vendido, semanas) {
+  return { promedioSemanal: vendido / semanas, vendidoAjustado: vendido, vendidoReciente: 0, semanasProducto: semanas, semanasRecientes: 0, pico: null };
 }
 
 // Lo reciente: las últimas 13 semanas, o los últimos 3 meses completos si el archivo viene por mes.

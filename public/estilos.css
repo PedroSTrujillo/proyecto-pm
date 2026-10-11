@@ -1,10 +1,10 @@
 :root {
-  --tinta: #1d2433;
-  --tinta-suave: #5b6475;
+  --tinta: #141a26;
+  --tinta-suave: #475064;
   --fondo: #f5f6f8;
   --tarjeta: #ffffff;
-  --borde: #e2e5ea;
-  --borde-fuerte: #c9ced6;
+  --borde: #d9dde4;
+  --borde-fuerte: #b8bfca;
   --acento: #0f766e;
   --acento-oscuro: #0b5d57;
   --acento-claro: #e6f4f2;
@@ -29,7 +29,7 @@ html { -webkit-text-size-adjust: 100%; }
 
 body {
   margin: 0;
-  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font: 17px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   color: var(--tinta);
   background: var(--fondo);
 }
@@ -38,9 +38,9 @@ a { color: var(--acento); }
 a:hover { color: var(--acento-oscuro); }
 
 h1, h2, h3 { line-height: 1.25; margin: 0 0 .5rem; }
-h1 { font-size: 1.6rem; }
-h2 { font-size: 1.25rem; }
-h3 { font-size: 1.05rem; }
+h1 { font-size: 1.75rem; }
+h2 { font-size: 1.3rem; }
+h3 { font-size: 1.1rem; }
 p { margin: 0 0 .75rem; }
 
 /* --- Barra superior --- */
@@ -69,7 +69,7 @@ p { margin: 0 0 .75rem; }
 .marca svg rect { fill: var(--acento); }
 .marca svg path { fill: #fff; }
 .menu { display: flex; align-items: center; gap: .9rem; flex-wrap: wrap; justify-content: flex-end; font-size: .95rem; }
-.menu .quien { color: var(--tinta-suave); }
+.menu .quien { color: var(--tinta); font-weight: 600; }
 
 .contenido { max-width: 1180px; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
 .cargando { color: var(--tinta-suave); }
@@ -84,7 +84,7 @@ p { margin: 0 0 .75rem; }
   margin-bottom: 1.25rem;
 }
 .ayuda { color: var(--tinta-suave); max-width: 72ch; }
-.nota { color: var(--tinta-suave); font-size: .9rem; }
+.nota { color: var(--tinta-suave); font-size: .95rem; }
 .opcional { color: var(--tinta-suave); font-weight: 400; }
 .encabezado-pagina { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
 .encabezado-pagina p { margin: 0; }
@@ -311,9 +311,26 @@ table.datos .codigo { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas
 @media (max-width: 640px) {
   .barra { padding: .6rem 1rem; flex-wrap: wrap; gap: .4rem; }
   .menu { width: 100%; justify-content: flex-start; gap: .3rem 1rem; }
-  .menu .quien { display: none; }
   .marca { font-size: .95rem; }
   .tarjeta { padding: 1rem; }
   .contenido { padding: 1rem 1rem 3rem; }
   .cifra { min-width: 0; flex: 1 1 140px; }
+}
+
+/* --- Marca, cuenta y guía por programa contable --- */
+.marca .marca-sub { font-weight: 400; color: var(--tinta-suave); font-size: .9rem; margin-left: .15rem; }
+.crear-cuenta-aviso { margin-top: 1rem; padding: 1.2rem 1.6rem; }
+.crear-cuenta-aviso .boton { width: 100%; justify-content: center; }
+.campo-sistema select { max-width: 340px; }
+.guia { border: 1px solid var(--borde); border-radius: 8px; padding: .9rem 1.1rem; margin-bottom: 1rem; background: var(--fondo); }
+.guia h3 { margin-top: .75rem; }
+.guia h3:first-child, .guia .nota:first-child + h3 { margin-top: 0; }
+.guia ol { margin: .25rem 0 .5rem; padding-left: 1.3rem; }
+.guia li { margin-bottom: .3rem; }
+.periodo .fechas { display: flex; gap: 1rem; flex-wrap: wrap; }
+.periodo .fechas .campo { margin-bottom: .5rem; }
+.periodo .acciones { justify-content: flex-start; }
+.enlace-copiar { width: 100%; font: inherit; padding: .45rem .6rem; border: 1px solid var(--borde-fuerte); border-radius: 6px; }
+@media (max-width: 640px) {
+  .marca .marca-sub { display: none; }
 }

@@ -41,7 +41,7 @@ export function ReportPreview() {
                 Producto
               </th>
               <th scope="col" className="hidden w-28 whitespace-nowrap px-3 py-2 text-right font-semibold sm:table-cell">
-                Por semana
+                Ventas/semana
               </th>
               <th scope="col" className="hidden w-28 px-3 py-2 text-right font-semibold sm:table-cell">
                 Existencias

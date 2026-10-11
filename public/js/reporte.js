@@ -43,7 +43,7 @@ function filaHTML(f, umbrales) {
 // El cálculo paso a paso, con un producto del propio archivo. Los reportes guardados antes de
 // los ajustes (sin `r.ajustes`) se explican con el promedio simple con que se calcularon.
 function explicacion(r) {
-  if (!r.ajustes) return explicacionSimple(r);
+  if (!r.ajustes || r.periodo.totales) return explicacionSimple(r);
   const p = r.periodo;
   const e = r.ejemplo;
   const a = r.ajustes;
@@ -75,6 +75,7 @@ function explicacionSimple(r) {
     <h3>¿De dónde sale el número?</h3>
     <p><span class="formula">Ventas promedio por semana</span> = todo lo vendido de ese producto en tu archivo ÷ las ${T} semanas que cubre (del ${dia(p.desde)} al ${dia(p.hasta)}).
     <span class="formula">Semanas de inventario</span> = existencias ÷ ventas promedio por semana: cuántas semanas te alcanza lo que tienes si sigues vendiendo igual.</p>
+    ${p.totales ? html`<p class="nota">Tu archivo trae el total vendido de cada producto en el periodo, no cada venta con su fecha. Por eso se usa el promedio simple: sin fechas no se sabe qué se vendió hace poco, qué mes fue un pico ni cuándo empezó a venderse un producto.</p>` : ''}
     ${e ? html`<p class="ejemplo"><strong>Ejemplo con tu archivo:</strong> ${e.codigo}${e.nombre ? ` (${e.nombre})` : ''} vendió ${numero(e.vendido)} unidades en ${T} semanas → ${numero(e.vendido)} ÷ ${T} = ${ventasSemana(e.promedioSemanal)} por semana.
       Tienes ${numero(e.existencias)} en existencias → ${numero(e.existencias)} ÷ ${ventasSemana(e.promedioSemanal)} = <strong>${semanas(e.semanasInventario)} semanas</strong> de inventario.</p>` : ''}
   </div>`;
@@ -122,7 +123,7 @@ export function pintarReporte(contenedor, r, { compacto = false } = {}) {
     <div class="marco-tabla ${compacto ? 'limitado' : ''}">
       <table class="datos">
         <thead><tr>
-          <th>Código</th><th>Producto</th><th class="numero">${r.ajustes ? 'Ventas por semana' : 'Ventas promedio por semana'}</th><th class="numero">Existencias</th><th class="numero">Semanas de inventario</th>
+          <th>Código</th><th>Producto</th><th class="numero">Ventas/semana</th><th class="numero">Existencias</th><th class="numero">Semanas de inventario</th>
         </tr></thead>
         <tbody></tbody>
       </table>

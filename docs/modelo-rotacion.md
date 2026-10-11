@@ -119,6 +119,7 @@ Un producto con más de 12 semanas de inventario rota menos de 52 ÷ 12 ≈ 4,3 
 | Códigos `00123` y `123` | Son el mismo producto (Excel suele borrar los ceros a la izquierda). Tampoco importan las mayúsculas ni los espacios sobrantes. |
 | Histórico de menos de 26 semanas | Se calcula igual y se avisa que es más confiable con uno o dos años. |
 | Histórico de 13 semanas o menos | Todo es "reciente": d̄ᵢ = (Qᵢ + Qᵢ) ÷ (T + T) = Qᵢ ÷ T, el promedio simple. |
+| Ventas como total de un periodo, sin fecha por venta | Pasa con "Ventas por ítems" de Alegra o con el listado de inventario con la casilla de salidas. La app pregunta el periodo (desde, hasta) y T sale de ahí. Sin fechas no se sabe qué es reciente, qué mes fue un pico ni cuándo empezó un producto, así que se usa el promedio simple d̄ᵢ = Qᵢ ÷ T, y el reporte lo dice. |
 | Más devoluciones que ventas en lo reciente | Lo reciente no suma doble ni resta doble: Qᵢʳ se toma como 0. |
 | Pico en un mes reciente | El exceso recortado se descuenta también de Qᵢʳ, en la proporción de ese mes que cae en lo reciente. |
 
