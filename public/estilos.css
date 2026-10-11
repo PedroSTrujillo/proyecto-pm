@@ -67,7 +67,7 @@ p { margin: 0 0 .75rem; }
 }
 .marca svg { width: 28px; height: 28px; }
 .marca svg rect { fill: var(--acento); }
-.marca svg path { fill: #fff; }
+.marca svg path { fill: none; stroke: #fff; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
 .menu { display: flex; align-items: center; gap: .9rem; flex-wrap: wrap; justify-content: flex-end; font-size: .95rem; }
 .menu .quien { color: var(--tinta); font-weight: 600; }
 
@@ -236,7 +236,8 @@ table.hoja.solo-lectura td { padding: .35rem .5rem; }
 .cifra.verde { border-color: #b7e2c8; background: var(--verde-fondo); }
 .cifra.verde strong { color: var(--verde); }
 .explicacion { background: var(--acento-claro); border: 1px solid #bfe3de; border-radius: 8px; padding: .85rem 1rem; margin-bottom: 1rem; }
-.explicacion h3 { font-size: 1rem; margin-bottom: .3rem; }
+.explicacion summary { font-weight: 700; cursor: pointer; }
+.explicacion[open] summary { margin-bottom: .4rem; }
 .explicacion p { margin-bottom: .4rem; }
 .explicacion .ejemplo { margin: 0; }
 .explicacion ol { margin: .25rem 0 .6rem; padding-left: 1.3rem; }
@@ -334,3 +335,16 @@ table.datos .codigo { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas
 @media (max-width: 640px) {
   .marca .marca-sub { display: none; }
 }
+
+/* --- Guía corta, plantilla y pregunta de documentos --- */
+.guia-columnas { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: .25rem 1.5rem; }
+.guia-columnas h3 { margin: 0 0 .2rem; }
+.guia .boton { margin-top: .25rem; }
+.plantilla-aviso { margin: .6rem 0 0; font-size: .95rem; color: var(--tinta-suave); }
+.opciones-documento { list-style: none; padding: 0; margin: .5rem 0; }
+.opciones-documento li { margin-bottom: .35rem; }
+.opciones-documento input { margin-right: .4rem; }
+
+/* Lo importante del reporte, más visible: las semanas que le quedan a cada producto. */
+table.datos td.semanas { font-weight: 700; font-size: 1.08rem; white-space: nowrap; }
+table.datos tr.sobra td.semanas { color: var(--azul); }

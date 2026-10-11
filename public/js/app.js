@@ -190,7 +190,7 @@ function vistaRestablecer(token) {
 }
 
 function opcionesSistema(elegido) {
-  return html`<option value="">Elige tu programa</option>${SISTEMAS.map((s) => html`<option value="${s.id}" ${s.id === elegido ? 'selected' : ''}>${s.nombre}</option>`)}`;
+  return html`<option value="">Elige una opción</option>${SISTEMAS.map((s) => html`<option value="${s.id}" ${s.id === elegido ? 'selected' : ''}>${s.nombre}</option>`)}`;
 }
 
 async function guardarSistema(sistema) {
@@ -360,22 +360,26 @@ function irAPaso(pedido, n) {
 function guiaSistema(id) {
   const s = sistemaPorId(id);
   if (!s) return '';
-  const sinRuta = !s.ventas && !s.existencias;
+  if (s.plantilla) {
+    return html`<div class="guia">
+      <ol>
+        <li>Descarga la plantilla.</li>
+        <li>En la hoja "Productos", escribe una fila por producto: lo que tienes hoy y lo que vendiste cada mes.</li>
+        <li>Guárdala y súbela aquí abajo.</li>
+      </ol>
+      <a class="boton chico primario" href="/plantillas/inventario.xlsx" download>Descargar la plantilla</a>
+    </div>`;
+  }
   const lista = (pasos) => html`<ol>${pasos.map((p) => html`<li>${p}</li>`)}</ol>`;
+  const generica = !s.ventas && !s.existencias;
   return html`<div class="guia">
-    ${sinRuta ? html`<p class="nota">${s.id === 'otro' ? 'Estos pasos sirven en casi cualquier programa contable.' : `Todavía no tenemos los nombres exactos de los menús de ${s.nombre}. Estos pasos sirven en casi cualquier programa contable.`}</p>` : ''}
-    ${s.notaGeneral ? html`<p>${s.notaGeneral}</p>` : ''}
-    <h3>1. Lo que vendiste</h3>
-    ${lista(s.ventas || GENERICA.ventas)}
-    ${!s.ventas && !sinRuta ? html`<p class="nota">No encontramos la ruta exacta de este informe en ${s.nombre}: los pasos son generales.</p>` : ''}
-    ${s.ventasNota ? html`<p class="nota">${s.ventasNota}</p>` : ''}
-    <h3>2. Lo que tienes hoy</h3>
-    ${s.existencias ? lista(s.existencias) : s.existenciasNota ? '' : lista(GENERICA.existencias)}
-    ${s.existenciasNota ? html`<p>${s.existenciasNota}</p>` : ''}
-    <h3>3. Súbelos aquí abajo</h3>
-    <p>Los dos archivos juntos, tal como salen. Si no reconocemos alguna columna, te preguntamos cuál es una sola vez.</p>
-    ${s.sinRutaConfirmada ? html`<p class="nota">${s.sinRutaConfirmada}</p>` : ''}
-    ${s.fuentes.length ? html`<p class="nota">Fuentes, consultadas en octubre de 2026: ${s.fuentes.map((x, i) => html`${i ? ' · ' : ''}<a href="${x.url}" target="_blank" rel="noopener noreferrer">${x.texto}</a>`)}.</p>` : ''}
+    ${generica && s.id !== 'otro' ? html`<p class="nota">No tenemos los menús exactos de ${s.nombre}. Esto sirve en casi todos los programas.</p>` : ''}
+    ${s.aviso ? html`<p class="nota">${s.aviso}</p>` : ''}
+    <div class="guia-columnas">
+      <div><h3>Ventas</h3>${lista(s.ventas || GENERICA.ventas)}${s.ventasNota ? html`<p class="nota">${s.ventasNota}</p>` : ''}</div>
+      <div><h3>Existencias</h3>${lista(s.existencias || GENERICA.existencias)}</div>
+    </div>
+    <p class="nota">Súbelos tal como salen. Si el informe mezcla compras y ventas o no trae fechas, te preguntamos.${s.fuentes.length ? html` Fuente: ${s.fuentes.map((x, i) => html`${i ? ', ' : ''}<a href="${x.url}" target="_blank" rel="noopener noreferrer">${x.texto}</a>`)}.` : ''}</p>
   </div>`;
 }
 
@@ -385,13 +389,13 @@ function formularioColumnas(cont, hojas, campos, alEnviar) {
   montar(cont, html`
     <form class="mapeo">
       <h3>Indícanos qué columna es cuál</h3>
-      <p class="nota">Solo hace falta una vez: la próxima vez que subas un archivo con estas mismas columnas, lo leemos solo.</p>
+      <p class="nota">Ya marcamos las que parecen correctas por su contenido: revísalas y confirma. Solo se hace una vez; la próxima vez este formato se lee solo.</p>
       ${utiles.map((h) => html`<fieldset data-clave="${h.clave}">
         <legend>${h.hoja ? `Hoja "${h.hoja}"` : `Archivo "${h.archivo}"`}${h.hoja && hojas.some((x) => x.archivo !== h.archivo) ? ` de "${h.archivo}"` : ''}${h.filaEncabezados ? html` <span class="opcional">(encabezados en la fila ${h.filaEncabezados})</span>` : ''}</legend>
         <div class="grilla">${campos.map((c) => html`<label>${c.nombre}
           <select data-campo="${c.campo}">
             <option value="">— No está en esta hoja —</option>
-            ${h.encabezados.map((e) => html`<option value="${e.indice}" ${h.columnas[c.campo] === e.indice ? 'selected' : ''}>${e.letra}${e.texto ? ` · ${e.texto}` : ''}</option>`)}
+            ${h.encabezados.map((e) => html`<option value="${e.indice}" ${(h.columnas[c.campo] ?? (h.sugeridas || {})[c.campo]) === e.indice ? 'selected' : ''}>${e.letra}${e.texto ? ` · ${e.texto}` : ''}</option>`)}
           </select></label>`)}</div>
       </fieldset>`)}
       <div class="acciones"><button type="submit" class="boton primario">Leer de nuevo con estas columnas</button></div>
@@ -421,6 +425,7 @@ const CAMPOS_EXPORT = [
   { campo: 'fecha', nombre: 'Fecha de la venta' },
   { campo: 'cantidad', nombre: 'Cantidad vendida' },
   { campo: 'existencias', nombre: 'Existencias' },
+  { campo: 'documento', nombre: 'Tipo de documento (opcional)' },
 ];
 
 // Importar una lista (inicial o final) desde Excel/CSV a la hoja.
@@ -578,18 +583,18 @@ function paso2(cont, pedido) {
   const terminado = pedido.terminado;
   montar(cont, html`<section class="tarjeta">
     <h2>Paso 2 · Sube tus ventas y existencias</h2>
-    <p class="ayuda">Necesitamos dos cosas de tu programa contable: <strong>lo que vendiste</strong> de cada producto en el último año (o los dos últimos) y <strong>lo que tienes hoy</strong> en existencias. Pueden venir en un archivo o en dos, tal como salen.</p>
-    ${terminado ? '' : html`<label class="campo campo-sistema">¿Qué programa contable usas?
+    <p class="ayuda">Necesitamos <strong>lo que vendiste</strong> de cada producto en el último año y <strong>lo que tienes hoy</strong>. Un archivo o varios, tal como salen de tu programa.</p>
+    ${terminado ? '' : html`<label class="campo campo-sistema">¿Dónde llevas tu inventario?
       <select class="sistema">${opcionesSistema(usuario.sistema)}</select></label>
     <div class="guia-sistema"></div>`}
-    <p class="ayuda"><a href="/plantillas/export.xlsx" download>Descargar una plantilla con un ejemplo</a></p>
     ${pedido.export ? html`<div class="mensaje ok">Ya subiste ${pedido.export.archivos.map((a) => `"${a.nombre}"`).join(' y ')} el ${fechaHora(pedido.export.subidoEn)}.
       ${terminado ? '' : html`<a href="#/pedido/${pedido.id}/3">Ver el reporte →</a>`}</div>` : ''}
     ${terminado ? '' : html`<label class="zona-archivo">
       <strong>${pedido.export ? 'Subir otro archivo' : 'Arrastra aquí tu archivo o haz clic para elegirlo'}</strong>
       <span class="nota">Excel (.xlsx, .xls) o CSV. Puedes elegir dos archivos a la vez.</span>
       <input type="file" multiple accept=".xlsx,.xls,.xlsm,.xlsb,.ods,.csv,.txt">
-    </label>`}
+    </label>
+    <p class="plantilla-aviso">¿No puedes sacar esos informes? <a href="/plantillas/inventario.xlsx" download>Descarga la plantilla</a>, llénala con tu información y súbela.</p>`}
     <div class="resultado"></div>
     ${pedido.archivosSubidos.length ? html`<details class="notas"><summary>Archivos subidos en este pedido (${pedido.archivosSubidos.length})</summary>
       <ul class="lista-archivos">${pedido.archivosSubidos.map((a) => html`<li>${a.nombre} · ${fechaHora(a.subidoEn)}</li>`)}</ul></details>` : ''}
@@ -616,12 +621,33 @@ function paso2(cont, pedido) {
       return error(resultado, e);
     }
     if (r.ok) return irAPaso(pedido, 3);
+    if (r.necesitaDocumentos) return pedirDocumentos(r.exportId, r.documentos);
     if (r.necesitaPeriodo) return pedirPeriodo(r.exportId);
     montar(resultado, html`${mensajeError({ message: 'No pudimos usar el archivo:', datos: { errores: r.errores } })}
       <p class="nota">Corrige el archivo y vuelve a subirlo${r.hojas && r.hojas.some((h) => h.encabezados.length) ? ', o indícanos abajo qué columna es cuál' : ''}.</p>
       <div class="mapeo-export"></div>`);
     formularioColumnas(resultado.querySelector('.mapeo-export'), r.hojas || [], CAMPOS_EXPORT, (mapeo) => {
       procesar(api('POST', `/pedidos/${pedido.id}/export/${r.exportId}/columnas`, { mapeo }));
+    });
+  }
+
+  // El informe mezcla compras, ventas y ajustes: el usuario marca cuáles son ventas.
+  function pedirDocumentos(exportId, documentos) {
+    montar(resultado, html`<form class="documentos mensaje info" novalidate>
+      <p><strong>Tu archivo trae varios tipos de documento.</strong> Marca los que son ventas. Lo preguntamos una sola vez.</p>
+      <ul class="opciones-documento">${documentos.map((d) => html`<li><label>
+        <input type="checkbox" name="doc" value="${d.prefijo}" ${d.sugerido ? 'checked' : ''}>
+        <strong>${d.prefijo}</strong> <span class="nota">${plural(d.filas, 'fila', 'filas')}${d.ejemplo ? `, por ejemplo "${d.ejemplo}"` : ''}</span>
+      </label></li>`)}</ul>
+      <div class="mensajes"></div>
+      <div class="acciones"><button type="submit" class="boton primario">Usar solo estos</button></div>
+    </form>`);
+    const form = resultado.querySelector('form');
+    form.addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      const elegidos = [...form.querySelectorAll('input[name="doc"]:checked')].map((x) => x.value);
+      if (!elegidos.length) return montar(form.querySelector('.mensajes'), html`<div class="mensaje error">Marca al menos uno.</div>`);
+      procesar(api('POST', `/pedidos/${pedido.id}/export/${exportId}/documentos`, { documentos: elegidos }));
     });
   }
 

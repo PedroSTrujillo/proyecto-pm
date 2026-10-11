@@ -2,7 +2,7 @@
 
 `[x]` hecho · `[~]` hecho en parte · `[ ]` pendiente. El detalle de lo hecho está en `docs/HANDOFF.md`.
 
-[~] Integrar el nombre SINESC (Sistema de Inteligencia de Negocio para Softwares Contables) a todo y crear un logo que vaya mejor con esto *(el nombre ya está en la app y la landing; el logo sigue siendo el de las barras: falta decidir el nuevo)*
+[x] Integrar el nombre SINESC (Sistema de Inteligencia de Negocio para Softwares Contables) a todo y crear un logo que vaya mejor con esto *(monograma S, opción B, en la app, el favicon y la landing)*
 
 [x] Por semana pasa a ser "Ventas/Semana" *(reporte, landing y calculadora)*
 
@@ -10,11 +10,9 @@
 
 [x] Mejorar heading de El Problema
 
-[ ] Corregir lo de la tocineta *(¿qué es? No aparece en el código)*
-
 [x] Complejizar el cálculo de semanas de inventario pero explicarlo desglosada *(tres ajustes, explicados paso a paso en el reporte)*
 
-[ ] Mejorar formato en producto para que las cosas importantes sean más llamativas. Reducir texto y usar *(la frase quedó cortada: ¿usar qué?)*
+[x] Mejorar formato en producto para que las cosas importantes sean más llamativas. *(semanas de inventario en negrita y más grandes; la explicación del cálculo queda plegada; guías del paso 2 más cortas)*
 
 [x] Quitar "plata" del landing page
 

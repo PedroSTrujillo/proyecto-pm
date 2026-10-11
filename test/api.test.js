@@ -282,3 +282,26 @@ test('cuenta: programa contable, cambiar contraseña y restablecerla con el enla
   assert.equal((await hugo.get('/api/pedidos')).estado, 401, 'las sesiones anteriores se cierran');
   assert.equal((await cliente().post('/api/cuenta/entrar', { email: 'hugo@prueba.co', clave: 'clave-nueva-2' })).estado, 200);
 });
+
+test('informe con compras y ventas mezcladas: se pregunta una vez qué documentos son ventas y se recuerda', async () => {
+  const iris = await nuevoUsuario('Iris', 'iris@prueba.co');
+  const kardex = Buffer.from('Código;Fecha;Comprobante;Cantidad;Saldo\nAB-1;10/01/2026;FV-1-10;5;40\nAB-1;11/01/2026;FC-2-3;100;140\nAB-1;20/03/2026;FV-1-11;7;133\n');
+  const crear = async () => {
+    const { pedido } = await iris.post('/api/pedidos');
+    await iris.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: [{ codigo: 'AB-1', cantidad: '10' }], tipo: 'real' });
+    return pedido.id;
+  };
+  const id = await crear();
+  const r = await iris.subir(`/api/pedidos/${id}/export`, [['kardex.csv', kardex]]);
+  assert.equal(r.necesitaDocumentos, true);
+  assert.deepEqual(r.documentos.map((x) => [x.prefijo, x.filas, x.sugerido]), [['FV', 2, true], ['FC', 1, false]]);
+  assert.equal((await iris.post(`/api/pedidos/${id}/export/${r.exportId}/documentos`, { documentos: [] })).estado, 400);
+  const ok = await iris.post(`/api/pedidos/${id}/export/${r.exportId}/documentos`, { documentos: ['FV'] });
+  assert.equal(ok.ok, true, JSON.stringify(ok.errores));
+  const { reporte } = await iris.get(`/api/pedidos/${id}/reporte`);
+  assert.equal(reporte.filas[0].vendido, 12, 'solo las ventas: 5 + 7');
+
+  const id2 = await crear();
+  const otra = await iris.subir(`/api/pedidos/${id2}/export`, [['kardex.csv', kardex]]);
+  assert.equal(otra.ok, true, 'la segunda vez el mismo informe se lee solo');
+});

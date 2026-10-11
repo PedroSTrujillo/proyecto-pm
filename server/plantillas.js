@@ -4,7 +4,7 @@
 // columnas salen de formatos.js (PLANTILLA_EXPORT y PLANTILLA_LISTA).
 
 const XLSX = require('xlsx');
-const { PLANTILLA_EXPORT, PLANTILLA_LISTA } = require('./formatos');
+const { PLANTILLA_EXPORT, PLANTILLA_LISTA, PLANTILLA_INVENTARIO } = require('./formatos');
 const { EXCEL_EPOCA, MS_DIA } = require('./valores');
 
 // Productos de ejemplo (una distribuidora de ferretería).
@@ -83,4 +83,48 @@ function plantillaLista() {
   return XLSX.write(libro, { type: 'buffer', bookType: 'xlsx' });
 }
 
-module.exports = { plantillaExport, plantillaLista, ventasEjemplo, PRODUCTOS_EJEMPLO };
+const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+// Los 12 meses completos anteriores a hoy, como "Oct-2025".
+function ultimosDoceMeses(hoy = new Date()) {
+  const meses = [];
+  for (let i = 12; i >= 1; i--) {
+    const d = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth() - i, 1));
+    meses.push(`${MESES[d.getUTCMonth()]}-${d.getUTCFullYear()}`);
+  }
+  return meses;
+}
+
+/**
+ * Para quien lleva el inventario en Excel o a mano. Tres hojas: "Productos" para llenar,
+ * "Ejemplo" ya lleno e "Instrucciones". El lector ignora las hojas Ejemplo e Instrucciones.
+ */
+function plantillaInventario() {
+  const libro = XLSX.utils.book_new();
+  const meses = ultimosDoceMeses();
+  const encabezados = [...PLANTILLA_INVENTARIO.columnas, ...meses];
+  const anchos = [12, 34, 15, ...meses.map(() => 9)];
+  XLSX.utils.book_append_sheet(libro, hojaDesdeFilas(encabezados, [], anchos), PLANTILLA_INVENTARIO.hoja);
+  const azar = aleatorio(20261011);
+  const ejemplo = PRODUCTOS_EJEMPLO.slice(0, 4).map((p) => [
+    p.codigo, p.nombre, p.existencias,
+    ...meses.map(() => (p.porSemana ? Math.round(p.porSemana * 4.3 * (0.7 + azar() * 0.6)) : null)),
+  ]);
+  XLSX.utils.book_append_sheet(libro, hojaDesdeFilas(encabezados, ejemplo, anchos), 'Ejemplo');
+  const instrucciones = [
+    ['Cómo llenar esta plantilla'],
+    [''],
+    ['1. En la hoja "Productos", escribe una fila por producto: código, nombre y cuántas unidades tienes hoy.'],
+    ['2. En cada mes, escribe las unidades que vendiste. Si no vendiste nada, déjalo en blanco.'],
+    ['3. Si no usas códigos, copia el nombre del producto en la columna Código.'],
+    ['4. Guarda el archivo y súbelo en el paso 2 de SINESC.'],
+    [''],
+    ['La hoja "Ejemplo" muestra cómo se ve llena. No hace falta borrarla: no se tiene en cuenta.'],
+  ];
+  const wi = XLSX.utils.aoa_to_sheet(instrucciones);
+  wi['!cols'] = [{ wch: 100 }];
+  XLSX.utils.book_append_sheet(libro, wi, 'Instrucciones');
+  return XLSX.write(libro, { type: 'buffer', bookType: 'xlsx' });
+}
+
+module.exports = { plantillaExport, plantillaLista, plantillaInventario, ultimosDoceMeses, ventasEjemplo, PRODUCTOS_EJEMPLO };

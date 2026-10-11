@@ -6,8 +6,8 @@ const multer = require('multer');
 const cuentas = require('./cuentas');
 const pedidos = require('./pedidos');
 const equipo = require('./equipo');
-const { plantillaExport, plantillaLista } = require('./plantillas');
-const { PLANTILLA_EXPORT, PLANTILLA_LISTA } = require('./formatos');
+const { plantillaExport, plantillaLista, plantillaInventario } = require('./plantillas');
+const { PLANTILLA_EXPORT, PLANTILLA_LISTA, PLANTILLA_INVENTARIO } = require('./formatos');
 
 function crearApp() {
   const app = express();
@@ -39,6 +39,7 @@ function crearApp() {
   };
   app.get('/plantillas/export.xlsx', enviarXlsx(PLANTILLA_EXPORT.archivo, plantillaExport));
   app.get('/plantillas/lista-pedido.xlsx', enviarXlsx(PLANTILLA_LISTA.archivo, plantillaLista));
+  app.get('/plantillas/inventario.xlsx', enviarXlsx(PLANTILLA_INVENTARIO.archivo, plantillaInventario));
 
   app.get('/salud', (_req, res) => res.json({ ok: true }));
   app.use('/api', (_req, _res, next) => next(new cuentas.ErrorUsuario('No encontramos eso.', 404)));

@@ -32,7 +32,7 @@ npm test
 npm run ejemplos
 ```
 
-`npm test` corre 53 pruebas automáticas: cálculo, comparación de listas, recordatorios, lector de archivos y API. `npm run ejemplos` crea en `ejemplos/` exports inventados con formatos distintos (CSV estilo Siigo, Excel estilo SAP, informe con una columna por mes, un catálogo de 3.000 productos y un informe de mínimos), para hacer demos y pruebas.
+`npm test` corre 59 pruebas automáticas: cálculo, comparación de listas, recordatorios, lector de archivos y API. `npm run ejemplos` crea en `ejemplos/` exports inventados con formatos distintos (CSV estilo Siigo, Excel estilo SAP, informe con una columna por mes, un catálogo de 3.000 productos y un informe de mínimos), para hacer demos y pruebas.
 
 ## Landing page
 
@@ -112,6 +112,8 @@ El documento pide que las plantillas sean iguales al export real de cada probado
 | Stickiness corregido (2026-10-07): recordatorio 3 días antes de que un producto con más de 4 semanas llegue a 2 | `server/recordatorios.js` (cálculo y archivo de calendario), `server/correo.js` (opcional), tarjeta en el paso 3, cifras de stickiness en la vista del equipo |
 | Cálculo de semanas más completo, explicado desglosado (pendiente del equipo) | Tres ajustes en `server/rotacion.js` (§3.6 del modelo) y explicación paso a paso en `public/js/reporte.js` |
 | Guía para sacar los archivos según el programa contable (paso 2) | `public/js/sistemas.js`: Siigo Nube, Alegra, World Office, Helisa, SAP Business One y guía general. Cada ruta de menú lleva su fuente; lo que no se pudo confirmar se dice. La elección se guarda en `usuarios.sistema` y el equipo la ve |
+| Importar casi cualquier formato | `server/lector.js`: informes de impresora (títulos corridos, "Página X de Y", totales), código entre paréntesis en el nombre, años cortados ("01/MAR/202"), informes que mezclan compras y ventas (pregunta qué documentos son ventas y lo recuerda), columnas sugeridas por su contenido cuando el título no se reconoce |
+| Plantilla para quien lleva el inventario en Excel | `/plantillas/inventario.xlsx` (`plantillaInventario`): hoja Productos con existencias y una columna por mes; las hojas Ejemplo e Instrucciones no se leen |
 | Ventas como total de un periodo (sin fecha por venta) | `server/lector.js` (`necesitaPeriodo`), `exports.periodo`, `POST /:id/export/:exportId/periodo` |
 | Página de cuenta, cambiar y restablecer contraseña | `server/cuentas.js` (`/datos`, `/clave`, `/olvide`, `/restablecer`), tabla `restablecimientos`; el equipo genera el enlace desde su vista |
 | Ayuda para el segundo criterio de pivote | Coherencia con el reporte y magnitud del cambio en `server/listas.js`, columnas en la vista del equipo |

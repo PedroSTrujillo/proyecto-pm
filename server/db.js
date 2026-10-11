@@ -84,6 +84,7 @@ const ESQUEMA = [
   )`,
   // Columnas agregadas después de crear las tablas (la base de Neon ya las tiene creadas).
   'ALTER TABLE exports ADD COLUMN IF NOT EXISTS periodo JSONB', // { desde, hasta } si las ventas son totales de un periodo
+  'ALTER TABLE exports ADD COLUMN IF NOT EXISTS documentos JSONB', // tipos de documento que el usuario marcó como ventas
   'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS sistema TEXT', // programa contable que eligió (public/js/sistemas.js)
   // Enlaces para restablecer la contraseña: se guarda el hash del token, nunca el token.
   `CREATE TABLE IF NOT EXISTS restablecimientos (

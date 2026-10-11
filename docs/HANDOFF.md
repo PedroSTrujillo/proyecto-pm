@@ -27,6 +27,25 @@
 
 ---
 
+## 2026-10-11 (4) — Claude — importar cualquier formato, plantilla, logo y reporte más claro
+
+- **Rama:** `mejoras-modelo` (solo en local).
+- **Estado:**
+  - **Importador:** lee informes de impresora con títulos corridos, ruido de página y totales; saca el código de
+    los paréntesis del nombre; completa años cortados; pregunta una vez qué documentos son ventas cuando el informe
+    mezcla compras y ventas, y lo recuerda; sugiere columnas por su contenido. Probado con el "Movimiento detalle"
+    real de Helisa: 26.335 filas, 3.662 productos, 10.341 años completados, sin tocar nada a mano.
+  - **Plantilla para llenar a mano** (`/plantillas/inventario.xlsx`): existencias y una columna por mes. En el paso 2
+    hay una opción "Lo llevo en Excel o a mano" y un enlace a la plantilla siempre visible.
+  - **Guías del paso 2** más cortas: dos columnas (ventas, existencias), dos o tres pasos cada una.
+  - **Logo:** monograma S (opción B) en la app, el favicon y la landing (SVG y PNG).
+  - **Reporte:** semanas de inventario en negrita y más grandes; la explicación queda plegada.
+- **Base de datos:** `ALTER TABLE exports ADD COLUMN documentos` (se aplica sola al arrancar).
+- **Verificación:** `npm test` → 59/59. Navegador: guías, plantilla, pregunta de documentos con un kardex,
+  formulario con columnas sugeridas, reporte; sin desborde a 390 px.
+- **Siguiente paso exacto:** probar con un export real de Alegra y de Siigo Nube para confirmar los nombres de
+  sus columnas, y subir la rama.
+
 ## 2026-10-11 (3) — Claude — programas contables, ventas por periodo y pendientes del profesor
 
 - **Rama:** `mejoras-modelo` (tres commits sobre `main`, solo en local).

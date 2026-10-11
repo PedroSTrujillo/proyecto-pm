@@ -189,3 +189,88 @@ test('un archivo de existencias con columna "Cantidad" no se toma por ventas si 
   assert.equal(r.periodo, null);
   assert.equal(r.ventas.length, 2);
 });
+
+// Informe "de impresora", como los de Helisa: títulos que no caen sobre sus columnas, encabezado
+// repetido en cada página, filas de totales, código entre paréntesis, años cortados y compras
+// mezcladas con ventas. Datos inventados con la misma forma.
+function informeImpreso() {
+  const titulo = [null, null, null, null, null, null, null, null, null, 'EMPRESA DE PRUEBA S.A.S.'];
+  const encabezado = [null, null, 'FECHA', null, 'DOCUMENTO', null, 'BODEGA', null, null, null, 'CONCEPTO', null, 'CANTIDAD', null, 'VALOR NETO'];
+  const fila = (fecha, doc, nombre, cant) => [fecha, null, null, doc, null, 'PRINCIPAL', null, nombre, null, null, null, null, null, String(cant), null, '1000'];
+  return xlsx({ Hoja1: [
+    titulo, [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 'Página  1 de 2'],
+    encabezado,
+    fila('02/ENE/2026', 'FV 0001', 'TORNILLO HEX 1/4 (AB-100)', 10),
+    fila('02/ENE/2026', 'FC 0007', 'TORNILLO HEX 1/4 (AB-100)', 500), // compra: no cuenta
+    [null, null, null, null, null, null, null, null, null, null, null, 'TOTAL 02/ENE/2026'],
+    [null, null, null, null, null, null, null, null, null, null, null, null, null, '510', null, '2000'],
+    titulo, [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 'Página  2 de 2'],
+    encabezado,
+    fila('15/FEB/202', 'FV 0002', 'TUERCA 1/4 (AB-200)', 4), // año cortado por el ancho de la columna
+    fila('03/MAR/2026', 'FV 0003', 'TORNILLO HEX 1/4 (AB-100)', 6),
+  ] });
+}
+
+test('informe de impresora: columnas corridas, código entre paréntesis, años cortados y compras mezcladas', () => {
+  const stock = csv('Código;Saldo\nAB-100;20\nAB-200;3\n', 'saldos.csv');
+  const primero = leerExport([{ nombre: 'movimiento.xls', buffer: informeImpreso() }, stock]);
+  assert.equal(primero.ok, false);
+  assert.equal(primero.necesitaDocumentos, true);
+  assert.deepEqual(primero.documentos.map((x) => [x.prefijo, x.filas, x.sugerido]), [['FV', 3, true], ['FC', 1, false]]);
+
+  const r = leerExport([{ nombre: 'movimiento.xls', buffer: informeImpreso() }, stock], {}, { documentos: ['FV'] });
+  assert.equal(r.ok, true, JSON.stringify(r.errores));
+  assert.deepEqual(r.ventas.map((v) => [v.codigo, v.nombre, v.cantidad, textoDia(v.dia)]), [
+    ['AB-100', 'TORNILLO HEX 1/4', 10, '2026-01-02'],
+    ['AB-200', 'TUERCA 1/4', 4, '2026-02-15'],
+    ['AB-100', 'TORNILLO HEX 1/4', 6, '2026-03-03'],
+  ]);
+  assert.ok(r.avisos.some((a) => a.includes('año cortado')));
+  assert.ok(r.avisos.some((a) => a.includes('paréntesis')));
+  assert.deepEqual(Object.values(r.documentos), [['FV']], 'la elección se devuelve para recordarla');
+});
+
+test('ventas una columna por mes con existencias en la misma hoja (plantilla para llenar a mano)', () => {
+  const hoja = xlsx({ Productos: [
+    ['Código', 'Producto', 'Existencias hoy', 'Ene-2026', 'Feb-2026', 'Mar-2026'],
+    ['AB-1', 'Tornillo', 12, 30, 20, 25],
+    ['AB-2', 'Tuerca', 0, 5, null, 8],
+  ] });
+  const r = leerExport([{ nombre: 'inventario.xlsx', buffer: hoja }]);
+  assert.equal(r.ok, true, JSON.stringify(r.errores));
+  assert.equal(r.ventas.length, 5);
+  assert.deepEqual(r.existencias.map((e) => [e.codigo, e.existencias]), [['AB-1', 12], ['AB-2', 0]]);
+});
+
+test('columnas con títulos que no reconocemos: se sugieren por su contenido', () => {
+  const raro = csv('Ref;Texto;Día;Movidas;Stock\nA1;Tornillo de acero;15/01/2026;5;10\nA2;Arandela plana;20/02/2026;3;0\nA3;Tuerca hexagonal;21/02/2026;7;4\n', 'raro.csv');
+  const r = leerExport([raro]);
+  assert.equal(r.ok, false, 'sin la cantidad no se puede calcular solo: se pregunta');
+  const h = r.hojas[0];
+  assert.deepEqual(h.sugeridas, { nombre: 1, cantidad: 3 }, 'lo que no se reconoce por el título se sugiere por el contenido');
+  assert.deepEqual([h.columnas.codigo, h.columnas.fecha, h.columnas.existencias], [0, 2, 4]);
+});
+
+test('plantilla para llenar a mano: se lee la hoja Productos y se ignoran Ejemplo e Instrucciones', () => {
+  const { plantillaInventario, ultimosDoceMeses } = require('../server/plantillas');
+  const vacia = leerExport([{ nombre: 'plantilla.xlsx', buffer: plantillaInventario() }]);
+  assert.equal(vacia.ok, false, 'sin llenar no hay datos: el ejemplo no se cuela');
+
+  const libro = XLSX.read(plantillaInventario(), { type: 'buffer' });
+  const meses = ultimosDoceMeses();
+  assert.equal(meses.length, 12);
+  XLSX.utils.sheet_add_aoa(libro.Sheets.Productos, [['AB-1', 'Tornillo', 6, ...meses.map(() => 13)]], { origin: 'A2' });
+  const r = leerExport([{ nombre: 'llena.xlsx', buffer: XLSX.write(libro, { type: 'buffer', bookType: 'xlsx' }) }]);
+  assert.equal(r.ok, true, JSON.stringify(r.errores));
+  assert.equal(r.ventas.length, 12);
+  assert.deepEqual(r.existencias.map((e) => [e.codigo, e.existencias]), [['AB-1', 6]]);
+  assert.equal(r.mensual, true);
+});
+
+test('kardex con saldo: el saldo de hoy es el del último movimiento, aunque sea una compra', () => {
+  const kardex = csv('Código;Fecha;Comprobante;Cantidad;Saldo\nAB-1;10/01/2026;FV-1;5;40\nAB-1;20/03/2026;FV-2;7;33\nAB-1;25/03/2026;FC-9;100;133\n', 'kardex.csv');
+  const r = leerExport([kardex], {}, { documentos: ['FV'] });
+  assert.equal(r.ok, true, JSON.stringify(r.errores));
+  assert.deepEqual(r.ventas.map((v) => v.cantidad), [5, 7]);
+  assert.deepEqual(r.existencias.map((e) => e.existencias), [133]);
+});

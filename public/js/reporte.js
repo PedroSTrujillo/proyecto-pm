@@ -48,8 +48,8 @@ function explicacion(r) {
   const e = r.ejemplo;
   const a = r.ajustes;
   const s = r.resumen;
-  return html`<div class="explicacion">
-    <h3>¿De dónde sale el número?</h3>
+  return html`<details class="explicacion">
+    <summary>¿De dónde sale el número?</summary>
     <p><span class="formula">Semanas de inventario</span> = existencias ÷ ventas por semana: cuántas semanas te alcanza lo que tienes si sigues vendiendo al mismo ritmo.</p>
     <p><span class="formula">Ventas por semana</span> sale de lo vendido en tu archivo (del ${dia(p.desde)} al ${dia(p.hasta)}, ${semanas(p.semanas)} semanas), con tres ajustes:</p>
     <ol class="ajustes">
@@ -64,21 +64,21 @@ function explicacion(r) {
           <span class="nota">Sin el ajuste serían ${numero(e.vendido)} ÷ ${semanas(e.semanasHistorico)} = ${ventasSemana(e.promedioSimple)}.</span></li>
         <li>Semanas de inventario = ${numero(e.existencias)} en existencias ÷ ${ventasSemana(e.promedioSemanal)} = <strong>${semanas(e.semanasInventario)} semanas</strong>.</li>
       </ol></div>` : ''}
-  </div>`;
+  </details>`;
 }
 
 function explicacionSimple(r) {
   const p = r.periodo;
   const e = r.ejemplo;
   const T = semanas(p.semanas);
-  return html`<div class="explicacion">
-    <h3>¿De dónde sale el número?</h3>
+  return html`<details class="explicacion">
+    <summary>¿De dónde sale el número?</summary>
     <p><span class="formula">Ventas promedio por semana</span> = todo lo vendido de ese producto en tu archivo ÷ las ${T} semanas que cubre (del ${dia(p.desde)} al ${dia(p.hasta)}).
     <span class="formula">Semanas de inventario</span> = existencias ÷ ventas promedio por semana: cuántas semanas te alcanza lo que tienes si sigues vendiendo igual.</p>
     ${p.totales ? html`<p class="nota">Tu archivo trae el total vendido de cada producto en el periodo, no cada venta con su fecha. Por eso se usa el promedio simple: sin fechas no se sabe qué se vendió hace poco, qué mes fue un pico ni cuándo empezó a venderse un producto.</p>` : ''}
     ${e ? html`<p class="ejemplo"><strong>Ejemplo con tu archivo:</strong> ${e.codigo}${e.nombre ? ` (${e.nombre})` : ''} vendió ${numero(e.vendido)} unidades en ${T} semanas → ${numero(e.vendido)} ÷ ${T} = ${ventasSemana(e.promedioSemanal)} por semana.
       Tienes ${numero(e.existencias)} en existencias → ${numero(e.existencias)} ÷ ${ventasSemana(e.promedioSemanal)} = <strong>${semanas(e.semanasInventario)} semanas</strong> de inventario.</p>` : ''}
-  </div>`;
+  </details>`;
 }
 
 function notas(r) {

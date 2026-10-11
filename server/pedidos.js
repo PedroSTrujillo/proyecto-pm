@@ -256,17 +256,27 @@ function leerPeriodo(body) {
 
 async function procesarExport(usuarioId, pedido, exportId, manual) {
   const archivos = await db.query('SELECT nombre, contenido FROM archivos WHERE export_id = $1 ORDER BY id', [exportId]);
-  const { periodo } = await db.uno('SELECT periodo FROM exports WHERE id = $1', [exportId]);
+  const { periodo, documentos } = await db.uno('SELECT periodo, documentos FROM exports WHERE id = $1', [exportId]);
   const mapeos = await mapeosDe(usuarioId);
   const lectura = leerExport(
     archivos.map((a) => ({ nombre: a.nombre, buffer: Buffer.from(a.contenido) })),
     manual ? { porClave: manual } : { porFirma: mapeos.export },
-    { periodo },
+    { periodo, documentos, documentosPorFirma: mapeos.documentos },
   );
   if (!lectura.ok) {
     await db.query("UPDATE exports SET estado = 'error', errores = $1::jsonb, hojas = $2::jsonb WHERE id = $3", [JSON.stringify(lectura.errores), JSON.stringify(lectura.hojas), exportId]);
-    return { ok: false, errores: lectura.errores, hojas: lectura.hojas, necesitaPeriodo: Boolean(lectura.necesitaPeriodo), exportId };
+    return {
+      ok: false,
+      errores: lectura.errores,
+      hojas: lectura.hojas,
+      necesitaPeriodo: Boolean(lectura.necesitaPeriodo),
+      necesitaDocumentos: Boolean(lectura.necesitaDocumentos),
+      documentos: lectura.necesitaDocumentos ? lectura.documentos : undefined,
+      exportId,
+    };
   }
+  // Los documentos que marcó como ventas se recuerdan: la próxima vez su informe se lee solo.
+  if (lectura.documentos) for (const [firma, lista] of Object.entries(lectura.documentos)) await recordarMapeo(usuarioId, 'documentos', firma, lista);
   const rotacion = calcularRotacion({ ventas: lectura.ventas, existencias: lectura.existencias, mensual: lectura.mensual, periodo: lectura.periodo });
   const reporte = {
     ...rotacion,
@@ -318,6 +328,19 @@ rutas.post('/:id/export/:exportId/columnas', async (req, res) => {
   const manual = leerMapeoManual(req.body?.mapeo);
   if (!manual) throw new ErrorUsuario('Elige las columnas.');
   res.json(await procesarExport(req.usuario.id, p, exp.id, manual));
+});
+
+// El informe mezcla compras, ventas y ajustes: el usuario marca qué documentos son ventas.
+rutas.post('/:id/export/:exportId/documentos', async (req, res) => {
+  const p = await pedidoDe(req);
+  exigirInicialGuardada(p);
+  if (p.terminado_en) throw new ErrorUsuario('Este pedido ya está terminado.', 409);
+  const exp = await db.uno('SELECT id FROM exports WHERE id = $1 AND pedido_id = $2 AND usuario_id = $3', [Number(req.params.exportId), p.id, req.usuario.id]);
+  if (!exp) throw new ErrorUsuario('No encontramos ese archivo. Vuelve a subirlo.', 404);
+  const lista = Array.isArray(req.body?.documentos) ? req.body.documentos.map((x) => String(x).slice(0, 30)).slice(0, 50) : [];
+  if (!lista.length) throw new ErrorUsuario('Marca al menos un tipo de documento que sea venta.');
+  await db.query('UPDATE exports SET documentos = $1::jsonb WHERE id = $2', [JSON.stringify(lista), exp.id]);
+  res.json(await procesarExport(req.usuario.id, p, exp.id, leerMapeoManual(req.body?.mapeo)));
 });
 
 // El archivo trae el total vendido sin fecha por venta: el usuario dice de qué periodo es.

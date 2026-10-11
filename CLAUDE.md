@@ -31,7 +31,7 @@ Requiere Node.js 20 o superior. Las pruebas fallan si no se ha corrido `npm inst
 npm install
 TEAM_EMAILS=tu-correo@ejemplo.com npm start    # http://localhost:3000; PGlite en data/pglite/
 npm run dev                                      # igual, con node --watch
-npm test                                         # node --test test/*.test.js (53 pruebas)
+npm test                                         # node --test test/*.test.js (59 pruebas)
 node --test test/rotacion.test.js                # un solo archivo
 node --test --test-name-pattern="M = 5" test/listas.test.js   # una prueba por nombre
 npm run ejemplos                                 # regenera los exports inventados de ejemplos/
@@ -65,6 +65,8 @@ Consecuencias que no se ven leyendo un solo archivo:
 - **Recordatorios** (`recordatorios.js`, tabla `recordatorios`): una fila por usuario con su última respuesta y la fecha de su primer recordatorio. **No hay tareas programadas ni cron, a propósito** (decisión del equipo, 2026-10-11): el recordatorio es un archivo .ics que el usuario descarga y que su calendario dispara. Si hay `BREVO_API_KEY` y `CORREO_REMITENTE`, al decir que sí se le manda además la misma invitación por correo, en ese momento. Las fechas son texto `YYYY-MM-DD` en hora de Bogotá.
 
 **Programas contables** (`public/js/sistemas.js`): la guía que ve el usuario en el paso 2 para sacar los archivos de su programa. **Regla: un paso solo nombra un menú si se confirmó en una fuente, y la fuente va en `fuentes`.** Lo que no se pudo confirmar se marca así (`ventas: null` usa la guía general). No inventen nombres de menús.
+
+**Formatos difíciles** (`lector.js`): antes de pedirle algo al usuario, el lector intenta resolverlo solo. Salta el ruido de los informes de impresora (`esFilaDeRuido`, `esFilaQueSeSalta`), corre una columna reconocida hacia la vecina que sí tiene datos del tipo correcto (`realinearColumnas`), saca el código de los paréntesis del nombre (`codigoEnNombre`) y completa años cortados con las filas vecinas (`fechaConAnioCortado`). Si una tabla de ventas tiene tipo de documento con dos o más prefijos (FV, FC, NC…), devuelve `necesitaDocumentos`; la elección se guarda en `exports.documentos` y en `usuarios.mapeos.documentos` por firma, así que se pregunta una sola vez. En un kardex, el saldo de hoy es el del último movimiento de cualquier tipo. Las hojas llamadas "Instrucciones" o "Ejemplo" se ignoran. Cuando falta una columna, `sugeridas` trae la que parece por su contenido y el formulario la deja marcada. Todo esto se probó con un informe real de Helisa ("Movimiento detalle", 26.000 filas) que no se versiona: las pruebas usan datos inventados con la misma forma.
 
 **Ventas como total de un periodo:** si una tabla trae código y cantidad pero ninguna fecha, `leerExport` devuelve `necesitaPeriodo` y la app le pregunta al usuario desde y hasta cuándo (se guarda en `exports.periodo`). Con eso, `calcularRotacion` usa el promedio simple sobre ese periodo (`periodo.totales`). Solo se considera así si no vino ninguna tabla de ventas con fecha.
 

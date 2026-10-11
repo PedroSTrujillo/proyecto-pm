@@ -34,7 +34,7 @@ const CAMPOS = {
       'nombre producto', 'nombre', 'descripcion', 'descripcion producto', 'producto',
       'nombre item', 'descripcion item', 'nombre articulo', 'descripcion articulo',
       'texto breve material', 'denominacion', 'detalle', 'nombre referencia',
-      'descripcion referencia', 'description', 'product name', 'name',
+      'descripcion referencia', 'description', 'product name', 'name', 'concepto',
     ],
   },
   fecha: {
@@ -52,7 +52,7 @@ const CAMPOS = {
       'cantidad vendida', 'unidades vendidas', 'cant vendida', 'ventas unidades',
       'ventas cantidad', 'cantidad facturada', 'cant facturada', 'cantidad', 'cant',
       'unidades', 'salidas', 'cantidad salida', 'salida', 'cantidad salidas',
-      'qty', 'quantity', 'ctd',
+      'qty', 'quantity', 'ctd', 'uds', 'unds', 'und vendidas', 'unidades vendidas periodo',
     ],
   },
   existencias: {
@@ -63,7 +63,17 @@ const CAMPOS = {
       'stock actual', 'inventario', 'inventario actual', 'disponible', 'cantidad disponible',
       'unidades disponibles', 'cant disponible', 'libre utilizacion', 'inv actual',
       'existencia fisica', 'cantidad existencia', 'cant existencia', 'saldo inventario',
-      'unidades stock', 'on hand',
+      'unidades stock', 'on hand', 'existencias hoy', 'existencia hoy', 'stock hoy', 'inventario hoy',
+      'saldo hoy', 'cantidad actual', 'unidades actuales', 'cantidad bodega', 'cantidad en bodega',
+    ],
+  },
+  // Opcional: el tipo de documento de cada fila. Sirve para los informes que mezclan compras,
+  // ventas y ajustes (movimiento de inventario, kardex): el usuario marca cuáles son ventas.
+  documento: {
+    nombre: 'tipo de documento',
+    sinonimos: [
+      'tipo documento', 'tipo doc', 'tipo comprobante', 'tipo movimiento', 'clase documento',
+      'comprobante', 'documento', 'doc', 'prefijo',
     ],
   },
   // Cantidad en la lista de pedido (la hoja con la que arman el pedido).
@@ -83,6 +93,14 @@ const PLANTILLA_EXPORT = {
   archivo: 'plantilla-export-ventas-existencias.xlsx',
   ventas: { hoja: 'Ventas', columnas: ['Código', 'Nombre', 'Fecha', 'Cantidad'] },
   existencias: { hoja: 'Existencias', columnas: ['Código', 'Nombre', 'Existencias'] },
+};
+
+// Plantilla para quien lleva el inventario en Excel o a mano: una fila por producto, lo que
+// tiene hoy y lo vendido en cada uno de los últimos 12 meses.
+const PLANTILLA_INVENTARIO = {
+  archivo: 'plantilla-inventario-sinesc.xlsx',
+  hoja: 'Productos',
+  columnas: ['Código', 'Producto', 'Existencias hoy'], // y después, una columna por mes
 };
 
 // Plantilla de la lista de pedido: forma de un informe de mínimos para la reunión de compras.
@@ -138,6 +156,7 @@ module.exports = {
   CAMPOS,
   PLANTILLA_EXPORT,
   PLANTILLA_LISTA,
+  PLANTILLA_INVENTARIO,
   normalizarEncabezado,
   camposDeEncabezado,
 };
