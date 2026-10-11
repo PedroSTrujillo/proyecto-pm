@@ -20,13 +20,13 @@
 
 [x] Mejorar el contraste y aumentar un poco el tamaño de la página web *(texto secundario más oscuro y letra de 16 a 17 px, en la app y en la landing)*
 
-[~] Mejorar le inicio de sesión y creación de cuenta - usar Clerk para autenticación opcional *(pantalla mejorada; Clerk pendiente de decidir)*
+[x] Mejorar le inicio de sesión y creación de cuenta - usar Clerk para autenticación opcional *(pantalla mejorada; se decidió no usar Clerk el 2026-10-11: el inicio de sesión propio ya cubre crear cuenta, cambiar y restablecer contraseña)*
 
 [x] Hacer una página de cuenta mínima *(Mi cuenta: nombre, programa contable y cambiar contraseña)*
 
 [x] Poder volver a la landing page desde la app *(enlace "Página principal"; la dirección va en `LANDING_URL`)*
 
-[ ] Desplegar todo como un conjunto *(pendiente de decidir, ver HANDOFF)*
+[x] Desplegar todo como un conjunto *(se decidió dejarlo como está el 2026-10-11: landing en Vercel y app en Render + Neon, enlazadas entre sí)*
 
 [x] Reestablecer contraseña *(el equipo genera el enlace desde su vista; si se configura Brevo, también llega por correo)*
 
