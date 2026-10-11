@@ -43,7 +43,7 @@ export function ComparisonSection() {
             id="comparacion-title"
             eyebrow="Al terminar el pedido"
             title="Tu lista de antes y la de después, línea por línea."
-            description="Al final ves qué agregaste, qué quitaste y qué cantidades moviste después de mirar la rotación. Y te preguntamos por qué. Esa respuesta es la que nos dice si el reporte te está sirviendo de verdad."
+            description="Al final ves qué agregaste, qué quitaste y qué cantidades moviste después de mirar la rotación. Y te preguntamos por qué. Esa respuesta nos dice si el reporte te está sirviendo."
           />
           <dl className="mt-8 grid grid-cols-2 gap-4">
             <Cifra valor={agregadas} texto={agregadas === 1 ? 'línea agregada' : 'líneas agregadas'} />

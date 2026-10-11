@@ -9,3 +9,4 @@ const APP_URL = (
 export const URL_CREAR_CUENTA = `${APP_URL}/#/crear-cuenta`
 export const URL_ENTRAR = `${APP_URL}/#/entrar`
 export const URL_PLANTILLA_EXPORT = `${APP_URL}/plantillas/export.xlsx`
+export const URL_PLANTILLA_INVENTARIO = `${APP_URL}/plantillas/inventario.xlsx`

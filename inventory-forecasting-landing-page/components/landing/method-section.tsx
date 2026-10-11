@@ -11,8 +11,8 @@ const pieces = [
   },
   {
     label: 'Ventas/semana',
-    body: 'Todo lo que vendiste del producto en ese tiempo, dividido entre esas semanas. Lo de los últimos 3 meses cuenta doble y un mes fuera de lo normal, como una venta para un proyecto, no infla el número. Las devoluciones se restan.',
-    example: `${numero(ejemplo.vendido)} ÷ ${SEMANAS_EJEMPLO} = ${ventasSemana(ejemplo.promedioSemanal)}`,
+    body: 'Lo que vendiste del producto, dividido entre esas semanas. Con tres ajustes: lo de los últimos 3 meses cuenta doble, un mes fuera de lo normal (como una venta para un proyecto) no infla el número y un producto nuevo se mide desde su primera venta.',
+    example: `${numero(ejemplo.vendido)} ÷ ${SEMANAS_EJEMPLO} ≈ ${ventasSemana(ejemplo.promedioSemanal)}`,
   },
   {
     label: 'Semanas de inventario',

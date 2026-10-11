@@ -9,7 +9,7 @@ const incluye = [
   'Excel o CSV, en uno o en varios archivos',
   'Tu lista de antes y la de después, comparadas',
   'Pedidos reales o simulados',
-  'Plantillas de ejemplo para descargar',
+  'Plantilla para quien lleva el inventario en Excel',
   'Recordatorio en tu calendario antes de que un producto se agote, si lo pides',
 ]
 

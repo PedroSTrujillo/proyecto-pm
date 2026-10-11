@@ -11,7 +11,7 @@ const steps = [
   {
     icon: FileSpreadsheet,
     title: 'Sube el export de ventas y existencias',
-    body: 'De uno a dos años de ventas y lo que tienes hoy, tal como sale de Siigo, SAP, SIESA, CGUNO, World Office u otro programa.',
+    body: 'El último año de ventas y lo que tienes hoy, tal como sale de Siigo, Alegra, World Office, Helisa u otro programa. Si llevas el inventario en Excel, usas nuestra plantilla.',
   },
   {
     icon: BarChart3,

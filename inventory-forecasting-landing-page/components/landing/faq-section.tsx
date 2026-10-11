@@ -1,5 +1,5 @@
 import { ChevronDown } from 'lucide-react'
-import { URL_PLANTILLA_EXPORT } from '@/lib/app'
+import { URL_PLANTILLA_INVENTARIO } from '@/lib/app'
 import { SectionHeading } from './section-heading'
 
 const faqs: { q: string; a: React.ReactNode }[] = [
@@ -7,19 +7,19 @@ const faqs: { q: string; a: React.ReactNode }[] = [
     q: '¿Qué archivo necesito?',
     a: (
       <>
-        El que sacas de tu software contable con las ventas de uno a dos años (código del producto, fecha y cantidad
-        vendida) y las existencias de hoy. Puede ser un Excel con dos hojas o dos archivos aparte, en Excel o CSV. Si
-        quieres ver cómo se ve, descarga la{' '}
-        <a href={URL_PLANTILLA_EXPORT} className="text-primary underline underline-offset-2 hover:text-primary-hover">
-          plantilla con un ejemplo
-        </a>
-        .
+        Lo que sacas de tu programa contable: las ventas del último año, con la fecha de cada venta o el total del
+        periodo, y las existencias de hoy. Uno o varios archivos, en Excel o CSV, tal como salen. Al elegir tu
+        programa te mostramos dónde está cada informe. Si llevas el inventario en Excel, descarga la{' '}
+        <a href={URL_PLANTILLA_INVENTARIO} className="text-primary underline underline-offset-2 hover:text-primary-hover">
+          plantilla
+        </a>{' '}
+        y llénala.
       </>
     ),
   },
   {
     q: '¿Tengo que conectar Siigo, SAP o mi POS?',
-    a: 'No. Subes el archivo tal como sale y reconocemos las columnas. Si alguna no la reconocemos, nos dices cuál es cuál una sola vez y la próxima vez la leemos sin preguntar.',
+    a: 'No. Subes el archivo tal como sale y reconocemos las columnas. Si alguna no la reconocemos, o si el informe mezcla compras y ventas, te preguntamos una sola vez y la próxima vez lo leemos sin preguntar.',
   },
   {
     q: '¿La herramienta me dice cuánto pedir?',

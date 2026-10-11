@@ -111,9 +111,13 @@ const PLANTILLA_LISTA = {
   columnas: ['Código', 'Descripción', 'Proveedor', 'Existencia', 'Mínimo', 'Máximo', 'Cantidad a pedir'],
 };
 
+// World Office escribe "Detalle: Cantidad" o "Encab: Tipo Documento": el prefijo no cuenta.
+const PREFIJO_DE_SECCION = /^s*(detalle|encab|encabezado)s*:s*/i;
+
 function normalizarEncabezado(texto) {
   if (texto === null || texto === undefined) return '';
   return String(texto)
+    .replace(PREFIJO_DE_SECCION, '')
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')

@@ -27,6 +27,23 @@
 
 ---
 
+## 2026-10-11 (5) — Claude — landing revisada para Expoandes y prueba con archivos de World Office
+
+- **Rama:** `mejoras-modelo`, lista para subir (solo en local).
+- **Estado:**
+  - **Landing:** se corrigió lo que ya no coincidía con la app: "¿Qué archivo necesito?" (ahora acepta totales del
+    periodo, informes mezclados y la plantilla para Excel), la lista de programas en "Cómo funciona", los tres
+    ajustes en "El cálculo", la calculadora ("la cuenta básica del reporte") y el punto de la plantilla en Precio.
+    `next build` pasa sin errores.
+  - **Importador:** probado con las plantillas oficiales de World Office (worldoffice.com.co/descargas). Ahora
+    entiende los títulos con prefijo ("Detalle: Cantidad", "Encab: Tipo Documento") y una columna "Producto" que
+    trae códigos. Esos archivos no se versionan; la prueba usa datos inventados con las mismas columnas.
+  - Guía de Alegra con la ruta confirmada del inventario: Reportes › Reportes administrativos › Inventario valorizado.
+  - No se encontraron en internet exports públicos de Siigo ni de Alegra para probar: queda pendiente con un archivo
+    real de un probador.
+- **Verificación:** `npm test` → 60/60; landing compila (`next build`).
+- **Siguiente paso exacto:** subir la rama (`git push -u origin mejoras-modelo`) y abrir el pull request.
+
 ## 2026-10-11 (4) — Claude — importar cualquier formato, plantilla, logo y reporte más claro
 
 - **Rama:** `mejoras-modelo` (solo en local).

@@ -274,3 +274,18 @@ test('kardex con saldo: el saldo de hoy es el del último movimiento, aunque sea
   assert.deepEqual(r.ventas.map((v) => v.cantidad), [5, 7]);
   assert.deepEqual(r.existencias.map((e) => e.existencias), [133]);
 });
+
+test('formato World Office: títulos con "Detalle:" y "Encab:", y la columna Producto trae el código', () => {
+  // Mismas columnas que la plantilla oficial "Documentos Ventas Movimiento Inventario"; datos inventados.
+  const ventas = xlsx({ 'Movimientos Inventarios': [
+    ['Encab: Empresa', 'Encab: Tipo Documento', 'Encab: Prefijo', 'Encab: Documento Número', 'Detalle: Producto', 'Detalle: Bodega', 'Detalle: UnidadDeMedida', 'Detalle: Cantidad', 'Detalle: Valor Unitario'],
+    ['EMPRESA DE PRUEBA', 'FV', null, '1', 'AB100', 'Principal', 'Und.', '10', '2000'],
+    ['EMPRESA DE PRUEBA', 'FV', null, '1', 'AB200', 'Principal', 'Und.', '4', '2000'],
+    ['EMPRESA DE PRUEBA', 'FV', null, '2', 'AB100', 'Principal', 'Und.', '6', '2000'],
+  ] });
+  const saldos = csv('Producto;Existencia\nAB100;8\nAB200;1\nAB300;5\n', 'saldos.csv');
+  const r = leerExport([{ nombre: 'ventas.xls', buffer: ventas }, saldos], {}, { periodo: { desde: '2026-01-01', hasta: '2026-03-31' } });
+  assert.equal(r.ok, true, JSON.stringify(r.errores));
+  assert.deepEqual(r.ventas.map((v) => [v.codigo, v.cantidad]), [['AB100', 10], ['AB200', 4], ['AB100', 6]]);
+  assert.deepEqual(r.existencias.map((e) => [e.codigo, e.existencias]), [['AB100', 8], ['AB200', 1], ['AB300', 5]]);
+});

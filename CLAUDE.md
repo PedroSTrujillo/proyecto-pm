@@ -31,7 +31,7 @@ Requiere Node.js 20 o superior. Las pruebas fallan si no se ha corrido `npm inst
 npm install
 TEAM_EMAILS=tu-correo@ejemplo.com npm start    # http://localhost:3000; PGlite en data/pglite/
 npm run dev                                      # igual, con node --watch
-npm test                                         # node --test test/*.test.js (59 pruebas)
+npm test                                         # node --test test/*.test.js (60 pruebas)
 node --test test/rotacion.test.js                # un solo archivo
 node --test --test-name-pattern="M = 5" test/listas.test.js   # una prueba por nombre
 npm run ejemplos                                 # regenera los exports inventados de ejemplos/

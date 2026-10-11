@@ -45,12 +45,12 @@ export const SISTEMAS = [
       'Clic en "Generar reporte" y descárgalo en Excel.',
     ],
     existencias: [
-      'Reportes › Inventario valorizado.',
-      'Expórtalo a Excel.',
+      'Reportes › Reportes administrativos › Inventario valorizado.',
+      'Fecha de corte: hoy. Clic en "Generar reporte" y expórtalo a Excel.',
     ],
     fuentes: [
       { texto: 'Ayuda de Alegra: Ventas por ítems', url: 'https://ayuda.alegra.com/int/reporte-de-ventas-por-items-int' },
-      { texto: 'Ayuda de Alegra: reportes exportados', url: 'https://ayuda.alegra.com/int/informacion-visible-al-exportar-reportes-en-alegra' },
+      { texto: 'Ayuda de Alegra: Inventario valorizado', url: 'https://ayuda.alegra.com/es/reporte-de-inventario-valorizado' },
     ],
   },
   {

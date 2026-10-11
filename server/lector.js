@@ -226,7 +226,14 @@ function analizarHoja(hoja, campos, mapeo) {
   let codigoEnNombre = false;
   if (columnas.codigo === undefined && columnas.nombre !== undefined) {
     const nombres = valoresDe(filasDeMuestra(hoja, iEnc + 1, firma), columnas.nombre);
-    codigoEnNombre = nombres.length >= 3 && nombres.filter((v) => RE_CODIGO_EN_NOMBRE.test(String(v))).length / nombres.length >= 0.6;
+    const parte = (fn) => nombres.length >= 3 && nombres.filter(fn).length / nombres.length >= 0.6;
+    if (parte((v) => /^[A-Za-z0-9._/-]{1,20}$/.test(String(v).trim()))) {
+      // Una columna "Producto" con valores como "TV123" trae códigos, no nombres (así exporta World Office).
+      columnas = { ...columnas, codigo: columnas.nombre };
+      delete columnas.nombre;
+    } else {
+      codigoEnNombre = parte((v) => RE_CODIGO_EN_NOMBRE.test(String(v)));
+    }
   }
   return { iEnc, encabezados, columnas, meses, firma, manual: Boolean(manual), codigoEnNombre };
 }
@@ -364,9 +371,11 @@ function fechaConAnioCortado(v, ultimo, orden) {
 
 function filasDeMuestra(hoja, desde, firma, max = 80) {
   const out = [];
+  // Una fila con muy pocas celdas suele ser un título suelto, salvo que la tabla misma tenga pocas columnas.
+  const minimo = Math.min(3, Math.max(1, celdasLlenas(hoja.filas[desde - 1] || [])));
   for (let i = desde; i < hoja.filas.length && out.length < max; i++) {
     const f = hoja.filas[i];
-    if (filaVacia(f) || esFilaDeRuido(f, firma) || esFilaDeTotal(f) || celdasLlenas(f) <= 2) continue;
+    if (filaVacia(f) || esFilaDeRuido(f, firma) || esFilaDeTotal(f) || celdasLlenas(f) < minimo) continue;
     out.push(f);
   }
   return out;

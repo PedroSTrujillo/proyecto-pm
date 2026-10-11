@@ -10,7 +10,7 @@ export function CalculatorSection() {
             id="calculadora-title"
             eyebrow="Pruébalo con un producto"
             title="¿Para cuántas semanas te alcanza?"
-            description="Piensa en un producto que conozcas bien: cuánto vendiste en un periodo y cuánto tienes hoy. Es la misma cuenta del reporte, solo que allá se hace con todos tus productos a la vez."
+            description="Piensa en un producto que conozcas bien: cuánto vendiste en un periodo y cuánto tienes hoy. Es la cuenta básica del reporte. Allá se hace con todos tus productos a la vez y con los ajustes."
           />
           <p className="mt-6 text-sm leading-relaxed text-muted-foreground">
             En la aplicación no tienes que escribir nada de esto: los números salen de tu export.
