@@ -371,10 +371,11 @@ function guiaSistema(id) {
     </div>`;
   }
   const lista = (pasos) => html`<ol>${pasos.map((p) => html`<li>${p}</li>`)}</ol>`;
-  const generica = !s.ventas && !s.existencias;
+  const generica = !s.ventas && !s.existencias && !s.unInforme;
   return html`<div class="guia">
     ${generica && s.id !== 'otro' ? html`<p class="nota">No tenemos los menús exactos de ${s.nombre}. Esto sirve en casi todos los programas.</p>` : ''}
     ${s.aviso ? html`<p class="nota">${s.aviso}</p>` : ''}
+    ${s.unInforme ? html`<div><h3>Lo más rápido: un solo informe</h3>${lista(s.unInforme)}${s.unInformeNota ? html`<p class="nota">${s.unInformeNota}</p>` : ''}<h3>O con dos informes</h3></div>` : ''}
     <div class="guia-columnas">
       <div><h3>Ventas</h3>${lista(s.ventas || GENERICA.ventas)}${s.ventasNota ? html`<p class="nota">${s.ventasNota}</p>` : ''}</div>
       <div><h3>Existencias</h3>${lista(s.existencias || GENERICA.existencias)}</div>

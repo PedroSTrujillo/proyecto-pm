@@ -259,7 +259,8 @@ test('plantilla para llenar a mano: se lee la hoja Productos y se ignoran Ejempl
   const libro = XLSX.read((await plantillaInventario()), { type: 'buffer' });
   const meses = ultimosDoceMeses();
   assert.equal(meses.length, 12);
-  XLSX.utils.sheet_add_aoa(libro.Sheets.Productos, [['AB-1', 'Tornillo', 'Ferretera Uno', 1500, 6, ...meses.map(() => 13)]], { origin: 'A2' });
+  // Título y grupos arriba; los encabezados en la fila 4 y los datos desde la 5.
+  XLSX.utils.sheet_add_aoa(libro.Sheets.Productos, [['AB-1', 'Tornillo', 6, ...meses.map(() => 13), 'Ferretera Uno', 1500]], { origin: 'A5' });
   const r = leerExport([{ nombre: 'llena.xlsx', buffer: XLSX.write(libro, { type: 'buffer', bookType: 'xlsx' }) }]);
   assert.equal(r.ok, true, JSON.stringify(r.errores));
   assert.equal(r.ventas.length, 12);
@@ -308,4 +309,22 @@ test('listado de inventario con salidas del periodo: se pregunta el periodo y se
   assert.equal(con.ok, true, JSON.stringify(con.errores));
   assert.deepEqual(con.ventas.map((v) => [v.codigo, v.cantidad]), [['AB-1', 120], ['AB-2', 4]], 'las salidas son las ventas');
   assert.deepEqual(con.existencias.map((e) => [e.codigo, e.existencias]), [['AB-1', 30], ['AB-2', 6]], 'el saldo actual son las existencias');
+});
+
+test('Balance de inventarios de Siigo Pyme: un solo archivo con salidas del periodo y nuevo saldo', () => {
+  // Mismas columnas que describe la ayuda de Siigo Pyme; datos inventados.
+  const libro = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(libro, XLSX.utils.aoa_to_sheet([
+    ['FERRETERIA DE PRUEBA S.A.S.'], ['BALANCE DE INVENTARIOS'], [],
+    ['Código', 'Descripción', 'Saldo anterior', 'Entradas', 'Salidas', 'Nuevo saldo'],
+    ['AB-1', 'Tornillo', 100, 50, 120, 30],
+    ['AB-2', 'Tuerca', 10, 0, 4, 6],
+  ]), 'Hoja1');
+  const buf = XLSX.write(libro, { type: 'buffer', bookType: 'xlsx' });
+  const sin = leerExport([{ nombre: 'balance.xlsx', buffer: buf }]);
+  assert.equal(sin.necesitaPeriodo, true, 'sin fechas: se pregunta el periodo');
+  const r = leerExport([{ nombre: 'balance.xlsx', buffer: buf }], {}, { periodo: { desde: '2025-10-01', hasta: '2026-09-30' } });
+  assert.equal(r.ok, true, JSON.stringify(r.errores));
+  assert.deepEqual(r.ventas.map((v) => [v.codigo, v.cantidad]), [['AB-1', 120], ['AB-2', 4]], 'las salidas son las ventas');
+  assert.deepEqual(r.existencias.map((e) => [e.codigo, e.existencias]), [['AB-1', 30], ['AB-2', 6]], 'el nuevo saldo son las existencias');
 });

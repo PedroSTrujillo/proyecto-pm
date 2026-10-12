@@ -26,6 +26,8 @@ const CAMPOS = {
       'codigo articulo', 'cod articulo', 'articulo', 'referencia', 'ref', 'codigo referencia',
       'sku', 'material', 'codigo material', 'id producto', 'codigo interno', 'plu',
       'producto codigo', 'cod prod', 'codprod', 'codigo prod', 'item code', 'product code', 'code',
+      // Siigo Pyme (Balance de inventarios), Loggro (Saldos al día por bodega), SAP Business One y ContaPyme.
+      'numero articulo', 'codigo elemento', 'cod elemento',
     ],
   },
   nombre: {
@@ -35,6 +37,8 @@ const CAMPOS = {
       'nombre item', 'descripcion item', 'nombre articulo', 'descripcion articulo',
       'texto breve material', 'denominacion', 'detalle', 'nombre referencia',
       'descripcion referencia', 'description', 'product name', 'name', 'concepto',
+      // Siigo Pyme (Balance de inventarios), Loggro (Saldos al día por bodega), SAP Business One y ContaPyme.
+      'nombre elemento', 'descripcion elemento',
     ],
   },
   fecha: {
@@ -65,6 +69,8 @@ const CAMPOS = {
       'existencia fisica', 'cantidad existencia', 'cant existencia', 'saldo inventario',
       'unidades stock', 'on hand', 'existencias hoy', 'existencia hoy', 'stock hoy', 'inventario hoy',
       'saldo hoy', 'cantidad actual', 'unidades actuales', 'cantidad bodega', 'cantidad en bodega',
+      // Siigo Pyme (Balance de inventarios), Loggro (Saldos al día por bodega), SAP Business One y ContaPyme.
+      'nuevo saldo', 'saldo nuevo', 'cant fisica', 'cantidad fisica', 'saldo final cantidad', 'existencia fisica', 'cant disp',
     ],
   },
   // Opcional: el tipo de documento de cada fila. Sirve para los informes que mezclan compras,

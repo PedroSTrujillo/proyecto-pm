@@ -27,6 +27,16 @@
 
 ---
 
+## 2026-10-12 (17) — Claude — cargar datos con menos pasos, guía por programa y plantilla más clara
+- **Rama:** `main` en el fork (`mio`) y en el repo del grupo.
+- **Estado:**
+  - **Guía por programa** (`lib/sistemas.ts` y su copia `public/js/sistemas.js`), revisada con fuentes: Siigo Nube y Alegra (ayudas oficiales), Siigo Pyme (Balance de inventarios, un solo archivo), SAP Business One (Análisis de ventas y Status de inventario), Loggro (Saldos al día por bodega), Siesa (Existencias a la fecha por bodega), ContaPyme (Movimiento detallado de elementos y Saldos de inventario) y Helisa (de exports reales). World Office sigue sin una ruta confirmada para ventas.
+  - **Un solo informe primero** donde existe (`unInforme`): Helisa y Siigo Pyme; los dos informes quedan desplegables.
+  - **Sinónimos nuevos** para esos informes (`formatos.js`): Nuevo saldo, Cant. Física, Cant. Disp., Número de artículo, Código/Nombre elemento.
+  - **Plantilla de inventario** rehecha: título, grupos de columnas por color (obligatorio, meses, opcional), notas en cada encabezado, validación de números, 200 filas marcadas y encabezado fijo. Los encabezados van en la fila 4 (el lector los encuentra).
+- **Verificación:** `npm test` → 85/85 (nueva: Balance de inventarios de Siigo Pyme en un archivo); tipos sin errores; guía vista en el navegador.
+- **Siguiente paso exacto:** pedir a cada probador su programa y un export real; si es World Office, confirmar con él el informe de ventas por producto y agregarlo con su fuente.
+
 ## 2026-10-12 (16) — Claude — última pasada como cliente
 - **Rama:** `main` en el fork (`mio`) y en el repo del grupo.
 - **Estado:** los pedidos se numeran por usuario ("Pedido 1", no el id de la base: `numero` en `vistaPedido`); la portada dice "archivo" en vez de "export"; la guía de Helisa y la genérica ya no suenan a advertencia; Vercel Analytics solo con `ANALITICA_VERCEL=1` (sin activarlo daba error en la consola); la vista previa de la portada se lee a 1024 px.

@@ -105,25 +105,110 @@ function ultimosDoceMeses(hoy = new Date()) {
  * Para quien lleva el inventario en Excel o a mano. Tres hojas: "Productos" para llenar,
  * "Ejemplo" ya lleno e "Instrucciones". El lector ignora las hojas Ejemplo e Instrucciones.
  */
+// Fila de los encabezados en la hoja Productos (arriba van el título y los grupos de columnas).
+const FILA_ENCABEZADOS = 4;
+const FILAS_PARA_LLENAR = 200;
+
+/**
+ * La hoja para llenar de la plantilla de inventario: título, qué es obligatorio y qué no, una nota
+ * en cada encabezado, validación de números y 200 filas marcadas. filas: ejemplo ya lleno o [].
+ */
+function hojaInventario(libro, nombre, meses, filas) {
+  const C = X.COLORES;
+  const hoja = libro.addWorksheet(nombre, { views: [{ state: 'frozen', xSplit: 2, ySplit: FILA_ENCABEZADOS, showGridLines: false }] });
+  hoja.properties.tabColor = { argb: C.primario };
+  const columnas = [
+    { titulo: 'Código', ancho: 14, grupo: 'obligatorio', nota: 'El código del producto en tu programa. Si no usas códigos, copia aquí el nombre.' },
+    { titulo: 'Producto', ancho: 36, grupo: 'obligatorio', nota: 'El nombre del producto.' },
+    { titulo: 'Existencias hoy', ancho: 15, grupo: 'obligatorio', formato: 'entero', nota: 'Cuántas unidades tienes hoy, sumando todas las bodegas.' },
+    ...meses.map((m) => ({ titulo: m, ancho: 10, grupo: 'mes', formato: 'entero', nota: `Unidades que vendiste en ${m}. En blanco si no vendiste.` })),
+    { titulo: 'Proveedor', ancho: 24, grupo: 'opcional', nota: 'Opcional. Con el proveedor, el pedido sugerido sale separado por proveedor.' },
+    { titulo: 'Costo unitario', ancho: 15, grupo: 'opcional', formato: 'plata', nota: 'Opcional. Lo que te cuesta una unidad. Con el costo ves cuánto dinero tienes quieto.' },
+  ];
+  hoja.columns = columnas.map((c) => ({ width: c.ancho }));
+  const ultima = columnas.length;
+  const fuente = (extra = {}) => ({ name: 'Calibri', size: 11, ...extra });
+
+  // Título y explicación.
+  hoja.mergeCells(1, 1, 1, ultima);
+  hoja.getCell(1, 1).value = 'Tu inventario para SINESC: una fila por producto';
+  hoja.getCell(1, 1).font = fuente({ size: 15, bold: true, color: { argb: C.primarioOscuro } });
+  hoja.getRow(1).height = 26;
+  hoja.mergeCells(2, 1, 2, ultima);
+  hoja.getCell(2, 1).value = 'Llena las columnas verdes oscuras y lo que vendiste cada mes. Proveedor y costo son opcionales. Pasa el mouse por un encabezado para ver qué va ahí.';
+  hoja.getCell(2, 1).font = fuente({ size: 10, color: { argb: C.gris } });
+
+  // Grupos de columnas (fila 3) y encabezados (fila 4).
+  const grupos = {
+    obligatorio: { texto: 'OBLIGATORIO', fondo: C.primario, letra: C.blanco },
+    mes: { texto: 'UNIDADES VENDIDAS CADA MES', fondo: C.claro, letra: C.primarioOscuro },
+    opcional: { texto: 'OPCIONAL', fondo: 'FFE5E7EB', letra: C.gris },
+  };
+  let c = 1;
+  while (c <= ultima) {
+    const g = columnas[c - 1].grupo;
+    let hasta = c;
+    while (hasta < ultima && columnas[hasta].grupo === g) hasta++;
+    if (hasta > c) hoja.mergeCells(3, c, 3, hasta);
+    const celda = hoja.getCell(3, c);
+    celda.value = grupos[g].texto;
+    celda.font = fuente({ size: 9, bold: true, color: { argb: grupos[g].letra } });
+    celda.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: grupos[g].fondo } };
+    celda.alignment = { horizontal: 'center', vertical: 'middle' };
+    c = hasta + 1;
+  }
+  const enc = hoja.getRow(FILA_ENCABEZADOS);
+  enc.height = 22;
+  columnas.forEach((col, k) => {
+    const celda = enc.getCell(k + 1);
+    celda.value = col.titulo;
+    celda.note = col.nota;
+    celda.font = fuente({ bold: true, color: { argb: grupos[col.grupo].letra } });
+    celda.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: grupos[col.grupo].fondo } };
+    celda.alignment = { vertical: 'middle', horizontal: col.formato ? 'center' : 'left' };
+    celda.border = { bottom: { style: 'medium', color: { argb: C.primarioOscuro } } };
+  });
+
+  // Filas para llenar: bordes suaves, formato de número y validación.
+  const total = Math.max(FILAS_PARA_LLENAR, filas.length);
+  for (let i = 0; i < total; i++) {
+    const fila = hoja.getRow(FILA_ENCABEZADOS + 1 + i);
+    const valores = filas[i];
+    columnas.forEach((col, k) => {
+      const celda = fila.getCell(k + 1);
+      if (valores && valores[k] !== null && valores[k] !== undefined) celda.value = valores[k];
+      celda.font = fuente({ color: { argb: C.texto } });
+      celda.border = { bottom: { style: 'hair', color: { argb: C.borde } }, right: { style: 'hair', color: { argb: C.borde } } };
+      if (col.formato === 'entero') celda.numFmt = '#,##0';
+      if (col.formato === 'plata') celda.numFmt = '"$"#,##0';
+      if (col.formato) {
+        celda.dataValidation = {
+          type: 'decimal', operator: 'greaterThanOrEqual', formulae: [0], allowBlank: true,
+          showErrorMessage: true, errorTitle: 'Solo números', error: 'Escribe solo el número, sin letras ni signos.',
+        };
+      }
+    });
+  }
+  return hoja;
+}
+
 async function plantillaInventario() {
   const libro = X.nuevoLibro();
   const meses = ultimosDoceMeses();
-  const encabezados = [...PLANTILLA_INVENTARIO.columnas, ...meses];
-  const anchos = [12, 34, 22, 14, 15, ...meses.map(() => 9)];
-  const formatos = ['', '', '', 'plata', 'entero', ...meses.map(() => 'entero')];
-  X.hojaPlantilla(libro, PLANTILLA_INVENTARIO.hoja, encabezados, [], anchos, formatos);
+  hojaInventario(libro, PLANTILLA_INVENTARIO.hoja, meses, []);
   const azar = aleatorio(20261011);
   const ejemplo = PRODUCTOS_EJEMPLO.slice(0, 4).map((p) => [
-    p.codigo, p.nombre, p.proveedor, p.costo, p.existencias,
+    p.codigo, p.nombre, p.existencias,
     ...meses.map(() => (p.porSemana ? Math.round(p.porSemana * 4.3 * (0.7 + azar() * 0.6)) : null)),
+    p.proveedor, p.costo,
   ]);
-  X.hojaPlantilla(libro, 'Ejemplo', encabezados, ejemplo, anchos, formatos);
+  hojaInventario(libro, 'Ejemplo', meses, ejemplo);
   hojaInstrucciones(libro, 'Cómo llenar esta plantilla', [
     '1. En la hoja "Productos", escribe una fila por producto: código, nombre y cuántas unidades tienes hoy.',
-    '   Proveedor y costo unitario son opcionales: con ellos ves cuánto dinero tienes en cada producto y el pedido sale por proveedor.',
-    '2. En cada mes, escribe las unidades que vendiste. Si no vendiste nada, déjalo en blanco.',
-    '3. Si no usas códigos, copia el nombre del producto en la columna Código.',
-    '4. Guarda el archivo y súbelo en el paso 2 de SINESC.',
+    '2. En cada mes, las unidades que vendiste de ese producto. Si no vendiste nada, déjalo en blanco.',
+    '3. Proveedor y costo unitario son opcionales: con ellos el pedido sale por proveedor y ves cuánto dinero tienes quieto.',
+    '4. Si no usas códigos, copia el nombre del producto en la columna Código.',
+    '5. Guarda el archivo y súbelo en SINESC. Puedes pegar filas copiadas de otro Excel.',
     '',
     'La hoja "Ejemplo" muestra cómo se ve llena. No hace falta borrarla: no se tiene en cuenta.',
   ]);

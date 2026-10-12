@@ -37,6 +37,19 @@ export const SISTEMAS = [
     ],
   },
   {
+    id: 'siigo-pyme',
+    nombre: 'Siigo Pyme (escritorio)',
+    unInforme: [
+      'Inventarios › Saldos de inventarios › Balance de inventarios.',
+      'Rango: los últimos 12 meses y todos los productos.',
+      'En presentación elige "Impreso" y como destino, Excel.',
+    ],
+    unInformeNota: 'Trae, por producto, el saldo anterior, las entradas, las salidas y el nuevo saldo.',
+    fuentes: [
+      { texto: 'Ayuda de Siigo Pyme: Balance de inventarios', url: 'https://siigopyme2.portaldeclientes.siigo.com/generar-informe-balance-de-inventarios/' },
+    ],
+  },
+  {
     id: 'alegra',
     nombre: 'Alegra',
     ventas: [
@@ -70,11 +83,17 @@ export const SISTEMAS = [
   {
     id: 'helisa',
     nombre: 'Helisa',
+    // Sin guía pública: los nombres salen de exports reales (Movimiento detalle y listado de inventario).
+    unInforme: [
+      'En Inventarios, saca el listado de inventario de todos los productos, con la columna de salidas del periodo.',
+      'Periodo: los últimos 12 meses.',
+      'Expórtalo a Excel y súbelo tal como sale, con títulos y totales.',
+    ],
+    unInformeNota: 'Trae, por producto, lo que salió en el periodo y el saldo de hoy. El periodo lo tomamos del título del informe.',
     ventas: [
       'En Inventarios, saca el informe "Movimiento detalle" del último año.',
       'Expórtalo a Excel y súbelo tal como sale, con títulos y totales.',
     ],
-    ventasNota: 'También sirve el listado de inventario con la columna de salidas del periodo.',
     existencias: [
       'Saca el listado de inventario con el saldo de cada producto a hoy.',
       'Expórtalo a Excel.',
@@ -85,15 +104,59 @@ export const SISTEMAS = [
   {
     id: 'sap-b1',
     nombre: 'SAP Business One',
-    ventas: null,
-    existencias: null,
-    aviso: 'Cualquier informe se pasa a Excel con el botón de exportar de la barra de herramientas.',
-    fuentes: [{ texto: 'Ayuda de SAP Business One: exportar datos', url: 'https://help.sap.com/doc/saphelp_sbo900/9.0/es-ES/45/05bc1f24a70489e10000000a155369/content.htm' }],
+    ventas: [
+      'Ventas - Clientes › Informes de ventas › Análisis de ventas.',
+      'Pestaña "Artículos", fechas del último año y clic en "OK".',
+      'Exporta el resultado con el botón de Excel de la barra de herramientas. Anota las fechas: te las preguntamos al subirlo.',
+    ],
+    existencias: [
+      'Inventario › Informes de inventario › Status de inventario.',
+      'Todos los artículos y almacenes, y clic en "OK".',
+      'Exporta el resultado con el botón de Excel de la barra de herramientas.',
+    ],
+    aviso: 'En versiones anteriores, el módulo Inventario se llama "Gestión de stocks".',
+    fuentes: [
+      { texto: 'Foro de consultores SAP: Análisis de ventas', url: 'https://foros.consultoria-sap.com/t/analisis-de-ventas-en-business-one/46074' },
+      { texto: 'Ayuda de SAP Business One: Status de inventario', url: 'https://help.sap.com/saphelp_sbo91/helpdata/en/45/0942e565e16c32e10000000a114a6b/content.htm' },
+      { texto: 'Ayuda de SAP Business One: exportar datos', url: 'https://help.sap.com/doc/saphelp_sbo900/9.0/es-ES/45/05bc1f24a70489e10000000a155369/content.htm' },
+    ],
   },
-  { id: 'siigo-pyme', nombre: 'Siigo Pyme (escritorio)', ventas: null, existencias: null, fuentes: [] },
-  { id: 'siesa', nombre: 'Siesa (Enterprise o CGUNO)', ventas: null, existencias: null, fuentes: [] },
-  { id: 'loggro', nombre: 'Loggro', ventas: null, existencias: null, fuentes: [] },
-  { id: 'contapyme', nombre: 'ContaPyme', ventas: null, existencias: null, fuentes: [] },
+  {
+    id: 'siesa',
+    nombre: 'Siesa (Enterprise o CGUNO)',
+    ventas: null,
+    existencias: [
+      'En Inventarios, abre el reporte "Existencias a la fecha por bodega".',
+      'Fecha: hoy, con todas las bodegas.',
+      'Expórtalo a Excel.',
+    ],
+    fuentes: [{ texto: 'Manuales de Siesa', url: 'https://www.siesacustomersupport.com/manuales-2/' }],
+  },
+  {
+    id: 'loggro',
+    nombre: 'Loggro',
+    ventas: null,
+    existencias: [
+      'Reportes › Exploradores › Saldos al Día por Bodega.',
+      'Deja Bodega e Ítem en blanco para ver todo y haz clic en "Buscar".',
+      'Haz clic en "Exportar".',
+    ],
+    fuentes: [{ texto: 'Universidad Loggro: Saldos al día por bodega', url: 'https://universidad.loggro.com/loggro-pymes/c%C3%B3mo-consultar-los-saldos-al-d%C3%ADa-por-bodega' }],
+  },
+  {
+    id: 'contapyme',
+    nombre: 'ContaPyme',
+    ventas: [
+      'En los informes de inventarios, abre "Movimiento detallado de elementos".',
+      'Periodo: el último año. Expórtalo a Excel.',
+      'Si mezcla compras y ventas, al subirlo te preguntamos cuáles son ventas.',
+    ],
+    existencias: [
+      'En los informes de inventarios, abre "Saldos de inventario" con fecha de hoy.',
+      'Expórtalo a Excel.',
+    ],
+    fuentes: [{ texto: 'ContaPyme: informes de inventario', url: 'https://www.contapyme.com/programa-contable/informes-contables/' }],
+  },
   { id: 'otro', nombre: 'Otro programa', ventas: null, existencias: null, fuentes: [] },
   { id: 'excel', nombre: 'Lo llevo en Excel o a mano', plantilla: true, fuentes: [] },
 ];

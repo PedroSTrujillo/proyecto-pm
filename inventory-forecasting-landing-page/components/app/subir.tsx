@@ -65,17 +65,37 @@ export function GuiaSistema({ id }: { id: string | null }) {
       </div>
     )
   }
-  const generica = !s.ventas && !s.existencias
+  const generica = !s.ventas && !s.existencias && !s.unInforme
+  const dosInformes = (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <PasosGuia titulo="1. Ventas del último año" pasos={s.ventas || GENERICA.ventas} nota={s.ventasNota} />
+      <PasosGuia titulo="2. Existencias de hoy" pasos={s.existencias || GENERICA.existencias} />
+    </div>
+  )
   return (
     <div className="flex flex-col gap-3">
       {generica && s.id !== 'otro' && <p className="text-sm text-muted-foreground">Estos pasos sirven en casi todos los programas; en {s.nombre} los nombres de los menús pueden cambiar un poco.</p>}
       {s.aviso && <p className="text-sm text-muted-foreground">{s.aviso}</p>}
-      <div className="grid gap-3 sm:grid-cols-2">
-        <PasosGuia titulo="1. Ventas del último año" pasos={s.ventas || GENERICA.ventas} nota={s.ventasNota} />
-        <PasosGuia titulo="2. Existencias de hoy" pasos={s.existencias || GENERICA.existencias} />
-      </div>
+      {s.unInforme ? (
+        <>
+          <div className="flex flex-col gap-2 rounded-2xl border border-[#cfe5e1] bg-secondary p-4">
+            <h3 className="flex flex-wrap items-center gap-2 text-[0.95rem] font-bold text-secondary-foreground">
+              Lo más rápido: un solo informe
+              <span className="rounded-full bg-card px-2 py-0.5 text-xs font-semibold">1 archivo</span>
+            </h3>
+            <ol className="list-decimal space-y-1.5 pl-5 text-[0.93rem]">{s.unInforme.map((p) => <li key={p}>{p}</li>)}</ol>
+            {s.unInformeNota && <p className="text-sm text-muted-foreground">{s.unInformeNota}</p>}
+          </div>
+          {(s.ventas || s.existencias) && (
+            <details className="group rounded-2xl border border-border p-3">
+              <summary className="cursor-pointer text-[0.93rem] font-semibold">Con dos informes también ves la venta de cada semana y la temporada</summary>
+              <div className="mt-3">{dosInformes}</div>
+            </details>
+          )}
+        </>
+      ) : dosInformes}
       <p className="text-sm text-muted-foreground">
-        Súbelos tal como salen. Si el informe mezcla compras y ventas o no trae fechas, te preguntamos.
+        Súbelos tal como salen, con títulos y totales. Si el informe mezcla compras y ventas o no trae fechas, te preguntamos.
         {s.fuentes.length > 0 && (
           <> Fuente: {s.fuentes.map((f, i) => <span key={f.url}>{i ? ', ' : ''}<a href={f.url} target="_blank" rel="noopener noreferrer" className="text-primary underline-offset-2 hover:underline">{f.texto}</a></span>)}.</>
         )}
