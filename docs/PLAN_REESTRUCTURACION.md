@@ -39,6 +39,12 @@ Vista como cliente, la app de hoy se siente como una encuesta y no como un produ
 - **Acierto medido con los datos del usuario**: se esconden las últimas semanas, se pronostican y se compara. "En tu historial, acertó 8 de cada 10 veces".
 - Lo actual (los tres ajustes de §3.6 del modelo) sigue siendo el número que ven los probadores; el modelo nuevo se documenta en `docs/modelo-rotacion.md` antes de usarse.
 
+## Estado (2026-10-11, noche)
+
+- **Fase 0 hecha:** Stitch no generó pantallas (se agotaba el tiempo), así que el prototipo se hizo en un lienzo de diseño de Claude (4 pantallas navegables) y se aprobó. La app final mejora ese prototipo.
+- **Fases 1 a 6 hechas en una primera versión:** Next.js junto con la API en un solo servidor; inventario guardado con proveedores, tiempos de entrega y costos; panel, productos con ficha y gráficos; los 5 pasos de la prueba con el diseño nuevo y el interruptor (la cantidad sugerida se apaga sola durante los 14 días de cada probador); pronóstico Gamma-Poisson con temporada y acierto medido (§7 del modelo); demo con cinco negocios de ejemplo y enlaces desde la página.
+- **Pendiente:** el equipo prueba todo con sus cuentas en Render; la fila de "Cambios" en el Entregable; subir la rama.
+
 ## Fases
 
 | # | Fase | Qué sale | Toca la prueba |

@@ -10,10 +10,12 @@ import { PricingSection } from '@/components/landing/pricing-section'
 import { FaqSection } from '@/components/landing/faq-section'
 import { CtaSection } from '@/components/landing/cta-section'
 import { SiteFooter } from '@/components/landing/site-footer'
+import { RedireccionHash } from '@/components/landing/redireccion-hash'
 
 export default function Page() {
   return (
     <>
+      <RedireccionHash />
       <SiteHeader />
       <main>
         <Hero />

@@ -259,12 +259,13 @@ test('plantilla para llenar a mano: se lee la hoja Productos y se ignoran Ejempl
   const libro = XLSX.read(plantillaInventario(), { type: 'buffer' });
   const meses = ultimosDoceMeses();
   assert.equal(meses.length, 12);
-  XLSX.utils.sheet_add_aoa(libro.Sheets.Productos, [['AB-1', 'Tornillo', 6, ...meses.map(() => 13)]], { origin: 'A2' });
+  XLSX.utils.sheet_add_aoa(libro.Sheets.Productos, [['AB-1', 'Tornillo', 'Ferretera Uno', 1500, 6, ...meses.map(() => 13)]], { origin: 'A2' });
   const r = leerExport([{ nombre: 'llena.xlsx', buffer: XLSX.write(libro, { type: 'buffer', bookType: 'xlsx' }) }]);
   assert.equal(r.ok, true, JSON.stringify(r.errores));
   assert.equal(r.ventas.length, 12);
   assert.deepEqual(r.existencias.map((e) => [e.codigo, e.existencias]), [['AB-1', 6]]);
   assert.equal(r.mensual, true);
+  assert.deepEqual(r.catalogo, { 'AB-1': { costo: 1500, proveedor: 'Ferretera Uno' } }, 'proveedor y costo, si vienen, se guardan por producto');
 });
 
 test('kardex con saldo: el saldo de hoy es el del último movimiento, aunque sea una compra', () => {

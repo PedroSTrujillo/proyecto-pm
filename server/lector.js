@@ -305,7 +305,9 @@ function muestraColumna(filas, desde, col, max = 3000) {
 
 // --- Export de ventas y existencias -----------------------------------------------
 
-const CAMPOS_EXPORT = ['codigo', 'nombre', 'fecha', 'cantidad', 'existencias', 'documento'];
+// costo, costoTotal y proveedor son opcionales: si vienen, el panel muestra el dinero en
+// inventario y agrupa el pedido por proveedor. Su falta nunca impide leer el archivo.
+const CAMPOS_EXPORT = ['codigo', 'nombre', 'fecha', 'cantidad', 'existencias', 'documento', 'costo', 'costoTotal', 'proveedor'];
 
 // --- Informes "de impresora" y otros formatos difíciles -------------------------------
 
@@ -394,7 +396,10 @@ function pareceDelCampo(campo, valores) {
   switch (campo) {
     case 'fecha': return frac(esFecha) >= 0.6;
     case 'cantidad':
-    case 'existencias': return frac((v) => esNumero(v) && !(v instanceof Date)) >= 0.8;
+    case 'existencias':
+    case 'costo':
+    case 'costoTotal': return frac((v) => esNumero(v) && !(v instanceof Date)) >= 0.8;
+    case 'proveedor': return frac((v) => typeof v === 'string' && /[a-záéíóúñ]{3}/i.test(v)) >= 0.6;
     case 'nombre': return frac((v) => typeof v === 'string' && /[a-záéíóúñ]{3}/i.test(v)) >= 0.6;
     case 'documento': return frac((v) => typeof v === 'string' && /[a-zñ]/i.test(v)) >= 0.6;
     default: return frac((v) => !(v instanceof Date)) >= 0.6; // código: cualquier texto o número
@@ -555,6 +560,26 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
   let filasOtrosDocumentos = 0;
   let fechasCompletadas = 0;
   const existenciasDeVentas = new Map(); // si la misma tabla trae ventas y existencias
+  // Costo y proveedor de cada producto, si el archivo los trae (gana la última fila con dato).
+  const catalogo = new Map();
+  const anotarCatalogo = (codigo, f, c, decimal, existenciasFila = null) => {
+    if (c.costo === undefined && c.costoTotal === undefined && c.proveedor === undefined) return;
+    const clave = V.claveCodigo(codigo);
+    const e = catalogo.get(clave) || {};
+    if (c.costo !== undefined) {
+      const v = V.leerNumero(f[c.costo], decimal);
+      if (v !== null && v > 0) e.costo = v;
+    }
+    if (c.costoTotal !== undefined && e.costo === undefined && existenciasFila > 0) {
+      const v = V.leerNumero(f[c.costoTotal], decimal);
+      if (v !== null && v > 0) e.costo = v / existenciasFila;
+    }
+    if (c.proveedor !== undefined && f[c.proveedor] !== null && f[c.proveedor] !== undefined) {
+      const t = String(f[c.proveedor]).replace(/\s+/g, ' ').trim().slice(0, 80);
+      if (t) e.proveedor = t;
+    }
+    catalogo.set(clave, e);
+  };
   for (const h of hojasVentas) {
     const { hoja, analisis } = h;
     const c = analisis.columnas;
@@ -564,6 +589,7 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
     const orden = c.fecha !== undefined ? V.inferirOrdenFecha(muestraColumna(hoja.filas, desde, c.fecha)) : 'dm';
     const decimalExist = c.existencias !== undefined ? V.inferirDecimal(muestraColumna(hoja.filas, desde, c.existencias)) : 'coma';
     let ultimaFecha = null;
+    const decimalCosto = V.inferirDecimal(muestraColumna(hoja.filas, desde, c.costo ?? c.costoTotal));
     // Si la misma tabla trae el saldo, se queda el de la fila más reciente de cada producto.
     const anotarSaldo = (codigo, nombre, f, dia) => {
       if (!h.esExistencias || soloExistencias.length) return;
@@ -592,6 +618,7 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
       }
       filasDatos++;
       if (!codigo) { problemas.push({ tipo: 'sin_codigo', fila, donde }); continue; }
+      anotarCatalogo(codigo, f, c, decimalCosto, c.existencias !== undefined ? V.leerNumero(f[c.existencias], decimalExist) : null);
       if (periodo) {
         const bruto = f[c.cantidad];
         if (bruto === null || bruto === undefined) continue; // sin ventas en el periodo
@@ -645,6 +672,7 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
       const donde = varias ? capital(nombreHoja(hoja, true)) : '';
       const desde = analisis.iEnc + 1;
       const decimal = V.inferirDecimal(muestraColumna(hoja.filas, desde, c.existencias));
+      const decimalCosto = V.inferirDecimal(muestraColumna(hoja.filas, desde, c.costo ?? c.costoTotal));
       for (let i = desde; i < hoja.filas.length; i++) {
         const f = hoja.filas[i];
         if (filaVacia(f)) continue;
@@ -662,6 +690,7 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
           if (valor === null) { problemas.push({ tipo: 'existencias', fila, donde, valor: textoValor(bruto), columna: describirColumna(hoja, analisis, c.existencias) }); continue; }
         }
         existencias.push({ codigo, nombre, existencias: valor });
+        anotarCatalogo(codigo, f, c, decimalCosto, valor);
       }
     }
   } else {
@@ -707,7 +736,7 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
     }));
 
   const documentos = documentosElegidos.size ? Object.fromEntries(analizadas.filter((h) => documentosElegidos.has(h.clave)).map((h) => [h.analisis.firma, [...documentosElegidos.get(h.clave)]])) : null;
-  return { ok: true, ventas, existencias, mensual: todasMensuales, periodo, documentos, hojasUsadas, avisos, hojas: resumenHojas };
+  return { ok: true, ventas, existencias, mensual: todasMensuales, periodo, documentos, catalogo: Object.fromEntries(catalogo), hojasUsadas, avisos, hojas: resumenHojas };
 }
 
 function explicarFaltantes(analizadas, hayVentas, hayExistencias, varias) {

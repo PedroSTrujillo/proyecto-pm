@@ -5,7 +5,8 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-sans: var(--fuente-texto), system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: var(--fuente-titulos), var(--fuente-texto), system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
@@ -43,6 +44,12 @@
   --color-verde-fondo: var(--verde-fondo);
   --color-ambar: var(--ambar);
   --color-ambar-fondo: var(--ambar-fondo);
+  --color-ambar-borde: var(--ambar-borde);
+  --color-ambar-texto: var(--ambar-texto);
+  --color-rojo-texto: var(--rojo-texto);
+  --color-azul-texto: var(--azul-texto);
+  --color-verde-borde: var(--verde-borde);
+  --color-superficie: var(--superficie);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -52,45 +59,52 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Mismos colores que la aplicación (public/estilos.css). */
+/* Paleta de SINESC: la misma de la página y de la aplicación. Los estados se distinguen también
+   por lo claro u oscuro, no solo por el tono (naranja = se agota, ámbar = pide ya, azul = sobra). */
 :root {
   color-scheme: light;
-  --background: #f5f6f8;
-  --foreground: #141a26;
+  --background: #f6f7f5;
+  --foreground: #111827;
+  --superficie: #ffffff;
   --card: #ffffff;
-  --card-foreground: #1d2433;
+  --card-foreground: #111827;
   --popover: #ffffff;
-  --popover-foreground: #1d2433;
+  --popover-foreground: #111827;
   --primary: #0f766e;
   --primary-hover: #0b5d57;
   --primary-foreground: #ffffff;
-  --secondary: #e6f4f2;
+  --secondary: #e7f3f1;
   --secondary-foreground: #0b5d57;
-  --muted: #f1f3f6;
-  --muted-foreground: #475064;
-  --accent: #e6f4f2;
+  --muted: #f0f1ee;
+  --muted-foreground: #4b5563;
+  --accent: #e7f3f1;
   --accent-foreground: #0b5d57;
-  --highlight: #7cc4bc;
+  --highlight: #99d5ce;
   --destructive: #b42318;
-  --border: #d9dde4;
-  --input: #c9ced6;
-  --ring: #7cc4bc;
-  --rojo: #b42318;
-  --rojo-fondo: #fef0ee;
-  --rojo-borde: #f6c9c2;
-  --azul: #1d5bbf;
-  --azul-fondo: #eef4fd;
-  --azul-borde: #c7daf6;
-  --verde: #12703f;
-  --verde-fondo: #e9f7ef;
-  --ambar: #8a5a00;
-  --ambar-fondo: #fff6e0;
+  --border: #e5e7eb;
+  --input: #d1d5db;
+  --ring: #99d5ce;
+  --rojo: #c2410c;
+  --rojo-texto: #9a3412;
+  --rojo-fondo: #fff1ec;
+  --rojo-borde: #fbd5b5;
+  --ambar: #b45309;
+  --ambar-texto: #92400e;
+  --ambar-fondo: #fef5e7;
+  --ambar-borde: #f5d9a8;
+  --azul: #1e4e8c;
+  --azul-texto: #1e4e8c;
+  --azul-fondo: #eef3fb;
+  --azul-borde: #c9d8f0;
+  --verde: #15803d;
+  --verde-fondo: #eaf6ee;
+  --verde-borde: #bfe3cb;
   --chart-1: #0f766e;
-  --chart-2: #1d5bbf;
-  --chart-3: #b42318;
-  --chart-4: #8a5a00;
-  --chart-5: #5b6475;
-  --radius: 0.625rem;
+  --chart-2: #1e4e8c;
+  --chart-3: #c2410c;
+  --chart-4: #b45309;
+  --chart-5: #6b7280;
+  --radius: 0.75rem;
 }
 
 @layer base {
@@ -104,4 +118,59 @@
   body {
     @apply bg-background text-foreground;
   }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.015em;
+  }
+  .tabular-nums,
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+  :focus-visible {
+    outline: 3px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+/* Movimiento de la aplicación (criterios de Emil Kowalski): corto, con salida suave, solo
+   transform y opacity, y nada para lo que se usa cientos de veces al día. */
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+}
+.presionable {
+  transition: transform 160ms var(--ease-out), background-color 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out;
+}
+.presionable:active:not(:disabled) {
+  transform: scale(0.97);
+}
+@keyframes entrar-lado {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes entrar-abajo {
+  from { opacity: 0; transform: translateY(100%); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes aparecer {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes velo {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.entrar-lado { animation: entrar-lado 220ms var(--ease-out); }
+.entrar-abajo { animation: entrar-abajo 260ms var(--ease-out); }
+.aparecer { animation: aparecer 200ms var(--ease-out); }
+.velo { animation: velo 200ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .presionable, .entrar-lado, .entrar-abajo, .aparecer, .velo { transition: none; animation: none; }
+  .presionable:active:not(:disabled) { transform: none; }
+}
+@media print {
+  .no-imprimir { display: none !important; }
+  body { background: #fff; }
 }

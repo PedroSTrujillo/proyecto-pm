@@ -86,6 +86,12 @@ const ESQUEMA = [
   'ALTER TABLE exports ADD COLUMN IF NOT EXISTS periodo JSONB', // { desde, hasta } si las ventas son totales de un periodo
   'ALTER TABLE exports ADD COLUMN IF NOT EXISTS documentos JSONB', // tipos de documento que el usuario marcó como ventas
   'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS sistema TEXT', // programa contable que eligió (public/js/sistemas.js)
+  // Ventas por semana de cada producto (server/series.js) y su costo y proveedor si el archivo los traía:
+  // con esto se arma el panel y el pronóstico sin volver a leer el archivo.
+  'ALTER TABLE exports ADD COLUMN IF NOT EXISTS series JSONB',
+  'ALTER TABLE exports ADD COLUMN IF NOT EXISTS catalogo JSONB',
+  // Tiempos de entrega por proveedor y cada cuánto pide (server/inventario.js, leerAjustes).
+  "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS inventario JSONB NOT NULL DEFAULT '{}'::jsonb",
   // Enlaces para restablecer la contraseña: se guarda el hash del token, nunca el token.
   `CREATE TABLE IF NOT EXISTS restablecimientos (
     token_hash TEXT PRIMARY KEY,
@@ -96,6 +102,7 @@ const ESQUEMA = [
   )`,
   'CREATE INDEX IF NOT EXISTS pedidos_usuario ON pedidos(usuario_id)',
   'CREATE INDEX IF NOT EXISTS exports_pedido ON exports(pedido_id)',
+  'CREATE INDEX IF NOT EXISTS exports_usuario ON exports(usuario_id, subido_en)',
   'CREATE INDEX IF NOT EXISTS archivos_export ON archivos(export_id)',
   'CREATE INDEX IF NOT EXISTS eventos_usuario ON eventos(usuario_id, creado_en)',
   'CREATE INDEX IF NOT EXISTS sesiones_usuario ON sesiones(usuario_id)',

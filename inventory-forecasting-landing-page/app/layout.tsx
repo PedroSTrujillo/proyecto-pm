@@ -1,12 +1,16 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
+import { Figtree, Plus_Jakarta_Sans } from 'next/font/google'
 import './globals.css'
+
+// Figtree para el texto (se lee bien en tablas con números) y Plus Jakarta Sans para títulos.
+const texto = Figtree({ subsets: ['latin'], variable: '--fuente-texto', display: 'swap' })
+const titulos = Plus_Jakarta_Sans({ subsets: ['latin'], weight: ['600', '700', '800'], variable: '--fuente-titulos', display: 'swap' })
 
 export const metadata: Metadata = {
   title: 'SINESC · Qué se agota y qué sobra, producto por producto',
   description:
     'Sube el export de tu software contable y mira, en semanas de inventario, qué productos se agotan primero y cuáles sobran.',
-  generator: 'v0.app',
   icons: {
     icon: [
       {
@@ -28,7 +32,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   colorScheme: 'light',
-  themeColor: '#ffffff',
+  themeColor: '#f6f7f5',
 }
 
 export default function RootLayout({
@@ -37,10 +41,10 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="es">
+    <html lang="es" className={`${texto.variable} ${titulos.variable}`}>
       <body className="font-sans antialiased">
         {children}
-        {process.env.NODE_ENV === 'production' && <Analytics />}
+        {process.env.NODE_ENV === 'production' && process.env.VERCEL && <Analytics />}
       </body>
     </html>
   )

@@ -171,7 +171,7 @@ async function responder({ usuario, pedidoId, activo, avisos, fechaReporte }) {
   await registrarEvento(usuario.id, 'recordatorio_respondido', { pedidoId, detalle: { activo, productos: avisos.length } });
   if (!activo) return { correo: null };
   if (!correoConfigurado()) return { correo: 'no_configurado' };
-  const url = `${urlApp()}/#/`;
+  const url = `${urlApp()}/panel`;
   const ics = calendarioIcs({ avisos, fechaReporte, url, idBase: `${usuario.id}-${pedidoId}` });
   const primero = agruparPorSemana(avisos)[0];
   try {

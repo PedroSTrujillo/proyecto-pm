@@ -76,6 +76,31 @@ const CAMPOS = {
       'comprobante', 'documento', 'doc', 'prefijo',
     ],
   },
+  // Opcionales: con el costo, el panel muestra cuánto dinero hay en cada producto y cuánto está
+  // quieto; con el proveedor, el pedido se arma por proveedor con su tiempo de entrega.
+  // "Precio" no está a propósito: casi siempre es el de venta.
+  costo: {
+    nombre: 'costo unitario',
+    sinonimos: [
+      'costo unitario', 'costo promedio', 'costo unit', 'costo prom', 'costo promedio unitario',
+      'vr unitario costo', 'valor unitario costo', 'costo', 'precio costo', 'ultimo costo',
+      'costo ultima compra', 'unit cost', 'cost',
+    ],
+  },
+  costoTotal: {
+    nombre: 'costo total del inventario',
+    sinonimos: [
+      'costo total', 'valor inventario', 'valor total inventario', 'saldo valor', 'valor saldo',
+      'total costo', 'costo saldo', 'valor existencias', 'valor total costo', 'total value',
+    ],
+  },
+  proveedor: {
+    nombre: 'proveedor',
+    sinonimos: [
+      'proveedor', 'nombre proveedor', 'proveedor principal', 'razon social proveedor',
+      'tercero proveedor', 'supplier', 'vendor',
+    ],
+  },
   // Cantidad en la lista de pedido (la hoja con la que arman el pedido).
   pedir: {
     nombre: 'cantidad a pedir',
@@ -100,7 +125,7 @@ const PLANTILLA_EXPORT = {
 const PLANTILLA_INVENTARIO = {
   archivo: 'plantilla-inventario-sinesc.xlsx',
   hoja: 'Productos',
-  columnas: ['Código', 'Producto', 'Existencias hoy'], // y después, una columna por mes
+  columnas: ['Código', 'Producto', 'Proveedor', 'Costo unitario', 'Existencias hoy'], // y después, una columna por mes
 };
 
 // Plantilla de la lista de pedido: forma de un informe de mínimos para la reunión de compras.
@@ -112,7 +137,7 @@ const PLANTILLA_LISTA = {
 };
 
 // World Office escribe "Detalle: Cantidad" o "Encab: Tipo Documento": el prefijo no cuenta.
-const PREFIJO_DE_SECCION = /^s*(detalle|encab|encabezado)s*:s*/i;
+const PREFIJO_DE_SECCION = /^\s*(detalle|encab|encabezado)\s*:\s*/i;
 
 function normalizarEncabezado(texto) {
   if (texto === null || texto === undefined) return '';

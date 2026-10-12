@@ -271,7 +271,7 @@ test('cuenta: programa contable, cambiar contraseña y restablecerla con el enla
   const [{ id }] = await db.query("SELECT id FROM usuarios WHERE email = 'hugo@prueba.co'");
   assert.equal((await hugo.post(`/api/equipo/usuarios/${id}/restablecer`)).estado, 403, 'solo el equipo genera enlaces');
   const { enlace } = await equipo.post(`/api/equipo/usuarios/${id}/restablecer`);
-  const token = enlace.split('/#/restablecer/')[1];
+  const token = enlace.split('/restablecer/')[1];
   assert.ok(token);
 
   const otro = cliente();
@@ -304,4 +304,76 @@ test('informe con compras y ventas mezcladas: se pregunta una vez qué documento
   const id2 = await crear();
   const otra = await iris.subir(`/api/pedidos/${id2}/export`, [['kardex.csv', kardex]]);
   assert.equal(otra.ok, true, 'la segunda vez el mismo informe se lee solo');
+});
+
+test('demo sin cuenta: lista de negocios y el inventario de ejemplo, con tiempos propios', async () => {
+  const c = cliente();
+  const lista = await c.get('/api/demo');
+  assert.equal(lista.sectores.length, 5);
+  const inv = await c.get('/api/demo/ferreteria');
+  assert.equal(inv.estado, 200);
+  assert.ok(inv.inventario.productos.length > 20);
+  assert.equal(inv.inventario.sugerencias, true, 'en la demo se ve la cantidad sugerida');
+  const ajustes = encodeURIComponent(JSON.stringify({ entregas: { 'Importadora Herramientas del Pacífico': 1 } }));
+  const corto = await c.get(`/api/demo/ferreteria?ajustes=${ajustes}`);
+  assert.ok(corto.inventario.resumen.pideYa < inv.inventario.resumen.pideYa);
+  assert.equal((await c.get('/api/demo/no-existe')).estado, 404);
+});
+
+test('inventario guardado: no se ve antes de la lista inicial, sin sugerido en la prueba y se reusa en otro pedido', async () => {
+  const beto = await nuevoUsuario('Beto', 'beto.inventario@prueba.co');
+  const antes = await beto.get('/api/inventario');
+  assert.deepEqual([antes.inventario, antes.puedeSubir, antes.sugerencias], [null, false, false]);
+  assert.equal((await beto.subir('/api/inventario/export', [['e.xlsx', plantillaExport()]])).estado, 403, 'sin lista inicial no puede ver su inventario');
+
+  const { pedido } = await beto.post('/api/pedidos');
+  await beto.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: INICIAL, tipo: 'simulado' });
+  assert.equal((await beto.subir(`/api/pedidos/${pedido.id}/export`, [['e.xlsx', plantillaExport()]])).ok, true);
+
+  const inv = await beto.get('/api/inventario');
+  assert.equal(inv.puedeSubir, true);
+  assert.equal(inv.sugerencias, false, 'durante sus 14 días no ve cantidad sugerida');
+  assert.ok(inv.inventario.productos.every((p) => p.sugerido === null));
+  assert.equal(inv.inventario.resumen.tieneCostos, false, 'la plantilla de export no trae costos: el dinero quieto se cuenta en productos');
+
+  const guardados = await beto.put('/api/inventario/ajustes', { entregaPorDefecto: 3, cadaCuanto: 2 });
+  assert.deepEqual([guardados.ajustes.entregaPorDefecto, guardados.ajustes.cadaCuanto], [3, 2]);
+  assert.equal((await beto.get('/api/inventario')).inventario.ajustes.entregaPorDefecto, 3);
+
+  // Ya puede subir desde Datos, y un pedido nuevo puede usar lo que ya subió.
+  assert.equal((await beto.subir('/api/inventario/export', [['nuevo.xlsx', plantillaExport()]])).ok, true);
+  const otro = (await beto.post('/api/pedidos')).pedido;
+  assert.equal((await beto.post(`/api/pedidos/${otro.id}/export/usar-ultimo`)).estado, 403, 'primero la lista inicial');
+  await beto.post(`/api/pedidos/${otro.id}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
+  assert.equal((await beto.post(`/api/pedidos/${otro.id}/export/usar-ultimo`)).ok, true);
+  const { reporte } = await beto.get(`/api/pedidos/${otro.id}/reporte`);
+  assert.equal(reporte.archivos[0], 'nuevo.xlsx');
+  const { cargas } = await beto.get('/api/inventario/cargas');
+  assert.equal(cargas.length, 2);
+  assert.equal(cargas[0].pedidoId, null, 'la de Datos no es de ningún pedido');
+
+  // El equipo sí ve el sugerido.
+  const eq = cliente();
+  const ya = await eq.post('/api/cuenta/entrar', { email: 'equipo@prueba.co', clave: 'clave-segura' });
+  if (ya.estado !== 200) assert.equal((await eq.post('/api/cuenta/crear', { nombre: 'Equipo', email: 'equipo@prueba.co', clave: 'clave-segura' })).estado, 201);
+  const { pedido: p2 } = await eq.post('/api/pedidos');
+  await eq.post(`/api/pedidos/${p2.id}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
+  await eq.subir(`/api/pedidos/${p2.id}/export`, [['e.xlsx', plantillaExport()]]);
+  const invEq = await eq.get('/api/inventario');
+  assert.equal(invEq.sugerencias, true);
+  assert.ok(invEq.inventario.productos.some((p) => p.sugerido > 0));
+});
+
+test('exportar el pedido a Excel: una hoja por proveedor y un resumen', async () => {
+  const XLSX = require('xlsx');
+  const r = await fetch(`${base}/api/exportar/pedido.xlsx`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ empresa: 'Prueba', lineas: [{ proveedor: 'A/B: [raro]', codigo: 'X1', nombre: 'Uno', cantidad: 3, costo: 100 }, { proveedor: 'Otro', codigo: 'X2', nombre: 'Dos', cantidad: 0 }] }),
+  });
+  assert.equal(r.status, 200);
+  const libro = XLSX.read(Buffer.from(await r.arrayBuffer()), { type: 'buffer' });
+  assert.deepEqual(libro.SheetNames, ['Resumen', 'A B   raro'], 'sin caracteres que Excel no acepta, y sin la línea en cero');
+  const vacio = await fetch(`${base}/api/exportar/pedido.xlsx`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"lineas":[]}' });
+  assert.equal(vacio.status, 400);
 });

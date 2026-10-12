@@ -202,20 +202,70 @@ fecha recordatorio(i)  = fecha umbral(i) − 3 días
 - Un recordatorio junta los productos de los 7 días siguientes al primero, así que llega como máximo uno por semana.
 - La vista del equipo mide el stickiness: quién lo pidió, quién descargó el calendario, a quién ya le llegó la fecha de su primer recordatorio y quién volvió a entrar desde ese día. El recordatorio vive en el calendario del usuario, así que no se sabe si lo abrió; volver a entrar desde esa fecha es la señal.
 
-## 6. Lo que queda para después (no construido)
+## 6. Lo que queda para después
 
-El modelo deja la base para las funciones de la sección 6 del documento. No se construyen ahora; esto solo deja escrito cómo se extendería el cálculo:
+Desde el 2026-10-11 la temporada, el tiempo de entrega y la cantidad sugerida están construidos (§7). Lo que sigue sin construir:
 
 | Función futura | Extensión del modelo |
 |---|---|
-| Ajuste por temporada | Índice estacional del mes m: ventas del mes m ÷ promedio mensual. Demanda ajustada = d̄ᵢ × índice del mes. |
-| Tiempo de entrega del proveedor | Punto de reorden: ROP = d̄ᵢ·L + z·σᵢ·√L, donde L es el tiempo de entrega en semanas, σᵢ la desviación de las ventas semanales y z el nivel de servicio. |
-| Sugerencia de cuánto pedir | Pedido = máx(0, d̄ᵢ·(L + R) + stock de seguridad − Iᵢ), donde R son las semanas entre pedidos; o el lote económico EOQ = √(2DS/H). |
-| Demanda intermitente | Croston con la corrección SBA para los productos con ADI > 1,32. |
 | Demanda perdida por agotados | Sumar a las ventas lo que se pidió y no se pudo despachar. Requiere un dato que el export no trae. |
-| Nivel de servicio por producto | Clase ABC por plata vendida (A = el 80 % de la venta) y un z distinto por clase en el punto de reorden (por ejemplo z = 1,88 / 1,41 / 1,04, es decir, 97 % / 92 % / 85 % de nivel de servicio). Requiere que el export traiga valores. |
+| Nivel de servicio por producto | Clase ABC por plata vendida (A = el 80 % de la venta) y un nivel distinto por clase (por ejemplo 97 % / 92 % / 85 %). Hoy es 90 % para todos. |
+| Lote económico | EOQ = √(2DS/H). Requiere el costo de hacer un pedido y el de tener inventario, que nadie nos ha dado. |
+| Temporada por producto | Hoy el índice es del catálogo completo. Con tres o más años de ventas se podría estimar por familia de productos. |
+
+## 7. Pronóstico, riesgo y cantidad sugerida (2026-10-11)
+
+Código: `server/pronostico.js`, `server/series.js` e `server/inventario.js`. Pruebas: `test/pronostico.test.js`.
+
+**Regla:** el pronóstico no cambia el número de la prueba. Las semanas de inventario Sᵢ, el estado "se agota" / "sobra" y la métrica M salen igual que antes (§2 a §4). El pronóstico agrega, al lado, un rango, una probabilidad y una cantidad.
+
+### 7.1 Ventas por semana de cada producto
+
+Al subir el archivo se guardan las ventas de cada producto agrupadas por semana (`exports.series`). La última semana termina el último día del archivo; una semana incompleta al comienzo se descarta. Si las ventas vienen por mes, lo de cada mes se reparte por igual entre sus días. Con totales de un periodo no hay semanas, y entonces no hay gráfico ni temporada.
+
+El mes de un proyecto que el reporte recorta (§3.6) también se recorta aquí: el exceso (vendido − contado) se le quita a las semanas de ese mes que vendieron por encima de lo normal del producto (la mediana de las 13 semanas de antes y después), en proporción a cuánto se pasaron. Así el gráfico marca la semana del proyecto y no el mes entero.
+
+### 7.2 Modelo Gamma-Poisson
+
+Para cada producto i:
+
+- **Tasa base:** λᵢ = d̄ᵢ ÷ t̄ᵢ, donde d̄ᵢ son las ventas por semana del reporte (con sus tres ajustes) y t̄ᵢ es la temporada promedio de las semanas con que se calculó (lo reciente pesa doble). Es d̄ᵢ "sin temporada".
+- **Dispersión:** φᵢ = varianza ÷ media de sus ventas semanales (mínimo 1, máximo 25). Vale 1 si se vende de a una unidad y más si se vende en paquetes o a saltos. Con pocas semanas se mezcla con la del catálogo: φᵢ = (φ·n + φ_catálogo·13) ÷ (n + 13).
+- **A priori:** Gamma(α₀, β₀) con β₀ = media semana y α₀ = β₀ · tasa típica del catálogo ÷ φᵢ. Pesa poco: un producto con un año de ventas casi no se mueve, uno nuevo se acerca un poco a lo típico.
+- **A posteriori:** α = α₀ + λᵢ·nᵢ ÷ φᵢ, β = β₀ + nᵢ, con nᵢ las semanas que cuentan para el producto (Tᵢ del reporte).
+- **Lo que se va a vender en h semanas:** X = φᵢ · N, con N ~ BinomialNegativa(α, β ÷ (β + H)), donde H es la suma de la temporada de esas semanas (H = h sin temporada). La media es λᵢ·H.
+
+Se eligió este modelo porque funciona con los productos que se venden poco y a saltos (la mayoría de un catálogo de distribuidora), da probabilidades y no un solo número, y se calcula en milisegundos sin librerías.
+
+### 7.3 Temporada
+
+Con 18 meses o más de ventas, se suma todo el catálogo (sin picos de proyectos) por semana, se ajusta una recta (la tendencia) y cada semana se compara con ella. El índice de cada mes es el promedio de esas comparaciones. Se toma al 60 % (1 + 0,6·(índice − 1)), entre 0,6 y 1,6, y se normaliza para que el promedio del año sea 1. Con menos de 18 meses no hay temporada (índice 1): un solo diciembre no hace una temporada.
+
+### 7.4 Lo que ve el usuario
+
+| Dato | Cálculo |
+|---|---|
+| Rango de cada semana | Del 10 % al 90 % de X con h = 1 semana: 8 de cada 10 semanas caen ahí. |
+| Riesgo de agotarse | P(X > existencias) con h = máx(tiempo de entrega, 2 semanas): la probabilidad de quedarse sin él antes de reponerlo. |
+| "Pide ya" | No se agota en 2 semanas, pero Sᵢ < tiempo de entrega + 1. Si el usuario no ha dicho cuánto tarda su proveedor, se supone 1 semana y no hay "pide ya". |
+| Cantidad sugerida | máx(0, ⌈cuantil 90 % de X con h = entrega + cada cuánto pide⌉ − existencias). Alcanza para la entrega y hasta el siguiente pedido en 9 de cada 10 casos. "Cada cuánto pide" es 4 semanas si el usuario no lo cambia. |
+| Dinero quieto | Lo que hay por encima de 12 semanas de venta (o todo, si no se vendió), a costo. Solo si el archivo trae el costo. |
+| Total del catálogo | La suma de las medias; el rango suma las varianzas, pero nunca es más angosto que lo que varió el total en el último semestre (las ventas de un catálogo no suben y bajan cada una por su lado). |
+
+Costo y proveedor se leen del archivo si vienen (columnas opcionales en `formatos.js`); el tiempo de entrega de cada proveedor y cada cuánto pide los escribe el usuario en "Datos" (`usuarios.inventario`).
+
+### 7.5 Qué tan bien acierta, medido con los datos del usuario
+
+Se esconden las últimas 8 semanas del archivo, se pronostican con lo anterior (con las mismas reglas: lo reciente doble, productos nuevos desde su primera venta) y se cuenta en cuántos productos lo vendido de verdad cayó dentro del rango del 10 % al 90 %. Se mide sin temporada, para no usar información de las semanas escondidas. Si el modelo está bien calibrado, debería acertar en unos 8 de cada 10; en los datos de ejemplo da entre 6 y 9 de cada 10.
+
+### 7.6 La prueba con los probadores
+
+Durante los 14 días de prueba de cada probador (desde su primera lista inicial), la cantidad sugerida no se muestra: si la vieran, M ya no mediría el efecto del reporte de semanas, que es lo que dice la hipótesis. El panel, el gráfico y el riesgo sí se ven, pero solo después de guardar la primera lista inicial (`server/inventario-rutas.js`). Este cambio de alcance va con su fila en "4 · Cambios y Reflexión" del Entregable.
 
 ## Fuentes
+
+- Syntetos, A. A., Boylan, J. E., y Disney, S. M. (2009). *Forecasting for inventory planning: a 50-year review*. Journal of the Operational Research Society, 60(sup1), S149–S160.
+- Gelman, A., et al. (2013). *Bayesian Data Analysis*, 3.ª ed., cap. 2 (modelo Gamma-Poisson y su predictiva binomial negativa).
 
 - Uphance, *How to Calculate Weeks of Supply*: https://www.uphance.com/blog/weeks-of-supply/
 - Wair, *Weeks of Supply (WOS): Formula, Calculator & Retail Benchmarks*: https://wair.ai/wos-meaning-and-how-to-calculate-it/

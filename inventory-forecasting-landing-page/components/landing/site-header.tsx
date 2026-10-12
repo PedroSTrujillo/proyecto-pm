@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { buttonVariants } from '@/components/ui/button'
-import { URL_CREAR_CUENTA, URL_ENTRAR } from '@/lib/app'
+import { URL_CREAR_CUENTA, URL_DEMO, URL_ENTRAR } from '@/lib/app'
 import { cn } from '@/lib/utils'
 import { Logo } from './logo'
 
@@ -29,6 +29,9 @@ export function SiteHeader() {
           </ul>
         </nav>
         <div className="flex items-center gap-4">
+          <Link href={URL_DEMO} className="hidden text-sm font-medium text-muted-foreground hover:text-foreground md:inline">
+            Ver demo
+          </Link>
           <a href={URL_ENTRAR} className="hidden text-sm font-medium text-primary hover:text-primary-hover sm:inline">
             Entrar
           </a>

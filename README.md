@@ -1,12 +1,12 @@
-# Rotación de inventario · MVP Alpha 0.1
+# SINESC · Rotación de inventario
 
-Reporte de rotación por producto calculado desde el export del software contable, para gerentes y administradores de inventario que coordinan el reabastecimiento. El usuario sube su export y ve sus productos ordenados por **semanas de inventario restantes**: arriba lo que se agota primero y, marcado aparte, lo que sobra.
+Para gerentes y administradores de inventario que coordinan el reabastecimiento. El usuario sube el export de su software contable y ve sus productos ordenados por **semanas de inventario restantes**: arriba lo que se agota primero y, marcado aparte, lo que sobra. Desde el 2026-10-11 además tiene un panel con lo que hay que atender, la ficha de cada producto con su pronóstico, el riesgo de agotarse antes de que llegue un pedido y el pedido sugerido por proveedor (Excel, WhatsApp o PDF para gerencia).
 
-El MVP existe para probar una hipótesis: *3 de 5 usuarios cambian 5 o más líneas de su pedido en 14 días*. Por eso el flujo obliga a registrar la lista de pedido **antes** de ver el reporte, y el producto calcula solo la métrica.
+El MVP existe para probar una hipótesis: *3 de 5 usuarios cambian 5 o más líneas de su pedido en 14 días*. Por eso el flujo obliga a registrar la lista de pedido **antes** de ver el reporte, el producto calcula solo la métrica y la cantidad sugerida no se le muestra a un probador durante sus 14 días.
 
-- Backend: Node.js (Express) + PostgreSQL.
-- Frontend: HTML, CSS y JavaScript sin frameworks ni paso de compilación.
-- Modelo matemático e investigación: [`docs/modelo-rotacion.md`](docs/modelo-rotacion.md).
+- Un solo servidor: Node.js (Express, la API) + Next.js (la página y la aplicación, en `inventory-forecasting-landing-page/`) + PostgreSQL.
+- Demo sin cuenta en `/demo`: cinco negocios inventados (ferretería, muebles, mobiliario de oficina, refrigeración y papelería) armados con lo que contaron los entrevistados.
+- Modelo matemático e investigación: [`docs/modelo-rotacion.md`](docs/modelo-rotacion.md) (§7: pronóstico).
 
 ## Correr en local
 
@@ -17,10 +17,16 @@ npm install
 ```
 
 ```bash
-TEAM_EMAILS=tu-correo@ejemplo.com npm start
+npm install --no-package-lock --prefix inventory-forecasting-landing-page
 ```
 
-Abre http://localhost:3000. En local no hace falta instalar PostgreSQL: si no hay `DATABASE_URL`, la app usa PGlite (PostgreSQL embebido) y guarda los datos en `data/pglite/`.
+```bash
+TEAM_EMAILS=tu-correo@ejemplo.com npm run dev
+```
+
+Abre http://localhost:3000: la página principal, `/demo`, `/entrar` y la aplicación salen del mismo servidor (Next.js en modo desarrollo dentro de Express). En local no hace falta instalar PostgreSQL: si no hay `DATABASE_URL`, la app usa PGlite (PostgreSQL embebido) y guarda los datos en `data/pglite/`.
+
+Para correrlo como en producción: `npm run build` y después `NODE_ENV=production npm start`. Si la web no está instalada o compilada, el servidor sigue andando con la versión anterior de la aplicación (`public/`) y lo avisa al arrancar.
 
 Otros comandos:
 
@@ -32,19 +38,13 @@ npm test
 npm run ejemplos
 ```
 
-`npm test` corre 60 pruebas automáticas: cálculo, comparación de listas, recordatorios, lector de archivos y API. `npm run ejemplos` crea en `ejemplos/` exports inventados con formatos distintos (CSV estilo Siigo, Excel estilo SAP, informe con una columna por mes, un catálogo de 3.000 productos y un informe de mínimos), para hacer demos y pruebas.
+`npm test` corre 72 pruebas automáticas: cálculo, pronóstico, comparación de listas, recordatorios, lector de archivos, demo y API. `npm run ejemplos` crea en `ejemplos/` exports inventados con formatos distintos (CSV estilo Siigo, Excel estilo SAP, informe con una columna por mes, un catálogo de 3.000 productos y un informe de mínimos), para hacer demos y pruebas.
 
-## Landing page
+## Página y aplicación (Next.js)
 
-La carpeta `inventory-forecasting-landing-page/` tiene la página de presentación, hecha en Next.js. Usa los mismos colores, el mismo logo, los mismos umbrales (2 y 12 semanas) y los mismos textos que la aplicación, y sus botones llevan a crear cuenta, a entrar y a la plantilla de ejemplo.
+La carpeta `inventory-forecasting-landing-page/` tiene la página de presentación y la aplicación, en Next.js. Rutas: `/` (página), `/demo` y `/demo/<negocio>` (sin cuenta), `/entrar`, `/crear-cuenta`, `/olvide`, `/restablecer/<token>`, y con sesión `/panel`, `/productos`, `/pedidos`, `/pedidos/<id>` (los 5 pasos de la prueba), `/pedidos/sugerido`, `/datos`, `/cuenta` y `/equipo`. Los enlaces viejos con `#/` (por ejemplo, un enlace para cambiar la contraseña ya enviado) se redirigen solos.
 
-```bash
-cd inventory-forecasting-landing-page
-pnpm install
-NEXT_PUBLIC_APP_URL=http://localhost:3000 pnpm dev -p 3001
-```
-
-Al publicarla (por ejemplo en Vercel), configura `NEXT_PUBLIC_APP_URL` con la URL de la aplicación en Render. Sin esa variable, los botones apuntan a `http://localhost:3000`.
+Si se quiere publicar la página sola (por ejemplo, seguir usando Vercel para `proyecto-pm.vercel.app`), configuren allá `API_URL` con la dirección de la aplicación en Render: `next.config.mjs` le pasa `/api` y `/plantillas`, y para el navegador todo queda en la misma dirección. Ojo: Vercel corta las peticiones de más de 4,5 MB, así que los archivos grandes conviene subirlos desde la dirección de Render.
 
 ## Variables de entorno
 
@@ -58,7 +58,8 @@ Al publicarla (por ejemplo en Vercel), configura `NEXT_PUBLIC_APP_URL` con la UR
 | `BREVO_API_KEY` | Opcional. Para que el recordatorio de calendario llegue también por correo, con [Brevo](https://www.brevo.com) (gratis hasta 300 correos al día). Sin ella, el recordatorio solo se descarga. | `xkeysib-…` |
 | `CORREO_REMITENTE` | El correo que verificaron en Brevo como remitente. | `avisos@grupo1.co` |
 | `APP_URL` | La dirección pública de la app, para el enlace de los recordatorios y de "cambiar contraseña". | `https://rotacion-inventario.onrender.com` |
-| `LANDING_URL` | La página de presentación, para el enlace "Página principal". | `https://proyecto-pm.vercel.app` |
+| `LANDING_URL` | Ya no se usa: la página principal es la misma dirección de la app. | |
+| `API_URL` | Solo si la web se publica aparte (Vercel): la dirección de la app en Render. | `https://rotacion-inventario.onrender.com` |
 
 Una cuenta queda con rol de **equipo** si su correo está en `TEAM_EMAILS` al crearla o al iniciar sesión. Las cuentas del equipo no cuentan como usuarios de prueba.
 
@@ -73,7 +74,7 @@ Notas:
 
 - El plan gratis de Render apaga el servidor tras 15 minutos sin uso, y la primera visita tarda unos 50 segundos en despertarlo. Antes de una sesión con un probador, abran la página un minuto antes. Para evitarlo del todo, usen el plan Starter de Render.
 - No usen PGlite en Render: el disco del plan gratis se borra en cada despliegue. Por eso se pide `DATABASE_URL`, y el servidor avisa al arrancar si falta.
-- Cualquier hosting de Node sirve igual (Railway, Fly.io, un VPS): `npm install` y `npm start` con las variables de arriba.
+- Cualquier hosting de Node sirve igual (Railway, Fly.io, un VPS): `npm install && npm run build` y `npm start` con las variables de arriba. El build instala y compila la web; `render.yaml` ya lo hace.
 
 ### Recordatorios
 
@@ -97,29 +98,32 @@ El documento pide que las plantillas sean iguales al export real de cada probado
 |---|---|
 | Crear cuenta, iniciar y cerrar sesión; cada usuario ve solo lo suyo | `server/cuentas.js`; todas las consultas filtran por usuario (`server/pedidos.js`) |
 | Rol de equipo que ve los resultados de todos | `TEAM_EMAILS`, `server/equipo.js`, pantalla "Resultados de la prueba" |
-| Flujo de 5 pasos con indicador; no se salta al reporte; se retoma donde quedó | Indicador de pasos en `public/js/app.js`. Reglas en el servidor: sin lista inicial guardada, subir el export o pedir el reporte responde 403. Los borradores se guardan solos. |
-| Lista inicial tipo Excel (pegar filas) o importando Excel/CSV; sin imágenes; real o simulado | `public/js/hoja.js`, `leerLista` en `server/lector.js` |
+| Flujo de 5 pasos con indicador; no se salta al reporte; se retoma donde quedó | Indicador de pasos en `components/app/pedido-flujo.tsx`. Reglas en el servidor: sin lista inicial guardada, subir el export o pedir el reporte responde 403. Los borradores se guardan solos. |
+| Lista inicial tipo Excel (pegar filas) o importando Excel/CSV; sin imágenes; real o simulado | `components/app/hoja.tsx`, `leerLista` en `server/lector.js` |
 | La lista inicial queda fija al guardarla | `UPDATE … WHERE inicial_guardada_en IS NULL`; editarla después responde 409 |
 | Export CSV o Excel con ventas (1–2 años) y existencias; plantilla descargable con ejemplo | `/plantillas/export.xlsx`, `server/plantillas.js` |
 | Reconoce formatos distintos sin reorganizar columnas; errores con fila y columna | `server/lector.js` + `server/formatos.js` (sinónimos, búsqueda de la fila de encabezados, CSV con `;` o `,`, ANSI o UTF-8, fechas y números colombianos, varias hojas o archivos, columnas por mes); si falta algo, el usuario elige la columna |
 | Cada archivo subido queda guardado con su fecha | Tabla `archivos` (contenido y fecha) |
 | Cálculo de rotación y casos borde | `server/rotacion.js`, `docs/modelo-rotacion.md` |
-| Reporte ordenado, menos de 2 semanas resaltado, lo que sobra visible, filtros, explicación con un ejemplo de su archivo | `public/js/reporte.js` |
+| Reporte ordenado, menos de 2 semanas resaltado, lo que sobra visible, filtros, explicación con un ejemplo de su archivo | `components/app/reporte.tsx` |
 | Lista final como copia de la inicial y reporte visible mientras se edita | Paso 4: botón "Mostrar el reporte" y columnas "Ibas a pedir" y "Semanas de inventario" |
 | Comparación por código (agregadas, quitadas, cantidad cambiada, total) y "¿Por qué cambiaste lo que cambiaste?" | `compararListas` en `server/listas.js`, paso 5 |
-| Vista del equipo con resumen (cuántos cambiaron 5 o más; cuántos 0 o 1) calculado de los datos | `server/equipo.js`, `vistaEquipo` en `public/js/app.js` |
+| Vista del equipo con resumen (cuántos cambiaron 5 o más; cuántos 0 o 1) calculado de los datos | `server/equipo.js`, `components/app/equipo.tsx` |
 | Registro con fecha de cada ingreso, archivo subido y pedido | Tabla `eventos`. Volver con la sesión abierta después de 30 minutos sin actividad cuenta como un nuevo ingreso. |
 | Stickiness corregido (2026-10-07): recordatorio 3 días antes de que un producto con más de 4 semanas llegue a 2 | `server/recordatorios.js` (cálculo y archivo de calendario), `server/correo.js` (opcional), tarjeta en el paso 3, cifras de stickiness en la vista del equipo |
-| Cálculo de semanas más completo, explicado desglosado (pendiente del equipo) | Tres ajustes en `server/rotacion.js` (§3.6 del modelo) y explicación paso a paso en `public/js/reporte.js` |
-| Guía para sacar los archivos según el programa contable (paso 2) | `public/js/sistemas.js`: Siigo Nube, Alegra, World Office, Helisa, SAP Business One y guía general. Cada ruta de menú lleva su fuente; lo que no se pudo confirmar se dice. La elección se guarda en `usuarios.sistema` y el equipo la ve |
+| Cálculo de semanas más completo, explicado desglosado (pendiente del equipo) | Tres ajustes en `server/rotacion.js` (§3.6 del modelo) y explicación en `components/app/reporte.tsx` y en la ficha de cada producto |
+| Guía para sacar los archivos según el programa contable (paso 2) | `lib/sistemas.ts` (copia de `public/js/sistemas.js`): Siigo Nube, Alegra, World Office, Helisa, SAP Business One y guía general. Cada ruta de menú lleva su fuente; lo que no se pudo confirmar se dice. La elección se guarda en `usuarios.sistema` y el equipo la ve |
 | Importar casi cualquier formato | `server/lector.js`: informes de impresora (títulos corridos, "Página X de Y", totales), código entre paréntesis en el nombre, años cortados ("01/MAR/202"), informes que mezclan compras y ventas (pregunta qué documentos son ventas y lo recuerda), columnas sugeridas por su contenido cuando el título no se reconoce |
 | Plantilla para quien lleva el inventario en Excel | `/plantillas/inventario.xlsx` (`plantillaInventario`): hoja Productos con existencias y una columna por mes; las hojas Ejemplo e Instrucciones no se leen |
 | Ventas como total de un periodo (sin fecha por venta) | `server/lector.js` (`necesitaPeriodo`), `exports.periodo`, `POST /:id/export/:exportId/periodo` |
 | Página de cuenta, cambiar y restablecer contraseña | `server/cuentas.js` (`/datos`, `/clave`, `/olvide`, `/restablecer`), tabla `restablecimientos`; el equipo genera el enlace desde su vista |
 | Ayuda para el segundo criterio de pivote | Coherencia con el reporte y magnitud del cambio en `server/listas.js`, columnas en la vista del equipo |
 | Todo en español sencillo | Textos de la interfaz y mensajes del servidor |
+| Stack declarado en el plan de prueba (Next.js con Postgres y autenticación) | La interfaz es Next.js (`inventory-forecasting-landing-page/`), servida junto con la API de Express por `server/index.js` |
+| Panel, ficha de producto, pronóstico y pedido sugerido (reestructuración, 2026-10-11) | `server/inventario.js`, `server/pronostico.js`, `server/series.js`, `server/inventario-rutas.js`; pantallas en `components/app/`. Ver `docs/PLAN_REESTRUCTURACION.md` y §7 del modelo |
+| Demo para Expoandes, sin cuenta | `server/demo.js` (cinco negocios inventados, el mismo cálculo que un archivo real), `/demo` |
 
-**Lo que el producto no hace, a propósito** (sección 1 y sección 6 del documento): no sugiere cuánto pedir, no ajusta por temporada ni por tiempo de entrega y no se conecta al software contable. Los recordatorios sí entraron: son el stickiness que pidió la corrección del Entregable 2.
+**Cambio de alcance (2026-10-11):** el producto ya sugiere cuánto pedir, ajusta por temporada y por el tiempo de entrega de cada proveedor (§7 del modelo). Para no contaminar la métrica, un probador no ve la cantidad sugerida durante sus 14 días y no ve su inventario antes de guardar su primera lista inicial. Este cambio necesita su fila en "4 · Cambios y Reflexión" del Entregable. Sigue sin conectarse al software contable.
 
 ## Estructura
 
@@ -136,11 +140,20 @@ server/
   lector.js       lectura de exports y listas (Excel/CSV)
   valores.js      códigos, números y fechas
   formatos.js     sinónimos de columnas y plantillas  ← lo que el equipo ajusta
-  rotacion.js     modelo de rotación
+  rotacion.js     modelo de rotación (el número de la prueba)
+  series.js       ventas por semana de cada producto
+  pronostico.js   Gamma-Poisson, temporada y acierto medido
+  inventario.js   lo que ve el panel: riesgo, sugerido, dinero quieto
+  inventario-rutas.js  /api/inventario y /api/demo
+  demo.js         los cinco negocios de ejemplo
+  exportar.js     el pedido como Excel
   listas.js       validación y comparación de listas
   plantillas.js   plantillas descargables
-public/           index.html, estilos.css, js/ (app, hoja tipo Excel, reporte)
-inventory-forecasting-landing-page/   página de presentación (Next.js)
+public/           la versión anterior de la aplicación (sin compilar); se usa solo si falta la web
+inventory-forecasting-landing-page/   página y aplicación (Next.js)
+  app/            rutas: página, demo, cuenta y aplicación
+  components/app/ pantallas de la aplicación (panel, productos, pedido, datos…)
+  lib/            llamadas a la API, formatos, guías por programa contable
 docs/             modelo matemático
 test/             pruebas automáticas (node --test)
 scripts/          generador de archivos de ejemplo
@@ -148,7 +161,7 @@ scripts/          generador de archivos de ejemplo
 
 ## Limitaciones conocidas
 
-- La autenticación es básica (correo y contraseña), sin recuperación de contraseña. El documento deja la autenticación completa para el cierre del semestre.
+- La autenticación es básica (correo y contraseña). La recuperación de contraseña es un enlace de un solo uso que manda el correo (si hay Brevo) o el equipo.
 - El reconocimiento de columnas se basa en nombres habituales de Siigo, SAP, SIESA, CGUNO y World Office. Hay que validarlo con los exports reales de los probadores (ver arriba).
 - **Helisa:** el detalle de facturas se lee bien (su columna "Cantidad Disponible" es la venta neta de devoluciones, no existencias), pero no trae existencias: hay que subir también el informe de inventario o saldos. Los informes de "Movimiento detalle" de Helisa vienen armados como página de impresión (los títulos no caen sobre sus columnas y se repite "Página X de Y") y todavía no se leen solos. Muchos usuarios de Helisa sacan además el listado de inventario con la casilla de salidas de un periodo, sin una fecha por venta: ese formato tampoco se lee todavía.
 - Un kardex que mezcla entradas y salidas en una sola columna de cantidad (con una columna de "tipo") se leería como si todo fueran ventas. Si un probador exporta así, hay que filtrar por tipo antes, o agregar esa regla para su formato.

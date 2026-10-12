@@ -23,7 +23,7 @@ const faqs: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: '¿La herramienta me dice cuánto pedir?',
-    a: 'No, y es a propósito. Te muestra para cuántas semanas te alcanza cada producto y tú decides. El pedido se lo sigues mandando al proveedor como siempre.',
+    a: 'Te sugiere una cantidad por producto: la que cubre lo que tarda tu proveedor y te alcanza hasta tu siguiente pedido. Tú la cambias como quieras y el pedido se lo sigues mandando al proveedor como siempre. En tus primeros 14 días de prueba no la ves: primero queremos saber si las semanas de inventario solas te sirven.',
   },
   {
     q: '¿Por qué tengo que anotar mi pedido antes de ver el reporte?',

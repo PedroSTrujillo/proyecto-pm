@@ -133,7 +133,7 @@ async function crearEnlaceRestablecer(usuarioId, base) {
     `INSERT INTO restablecimientos (token_hash, usuario_id, expira_en) VALUES ($1, $2, now() + interval '${HORAS_ENLACE_RESTABLECER} hours')`,
     [hashToken(token), usuarioId],
   );
-  return { enlace: `${base.replace(/\/+$/, '')}/#/restablecer/${token}`, horas: HORAS_ENLACE_RESTABLECER };
+  return { enlace: `${base.replace(/\/+$/, '')}/restablecer/${token}`, horas: HORAS_ENLACE_RESTABLECER };
 }
 
 function baseDe(req) {

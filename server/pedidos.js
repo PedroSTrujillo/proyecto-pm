@@ -13,6 +13,7 @@ const db = require('./db');
 const { requiereUsuario, registrarEvento, ErrorUsuario } = require('./cuentas');
 const { leerExport, leerLista } = require('./lector');
 const { calcularRotacion } = require('./rotacion');
+const { seriesSemanales } = require('./series');
 const { revisarLista, compararListas, coherenciaConReporte } = require('./listas');
 const recordatorios = require('./recordatorios');
 const { correoConfigurado } = require('./correo');
@@ -283,8 +284,13 @@ async function procesarExport(usuarioId, pedido, exportId, manual) {
     avisos: [...lectura.avisos, ...rotacion.avisos],
     hojasUsadas: lectura.hojasUsadas.map(({ archivo, hoja, uso, columnas, porMes }) => ({ archivo, hoja, uso, columnas, porMes })),
   };
-  await db.query("UPDATE exports SET estado = 'ok', errores = NULL, hojas = $1::jsonb, reporte = $2::jsonb WHERE id = $3", [JSON.stringify(lectura.hojas), JSON.stringify(reporte), exportId]);
-  await db.query('UPDATE pedidos SET export_id = $1 WHERE id = $2', [exportId, pedido.id]);
+  const series = seriesSemanales(lectura.ventas, { mensual: lectura.mensual, totales: Boolean(lectura.periodo) });
+  await db.query(
+    "UPDATE exports SET estado = 'ok', errores = NULL, hojas = $1::jsonb, reporte = $2::jsonb, series = $3::jsonb, catalogo = $4::jsonb WHERE id = $5",
+    [JSON.stringify(lectura.hojas), JSON.stringify(reporte), series ? JSON.stringify(series) : null, JSON.stringify(lectura.catalogo || {}), exportId],
+  );
+  // Sin pedido: el archivo se subió desde "Datos" y solo actualiza el inventario guardado.
+  if (pedido) await db.query('UPDATE pedidos SET export_id = $1 WHERE id = $2', [exportId, pedido.id]);
   if (manual) {
     for (const h of lectura.hojasUsadas) if (manual[h.clave]) await recordarMapeo(usuarioId, 'export', h.firma, manual[h.clave]);
   }
@@ -316,6 +322,19 @@ rutas.post('/:id/export', subida.array('archivos', 5), async (req, res) => {
   }
   await registrarEvento(req.usuario.id, 'archivo_subido', { pedidoId: p.id, detalle: { tipo: 'export', archivos: nombres } });
   res.json(await procesarExport(req.usuario.id, p, exp.id, null));
+});
+
+// Usar el inventario que ya subió (desde "Datos" o en otro pedido) en vez de subirlo otra vez.
+// Igual que subirlo: solo después de guardar la lista inicial.
+rutas.post('/:id/export/usar-ultimo', async (req, res) => {
+  const p = await pedidoDe(req);
+  exigirInicialGuardada(p);
+  if (p.terminado_en) throw new ErrorUsuario('Este pedido ya está terminado.', 409);
+  const e = await db.uno("SELECT id, reporte->'resumen' AS resumen, reporte->'periodo' AS periodo FROM exports WHERE usuario_id = $1 AND estado = 'ok' ORDER BY subido_en DESC, id DESC LIMIT 1", [req.usuario.id]);
+  if (!e) throw new ErrorUsuario('Todavía no has subido tu inventario. Súbelo aquí.', 404);
+  await db.query('UPDATE pedidos SET export_id = $1 WHERE id = $2', [e.id, p.id]);
+  await registrarEvento(req.usuario.id, 'export_reusado', { pedidoId: p.id, detalle: { exportId: e.id } });
+  res.json({ ok: true, exportId: e.id, resumen: e.resumen, periodo: e.periodo });
 });
 
 // Cuando no reconocemos una columna, el usuario la elige y se vuelve a leer el mismo archivo.
@@ -423,7 +442,7 @@ rutas.get('/:id/recordatorio.ics', async (req, res) => {
   await registrarEvento(req.usuario.id, 'calendario_descargado', { pedidoId: p.id, detalle: { productos: plan.avisos.length } });
   res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="recordatorios-inventario-pedido-${p.id}.ics"`);
-  res.send(recordatorios.calendarioIcs({ avisos: plan.avisos, fechaReporte: plan.fechaReporte, url: `${recordatorios.urlApp()}/#/`, idBase: `${req.usuario.id}-${p.id}` }));
+  res.send(recordatorios.calendarioIcs({ avisos: plan.avisos, fechaReporte: plan.fechaReporte, url: `${recordatorios.urlApp()}/panel`, idBase: `${req.usuario.id}-${p.id}` }));
 });
 
 // --- Paso 4: lista final --------------------------------------------------------------------
@@ -482,4 +501,4 @@ rutas.post('/:id/por-que', async (req, res) => {
   res.json({ pedido: await vistaPedido(actualizado) });
 });
 
-module.exports = { rutas, pasoDe, filasDelReporte };
+module.exports = { rutas, pasoDe, filasDelReporte, procesarExport, leerPeriodo, leerMapeoManual, subida };

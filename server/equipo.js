@@ -188,4 +188,4 @@ rutas.post('/usuarios/:id/restablecer', async (req, res) => {
   res.json(r);
 });
 
-module.exports = { rutas, evaluarUsuario, resumirPrueba };
+module.exports = { rutas, evaluarUsuario, resumirPrueba, DIAS_PRUEBA };
