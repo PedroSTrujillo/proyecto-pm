@@ -428,6 +428,25 @@ function realinearColumnas(hoja, iEnc, columnas, firma) {
   return out;
 }
 
+// Los informes de totales casi siempre dicen su periodo en el título ("Del 01/ENE/2026 al
+// 30/SEP/2026", "Periodo: 2025-10-01 - 2026-09-30"). Se busca en las primeras filas para
+// proponerlo al preguntar; el usuario lo confirma.
+const RE_FECHA_TITULO = /\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/.-](?:\d{1,2}|[A-Za-zÁÉÍÓÚáéíóú]{3,})[/.-]\d{2,4}/g;
+function periodoDelTitulo(hojas) {
+  for (const hoja of hojas) {
+    for (const fila of hoja.filas.slice(0, 12)) {
+      const textoFila = fila.filter((c) => typeof c === 'string').join(' ');
+      const dias = (textoFila.match(RE_FECHA_TITULO) || []).map((t) => V.leerFecha(t)).filter(Boolean).map((f) => f.dia);
+      if (dias.length >= 2) {
+        const desde = Math.min(...dias);
+        const hasta = Math.max(...dias);
+        if (hasta - desde >= 6) return { desde: V.textoDia(desde), hasta: V.textoDia(hasta) };
+      }
+    }
+  }
+  return null;
+}
+
 // Para el formulario de columnas: lo que parece cada columna por su contenido.
 function sugerirPorContenido(hoja, analisis, campos) {
   const muestra = filasDeMuestra(hoja, analisis.iEnc + 1, analisis.firma, 60);
@@ -542,6 +561,7 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
       return {
         ok: false,
         necesitaPeriodo: true,
+        periodoSugerido: periodoDelTitulo(porPeriodo.map((h) => h.hoja)),
         errores: ['Tu archivo trae el total vendido de cada producto, pero no la fecha de cada venta. Dinos de qué fecha a qué fecha son esas ventas.'],
         hojas: resumenHojas,
       };

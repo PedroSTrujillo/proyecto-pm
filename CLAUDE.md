@@ -32,11 +32,12 @@ npm install
 npm install --no-package-lock --prefix inventory-forecasting-landing-page   # la web (Next.js); pnpm se colgaba en Windows
 TEAM_EMAILS=tu-correo@ejemplo.com npm run dev    # http://localhost:3000: API + Next.js en modo desarrollo; PGlite en data/pglite/
 npm run build && NODE_ENV=production npm start  # como en Render
-npm test                                         # node --test test/*.test.js (78 pruebas; no necesitan la web)
+npm test                                         # node --test test/*.test.js (81 pruebas; no necesitan la web)
 node --test test/rotacion.test.js                # un solo archivo
 node --test --test-name-pattern="M = 5" test/listas.test.js   # una prueba por nombre
 npm run ejemplos                                 # regenera los exports inventados de ejemplos/
 npm run texto                                    # revisa los textos buscando marcas de IA (reglas de stop-slop)
+npm run borrar-datos -- --todos [--confirmar]    # borra las cuentas de prueba (sin --confirmar solo cuenta); --email x para una
 ```
 
 No hay linter ni formateador. La API no se compila; la web sí (`npm run build`), y `node inventory-forecasting-landing-page/node_modules/typescript/bin/tsc --noEmit -p inventory-forecasting-landing-page` revisa los tipos. `DATA_DIR=memory://` deja la base en memoria (lo usan las pruebas). Para empezar con la base local vacía, borra `data/pglite/`.
@@ -121,5 +122,5 @@ Están ordenados por cuánto ponen en riesgo la prueba o la Entrega 3.
 **Operación de la prueba:**
 18. **El repo no tiene `.gitignore`**, aunque el README dice que sí. Hay que crearlo con `node_modules/`, `data/` y `.DS_Store` (este último ya está versionado) antes de que alguien suba `data/pglite/` con datos de prueba.
 19. **No hay recuperación de contraseña.** Si un probador olvida la suya, el equipo tiene que restablecerla a mano en la base de datos, y no hay script para hacerlo.
-20. **Datos comerciales de terceros.** Los exports de los probadores se guardan completos en la base. No hay acuerdo de uso de datos ni un procedimiento para borrarlos al terminar la prueba.
+20. **Datos comerciales de terceros.** Los exports de los probadores se guardan completos en la base. No hay acuerdo de uso de datos. *Atendido en parte (2026-10-11):* `npm run borrar-datos` borra los datos de un probador (o todos los de prueba) en cascada.
 21. En el plan gratuito de Render, el servidor se apaga tras 15 minutos sin uso y la primera visita tarda unos 50 segundos (ver README). Antes de la prueba hay que borrar los datos de prueba o usar una base nueva, para que el resumen cuente solo a los 5 probadores.

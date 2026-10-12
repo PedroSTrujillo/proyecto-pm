@@ -100,28 +100,39 @@ async function completarSeries(usuarioId, e) {
   return { ...e, series, catalogo: lectura.catalogo || {} };
 }
 
+// El inventario ya calculado, por archivo, alcance y ajustes: con miles de productos el cálculo
+// tarda y no cambia hasta que suben otro archivo o cambian sus ajustes.
+const calculados = new Map();
+const MAX_CALCULADOS = 40;
+
 rutas.get('/', async (req, res) => {
   const per = await permisos(req.usuario);
-  let e = await ultimoExport(req.usuario.id);
-  if (!e) return res.json({ inventario: null, ...per });
-  e = await completarSeries(req.usuario.id, e);
-  const u = await db.uno('SELECT inventario, sistema FROM usuarios WHERE id = $1', [req.usuario.id]);
-  const archivos = await db.query('SELECT nombre FROM archivos WHERE export_id = $1 ORDER BY id', [e.id]);
-  const inventario = construirInventario({
-    reporte: e.reporte,
-    series: e.series,
-    catalogo: e.catalogo,
-    ajustes: u.inventario,
-    fuente: {
-      exportId: e.id,
-      pedidoId: e.pedido_id,
-      fecha: e.subido_en,
-      archivos: archivos.map((a) => a.nombre),
-      programa: u.sistema,
-      persona: req.usuario.nombre,
-    },
-    alcance: per.alcance,
-  });
+  const cab = await db.uno("SELECT id FROM exports WHERE usuario_id = $1 AND estado = 'ok' ORDER BY subido_en DESC, id DESC LIMIT 1", [req.usuario.id]);
+  if (!cab) return res.json({ inventario: null, ...per });
+  const u = await db.uno('SELECT inventario, sistema, nombre FROM usuarios WHERE id = $1', [req.usuario.id]);
+  const llave = JSON.stringify([cab.id, per.alcance, u.inventario, u.sistema, u.nombre]);
+  let inventario = calculados.get(llave);
+  if (!inventario) {
+    const e = await completarSeries(req.usuario.id, await ultimoExport(req.usuario.id));
+    const archivos = await db.query('SELECT nombre FROM archivos WHERE export_id = $1 ORDER BY id', [e.id]);
+    inventario = construirInventario({
+      reporte: e.reporte,
+      series: e.series,
+      catalogo: e.catalogo,
+      ajustes: u.inventario,
+      fuente: {
+        exportId: e.id,
+        pedidoId: e.pedido_id,
+        fecha: e.subido_en,
+        archivos: archivos.map((a) => a.nombre),
+        programa: u.sistema,
+        persona: u.nombre,
+      },
+      alcance: per.alcance,
+    });
+    calculados.set(llave, inventario);
+    if (calculados.size > MAX_CALCULADOS) calculados.delete(calculados.keys().next().value);
+  }
   res.json({ inventario, ...per, recordatorio: await estadoDe(req.usuario.id) });
 });
 

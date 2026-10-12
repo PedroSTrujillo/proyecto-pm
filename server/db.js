@@ -116,6 +116,16 @@ const ESQUEMA = [
     subido_en TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
   'CREATE INDEX IF NOT EXISTS imagenes_pedido ON imagenes_lista(pedido_id)',
+  // Errores del servidor y de las pantallas (server/errores.js), para la vista del equipo.
+  `CREATE TABLE IF NOT EXISTS errores (
+    id SERIAL PRIMARY KEY,
+    usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+    origen TEXT NOT NULL,
+    mensaje TEXT NOT NULL,
+    ruta TEXT NOT NULL DEFAULT '',
+    detalle TEXT NOT NULL DEFAULT '',
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
   'CREATE INDEX IF NOT EXISTS pedidos_usuario ON pedidos(usuario_id)',
   'CREATE INDEX IF NOT EXISTS exports_pedido ON exports(pedido_id)',
   'CREATE INDEX IF NOT EXISTS exports_usuario ON exports(usuario_id, subido_en)',

@@ -14,7 +14,8 @@
     "build": "npm install --no-package-lock --prefix inventory-forecasting-landing-page && npm run build --prefix inventory-forecasting-landing-page",
     "test": "node --test test/*.test.js",
     "ejemplos": "node scripts/generar-ejemplos.js",
-    "texto": "node scripts/revisar-texto.js"
+    "texto": "node scripts/revisar-texto.js",
+    "borrar-datos": "node scripts/borrar-datos.js"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.3.16",

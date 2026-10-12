@@ -4,6 +4,7 @@
 
 process.env.DATA_DIR = 'memory://';
 process.env.TEAM_EMAILS = 'equipo@prueba.co';
+process.env.SIN_LIMITES = '1'; // las pruebas crean muchas cuentas desde la misma dirección
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -467,4 +468,33 @@ test('clasificar el "¿por qué?": cambiar por probar la herramienta cuenta para
   const ana = cliente();
   await ana.post('/api/cuenta/entrar', { email: 'ana@prueba.co', clave: 'clave-segura' });
   assert.equal((await ana.post(`/api/equipo/pedidos/${id}/clasificacion`, { valor: 'dato' })).estado, 403);
+});
+
+test('límite de intentos: después de 8 intentos de entrar con el mismo correo, espera', () => {
+  delete process.env.SIN_LIMITES;
+  const { limitar } = require('../server/limites');
+  const mw = limitar({ max: 8, minutos: 15, clave: (r) => r.body.email });
+  const req = { ip: '1.2.3.4', body: { email: 'X@y.co' } };
+  const resultados = [];
+  for (let i = 0; i < 9; i++) mw(req, {}, (e) => resultados.push(e ? e.estado : 'ok'));
+  assert.deepEqual(resultados.slice(0, 8), new Array(8).fill('ok'));
+  assert.equal(resultados[8], 429);
+  mw({ ip: '1.2.3.4', body: { email: 'otro@y.co' } }, {}, (e) => assert.equal(e, undefined, 'otro correo no se bloquea'));
+  process.env.SIN_LIMITES = '1';
+});
+
+test('borrar datos: cuenta antes, borra en cascada al confirmar y nunca toca al equipo', async () => {
+  const { borrarDatos } = require('../server/borrar');
+  const z = await nuevoUsuario('Zoe', 'zoe.borrar@prueba.co');
+  const { pedido } = await z.post('/api/pedidos');
+  await z.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
+  await z.subir(`/api/pedidos/${pedido.id}/export`, [['e.xlsx', plantillaExport()]]);
+  const antes = await borrarDatos({ email: 'zoe.borrar@prueba.co' });
+  assert.deepEqual([antes.usuarios, antes.pedidos, antes.archivos, antes.borrado], [['zoe.borrar@prueba.co'], 1, 1, false]);
+  const r = await borrarDatos({ email: 'zoe.borrar@prueba.co', confirmar: true });
+  assert.equal(r.borrado, true);
+  assert.equal((await db.uno("SELECT count(*)::int AS n FROM pedidos WHERE id = $1", [pedido.id])).n, 0);
+  assert.equal((await db.uno("SELECT count(*)::int AS n FROM archivos WHERE pedido_id = $1", [pedido.id])).n, 0);
+  const equipo = await borrarDatos({ email: 'equipo@prueba.co', confirmar: true });
+  assert.equal(equipo.usuarios.length, 0, 'las cuentas del equipo no se borran');
 });

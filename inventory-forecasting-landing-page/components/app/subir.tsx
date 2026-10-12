@@ -29,6 +29,7 @@ type Resultado = {
   errores?: string[]
   hojas?: HojaMapeo[]
   necesitaPeriodo?: boolean
+  periodoSugerido?: { desde: string; hasta: string } | null
   necesitaDocumentos?: boolean
   documentos?: { prefijo: string; filas: number; ejemplo: string; sugerido: boolean }[]
   resumen?: { productos: number; seAgotan: number; sobran: number }
@@ -236,7 +237,7 @@ export function SubirArchivos({ base, usuario, alGuardarSistema, alTerminar, tex
         <PreguntaDocumentos documentos={resultado.documentos || []} alEnviar={(docs) => procesar(api<Resultado>('POST', `${base}/${exportId}/documentos`, { documentos: docs }))} />
       )}
       {resultado?.necesitaPeriodo && exportId && (
-        <PreguntaPeriodo alEnviar={(desde, hasta) => procesar(api<Resultado>('POST', `${base}/${exportId}/periodo`, { desde, hasta }))} />
+        <PreguntaPeriodo sugerido={resultado.periodoSugerido} alEnviar={(desde, hasta) => procesar(api<Resultado>('POST', `${base}/${exportId}/periodo`, { desde, hasta }))} />
       )}
       {resultado && !resultado.necesitaDocumentos && !resultado.necesitaPeriodo && (
         <>
@@ -283,14 +284,14 @@ function PreguntaDocumentos({ documentos, alEnviar }: { documentos: NonNullable<
   )
 }
 
-function PreguntaPeriodo({ alEnviar }: { alEnviar: (desde: string, hasta: string) => void }) {
+function PreguntaPeriodo({ sugerido, alEnviar }: { sugerido?: { desde: string; hasta: string } | null; alEnviar: (desde: string, hasta: string) => void }) {
   const hoy = new Date()
   const iso = (x: Date) => x.toLocaleDateString('en-CA')
-  const [desde, setDesde] = useState(iso(new Date(hoy.getFullYear() - 1, hoy.getMonth(), hoy.getDate() + 1)))
-  const [hasta, setHasta] = useState(iso(hoy))
+  const [desde, setDesde] = useState(sugerido?.desde || iso(new Date(hoy.getFullYear() - 1, hoy.getMonth(), hoy.getDate() + 1)))
+  const [hasta, setHasta] = useState(sugerido?.hasta || iso(hoy))
   return (
     <form onSubmit={(e) => { e.preventDefault(); alEnviar(desde, hasta) }} className="aparecer flex flex-col gap-3 rounded-2xl border border-[#cfe5e1] bg-secondary p-5">
-      <p><strong>Tu archivo trae el total vendido de cada producto, pero no la fecha de cada venta.</strong> ¿De qué fecha a qué fecha son esas ventas? Es el rango que elegiste al sacar el informe.</p>
+      <p><strong>Tu archivo trae el total vendido de cada producto, pero no la fecha de cada venta.</strong> ¿De qué fecha a qué fecha son esas ventas? Es el rango que elegiste al sacar el informe.{sugerido ? ' Lo tomamos del título de tu informe: revísalo.' : ''}</p>
       <div className="flex flex-wrap gap-3">
         <label className="flex flex-col gap-1 text-sm font-semibold">Desde<input type="date" required className={claseEntrada} value={desde} onChange={(e) => setDesde(e.target.value)} /></label>
         <label className="flex flex-col gap-1 text-sm font-semibold">Hasta<input type="date" required className={claseEntrada} value={hasta} max={iso(hoy)} onChange={(e) => setHasta(e.target.value)} /></label>

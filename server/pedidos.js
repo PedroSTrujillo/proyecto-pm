@@ -312,6 +312,7 @@ async function procesarExport(usuarioId, pedido, exportId, manual) {
       errores: lectura.errores,
       hojas: lectura.hojas,
       necesitaPeriodo: Boolean(lectura.necesitaPeriodo),
+      periodoSugerido: lectura.periodoSugerido || null,
       necesitaDocumentos: Boolean(lectura.necesitaDocumentos),
       documentos: lectura.necesitaDocumentos ? lectura.documentos : undefined,
       exportId,

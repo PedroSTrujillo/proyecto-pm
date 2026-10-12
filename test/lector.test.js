@@ -290,3 +290,22 @@ test('formato World Office: títulos con "Detalle:" y "Encab:", y la columna Pro
   assert.deepEqual(r.ventas.map((v) => [v.codigo, v.cantidad]), [['AB100', 10], ['AB200', 4], ['AB100', 6]]);
   assert.deepEqual(r.existencias.map((e) => [e.codigo, e.existencias]), [['AB100', 8], ['AB200', 1], ['AB300', 5]]);
 });
+
+test('listado de inventario con salidas del periodo: se pregunta el periodo y se propone el del título', () => {
+  const libro = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(libro, XLSX.utils.aoa_to_sheet([
+    ['EMPRESA DE PRUEBA'], ['LISTADO DE INVENTARIO'], ['Del 01/ENE/2026 al 30/SEP/2026'], [],
+    ['Código', 'Descripción', 'Saldo Anterior', 'Entradas', 'Salidas', 'Saldo Actual'],
+    ['AB-1', 'Tornillo', 100, 50, 120, 30],
+    ['AB-2', 'Tuerca', 10, 0, 4, 6],
+    ['', 'TOTAL GENERAL', 110, 50, 124, 36],
+  ]), 'Hoja1');
+  const buf = XLSX.write(libro, { type: 'buffer', bookType: 'xlsx' });
+  const sin = leerExport([{ nombre: 'listado.xlsx', buffer: buf }]);
+  assert.equal(sin.necesitaPeriodo, true);
+  assert.deepEqual(sin.periodoSugerido, { desde: '2026-01-01', hasta: '2026-09-30' });
+  const con = leerExport([{ nombre: 'listado.xlsx', buffer: buf }], {}, { periodo: sin.periodoSugerido });
+  assert.equal(con.ok, true, JSON.stringify(con.errores));
+  assert.deepEqual(con.ventas.map((v) => [v.codigo, v.cantidad]), [['AB-1', 120], ['AB-2', 4]], 'las salidas son las ventas');
+  assert.deepEqual(con.existencias.map((e) => [e.codigo, e.existencias]), [['AB-1', 30], ['AB-2', 6]], 'el saldo actual son las existencias');
+});

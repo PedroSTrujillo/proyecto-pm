@@ -9,6 +9,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { BarChart3, ClipboardList, Database, LayoutDashboard, LogOut, Menu, Package, UserRound, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useInventario, useSesion } from './contexto'
+import { reportarError } from './pantalla-error'
 import { clasesBoton } from './ui'
 
 function Monograma({ className }: { className?: string }) {
@@ -83,6 +84,18 @@ export function Marco({ children }: { children: ReactNode }) {
   const ruta = usePathname()
 
   useEffect(() => setAbierto(false), [ruta])
+
+  // Errores que no rompen la pantalla (por ejemplo, en un botón) también se le avisan al equipo.
+  useEffect(() => {
+    const alError = (e: ErrorEvent) => reportarError(e.error || e.message)
+    const alRechazo = (e: PromiseRejectionEvent) => reportarError(e.reason)
+    window.addEventListener('error', alError)
+    window.addEventListener('unhandledrejection', alRechazo)
+    return () => {
+      window.removeEventListener('error', alError)
+      window.removeEventListener('unhandledrejection', alRechazo)
+    }
+  }, [])
 
   const persona = demo ? inventario?.fuente.persona || 'Datos de ejemplo' : usuario?.nombre || ''
   const empresa = demo ? inventario?.fuente.empresa || '' : usuario?.email || ''

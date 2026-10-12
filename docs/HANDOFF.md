@@ -27,6 +27,22 @@
 
 ---
 
+## 2026-10-11 (10) — Claude — lo que faltaba para salir: seguridad, velocidad, errores, borrar datos y Expoandes
+
+- **Rama:** `mejoras-modelo` (solo en local).
+- **Estado:** el plan está terminado en el código. Lo que falta depende del equipo (ver "Siguiente paso").
+  - **Límite de intentos** al entrar (8 por correo cada 15 min), crear cuenta y pedir enlace (`server/limites.js`).
+  - **Velocidad:** respuestas JSON grandes comprimidas (el inventario de 3.000 productos baja de 2,7 MB a 262 KB) y el inventario calculado queda en memoria por archivo, alcance y ajustes.
+  - **Errores:** tabla `errores` con los del servidor y los de las pantallas (pantalla de error amable en la app, la demo y las de cuenta); se ven al final de "Resultados de la prueba".
+  - **Borrar datos:** `npm run borrar-datos` (`--todos` o `--email`, con `--confirmar`), en cascada y sin tocar al equipo. Sirve para limpiar antes de la prueba y para borrar los datos de un probador al terminar.
+  - **Helisa, listado de inventario con salidas del periodo:** ya se leía (pregunta el periodo); ahora además propone el periodo que trae el título del informe ("Del 01/ENE/2026 al 30/SEP/2026").
+  - **Expoandes:** `/expo` (pantalla del stand con QR a la demo, `public/qr-demo.svg`) y un recorrido de tres pasos en la demo.
+  - **Vercel:** si la página sigue publicada allá sin configurar nada, `/api` y `/plantillas` van a la app de Render; los botones de entrar y crear cuenta funcionan en las dos direcciones.
+- **Base de datos:** tabla `errores` (IF NOT EXISTS).
+- **Verificación:** `npm test` → 81/81; tipos sin errores. En el navegador (375 px): `/expo`, recorrido de la demo; respuesta comprimida comprobada con curl.
+- **Siguiente paso exacto (equipo):** 1) subir la rama y desplegar en Render; si el build se queda sin memoria en el plan gratis, subir de plan o avisar; 2) probar con una cuenta del equipo y una de probador; 3) `npm run borrar-datos -- --todos --confirmar` contra Neon antes de los 5 probadores; 4) pedirle a cada probador un export real y subirlo con una cuenta del equipo; 5) las filas de Cambios del Excel (`docs/ENTREGABLE_Y_APP.md`).
+- **Notas y bloqueos:** el correo del recordatorio sigue saliendo al aceptar (sin cron); si quieren el correo el mismo día del aviso, hay que aceptar una tarea programada (por ejemplo, GitHub Actions una vez al día).
+
 ## 2026-10-11 (9) — Claude — la app contra el Entregable 2 corregido
 
 - **Rama:** `mejoras-modelo` (solo en local).

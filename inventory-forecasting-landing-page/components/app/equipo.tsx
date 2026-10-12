@@ -87,6 +87,7 @@ export function Equipo() {
       </p>
       {!d.usuarios.length && <Aviso>Todavía no hay usuarios de prueba registrados.</Aviso>}
       {d.usuarios.map((u) => <Probador key={u.id} u={u} />)}
+      <ErroresRecientes />
     </>
   )
 }
@@ -238,5 +239,31 @@ function Clasificar({ pedidoId, inicial }: { pedidoId: number; inicial: string |
       {opcion('dato', 'El dato le sirvió')}
       {opcion('probar', 'Por probar la herramienta')}
     </span>
+  )
+}
+
+// Si un probador se tropezó con la aplicación, aparece aquí (server/errores.js).
+function ErroresRecientes() {
+  const [lista, setLista] = useState<any[] | null>(null)
+  useEffect(() => {
+    api<{ errores: any[] }>('GET', '/errores').then((r) => setLista(r.errores)).catch(() => setLista([]))
+  }, [])
+  if (!lista) return null
+  return (
+    <Tarjeta className="flex flex-col gap-2 p-5">
+      <h2 className="text-lg font-bold">Errores recientes</h2>
+      {lista.length === 0 ? (
+        <p className="text-muted-foreground">Ninguno. Nadie se ha tropezado con la aplicación.</p>
+      ) : (
+        <ul className="flex flex-col gap-1.5 text-[0.9rem]">
+          {lista.map((e) => (
+            <li key={e.id} className="border-t border-border pt-1.5 first:border-t-0">
+              <span className="text-muted-foreground">{fechaHora(e.en)} · {e.origen === 'servidor' ? 'Servidor' : 'Pantalla'}{e.email ? ` · ${e.email}` : ''}</span>
+              <span className="block"><strong>{e.mensaje}</strong> <span className="text-muted-foreground">{e.ruta}</span></span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Tarjeta>
   )
 }

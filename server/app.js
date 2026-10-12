@@ -8,6 +8,8 @@ const pedidos = require('./pedidos');
 const equipo = require('./equipo');
 const inventario = require('./inventario-rutas');
 const exportar = require('./exportar');
+const { limitar, comprimirJson } = require('./limites');
+const errores = require('./errores');
 const { plantillaExport, plantillaLista, plantillaInventario } = require('./plantillas');
 const { PLANTILLA_EXPORT, PLANTILLA_LISTA, PLANTILLA_INVENTARIO } = require('./formatos');
 
@@ -48,6 +50,13 @@ function crearApp({ web = null, dev = false } = {}) {
   });
 
   app.use('/api', express.json({ limit: '5mb' }));
+  app.use('/api', comprimirJson);
+  // Contra quien prueba contraseñas a la fuerza: la app queda pública desde la página.
+  const porCorreo = (req) => req.body && req.body.email;
+  app.use('/api/cuenta/entrar', limitar({ max: 8, minutos: 15, clave: porCorreo, mensaje: 'Demasiados intentos para entrar. Espera 15 minutos o pide un enlace para cambiar tu contraseña.' }));
+  app.use('/api/cuenta/crear', limitar({ max: 10, minutos: 60 }));
+  app.use('/api/cuenta/olvide', limitar({ max: 5, minutos: 60, clave: porCorreo }));
+  app.use('/api/cuenta/restablecer', limitar({ max: 10, minutos: 15 }));
 
   // Las rutas de la API cargan la sesión; las páginas y los archivos de Next no la necesitan.
   app.use('/api', cuentas.cargarUsuario);
@@ -57,6 +66,7 @@ function crearApp({ web = null, dev = false } = {}) {
   app.use('/api/inventario', inventario.rutas);
   app.use('/api/demo', inventario.demo);
   app.use('/api/exportar', exportar.rutas);
+  app.use('/api/errores', errores.rutas);
 
   const enviarXlsx = (nombre, generar) => (_req, res) => {
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -75,7 +85,7 @@ function crearApp({ web = null, dev = false } = {}) {
 
   // Errores: siempre en lenguaje sencillo.
   // eslint-disable-next-line no-unused-vars
-  app.use((err, _req, res, _next) => {
+  app.use((err, req, res, _next) => {
     if (err instanceof cuentas.ErrorUsuario) {
       return res.status(err.estado).json({ error: err.message, ...err.extra });
     }
@@ -90,6 +100,7 @@ function crearApp({ web = null, dev = false } = {}) {
     if (err.type === 'entity.too.large') return res.status(413).json({ error: 'La lista es demasiado grande.' });
     if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'No entendimos los datos enviados.' });
     console.error(err);
+    errores.registrarError({ usuarioId: req.usuario ? req.usuario.id : null, origen: 'servidor', mensaje: err.message, ruta: `${req.method} ${req.originalUrl}`, detalle: err.stack });
     res.status(500).json({ error: 'Algo salió mal de nuestro lado. Intenta de nuevo en un momento.' });
   });
 

@@ -39,7 +39,7 @@ npm test
 npm run ejemplos
 ```
 
-`npm test` corre 78 pruebas automáticas: cálculo, pronóstico, comparación de listas, recordatorios, lector de archivos, demo y API. `npm run ejemplos` crea en `ejemplos/` exports inventados con formatos distintos (CSV estilo Siigo, Excel estilo SAP, informe con una columna por mes, un catálogo de 3.000 productos y un informe de mínimos), para hacer demos y pruebas.
+`npm test` corre 81 pruebas automáticas: cálculo, pronóstico, comparación de listas, recordatorios, lector de archivos, demo y API. `npm run ejemplos` crea en `ejemplos/` exports inventados con formatos distintos (CSV estilo Siigo, Excel estilo SAP, informe con una columna por mes, un catálogo de 3.000 productos y un informe de mínimos), para hacer demos y pruebas.
 
 ## Página y aplicación (Next.js)
 
@@ -60,7 +60,7 @@ Si se quiere publicar la página sola (por ejemplo, seguir usando Vercel para `p
 | `CORREO_REMITENTE` | El correo que verificaron en Brevo como remitente. | `avisos@grupo1.co` |
 | `APP_URL` | La dirección pública de la app, para el enlace de los recordatorios y de "cambiar contraseña". | `https://rotacion-inventario.onrender.com` |
 | `LANDING_URL` | Ya no se usa: la página principal es la misma dirección de la app. | |
-| `API_URL` | Solo si la web se publica aparte (Vercel): la dirección de la app en Render. | `https://rotacion-inventario.onrender.com` |
+| `API_URL` | Solo si la web se publica aparte (Vercel): la dirección de la app en Render. En Vercel, si no se pone, se usa `https://rotacion-inventario.onrender.com`. | `https://rotacion-inventario.onrender.com` |
 
 Una cuenta queda con rol de **equipo** si su correo está en `TEAM_EMAILS` al crearla o al iniciar sesión. Las cuentas del equipo no cuentan como usuarios de prueba.
 
@@ -91,7 +91,20 @@ El documento pide que las plantillas sean iguales al export real de cada probado
    - Si no, la app dice qué columna falta. Agreguen el nombre exacto de esa columna a la lista de sinónimos del campo en [`server/formatos.js`](server/formatos.js) (en minúscula, sin tildes).
 3. Si todos usan el mismo software, cambien `PLANTILLA_EXPORT` y `PLANTILLA_LISTA` en ese mismo archivo, para que la plantilla descargable quede idéntica a su export.
 4. Si un probador tiene un formato muy distinto, también puede elegir las columnas una vez desde la pantalla. La app lo recuerda para sus siguientes archivos.
-5. Antes de empezar, borren los datos de prueba (o usen una base de datos nueva), para que el resumen cuente solo a los 5 probadores.
+5. Antes de empezar, borren los datos de prueba, para que el resumen cuente solo a los 5 probadores. Con la `DATABASE_URL` de Neon en la terminal: `npm run borrar-datos -- --todos` muestra qué se borraría y `npm run borrar-datos -- --todos --confirmar` lo borra (las cuentas del equipo no se tocan).
+6. Al terminar, si un probador lo pide (sus archivos son datos de su empresa): `npm run borrar-datos -- --email correo@empresa.co --confirmar`.
+
+## Expoandes
+
+- `/expo` es la pantalla para el stand: el título, los cinco negocios de ejemplo y un código QR que lleva a la demo. Déjenla abierta en un computador o un televisor.
+- El QR (`inventory-forecasting-landing-page/public/qr-demo.svg`) apunta a `https://rotacion-inventario.onrender.com/demo`. Si la dirección cambia, se genera otro, por ejemplo con `npx qrcode -t svg -o qr-demo.svg <dirección>/demo`.
+- La demo tiene un recorrido de tres pasos (se puede ocultar). Abran la página un minuto antes: el plan gratis de Render tarda unos 50 segundos en despertar.
+
+## Seguridad y errores
+
+- Límite de intentos (`server/limites.js`): 8 intentos de entrar por correo cada 15 minutos, y límites para crear cuentas y pedir enlaces de contraseña.
+- Las respuestas grandes de la API van comprimidas, y el inventario calculado queda en memoria hasta que cambie el archivo o los ajustes.
+- Errores (`server/errores.js`): los del servidor y los de las pantallas quedan en la tabla `errores` y se ven al final de "Resultados de la prueba".
 
 ## Cómo se cumple el documento
 
