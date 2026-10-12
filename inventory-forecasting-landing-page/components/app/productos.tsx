@@ -37,9 +37,9 @@ function ordenar(lista: Producto[], orden: Orden) {
 }
 
 function ProductosCon({ inv }: { inv: Inventario }) {
-  const params = useSearchParams()
+  const params = useSearchParams()!
   const router = useRouter()
-  const ruta = usePathname()
+  const ruta = usePathname()!
   const [q, setQ] = useState('')
   const [filtro, setFiltro] = useState<Filtro>((params.get('filtro') as Filtro) || 'todos')
   const [proveedor, setProveedor] = useState('todos')

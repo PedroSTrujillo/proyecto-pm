@@ -7,7 +7,7 @@
 import { useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { FileSpreadsheet, Upload } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { api, textoErrores } from '@/lib/api'
+import { api, prepararArchivo, textoErrores } from '@/lib/api'
 import { plural } from '@/lib/formato'
 import { GENERICA, SISTEMAS, sistemaPorId } from '@/lib/sistemas'
 import type { Usuario } from '@/lib/tipos'
@@ -188,10 +188,13 @@ export function SubirArchivos({ base, usuario, alGuardarSistema, alTerminar, tex
 
   function subir(archivos: FileList | null) {
     if (!archivos || !archivos.length) return
-    const fd = new FormData()
-    for (const f of [...archivos].slice(0, 5)) fd.append('archivos', f)
+    const lista = [...archivos].slice(0, 5)
     if (input.current) input.current.value = ''
-    procesar(api<Resultado>('POST', base, undefined, { formulario: fd }))
+    procesar((async () => {
+      const fd = new FormData()
+      for (const f of await Promise.all(lista.map(prepararArchivo))) fd.append('archivos', f)
+      return api<Resultado>('POST', base, undefined, { formulario: fd })
+    })())
   }
 
   async function cambiarSistema(v: string) {

@@ -137,7 +137,7 @@ async function crearEnlaceRestablecer(usuarioId, base) {
 }
 
 function baseDe(req) {
-  return process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+  return process.env.APP_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : `${req.protocol}://${req.get('host')}`);
 }
 
 // --- Rutas -----------------------------------------------------------------------

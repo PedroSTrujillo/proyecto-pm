@@ -33,7 +33,7 @@ export function Marca({ href = '/' }: { href?: string }) {
 type Item = { href: string; texto: string; icono: ReactNode; exacto?: boolean }
 
 function Navegacion({ items, alElegir }: { items: Item[]; alElegir?: () => void }) {
-  const ruta = usePathname()
+  const ruta = usePathname()!
   return (
     <nav aria-label="Secciones" className="flex flex-col gap-1">
       {items.map((it) => {
@@ -81,7 +81,7 @@ export function Marco({ children }: { children: ReactNode }) {
   const demo = fuente.tipo === 'demo'
   const items = itemsDe(demo, rutas, usuario?.rol === 'equipo')
   const [abierto, setAbierto] = useState(false)
-  const ruta = usePathname()
+  const ruta = usePathname()!
 
   useEffect(() => setAbierto(false), [ruta])
 

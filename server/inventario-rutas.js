@@ -16,7 +16,7 @@
 const express = require('express');
 const db = require('./db');
 const { requiereUsuario, registrarEvento, ErrorUsuario } = require('./cuentas');
-const { procesarExport, leerPeriodo, leerMapeoManual, subida } = require('./pedidos');
+const { procesarExport, leerPeriodo, leerMapeoManual, subida, archivoSubido } = require('./pedidos');
 const { DIAS_PRUEBA } = require('./equipo');
 const { leerExport } = require('./lector');
 const { seriesSemanales } = require('./series');
@@ -177,7 +177,7 @@ async function guardarExport(usuarioId, archivos, { periodo = null, desde = 'dat
 rutas.post('/export', subida.array('archivos', 5), async (req, res) => {
   await exigirPuedeSubir(req);
   if (!req.files || !req.files.length) throw new ErrorUsuario('Elige el archivo de ventas y existencias.');
-  const archivos = req.files.map((f) => ({ nombre: Buffer.from(f.originalname, 'latin1').toString('utf8'), buffer: f.buffer }));
+  const archivos = req.files.map(archivoSubido);
   res.json(await guardarExport(req.usuario.id, archivos, { periodo: leerPeriodo(req.body) }));
 });
 

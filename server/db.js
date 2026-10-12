@@ -1,7 +1,7 @@
 'use strict';
 
 // Base de datos PostgreSQL.
-// - En producción: DATABASE_URL (por ejemplo, Neon, Supabase o Render Postgres).
+// - En producción: DATABASE_URL (Neon).
 // - En local, sin configurar nada: PGlite (PostgreSQL embebido) guardado en ./data/pglite.
 //   DATA_DIR=memory:// lo deja en memoria (lo usan las pruebas automáticas).
 

@@ -75,11 +75,15 @@ function crearApp({ web = null, dev = false } = {}) {
     res.setHeader('Content-Disposition', `attachment; filename="${nombre}"`);
     res.send(generar());
   };
-  app.get('/plantillas/export.xlsx', enviarXlsx(PLANTILLA_EXPORT.archivo, plantillaExport));
-  app.get('/plantillas/lista-pedido.xlsx', enviarXlsx(PLANTILLA_LISTA.archivo, plantillaLista));
-  app.get('/plantillas/inventario.xlsx', enviarXlsx(PLANTILLA_INVENTARIO.archivo, plantillaInventario));
+  // En Vercel todo llega por /api (next.config.mjs reescribe /plantillas y /salud): por eso
+  // también responden con /api adelante.
+  for (const base of ['/plantillas', '/api/plantillas']) {
+    app.get(`${base}/export.xlsx`, enviarXlsx(PLANTILLA_EXPORT.archivo, plantillaExport));
+    app.get(`${base}/lista-pedido.xlsx`, enviarXlsx(PLANTILLA_LISTA.archivo, plantillaLista));
+    app.get(`${base}/inventario.xlsx`, enviarXlsx(PLANTILLA_INVENTARIO.archivo, plantillaInventario));
+  }
 
-  app.get('/salud', (_req, res) => res.json({ ok: true }));
+  app.get(['/salud', '/api/salud'], (_req, res) => res.json({ ok: true }));
   app.use('/api', (_req, _res, next) => next(new cuentas.ErrorUsuario('No encontramos eso.', 404)));
 
   if (web) app.use((req, res) => web(req, res));

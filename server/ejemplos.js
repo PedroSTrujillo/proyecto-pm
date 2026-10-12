@@ -14,7 +14,10 @@ const { guardarExport } = require('./inventario-rutas');
 const { archivoDemo, sectores } = require('./demo');
 const { leerAjustes } = require('./inventario');
 
-const DIR = path.join(__dirname, '..', 'ejemplos');
+// En Vercel la API va empaquetada dentro de la web y __dirname ya no es server/: se busca la
+// carpeta también desde donde corre el proceso (next.config.mjs la incluye en la función).
+const DIR = [path.join(__dirname, '..', 'ejemplos'), path.join(process.cwd(), '..', 'ejemplos'), path.join(process.cwd(), 'ejemplos')]
+  .find((d) => fs.existsSync(path.join(d, 'sap-ventas-y-stock.xlsx'))) || path.join(__dirname, '..', 'ejemplos');
 
 // Lo que hay en ejemplos/ (npm run ejemplos los regenera). tipo 'lista' es para el paso 1 de un pedido.
 const ARCHIVOS = [

@@ -27,6 +27,18 @@
 
 ---
 
+## 2026-10-12 (14) — Claude — todo en Vercel + Neon, sin Render
+- **Rama:** `main` y `mejoras-modelo` iguales, en GitHub.
+- **Estado:**
+  - Render no compilaba la página (el build de Next llega a ~2 GB y el plan gratis tiene 512 MB) y el proyecto de Vercel del grupo no despliega commits de otros. Se pasó todo a **Vercel + Neon**: la API de Express corre como la función `pages/api/[[...ruta]].js` dentro del proyecto de Next. En local nada cambia (`npm run dev` con `server/index.js`).
+  - `next.config.mjs`: `serverExternalPackages` (express, multer, pg, xlsx, pglite), raíz del repo para el rastreo de archivos, `ejemplos/` incluido en la función, `/plantillas` y `/salud` reescritos a `/api/…`. `vercel.json` instala también las dependencias de la raíz. La función pesa ~50 MB.
+  - Archivos de más de 1 MB: el navegador los comprime con gzip (`prepararArchivo`, `lib/api.ts`) y la API los descomprime (`archivoSubido`, `server/pedidos.js`), por el límite de 4,5 MB de Vercel. Los `.xls` reales de 4 a 6 MB bajan a menos de 1 MB. Un 413 da un mensaje claro.
+  - Enlaces de correo y de calendario: sin `APP_URL`, usan la dirección de producción de Vercel (`VERCEL_PROJECT_PRODUCTION_URL`).
+  - Se borró `render.yaml`; `docs/PUBLICAR.md` reescrito para Vercel + Neon.
+- **Verificación:** `npm test` → 82/82 (nueva: archivo `.gz` se guarda como el original, `.gz` roto da 400, `/api/salud` y `/api/plantillas`); tipos sin errores; en una copia limpia del repo, `next build` + `next start` solos (como en Vercel) con crear cuenta, pedido, archivo comprimido, reporte, ejemplos del equipo (incluido el de 3.000 productos) y resultados. En local con `server/index.js`, todo igual.
+- **Siguiente paso exacto:** David hace fork del repo y crea el proyecto en Vercel siguiendo `docs/PUBLICAR.md` (Root Directory `inventory-forecasting-landing-page`, Neon desde *Storage*, `TEAM_EMAILS`). Luego, probar en línea y `npm run borrar-datos -- --todos --confirmar` antes de los probadores.
+- **Notas y bloqueos:** el servicio de Render del grupo ya no se usa; el dueño lo puede suspender. El proyecto de Vercel del grupo (`proyecto-pm.vercel.app`) tampoco: queda el nuevo.
+
 ## 2026-10-12 (13) — Claude — sexto negocio de ejemplo y guía para publicar
 - **Rama:** `mejoras-modelo`. En GitHub está una versión anterior; falta `git push origin mejoras-modelo`.
 - **Estado:**

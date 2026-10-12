@@ -1,4 +1,4 @@
-// Llamadas a la API de Express (misma dirección: server/index.js sirve las dos cosas).
+// Llamadas a la API de Express, en la misma dirección que la página (en Vercel, pages/api).
 
 export class ErrorApi extends Error {
   estado: number
@@ -32,8 +32,23 @@ export async function api<T = unknown>(metodo: string, ruta: string, cuerpo?: un
   if (r.status === 401 && !ruta.startsWith('/cuenta/') && typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('sesion-cerrada'))
   }
+  if (r.status === 413) throw new ErrorApi('El archivo es muy pesado para subirlo (más de 4 MB, incluso comprimido). Si es un Excel .xlsx, guárdalo como .xls o .csv, o sube un periodo más corto.', 413, datos)
   if (!r.ok) throw new ErrorApi(datos.error || 'Algo salió mal. Intenta de nuevo.', r.status, datos)
   return datos as T
+}
+
+// Vercel no deja pasar peticiones de más de 4,5 MB. Los archivos de más de 1 MB se comprimen
+// con gzip antes de subirlos (un .xls o un .csv baja 5 a 10 veces); el servidor los descomprime
+// (server/pedidos.js, archivoSubido). Si el navegador no sabe comprimir, va tal cual.
+export async function prepararArchivo(archivo: File): Promise<File> {
+  if (archivo.size < 1_000_000 || typeof CompressionStream === 'undefined') return archivo
+  try {
+    const comprimido = await new Response(archivo.stream().pipeThrough(new CompressionStream('gzip'))).blob()
+    if (comprimido.size >= archivo.size) return archivo
+    return new File([comprimido], `${archivo.name}.gz`, { type: 'application/gzip' })
+  } catch {
+    return archivo
+  }
 }
 
 export function textoErrores(e: unknown): { mensaje: string; lista: string[] } {

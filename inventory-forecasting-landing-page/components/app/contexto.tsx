@@ -27,7 +27,7 @@ export function SesionProvider({ children, exigir = false }: { children: ReactNo
   const [usuario, setUsuario] = useState<Usuario | null>(null)
   const [cargando, setCargando] = useState(true)
   const router = useRouter()
-  const ruta = usePathname()
+  const ruta = usePathname()!
 
   useEffect(() => {
     let vivo = true

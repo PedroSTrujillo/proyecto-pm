@@ -199,7 +199,8 @@ async function responder({ usuario, pedidoId, activo, avisos, fechaReporte }) {
 }
 
 function urlApp() {
-  return (process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/+$/, '');
+  const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : '';
+  return (process.env.APP_URL || vercel || `http://localhost:${process.env.PORT || 3000}`).replace(/\/+$/, '');
 }
 
 module.exports = {

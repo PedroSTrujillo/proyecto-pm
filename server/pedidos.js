@@ -9,6 +9,7 @@
 
 const express = require('express');
 const multer = require('multer');
+const zlib = require('zlib');
 const db = require('./db');
 const { requiereUsuario, registrarEvento, ErrorUsuario } = require('./cuentas');
 const { leerExport, leerLista } = require('./lector');
@@ -23,6 +24,24 @@ const subida = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 40 * 1024 * 1024, files: 5 },
 });
+
+// Un archivo subido: nombre en UTF-8 y contenido. En Vercel una petición no puede pasar de 4,5 MB,
+// así que el navegador comprime con gzip los archivos grandes (lib/api.ts, prepararArchivo) y
+// les agrega ".gz" al nombre: aquí se descomprimen y se guardan como el original.
+const MAX_DESCOMPRIMIDO = 80 * 1024 * 1024;
+function archivoSubido(f) {
+  let nombre = Buffer.from(f.originalname, 'latin1').toString('utf8');
+  let buffer = f.buffer;
+  if (/\.gz$/i.test(nombre)) {
+    try {
+      buffer = zlib.gunzipSync(buffer, { maxOutputLength: MAX_DESCOMPRIMIDO });
+    } catch {
+      throw new ErrorUsuario(`No pudimos abrir "${nombre}". Vuelve a subirlo.`);
+    }
+    nombre = nombre.replace(/\.gz$/i, '');
+  }
+  return { nombre, buffer };
+}
 
 const rutas = express.Router();
 rutas.use(requiereUsuario);
@@ -224,10 +243,10 @@ rutas.post('/:id/importar-lista', subida.single('archivo'), async (req, res) => 
     if (!archivo) throw new ErrorUsuario('No encontramos ese archivo. Vuelve a subirlo.', 404);
   } else {
     if (!req.file) throw new ErrorUsuario('Elige un archivo de Excel o CSV.');
-    const nombre = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+    const { nombre, buffer } = archivoSubido(req.file);
     archivo = await db.uno(
       "INSERT INTO archivos (usuario_id, pedido_id, tipo, nombre, tamano, contenido) VALUES ($1, $2, 'lista', $3, $4, $5) RETURNING id, nombre, contenido",
-      [req.usuario.id, p.id, nombre, req.file.size, req.file.buffer],
+      [req.usuario.id, p.id, nombre, buffer.length, buffer],
     );
     await registrarEvento(req.usuario.id, 'archivo_subido', { pedidoId: p.id, detalle: { tipo: 'lista', nombre } });
   }
@@ -314,11 +333,11 @@ rutas.post('/:id/export', subida.array('archivos', 5), async (req, res) => {
   const exp = await db.uno("INSERT INTO exports (usuario_id, pedido_id, estado, periodo) VALUES ($1, $2, 'procesando', $3::jsonb) RETURNING id", [req.usuario.id, p.id, periodo ? JSON.stringify(periodo) : null]);
   const nombres = [];
   for (const f of req.files) {
-    const nombre = Buffer.from(f.originalname, 'latin1').toString('utf8');
+    const { nombre, buffer } = archivoSubido(f);
     nombres.push(nombre);
     await db.query(
       "INSERT INTO archivos (usuario_id, pedido_id, export_id, tipo, nombre, tamano, contenido) VALUES ($1, $2, $3, 'export', $4, $5, $6)",
-      [req.usuario.id, p.id, exp.id, nombre, f.size, f.buffer],
+      [req.usuario.id, p.id, exp.id, nombre, buffer.length, buffer],
     );
   }
   await registrarEvento(req.usuario.id, 'archivo_subido', { pedidoId: p.id, detalle: { tipo: 'export', archivos: nombres } });
@@ -502,4 +521,4 @@ rutas.post('/:id/por-que', async (req, res) => {
   res.json({ pedido: await vistaPedido(actualizado) });
 });
 
-module.exports = { rutas, pasoDe, filasDelReporte, procesarExport, leerPeriodo, leerMapeoManual, subida };
+module.exports = { rutas, pasoDe, filasDelReporte, procesarExport, leerPeriodo, leerMapeoManual, subida, archivoSubido };

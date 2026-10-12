@@ -51,7 +51,7 @@ function useEnvio() {
 
 export function Entrar() {
   const router = useRouter()
-  const params = useSearchParams()
+  const params = useSearchParams()!
   const { enviando, error, enviar } = useEnvio()
   function alEnviar(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -87,7 +87,7 @@ export function Entrar() {
 
 export function CrearCuenta() {
   const router = useRouter()
-  const params = useSearchParams()
+  const params = useSearchParams()!
   const { enviando, error, enviar } = useEnvio()
   function alEnviar(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()

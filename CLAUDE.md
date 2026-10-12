@@ -21,7 +21,7 @@ Fuentes de contexto fuera del repo, en la carpeta padre (`../`):
 
 **Al empezar una sesión, lee la entrada de más arriba de `docs/HANDOFF.md`; al terminar, agrega una entrada nueva arriba con la plantilla de ese archivo** (estado, archivos, verificación y siguiente paso exacto).
 
-`README.md` documenta el despliegue (Render + Neon), las variables de entorno y la tabla "Cómo se cumple el documento", que relaciona cada requisito con el archivo donde se implementa. `docs/modelo-rotacion.md` es la fuente de verdad del modelo matemático y de la métrica.
+`README.md` y `docs/PUBLICAR.md` documentan el despliegue (Vercel + Neon), las variables de entorno y la tabla "Cómo se cumple el documento", que relaciona cada requisito con el archivo donde se implementa. `docs/modelo-rotacion.md` es la fuente de verdad del modelo matemático y de la métrica.
 
 ## Comandos
 
@@ -31,8 +31,8 @@ Requiere Node.js 20 o superior. Las pruebas fallan si no se ha corrido `npm inst
 npm install
 npm install --no-package-lock --prefix inventory-forecasting-landing-page   # la web (Next.js); pnpm se colgaba en Windows
 TEAM_EMAILS=tu-correo@ejemplo.com npm run dev    # http://localhost:3000: API + Next.js en modo desarrollo; PGlite en data/pglite/
-npm run build && NODE_ENV=production npm start  # como en Render
-npm test                                         # node --test test/*.test.js (81 pruebas; no necesitan la web)
+npm run build && NODE_ENV=production npm start  # en producción con un servidor propio (en Vercel: docs/PUBLICAR.md)
+npm test                                         # node --test test/*.test.js (82 pruebas; no necesitan la web)
 node --test test/rotacion.test.js                # un solo archivo
 node --test --test-name-pattern="M = 5" test/listas.test.js   # una prueba por nombre
 npm run ejemplos                                 # regenera los exports inventados de ejemplos/
@@ -46,7 +46,9 @@ No hay linter ni formateador. La API no se compila; la web sí (`npm run build`)
 
 **Backend** (`server/`, CommonJS con `'use strict'`): Express 5. Usa PostgreSQL con `pg` si existe `DATABASE_URL`; si no, usa PGlite embebido. `db.js` expone la misma interfaz para los dos (`query`, `uno`, `tx`). El esquema es una lista de `CREATE TABLE IF NOT EXISTS` que se corre al arrancar. **No hay migraciones**: para cambiar una columna existente hay que agregar un `ALTER TABLE … IF NOT EXISTS` a `ESQUEMA`, porque la base de Neon ya tiene las tablas creadas.
 
-**Un solo servidor** (`server/index.js`): Express atiende `/api`, `/plantillas` y `/salud`; todo lo demás lo atiende Next.js (`inventory-forecasting-landing-page/`, cargado con `require.resolve('next', { paths: [WEB] })`). Si Next no está instalado o, en producción, no está compilado, se sirve la versión anterior de `public/` (las pruebas automáticas usan esa: `crearApp()` sin `web`). La CSP estricta (`default-src 'self'`) se aplica a la API; las páginas de Next llevan una que permite sus scripts en línea.
+**En Vercel** la API corre dentro del proyecto de Next como la función `inventory-forecasting-landing-page/pages/api/[[...ruta]].js`, que importa `server/app.js`; `next.config.mjs` deja express, multer, pg y xlsx sin empaquetar (`serverExternalPackages`) y reescribe `/plantillas` y `/salud` a `/api/…`, y `vercel.json` instala también las dependencias de la raíz. El código de `server/` va empaquetado: no confíen en `__dirname` para leer archivos (ver `DIR` en `ejemplos.js`). Los archivos de más de 1 MB llegan comprimidos con gzip (`.gz`) por el límite de 4,5 MB de Vercel y `archivoSubido` (`pedidos.js`) los descomprime. Por la carpeta `pages/`, los hooks de navegación de Next devuelven tipos que admiten `null`: en `components/app/` se usan con `!`.
+
+**En local, un solo servidor** (`server/index.js`): Express atiende `/api`, `/plantillas` y `/salud`; todo lo demás lo atiende Next.js (`inventory-forecasting-landing-page/`, cargado con `require.resolve('next', { paths: [WEB] })`). Si Next no está instalado o, en producción, no está compilado, se sirve la versión anterior de `public/` (las pruebas automáticas usan esa: `crearApp()` sin `web`). La CSP estricta (`default-src 'self'`) se aplica a la API; las páginas de Next llevan una que permite sus scripts en línea.
 
 **Frontend** (`inventory-forecasting-landing-page/`, Next.js 16 + Tailwind 4): leer `AGENTS.md` de esa carpeta antes de tocar APIs de Next. Rutas en `app/`: la página (`page.tsx`), `demo/` (sin cuenta), `(cuenta)/` (entrar, crear cuenta, olvidé, restablecer) y `(app)/` (con sesión: panel, productos, pedidos, datos, cuenta, equipo). Las pantallas son componentes de cliente en `components/app/` que llaman a la API con `lib/api.ts`. `contexto.tsx` tiene la sesión y el inventario (de la cuenta o de un negocio de ejemplo: las mismas pantallas sirven para los dos). `hoja.tsx` es la hoja tipo Excel; `pedido-flujo.tsx`, los 5 pasos; `reporte.tsx`, el reporte de la prueba. `lib/tipos.ts` copia la forma de las respuestas de `server/inventario.js`: si cambias una, cambia la otra. La aplicación tiene sus propios colores y fuentes (Figtree y Plus Jakarta Sans) dentro de la clase `tema-app` de `app/globals.css`; la página principal (`app/page.tsx`, `components/landing/`) conserva los suyos y no se toca sin que el equipo lo pida. Movimiento: criterios de Emil Kowalski (`.claude/skills`), clases `presionable`, `aparecer`, `entrar-lado` en `globals.css`.
 
@@ -125,4 +127,4 @@ Están ordenados por cuánto ponen en riesgo la prueba o la Entrega 3.
 18. **El repo no tiene `.gitignore`**, aunque el README dice que sí. Hay que crearlo con `node_modules/`, `data/` y `.DS_Store` (este último ya está versionado) antes de que alguien suba `data/pglite/` con datos de prueba.
 19. **No hay recuperación de contraseña.** Si un probador olvida la suya, el equipo tiene que restablecerla a mano en la base de datos, y no hay script para hacerlo.
 20. **Datos comerciales de terceros.** Los exports de los probadores se guardan completos en la base. No hay acuerdo de uso de datos. *Atendido en parte (2026-10-11):* `npm run borrar-datos` borra los datos de un probador (o todos los de prueba) en cascada.
-21. En el plan gratuito de Render, el servidor se apaga tras 15 minutos sin uso y la primera visita tarda unos 50 segundos (ver README). Antes de la prueba hay que borrar los datos de prueba o usar una base nueva, para que el resumen cuente solo a los 5 probadores.
+21. *Atendido (2026-10-12):* todo corre en Vercel (sin Render ni la espera de 50 segundos al despertar). Vercel limita cada petición a 4,5 MB: los archivos grandes se comprimen en el navegador (ver `docs/PUBLICAR.md`). Antes de la prueba hay que borrar los datos de prueba o usar una base nueva, para que el resumen cuente solo a los 5 probadores.

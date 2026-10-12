@@ -9,7 +9,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, CalendarDays, Check, FileUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { api, textoErrores } from '@/lib/api'
+import { api, prepararArchivo, textoErrores } from '@/lib/api'
 import { claveCodigo, dia, fecha, fechaHora, numero, plural, semanas } from '@/lib/formato'
 import { useInventario, useSesion } from './contexto'
 import { useConfirmar } from './confirmar'
@@ -49,9 +49,9 @@ const PASOS = ['Lo que ibas a pedir', 'Ventas y existencias', 'El reporte', 'Tu 
 export function PedidoFlujo({ id }: { id: number }) {
   const [pedido, setPedido] = useState<Pedido | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const params = useSearchParams()
+  const params = useSearchParams()!
   const router = useRouter()
-  const ruta = usePathname()
+  const ruta = usePathname()!
 
   const cargar = useCallback(async () => {
     try {
@@ -220,11 +220,13 @@ function ImportarLista({ pedidoId, para, hoja, alImportar }: { pedidoId: number;
             onChange={(e) => {
               const f = e.target.files?.[0]
               if (!f) return
-              const fd = new FormData()
-              fd.append('para', para)
-              fd.append('archivo', f)
               if (input.current) input.current.value = ''
-              enviar(fd)
+              prepararArchivo(f).then((listo) => {
+                const fd = new FormData()
+                fd.append('para', para)
+                fd.append('archivo', listo)
+                enviar(fd)
+              })
             }}
           />
         </label>

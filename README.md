@@ -39,13 +39,13 @@ npm test
 npm run ejemplos
 ```
 
-`npm test` corre 81 pruebas automáticas: cálculo, pronóstico, comparación de listas, recordatorios, lector de archivos, demo y API. `npm run ejemplos` crea en `ejemplos/` exports inventados con formatos distintos (CSV estilo Siigo, Excel estilo SAP, informe con una columna por mes, un catálogo de 3.000 productos y un informe de mínimos), para hacer demos y pruebas.
+`npm test` corre 82 pruebas automáticas: cálculo, pronóstico, comparación de listas, recordatorios, lector de archivos, demo y API. `npm run ejemplos` crea en `ejemplos/` exports inventados con formatos distintos (CSV estilo Siigo, Excel estilo SAP, informe con una columna por mes, un catálogo de 3.000 productos y un informe de mínimos), para hacer demos y pruebas.
 
 ## Página y aplicación (Next.js)
 
 La carpeta `inventory-forecasting-landing-page/` tiene la página de presentación y la aplicación, en Next.js. Rutas: `/` (página), `/demo` y `/demo/<negocio>` (sin cuenta), `/entrar`, `/crear-cuenta`, `/olvide`, `/restablecer/<token>`, y con sesión `/panel`, `/productos`, `/pedidos`, `/pedidos/<id>` (los 5 pasos de la prueba), `/pedidos/sugerido`, `/datos`, `/cuenta`, y solo para el equipo `/equipo` y `/ejemplos`. Los enlaces viejos con `#/` (por ejemplo, un enlace para cambiar la contraseña ya enviado) se redirigen solos.
 
-Si se quiere publicar la página sola (por ejemplo, seguir usando Vercel para `proyecto-pm.vercel.app`), configuren allá `API_URL` con la dirección de la aplicación en Render: `next.config.mjs` le pasa `/api` y `/plantillas`, y para el navegador todo queda en la misma dirección. Ojo: Vercel corta las peticiones de más de 4,5 MB, así que los archivos grandes conviene subirlos desde la dirección de Render.
+En Vercel, la API de Express corre dentro del mismo proyecto como la función `pages/api/[[...ruta]].js` (ver `docs/PUBLICAR.md`). En local, `server/index.js` sirve la API y la página juntas.
 
 ## Variables de entorno
 
@@ -58,30 +58,19 @@ Si se quiere publicar la página sola (por ejemplo, seguir usando Vercel para `p
 | `DATA_DIR` | Carpeta de PGlite. `memory://` la deja en memoria. | `./data/pglite` |
 | `BREVO_API_KEY` | Opcional. Para que el recordatorio de calendario llegue también por correo, con [Brevo](https://www.brevo.com) (gratis hasta 300 correos al día). Sin ella, el recordatorio solo se descarga. | `xkeysib-…` |
 | `CORREO_REMITENTE` | El correo que verificaron en Brevo como remitente. | `avisos@grupo1.co` |
-| `APP_URL` | La dirección pública de la app, para el enlace de los recordatorios y de "cambiar contraseña". | `https://rotacion-inventario.onrender.com` |
-| `LANDING_URL` | Ya no se usa: la página principal es la misma dirección de la app. | |
-| `API_URL` | Solo si la web se publica aparte (Vercel): la dirección de la app en Render. En Vercel, si no se pone, se usa `https://rotacion-inventario.onrender.com`. | `https://rotacion-inventario.onrender.com` |
+| `APP_URL` | Opcional. La dirección pública, para los enlaces de los recordatorios y de "cambiar contraseña". En Vercel, sin ella, se usa la dirección de producción del proyecto. | `https://sinesc.vercel.app` |
 
 Una cuenta queda con rol de **equipo** si su correo está en `TEAM_EMAILS` al crearla o al iniciar sesión. Las cuentas del equipo no cuentan como usuarios de prueba.
 
-## Publicar en línea (gratis: Render + Neon)
+## Publicar en línea (gratis: Vercel + Neon)
 
-Para publicar una versión nueva (subir la rama, merge, Render, Neon y Vercel), sigan [`docs/PUBLICAR.md`](docs/PUBLICAR.md).
+Los pasos completos (primera vez, cada versión nueva, límites y cómo deshacer) están en [`docs/PUBLICAR.md`](docs/PUBLICAR.md). En corto: un proyecto de Vercel con *Root Directory* `inventory-forecasting-landing-page`, una base de Neon (`DATABASE_URL`) y `TEAM_EMAILS`. Las tablas se crean solas.
 
-1. **Base de datos.** En https://neon.tech crea un proyecto y copia la *connection string*: `postgresql://...?sslmode=require`. Las tablas se crean solas al arrancar.
-2. **Código.** Sube esta carpeta a un repositorio de GitHub. `node_modules/` y `data/` ya están en `.gitignore`.
-3. **Servidor.** En https://render.com elige *New → Blueprint* y selecciona el repositorio: `render.yaml` ya trae la configuración. Cuando lo pida, llena `DATABASE_URL` con la de Neon y `TEAM_EMAILS` con los correos del equipo.
-4. Render te da una URL `https://….onrender.com`. Esa es la que se comparte con los probadores.
-
-Notas:
-
-- El plan gratis de Render apaga el servidor tras 15 minutos sin uso, y la primera visita tarda unos 50 segundos en despertarlo. Antes de una sesión con un probador, abran la página un minuto antes. Para evitarlo del todo, usen el plan Starter de Render.
-- No usen PGlite en Render: el disco del plan gratis se borra en cada despliegue. Por eso se pide `DATABASE_URL`, y el servidor avisa al arrancar si falta.
-- Cualquier hosting de Node sirve igual (Railway, Fly.io, un VPS): `npm install && npm run build` y `npm start` con las variables de arriba. El build instala y compila la web; `render.yaml` ya lo hace.
+También sirve cualquier hosting de Node (Railway, Fly.io, un VPS): `npm install && npm run build` y `npm start` con las variables de arriba.
 
 ### Recordatorios
 
-El recordatorio (stickiness del Entregable) es un archivo de calendario que el usuario descarga desde el reporte: no hay tareas programadas ni cron. Si además quieren que llegue por correo, creen una cuenta gratis en Brevo, verifiquen un remitente (un clic en el correo que les llega), saquen una API key en *SMTP & API* y pónganlas en Render como `BREVO_API_KEY` y `CORREO_REMITENTE`, junto con `APP_URL`. Es opcional: sin eso todo funciona igual con la descarga.
+El recordatorio (stickiness del Entregable) es un archivo de calendario que el usuario descarga desde el reporte: no hay tareas programadas ni cron. Si además quieren que llegue por correo, creen una cuenta gratis en Brevo, verifiquen un remitente (un clic en el correo que les llega), saquen una API key en *SMTP & API* y pónganlas en Vercel como `BREVO_API_KEY` y `CORREO_REMITENTE`. Es opcional: sin eso todo funciona igual con la descarga.
 
 ## Antes de la prueba con los 5 probadores
 
@@ -98,7 +87,7 @@ El documento pide que las plantillas sean iguales al export real de cada probado
 
 ## Demo y ejemplos
 
-`/demo` muestra la aplicación con seis negocios inventados (ferretería, muebles, oficina, refrigeración, papelería y una distribuidora mayorista), sin crear cuenta. Abran la página un minuto antes de mostrarla: el plan gratis de Render tarda unos 50 segundos en despertar.
+`/demo` muestra la aplicación con seis negocios inventados (ferretería, muebles, oficina, refrigeración, papelería y una distribuidora mayorista), sin crear cuenta.
 
 Con una cuenta del equipo, la página **Ejemplos** del menú deja descargar o cargar en esa cuenta cualquiera de los seis negocios (como un Excel de ventas y existencias) o los archivos de `ejemplos/` (Siigo, SAP, ventas por mes, catálogo grande y una lista inicial para el paso 1). Los probadores no la ven.
 

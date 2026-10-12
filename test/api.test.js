@@ -511,3 +511,20 @@ test('ejemplos del equipo: un probador no los ve; el equipo carga un negocio y u
   assert.equal(descarga.status, 200);
   assert.equal((await fetch(`${base}/api/equipo/ejemplos/archivos/sap/..%2Fpackage.json`, { headers: { Cookie: eq.cookie() } })).status, 404);
 });
+
+test('archivos comprimidos (.gz, como los manda el navegador para Vercel) se guardan y se leen como el original', async () => {
+  const zlib = require('zlib');
+  const gz = await nuevoUsuario('Gael', 'gael.gz@prueba.co');
+  const { pedido } = await gz.post('/api/pedidos');
+  await gz.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: INICIAL, tipo: 'simulado' });
+  const r = await gz.subir(`/api/pedidos/${pedido.id}/export`, [['ventas y existencias.xlsx.gz', zlib.gzipSync(plantillaExport())]]);
+  assert.equal(r.ok, true, JSON.stringify(r.errores));
+  const guardado = await db.uno("SELECT nombre, tamano FROM archivos WHERE pedido_id = $1 AND tipo = 'export'", [pedido.id]);
+  assert.equal(guardado.nombre, 'ventas y existencias.xlsx');
+  assert.equal(guardado.tamano, plantillaExport().length);
+  const roto = await gz.subir(`/api/pedidos/${pedido.id}/export`, [['malo.csv.gz', Buffer.from('no es gzip')]]);
+  assert.equal(roto.estado, 400);
+  assert.equal((await gz.get('/api/salud')).ok, true, 'la API también responde /api/salud');
+  const plantilla = await fetch(`${base}/api/plantillas/export.xlsx`);
+  assert.equal(plantilla.status, 200);
+});
