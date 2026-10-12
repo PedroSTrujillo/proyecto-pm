@@ -90,7 +90,7 @@ export const SISTEMAS: Sistema[] = [
       'Expórtalo a Excel.',
     ],
     fuentes: [],
-    aviso: 'Helisa no tiene una guía pública: los nombres de los informes son los que usan sus usuarios.',
+    aviso: 'Los nombres de los informes pueden variar un poco según cómo esté configurado tu Helisa.',
   },
   {
     id: 'sap-b1',

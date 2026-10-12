@@ -27,6 +27,12 @@
 
 ---
 
+## 2026-10-12 (16) — Claude — última pasada como cliente
+- **Rama:** `main` en el fork (`mio`) y en el repo del grupo.
+- **Estado:** los pedidos se numeran por usuario ("Pedido 1", no el id de la base: `numero` en `vistaPedido`); la portada dice "archivo" en vez de "export"; la guía de Helisa y la genérica ya no suenan a advertencia; Vercel Analytics solo con `ANALITICA_VERCEL=1` (sin activarlo daba error en la consola); la vista previa de la portada se lee a 1024 px.
+- **Verificación:** `npm test` → 84/84; tipos sin errores; en línea, sin desbordes a 375, 1024 y 1280 px y sin errores en la consola.
+- **Siguiente paso exacto:** `npm run borrar-datos` no hace falta (la base solo tiene la cuenta del equipo). Empezar con los probadores.
+
 ## 2026-10-12 (15) — Claude — Excel y PDF con la marca, gráfica legible y paquetes en el sugerido
 - **Rama:** `main` en tu fork (`mio`, despliega `sinesc.vercel.app`) y en el repo del grupo.
 - **Estado:**

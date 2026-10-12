@@ -81,6 +81,8 @@ async function exportDe(p) {
 
 async function vistaPedido(p) {
   const paso = pasoDe(p);
+  // Número del pedido para el usuario (1, 2, 3…): el id es de toda la base y no le dice nada.
+  const { n: numero } = await db.uno('SELECT count(*)::int AS n FROM pedidos WHERE usuario_id = $1 AND id <= $2', [p.usuario_id, p.id]);
   let listaFinal = p.lista_final;
   if (!listaFinal && p.reporte_visto_en) listaFinal = p.lista_inicial; // arranca como copia de la inicial
   const archivosSubidos = await db.query(
@@ -92,6 +94,7 @@ async function vistaPedido(p) {
     proveedor: p.proveedor,
     tipo: p.tipo,
     creadoEn: p.creado_en,
+    numero,
     paso,
     terminado: paso === 6,
     listaInicial: p.lista_inicial,

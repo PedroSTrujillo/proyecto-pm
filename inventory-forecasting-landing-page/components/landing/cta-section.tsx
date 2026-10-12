@@ -11,7 +11,7 @@ export function CtaSection() {
           <div>
             <p className="font-mono text-xs font-medium uppercase tracking-widest text-highlight">Versión de prueba</p>
             <h2 id="empezar-title" className="mt-3 text-balance text-3xl font-bold tracking-tight md:text-5xl">
-              Trae tu export. En cinco minutos ves qué se te está acabando.
+              Trae tu archivo de ventas. En cinco minutos ves qué se te está acabando.
             </h2>
             <p className="mt-5 max-w-xl text-pretty text-lg leading-relaxed text-background/75">
               Crea tu cuenta, anota tu próximo pedido y sube el archivo. Si algo no se lee bien, te decimos qué falta y

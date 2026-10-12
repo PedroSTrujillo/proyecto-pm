@@ -43,7 +43,7 @@ export function PricingSection() {
               <span className="text-sm text-primary-foreground/75">mientras dure la prueba</span>
             </p>
             <p className="mt-3 leading-relaxed text-primary-foreground/85">
-              Para los pedidos que quieras preparar mientras dure la prueba.
+              Sin límite de pedidos ni de productos.
             </p>
             <ul className="mt-6 flex flex-1 flex-col gap-3 text-sm">
               {incluye.map((item) => (

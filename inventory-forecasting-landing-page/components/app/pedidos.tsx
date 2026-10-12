@@ -40,6 +40,8 @@ export function Pedidos() {
 
   if (error) return <ErrorLista mensaje={error.mensaje} lista={error.lista} />
   if (!pedidos) return <Cargando texto="Cargando tus pedidos…" />
+  // Número para el usuario: el orden en que los empezó (el id es de toda la base).
+  const numeros = new Map([...pedidos].sort((a, b) => a.id - b.id).map((p, i) => [p.id, i + 1]))
 
   return (
     <>
@@ -57,7 +59,7 @@ export function Pedidos() {
               <Sparkles className="mt-1 size-5 shrink-0 text-secondary-foreground" />
               <div>
                 <h2 className="text-lg font-bold text-secondary-foreground">Pedido sugerido</h2>
-                <p className="text-[0.95rem] text-[#0b3f3b]">Si prefieres partir de una propuesta: cuánto pedir de cada producto, por proveedor, para cubrir lo que tarda en llegar. Lo bajas en Excel, lo copias para WhatsApp o lo imprimes para que gerencia lo apruebe.</p>
+                <p className="text-[0.95rem] text-[#0b3f3b]">Si prefieres partir de una propuesta: cuánto pedir de cada producto, por proveedor, para cubrir lo que tarda en llegar. Lo bajas en Excel, lo copias para WhatsApp o lo descargas en PDF para que gerencia lo apruebe.</p>
               </div>
             </div>
             <BotonEnlace href="/pedidos/sugerido" variante="primario">Abrir el pedido sugerido <ArrowRight /></BotonEnlace>
@@ -86,7 +88,7 @@ export function Pedidos() {
               <tbody>
                 {pedidos.map((p) => (
                   <tr key={p.id} className="border-t border-border">
-                    <td className="px-4 py-3 font-semibold">#{p.id}{p.proveedor ? ` · ${p.proveedor}` : ''}</td>
+                    <td className="px-4 py-3 font-semibold">Pedido {numeros.get(p.id)}{p.proveedor ? ` · ${p.proveedor}` : ''}</td>
                     <td className="px-4 py-3">{fecha(p.creadoEn)}</td>
                     <td className="px-4 py-3">{p.tipo === 'real' ? 'Real' : p.tipo === 'simulado' ? 'Simulado' : '—'}</td>
                     <td className="px-4 py-3">

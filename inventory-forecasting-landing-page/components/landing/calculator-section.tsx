@@ -13,7 +13,7 @@ export function CalculatorSection() {
             description="Piensa en un producto que conozcas bien: cuánto vendiste en un periodo y cuánto tienes hoy. Es la cuenta básica del reporte. Allá se hace con todos tus productos a la vez y con los ajustes."
           />
           <p className="mt-6 text-sm leading-relaxed text-muted-foreground">
-            En la aplicación no tienes que escribir nada de esto: los números salen de tu export.
+            En la aplicación no tienes que escribir nada de esto: los números salen de tu archivo.
           </p>
         </div>
         <WeeksCalculator />

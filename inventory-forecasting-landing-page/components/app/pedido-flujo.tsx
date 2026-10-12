@@ -25,6 +25,7 @@ type Pedido = {
   proveedor: string
   tipo: 'real' | 'simulado' | null
   creadoEn: string
+  numero: number
   paso: number
   terminado: boolean
   listaInicial: LineaGuardada[]
@@ -79,7 +80,7 @@ export function PedidoFlujo({ id }: { id: number }) {
     <>
       <VolverAPedidos />
       <header className="flex flex-wrap items-center gap-3">
-        <h1 className="text-[1.9rem] font-extrabold">Pedido #{pedido.id}{pedido.proveedor ? ` · ${pedido.proveedor}` : ''}</h1>
+        <h1 className="text-[1.9rem] font-extrabold">Pedido {pedido.numero}{pedido.proveedor ? ` · ${pedido.proveedor}` : ''}</h1>
         {pedido.tipo && <span className={cn('rounded-full px-2.5 py-0.5 text-xs font-bold', pedido.tipo === 'real' ? 'bg-verde-fondo text-verde' : 'bg-muted text-foreground/70')}>{pedido.tipo === 'real' ? 'Pedido real' : 'Pedido simulado'}</span>}
         {pedido.terminado && <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-bold text-secondary-foreground">Terminado</span>}
       </header>

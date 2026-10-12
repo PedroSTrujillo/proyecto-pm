@@ -10,7 +10,7 @@ const steps = [
   },
   {
     icon: FileSpreadsheet,
-    title: 'Sube el export de ventas y existencias',
+    title: 'Sube tus ventas y existencias',
     body: 'El último año de ventas y lo que tienes hoy, tal como sale de Siigo, Alegra, World Office, Helisa u otro programa. Si llevas el inventario en Excel, usas nuestra plantilla.',
   },
   {
@@ -64,7 +64,7 @@ export function HowItWorks() {
             <div>
               <h3 className="font-semibold">¿Cuánto toma?</h3>
               <p className="mt-2 leading-relaxed">
-                Unos cinco minutos si tienes el export a mano. Si te toca parar, el borrador se guarda solo y sigues
+                Unos cinco minutos si tienes el archivo a mano. Si te toca parar, el borrador se guarda solo y sigues
                 después.
               </p>
             </div>

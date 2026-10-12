@@ -68,7 +68,7 @@ export function GuiaSistema({ id }: { id: string | null }) {
   const generica = !s.ventas && !s.existencias
   return (
     <div className="flex flex-col gap-3">
-      {generica && s.id !== 'otro' && <p className="text-sm text-muted-foreground">No tenemos los menús exactos de {s.nombre}. Esto sirve en casi todos los programas.</p>}
+      {generica && s.id !== 'otro' && <p className="text-sm text-muted-foreground">Estos pasos sirven en casi todos los programas; en {s.nombre} los nombres de los menús pueden cambiar un poco.</p>}
       {s.aviso && <p className="text-sm text-muted-foreground">{s.aviso}</p>}
       <div className="grid gap-3 sm:grid-cols-2">
         <PasosGuia titulo="1. Ventas del último año" pasos={s.ventas || GENERICA.ventas} nota={s.ventasNota} />
