@@ -5,11 +5,12 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { ArrowRight, Sparkles } from 'lucide-react'
+import { ArrowRight, Sparkles, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { api, textoErrores } from '@/lib/api'
 import { fecha, numero } from '@/lib/formato'
 import { useInventario } from './contexto'
+import { useConfirmar } from './confirmar'
 import { Boton, BotonEnlace, Cargando, ErrorLista, Tarjeta, Titulo } from './ui'
 
 type Resumen = { id: number; proveedor: string; tipo: 'real' | 'simulado' | null; creadoEn: string; paso: number; lineasInicial: number; conteo: { total: number } | null; terminadoEn: string | null }
@@ -22,6 +23,7 @@ export function Pedidos() {
   const [creando, setCreando] = useState(false)
   const router = useRouter()
   const { respuesta, inventario } = useInventario()
+  const { ventana, preguntar } = useConfirmar()
 
   useEffect(() => {
     api<{ pedidos: Resumen[] }>('GET', '/pedidos').then((r) => setPedidos(r.pedidos)).catch((e) => setError(textoErrores(e)))
@@ -40,11 +42,23 @@ export function Pedidos() {
 
   if (error) return <ErrorLista mensaje={error.mensaje} lista={error.lista} />
   if (!pedidos) return <Cargando texto="Cargando tus pedidos…" />
+
+  async function borrar(id: number, n: number | undefined) {
+    const si = await preguntar(`¿Borrar el Pedido ${n}?`, 'Se borra lo que llevas de este pedido y no se puede deshacer. Los pedidos terminados no se borran.', 'Sí, borrar', true)
+    if (!si) return
+    try {
+      await api('DELETE', `/pedidos/${id}`)
+      setPedidos((x) => (x ? x.filter((p) => p.id !== id) : x))
+    } catch (e) {
+      setError(textoErrores(e))
+    }
+  }
   // Número para el usuario: el orden en que los empezó (el id es de toda la base).
   const numeros = new Map([...pedidos].sort((a, b) => a.id - b.id).map((p, i) => [p.id, i + 1]))
 
   return (
     <>
+      {ventana}
       <Titulo
         sub="Cada vez que le vayas a pedir a un proveedor: anotas lo que ibas a pedir, miras el reporte y decides tu lista final."
         acciones={<Boton variante="primario" onClick={nuevo} disabled={creando}>{creando ? 'Creando…' : 'Preparar un pedido nuevo'}</Boton>}
@@ -95,7 +109,14 @@ export function Pedidos() {
                       {p.paso === 6 ? <span className="rounded-full bg-verde-fondo px-2.5 py-0.5 text-xs font-bold text-verde">Terminado</span> : <span className="text-[0.93rem]">Paso {p.paso} de 5: {NOMBRES_PASOS[p.paso - 1]}</span>}
                     </td>
                     <td className={cn('px-4 py-3 text-right tabular-nums', p.conteo && 'font-semibold')}>{p.conteo ? numero(p.conteo.total) : '—'}</td>
-                    <td className="px-4 py-3 text-right"><Link href={`/pedidos/${p.id}`} className="font-semibold text-primary hover:text-primary-hover">{p.paso === 6 ? 'Ver' : 'Continuar'}</Link></td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      <Link href={`/pedidos/${p.id}`} className="font-semibold text-primary hover:text-primary-hover">{p.paso === 6 ? 'Ver' : 'Continuar'}</Link>
+                      {p.paso < 6 && (
+                        <button type="button" onClick={() => borrar(p.id, numeros.get(p.id))} aria-label={`Borrar el Pedido ${numeros.get(p.id)}`} title="Borrar este pedido" className="presionable ml-2 inline-flex size-8 items-center justify-center rounded-lg align-middle text-muted-foreground hover:bg-rojo-fondo hover:text-rojo-texto">
+                          <Trash2 className="size-4" />
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

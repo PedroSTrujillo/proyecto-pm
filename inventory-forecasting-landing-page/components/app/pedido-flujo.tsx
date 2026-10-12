@@ -7,7 +7,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, CalendarDays, Check, FileUp } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CalendarDays, Check, FileUp, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { api, prepararArchivo, textoErrores } from '@/lib/api'
 import { claveCodigo, dia, fecha, fechaHora, numero, plural, semanas } from '@/lib/formato'
@@ -51,6 +51,7 @@ export function PedidoFlujo({ id }: { id: number }) {
   const [pedido, setPedido] = useState<Pedido | null>(null)
   const [error, setError] = useState<string | null>(null)
   const params = useSearchParams()!
+  const { ventana: ventanaBorrar, preguntar: preguntarBorrar } = useConfirmar()
   const router = useRouter()
   const ruta = usePathname()!
 
@@ -71,6 +72,17 @@ export function PedidoFlujo({ id }: { id: number }) {
   const alcanzable = Math.min(pedido.paso, 5)
   const pedidoPaso = Number(params.get('paso'))
   const paso = pedidoPaso >= 1 && pedidoPaso <= alcanzable ? pedidoPaso : alcanzable
+  async function borrar() {
+    const si = await preguntarBorrar(`¿Borrar el Pedido ${pedido!.numero}?`, 'Se borra lo que llevas de este pedido y no se puede deshacer.', 'Sí, borrar', true)
+    if (!si) return
+    try {
+      await api('DELETE', `/pedidos/${id}`)
+      router.push('/pedidos')
+    } catch (e) {
+      setError(textoErrores(e).mensaje)
+    }
+  }
+
   const ir = async (n: number) => {
     await cargar()
     router.push(`${ruta}?paso=${n}`, { scroll: true })
@@ -83,7 +95,13 @@ export function PedidoFlujo({ id }: { id: number }) {
         <h1 className="text-[1.9rem] font-extrabold">Pedido {pedido.numero}{pedido.proveedor ? ` · ${pedido.proveedor}` : ''}</h1>
         {pedido.tipo && <span className={cn('rounded-full px-2.5 py-0.5 text-xs font-bold', pedido.tipo === 'real' ? 'bg-verde-fondo text-verde' : 'bg-muted text-foreground/70')}>{pedido.tipo === 'real' ? 'Pedido real' : 'Pedido simulado'}</span>}
         {pedido.terminado && <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-bold text-secondary-foreground">Terminado</span>}
+        {!pedido.terminado && (
+          <Boton tamano="chico" variante="fantasma" className="ml-auto text-muted-foreground hover:text-rojo-texto" onClick={borrar}>
+            <Trash2 /> Borrar pedido
+          </Boton>
+        )}
       </header>
+      {ventanaBorrar}
 
       <nav aria-label="Pasos del pedido" className="-mx-1 overflow-x-auto px-1">
         <ol className="flex min-w-max gap-1.5 rounded-full border border-border bg-card p-1.5">

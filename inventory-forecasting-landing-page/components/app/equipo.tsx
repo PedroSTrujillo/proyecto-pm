@@ -168,7 +168,7 @@ function Probador({ u }: { u: any }) {
                 <tr key={p.id} className="border-t border-border align-top">
                   <td className="px-3 py-2">
                     #{p.id}{p.proveedor ? ` · ${p.proveedor}` : ''}
-                    {p.paso < 6 && <span className="block text-xs text-muted-foreground">Va en el paso {p.paso} de 5</span>}
+                    {p.borrado ? <span className="block text-xs font-semibold text-rojo-texto">Lo borró sin terminar</span> : p.paso < 6 && <span className="block text-xs text-muted-foreground">Va en el paso {p.paso} de 5</span>}
                     {p.finalGuardadaEn && p.dentroDePrueba === false && <span className="block text-xs text-muted-foreground">Fuera de sus 14 días</span>}
                     {u.evaluacion.mejor?.id === p.id && <span className="block text-xs font-semibold text-verde">Es el que cuenta</span>}
                   </td>

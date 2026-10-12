@@ -5,14 +5,15 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Boton } from './ui'
 
-type Pregunta = { titulo: string; cuerpo: ReactNode; si: string; resolver: (v: boolean) => void }
+type Pregunta = { titulo: string; cuerpo: ReactNode; si: string; peligro: boolean; resolver: (v: boolean) => void }
 
 export function useConfirmar() {
   const [p, setP] = useState<Pregunta | null>(null)
   const boton = useRef<HTMLButtonElement>(null)
 
   const preguntar = useCallback(
-    (titulo: string, cuerpo: ReactNode, si = 'Sí, guardar') => new Promise<boolean>((resolver) => setP({ titulo, cuerpo, si, resolver })),
+    // peligro: el botón de confirmar va en rojo (por ejemplo, para borrar).
+    (titulo: string, cuerpo: ReactNode, si = 'Sí, guardar', peligro = false) => new Promise<boolean>((resolver) => setP({ titulo, cuerpo, si, peligro, resolver })),
     [],
   )
 
@@ -38,8 +39,8 @@ export function useConfirmar() {
         <h2 id="confirmar-titulo" className="text-xl font-bold">{p.titulo}</h2>
         <div className="text-[0.97rem] text-foreground/85">{p.cuerpo}</div>
         <div className="flex flex-wrap justify-end gap-2.5">
-          <Boton onClick={() => cerrar(false)}>Revisar otra vez</Boton>
-          <Boton ref={boton} variante="primario" onClick={() => cerrar(true)}>{p.si}</Boton>
+          <Boton onClick={() => cerrar(false)}>{p.peligro ? 'No, dejarlo' : 'Revisar otra vez'}</Boton>
+          <Boton ref={boton} variante={p.peligro ? 'peligro' : 'primario'} onClick={() => cerrar(true)}>{p.si}</Boton>
         </div>
       </div>
     </div>

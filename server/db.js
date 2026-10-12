@@ -103,6 +103,9 @@ const ESQUEMA = [
   // Cómo leyó el equipo el "¿por qué cambió?": 'dato' (el dato le pareció correcto) o 'probar'
   // (cambió por probar la herramienta). Es el segundo criterio de pivote del plan de prueba.
   'ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS clasificacion TEXT',
+  // Pedido que el usuario borró sin terminarlo. No se elimina: su lista inicial sigue marcando
+  // el comienzo de la prueba y el equipo lo ve como borrado. Para el usuario ya no existe.
+  'ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS borrado_en TIMESTAMPTZ',
   // Errores del servidor y de las pantallas (server/errores.js), para la vista del equipo.
   `CREATE TABLE IF NOT EXISTS errores (
     id SERIAL PRIMARY KEY,

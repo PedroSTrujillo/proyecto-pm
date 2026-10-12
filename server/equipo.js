@@ -124,7 +124,7 @@ rutas.get('/resultados', async (_req, res) => {
   const usuarios = await db.query("SELECT id, nombre, email, sistema, creado_en FROM usuarios WHERE rol = 'usuario' ORDER BY creado_en");
   const pedidos = await db.query(
     `SELECT p.id, p.usuario_id, p.proveedor, p.tipo, p.creado_en, p.inicial_guardada_en, p.export_id,
-            p.reporte_visto_en, p.final_guardada_en, p.terminado_en, p.por_que, p.clasificacion,
+            p.reporte_visto_en, p.final_guardada_en, p.terminado_en, p.por_que, p.clasificacion, p.borrado_en,
             p.comparacion->'conteo' AS conteo, p.comparacion->'magnitud' AS magnitud,
             (p.comparacion->'coherencia') - 'detalle'::text AS coherencia, jsonb_array_length(p.lista_inicial) AS lineas_inicial,
             CASE WHEN p.lista_final IS NULL THEN NULL ELSE jsonb_array_length(p.lista_final) END AS lineas_final
@@ -180,6 +180,7 @@ rutas.get('/resultados', async (_req, res) => {
       coherencia: p.coherencia,
       porQue: p.por_que,
       clasificacion: p.clasificacion,
+      borrado: Boolean(p.borrado_en),
     }));
     const evaluacion = evaluarUsuario(suyos);
     const actividad = eventos.filter((e) => e.usuario_id === u.id).map((e) => ({ tipo: e.tipo, pedidoId: e.pedido_id, detalle: e.detalle, en: e.creado_en }));

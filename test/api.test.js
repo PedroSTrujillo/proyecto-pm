@@ -47,6 +47,7 @@ function cliente() {
     get: (ruta) => pedir('GET', ruta),
     post: (ruta, cuerpo) => pedir('POST', ruta, cuerpo ?? {}),
     put: (ruta, cuerpo) => pedir('PUT', ruta, cuerpo),
+    del: (ruta) => pedir('DELETE', ruta),
     subir: (ruta, archivos) => {
       const fd = new FormData();
       for (const [nombre, buf] of archivos) fd.append('archivos', new Blob([buf]), nombre);
@@ -547,4 +548,41 @@ test('pedido en PDF tamaño carta, para que gerencia lo apruebe', async () => {
   assert.match(buf.toString('latin1'), /\/MediaBox \[0 0 612 792\]/, 'tamaño carta');
   const vacio = await fetch(`${base}/api/exportar/pedido.pdf`, { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: pdf.cookie() }, body: JSON.stringify({ lineas: [] }) });
   assert.equal(vacio.status, 400);
+});
+
+test('borrar un pedido sin terminar: desaparece para el usuario, la prueba no cambia de fecha y uno terminado no se borra', async () => {
+  const bea = await nuevoUsuario('Bea', 'bea.borrar@prueba.co');
+  const { pedido: a } = await bea.post('/api/pedidos');
+  await bea.post(`/api/pedidos/${a.id}/lista-inicial`, { lineas: INICIAL, tipo: 'simulado' });
+  const antes = await bea.get('/api/inventario');
+  const { pedido: b } = await bea.post('/api/pedidos');
+  assert.equal((await bea.get(`/api/pedidos/${b.id}`)).pedido.numero, 2);
+
+  // El primero (con la lista inicial que empieza la prueba) se borra sin terminar.
+  assert.equal((await bea.del(`/api/pedidos/${a.id}`)).ok, true);
+  assert.equal((await bea.get(`/api/pedidos/${a.id}`)).estado, 404, 'para el usuario ya no existe');
+  const { pedidos } = await bea.get('/api/pedidos');
+  assert.deepEqual(pedidos.map((p) => p.id), [b.id]);
+  assert.equal((await bea.get(`/api/pedidos/${b.id}`)).pedido.numero, 1, 'se renumera');
+  const despues = await bea.get('/api/inventario');
+  assert.equal(despues.puedeSubir, true, 'sigue pudiendo subir su inventario');
+  assert.equal(String(despues.finPrueba), String(antes.finPrueba), 'los 14 días no se corren');
+
+  // Un pedido terminado no se borra.
+  await bea.post(`/api/pedidos/${b.id}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
+  await bea.subir(`/api/pedidos/${b.id}/export`, [['e.xlsx', await plantillaExport()]]);
+  await bea.get(`/api/pedidos/${b.id}/reporte`);
+  await bea.post(`/api/pedidos/${b.id}/lista-final`, { lineas: INICIAL });
+  await bea.post(`/api/pedidos/${b.id}/por-que`, { respuesta: 'No cambié nada.' });
+  assert.equal((await bea.del(`/api/pedidos/${b.id}`)).estado, 409);
+
+  // Nadie más lo puede borrar, y el equipo lo ve como borrado.
+  const otro = await nuevoUsuario('Otro Borrar', 'otro.borrar@prueba.co');
+  assert.equal((await otro.del(`/api/pedidos/${b.id}`)).estado, 404);
+  const eq = cliente();
+  const ya = await eq.post('/api/cuenta/entrar', { email: 'equipo@prueba.co', clave: 'clave-segura' });
+  if (ya.estado !== 200) await eq.post('/api/cuenta/crear', { nombre: 'Equipo', email: 'equipo@prueba.co', clave: 'clave-segura' });
+  const r = await eq.get('/api/equipo/resultados');
+  const suyo = r.usuarios.find((u) => u.email === 'bea.borrar@prueba.co');
+  assert.equal(suyo.pedidos.find((p) => p.id === a.id).borrado, true);
 });

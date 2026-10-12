@@ -61,7 +61,7 @@ async function pedidoDe(req, cliente = null) {
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) throw new ErrorUsuario('Ese pedido no existe.', 404);
   const q = cliente ? (s, p) => cliente.query(s, p).then((r) => r.rows) : db.query;
-  const [p] = await q('SELECT * FROM pedidos WHERE id = $1 AND usuario_id = $2', [id, req.usuario.id]);
+  const [p] = await q('SELECT * FROM pedidos WHERE id = $1 AND usuario_id = $2 AND borrado_en IS NULL', [id, req.usuario.id]);
   if (!p) throw new ErrorUsuario('Ese pedido no existe.', 404);
   return p;
 }
@@ -82,7 +82,7 @@ async function exportDe(p) {
 async function vistaPedido(p) {
   const paso = pasoDe(p);
   // Número del pedido para el usuario (1, 2, 3…): el id es de toda la base y no le dice nada.
-  const { n: numero } = await db.uno('SELECT count(*)::int AS n FROM pedidos WHERE usuario_id = $1 AND id <= $2', [p.usuario_id, p.id]);
+  const { n: numero } = await db.uno('SELECT count(*)::int AS n FROM pedidos WHERE usuario_id = $1 AND id <= $2 AND borrado_en IS NULL', [p.usuario_id, p.id]);
   let listaFinal = p.lista_final;
   if (!listaFinal && p.reporte_visto_en) listaFinal = p.lista_inicial; // arranca como copia de la inicial
   const archivosSubidos = await db.query(
@@ -167,7 +167,7 @@ rutas.get('/', async (req, res) => {
     `SELECT id, proveedor, tipo, creado_en, inicial_guardada_en, export_id, reporte_visto_en,
             final_guardada_en, terminado_en, comparacion->'conteo' AS conteo,
             jsonb_array_length(lista_inicial) AS lineas_inicial
-       FROM pedidos WHERE usuario_id = $1 ORDER BY creado_en DESC`,
+       FROM pedidos WHERE usuario_id = $1 AND borrado_en IS NULL ORDER BY creado_en DESC`,
     [req.usuario.id],
   );
   res.json({
@@ -182,6 +182,16 @@ rutas.get('/', async (req, res) => {
       terminadoEn: p.terminado_en,
     })),
   });
+});
+
+// Borrar un pedido sin terminar (por ejemplo, uno que se empezó para probar). Un pedido terminado
+// no se borra: es parte de los resultados de la prueba.
+rutas.delete('/:id', async (req, res) => {
+  const p = await pedidoDe(req);
+  if (p.terminado_en) throw new ErrorUsuario('Un pedido terminado no se puede borrar: es parte de tus resultados.', 409);
+  await db.query('UPDATE pedidos SET borrado_en = now() WHERE id = $1', [p.id]);
+  await registrarEvento(req.usuario.id, 'pedido_borrado', { pedidoId: p.id });
+  res.json({ ok: true });
 });
 
 rutas.post('/', async (req, res) => {

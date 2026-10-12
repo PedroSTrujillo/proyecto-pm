@@ -27,6 +27,12 @@
 
 ---
 
+## 2026-10-12 (18) — Claude — borrar pedidos sin terminar (pedido de Jose Manuel)
+- **Rama:** `main` en el fork (`mio`) y en el repo del grupo.
+- **Estado:** botón "Borrar" con confirmación en la lista de pedidos y dentro de cada pedido sin terminar. Los terminados no se borran (son resultados). Borrado suave: `pedidos.borrado_en` (ALTER IF NOT EXISTS); no corre los 14 días y el equipo lo ve marcado.
+- **Base de datos:** columna `pedidos.borrado_en`.
+- **Verificación:** `npm test` → 86/86 (nueva prueba de borrar); en el navegador, borrar desde la lista con confirmación.
+
 ## 2026-10-12 (17) — Claude — cargar datos con menos pasos, guía por programa y plantilla más clara
 - **Rama:** `main` en el fork (`mio`) y en el repo del grupo.
 - **Estado:**
