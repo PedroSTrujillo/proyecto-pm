@@ -377,3 +377,23 @@ test('exportar el pedido a Excel: una hoja por proveedor y un resumen', async ()
   const vacio = await fetch(`${base}/api/exportar/pedido.xlsx`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"lineas":[]}' });
   assert.equal(vacio.status, 400);
 });
+
+test('ajustes del inventario: guardar una parte no borra lo demás; Excel de mínimos y máximos', async () => {
+  const c = await nuevoUsuario('Cami', 'cami.ajustes@prueba.co');
+  await c.put('/api/inventario/ajustes', { entregas: { Lejano: 8 }, cadaCuanto: 3 });
+  const r = await c.put('/api/inventario/ajustes', { prefijos: [{ prefijo: 'tor-', proveedor: 'Lejano' }] });
+  assert.deepEqual(r.ajustes.entregas, { Lejano: 8 }, 'el tiempo de entrega sigue');
+  assert.equal(r.ajustes.cadaCuanto, 3);
+  assert.deepEqual(r.ajustes.prefijos, [{ prefijo: 'TOR-', proveedor: 'Lejano' }]);
+
+  const XLSX = require('xlsx');
+  const x = await fetch(`${base}/api/exportar/minimos.xlsx`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ productos: [{ codigo: 'A1', nombre: 'Uno', proveedor: 'P', existencias: 3, minimo: 5, maximo: 12, ventasSemana: 2.5 }] }),
+  });
+  assert.equal(x.status, 200);
+  const libro = XLSX.read(Buffer.from(await x.arrayBuffer()), { type: 'buffer' });
+  const filas = XLSX.utils.sheet_to_json(libro.Sheets[libro.SheetNames[0]], { header: 1 });
+  assert.deepEqual(filas[1], ['A1', 'Uno', 'P', 3, 5, 12, 2.5]);
+});

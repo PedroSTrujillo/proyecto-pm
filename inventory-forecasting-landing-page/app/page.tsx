@@ -3,6 +3,7 @@ import { Hero } from '@/components/landing/hero'
 import { ProblemSection } from '@/components/landing/problem-section'
 import { HowItWorks } from '@/components/landing/how-it-works'
 import { MethodSection } from '@/components/landing/method-section'
+import { PanelSection } from '@/components/landing/panel-section'
 import { CalculatorSection } from '@/components/landing/calculator-section'
 import { ComparisonSection } from '@/components/landing/comparison-section'
 import { AudienceSection } from '@/components/landing/audience-section'
@@ -21,6 +22,7 @@ export default function Page() {
         <Hero />
         <ProblemSection />
         <HowItWorks />
+        <PanelSection />
         <MethodSection />
         <CalculatorSection />
         <ComparisonSection />

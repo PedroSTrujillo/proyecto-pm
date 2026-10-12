@@ -16,7 +16,7 @@ const steps = [
   {
     icon: BarChart3,
     title: 'Mira la rotación',
-    body: 'Cada producto con sus semanas de inventario. Lo que se agota en menos de dos semanas sale en rojo; lo que sobra, en azul.',
+    body: 'Cada producto con sus semanas de inventario. Lo que se agota en menos de dos semanas sale en naranja; lo que sobra, en azul.',
   },
   {
     icon: SlidersHorizontal,

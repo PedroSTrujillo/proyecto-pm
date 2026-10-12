@@ -5,9 +5,9 @@
 
 import Link from 'next/link'
 import { useMemo, useState, type ReactNode } from 'react'
-import { ArrowRight, CalendarDays, Sparkles, Truck, Wallet } from 'lucide-react'
+import { ArrowRight, BellRing, CalendarDays, Sparkles, Truck, Wallet } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { duracion, fecha, mesAnio, numero, plata, porcentaje, semanas, sumarDias, ventasSemana } from '@/lib/formato'
+import { dia, duracion, fecha, mesAnio, numero, plata, plural, porcentaje, semanas, sumarDias, ventasSemana } from '@/lib/formato'
 import { nombrePrograma } from '@/lib/sistemas'
 import type { Inventario, Producto } from '@/lib/tipos'
 import { useInventario } from './contexto'
@@ -104,6 +104,15 @@ function PanelCon({ inv }: { inv: Inventario }) {
           ayuda="Unidades vendidas de todo el catálogo en las últimas 4 semanas comparadas con las 4 de antes. Las ventas de proyectos no cuentan."
         />
       </section>
+
+      <p className="-mt-2 flex flex-wrap gap-x-6 gap-y-1 text-[0.92rem] text-muted-foreground">
+        {r.cobertura !== null && <span>El producto típico te alcanza para <strong className="text-foreground tabular-nums">{semanas(r.cobertura)} semanas</strong></span>}
+        {r.tieneCostos && <span>Inventario a costo: <strong className="text-foreground tabular-nums">{plata(r.valorInventario)}</strong></span>}
+        {r.sinVentas > 0 && <span>{plural(r.sinVentas, 'producto sin ventas', 'productos sin ventas')} en el periodo</span>}
+        {!demo && r.sinProveedor > 0 && r.sinProveedor < r.productos && (
+          <Link href={rutas.datos} className="font-semibold text-primary hover:text-primary-hover">{plural(r.sinProveedor, 'producto', 'productos')} sin proveedor: dinos quién te los vende</Link>
+        )}
+      </p>
 
       <div className="flex flex-wrap items-start gap-5">
         <PrimeroEnAcabarse inv={inv} />
@@ -224,45 +233,81 @@ function Tarjetita({ icono, titulo, tono, children, accion }: { icono: ReactNode
 }
 
 function AtenderHoy({ inv }: { inv: Inventario }) {
-  const { rutas } = useInventario()
+  const { rutas, respuesta, fuente } = useInventario()
   const hoy = inv.fuente.fecha.slice(0, 10)
   const pide = inv.productos.filter((p) => p.estado === 'pide').sort((a, b) => b.entrega - (b.semanas ?? 0) - (a.entrega - (a.semanas ?? 0)))[0]
   const quieto = [...inv.productos].filter((p) => p.estado === 'sobra' || p.estado === 'sin_ventas').sort((a, b) => (b.quieto ?? b.unidadesQuietas) - (a.quieto ?? a.unidadesQuietas))[0]
   const proyecto = inv.productos.filter((p) => p.pico).sort((a, b) => (b.pico!.vendido - b.pico!.contado) - (a.pico!.vendido - a.pico!.contado))[0]
   const nuevo = inv.productos.find((p) => p.senales.includes('producto_nuevo'))
   const a = inv.resumen.acierto
+  const avisos = inv.resumen.avisos
+  const rec = respuesta?.recordatorio
+  const tarjetas: ReactNode[] = []
+
+  if (pide) {
+    tarjetas.push(
+      <Tarjetita key="pide" icono={<Truck />} titulo="Pide ya: tarda en llegar" tono="ambar" accion={<BotonEnlace href={rutas.pedido} variante="primario" tamano="chico" className="self-start">Preparar pedido</BotonEnlace>}>
+        <strong>{pide.nombre}</strong> te alcanza para {semanas(pide.semanas)} semanas y {pide.proveedor} tarda {duracion(pide.entrega)}. Si esperas, te quedas sin él hacia el {fecha(sumarDias(hoy, Math.round((pide.semanas ?? 0) * 7)))}.
+      </Tarjetita>,
+    )
+  }
+  if (quieto) {
+    tarjetas.push(
+      <Tarjetita key="quieto" icono={<Wallet />} titulo="Dinero quieto" tono="azul" accion={<Link href={`${rutas.productos}?filtro=sobra`} className="text-[0.92rem] font-semibold text-azul-texto underline-offset-2 hover:underline">Ver lo que sobra</Link>}>
+        {quieto.estado === 'sin_ventas' ? (
+          <><strong>{quieto.nombre}</strong> no se vendió en todo el periodo y tienes {numero(quieto.existencias)}{quieto.valor ? `: ${plata(quieto.valor)} parados` : ''}.</>
+        ) : (
+          <><strong>{quieto.nombre}</strong>: vendes {ventasSemana(quieto.ventasSemana)} por semana y tienes {numero(quieto.existencias)}, para {semanas(quieto.semanas)} semanas.{quieto.quieto ? ` Son ${plata(quieto.quieto)} de más.` : ''}</>
+        )}
+      </Tarjetita>,
+    )
+  }
+  // Recordatorio de calendario: si ya lo pidió, cuándo llega; si no, qué se le avisaría.
+  if (rec?.activo && rec.primerAviso && rec.pedidoId) {
+    tarjetas.push(
+      <Tarjetita key="rec" icono={<BellRing />} titulo="Tu recordatorio" tono="neutro" accion={<a href={`/api/pedidos/${rec.pedidoId}/recordatorio.ics`} download className="text-[0.92rem] font-semibold text-primary hover:text-primary-hover">Descargar otra vez para el calendario</a>}>
+        Tu calendario te avisa el <strong>{dia(rec.primerAviso)}</strong>, antes de que lo primero llegue a 2 semanas. Cuando te avise, sube tu archivo de nuevo para confirmar.
+      </Tarjetita>,
+    )
+  } else if (avisos && avisos.productos > 0 && avisos.primero) {
+    tarjetas.push(
+      <Tarjetita
+        key="rec"
+        icono={<BellRing />}
+        titulo="Lo que viene"
+        tono="neutro"
+        accion={fuente.tipo === 'cuenta' ? <Link href={rutas.pedido} className="text-[0.92rem] font-semibold text-primary hover:text-primary-hover">Pide el recordatorio al ver el reporte de tu pedido</Link> : undefined}
+      >
+        {plural(avisos.productos, 'producto que hoy está bien llega', 'productos que hoy están bien llegan')} a 2 semanas en los próximos 3 meses. El primero, <strong>{avisos.primero.nombre}</strong>, hacia el {dia(avisos.primero.fechaUmbral)}.
+        {fuente.tipo === 'demo' ? ' Con tu cuenta te lo dejamos en el calendario, 3 días antes.' : ''}
+      </Tarjetita>,
+    )
+  }
+  if (proyecto && proyecto.pico) {
+    tarjetas.push(
+      <Tarjetita key="proyecto" icono={<CalendarDays />} titulo="Venta para un proyecto" tono="neutro">
+        En {mesAnio(proyecto.pico.mes)} se vendieron {numero(proyecto.pico.vendido)} de <strong>{proyecto.nombre}</strong>, mucho más que lo normal. Contamos {numero(proyecto.pico.contado)} para no pedir de más.
+      </Tarjetita>,
+    )
+  }
+  if (a) {
+    tarjetas.push(
+      <Tarjetita key="acierto" icono={<Sparkles />} titulo="Qué tan bien acierta" tono="verde">
+        Escondimos las últimas {a.semanas} semanas de tu archivo y las pronosticamos con lo anterior: lo vendido cayó dentro del rango en {a.aciertos} de {a.productos} productos.
+      </Tarjetita>,
+    )
+  } else if (nuevo) {
+    tarjetas.push(
+      <Tarjetita key="nuevo" icono={<Sparkles />} titulo="Producto nuevo" tono="neutro">
+        <strong>{nuevo.nombre}</strong> empezó a venderse hace {numero(nuevo.explicacion.semanasProducto)} semanas: lo medimos desde su primera venta.
+      </Tarjetita>,
+    )
+  }
 
   return (
     <section aria-labelledby="t-hoy" className="flex min-w-0 flex-[1_1_320px] flex-col gap-3.5">
       <h2 id="t-hoy" className="text-xl font-bold">Atender hoy</h2>
-      {pide && (
-        <Tarjetita icono={<Truck />} titulo="Pide ya: tarda en llegar" tono="ambar" accion={<BotonEnlace href={rutas.pedido} variante="primario" tamano="chico" className="self-start">Preparar pedido</BotonEnlace>}>
-          <strong>{pide.nombre}</strong> te alcanza para {semanas(pide.semanas)} semanas y {pide.proveedor} tarda {duracion(pide.entrega)}. Si esperas, te quedas sin él hacia el {fecha(sumarDias(hoy, Math.round((pide.semanas ?? 0) * 7)))}.
-        </Tarjetita>
-      )}
-      {quieto && (
-        <Tarjetita icono={<Wallet />} titulo="Dinero quieto" tono="azul" accion={<Link href={`${rutas.productos}?filtro=sobra`} className="text-[0.92rem] font-semibold text-azul-texto underline-offset-2 hover:underline">Ver lo que sobra</Link>}>
-          {quieto.estado === 'sin_ventas' ? (
-            <><strong>{quieto.nombre}</strong> no se vendió en todo el periodo y tienes {numero(quieto.existencias)}{quieto.valor ? `: ${plata(quieto.valor)} parados` : ''}.</>
-          ) : (
-            <><strong>{quieto.nombre}</strong>: vendes {ventasSemana(quieto.ventasSemana)} por semana y tienes {numero(quieto.existencias)}, para {semanas(quieto.semanas)} semanas.{quieto.quieto ? ` Son ${plata(quieto.quieto)} de más.` : ''}</>
-          )}
-        </Tarjetita>
-      )}
-      {proyecto && proyecto.pico && (
-        <Tarjetita icono={<CalendarDays />} titulo="Venta para un proyecto" tono="neutro">
-          En {mesAnio(proyecto.pico.mes)} se vendieron {numero(proyecto.pico.vendido)} de <strong>{proyecto.nombre}</strong>, mucho más que lo normal. Contamos {numero(proyecto.pico.contado)} para no pedir de más.
-        </Tarjetita>
-      )}
-      {a ? (
-        <Tarjetita icono={<Sparkles />} titulo="Qué tan bien acierta" tono="verde">
-          Escondimos las últimas {a.semanas} semanas de tu archivo y las pronosticamos con lo anterior: lo vendido cayó dentro del rango en {a.aciertos} de {a.productos} productos.
-        </Tarjetita>
-      ) : nuevo ? (
-        <Tarjetita icono={<Sparkles />} titulo="Producto nuevo" tono="neutro">
-          <strong>{nuevo.nombre}</strong> empezó a venderse hace {numero(nuevo.explicacion.semanasProducto)} semanas: lo medimos desde su primera venta.
-        </Tarjetita>
-      ) : null}
+      {tarjetas.length ? tarjetas.slice(0, 4) : <p className="text-muted-foreground">Nada urgente. Tu inventario está en orden.</p>}
     </section>
   )
 }

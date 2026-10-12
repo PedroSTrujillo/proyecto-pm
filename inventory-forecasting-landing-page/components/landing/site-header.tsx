@@ -6,6 +6,7 @@ import { Logo } from './logo'
 
 const navLinks = [
   { href: '#como-funciona', label: 'Cómo funciona' },
+  { href: '#panel', label: 'El panel' },
   { href: '#calculo', label: 'El cálculo' },
   { href: '#calculadora', label: 'Pruébalo' },
   { href: '#precio', label: 'Precio' },

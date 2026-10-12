@@ -19,6 +19,8 @@ const ENTREGA_POR_DEFECTO = 1; // semanas, si el usuario no ha dicho cuánto tar
 const CADA_CUANTO_POR_DEFECTO = 4; // semanas entre un pedido y el siguiente
 const NIVEL_SERVICIO = 0.9; // la cantidad sugerida alcanza en 9 de cada 10 casos
 const SIN_PROVEEDOR = 'Sin proveedor';
+const MAX_ASIGNACIONES = 20000;
+const MAX_PREFIJOS = 200;
 
 function redondear(n, dec = 2) {
   const f = 10 ** dec;
@@ -38,11 +40,36 @@ function leerAjustes(a) {
     const n = num(v, null, 0, 52);
     if (n !== null) entregas[String(k).slice(0, 80)] = n;
   }
+  // Proveedor de cada producto cuando el archivo no lo trae: uno por uno (código → proveedor) o
+  // por el comienzo del código ("TOR-" → Tornillería Central).
+  const texto = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
+  const asignaciones = {};
+  for (const [k, v] of Object.entries(ajustes.asignaciones || {}).slice(0, MAX_ASIGNACIONES)) {
+    const p = texto(v, 80);
+    if (p) asignaciones[claveCodigo(k)] = p;
+  }
+  const prefijos = (Array.isArray(ajustes.prefijos) ? ajustes.prefijos : [])
+    .slice(0, MAX_PREFIJOS)
+    .map((x) => ({ prefijo: claveCodigo(texto(x && x.prefijo, 30)), proveedor: texto(x && x.proveedor, 80) }))
+    .filter((x) => x.prefijo && x.proveedor);
   return {
     entregaPorDefecto: num(ajustes.entregaPorDefecto, ENTREGA_POR_DEFECTO, 0, 52),
     cadaCuanto: num(ajustes.cadaCuanto, CADA_CUANTO_POR_DEFECTO, 1, 26),
     entregas,
+    asignaciones,
+    prefijos,
   };
+}
+
+// Quién le vende cada producto: lo que el usuario asignó a mano manda; después, lo que traía el
+// archivo; después, el comienzo de código más largo que coincida.
+function proveedorDe(clave, datos, ajustes) {
+  if (ajustes.asignaciones[clave]) return { proveedor: ajustes.asignaciones[clave], origen: 'producto' };
+  if (datos.proveedor) return { proveedor: datos.proveedor, origen: 'archivo' };
+  let mejor = null;
+  for (const p of ajustes.prefijos) if (clave.startsWith(p.prefijo) && (!mejor || p.prefijo.length > mejor.prefijo.length)) mejor = p;
+  if (mejor) return { proveedor: mejor.proveedor, origen: 'prefijo' };
+  return { proveedor: SIN_PROVEEDOR, origen: null };
 }
 
 /**
@@ -82,6 +109,16 @@ function recortarPico(serie, hasta, pico) {
     if (quita > 0.25 * serie[i]) semanasPico.push(i);
   });
   return { recortada, semanasPico };
+}
+
+// Los productos que hoy están bien y llegan a 2 semanas en los próximos 3 meses (lo mismo que
+// ofrece el recordatorio de calendario, server/recordatorios.js).
+function proximosAvisos(filas, fecha) {
+  if (!fecha) return null;
+  const { planearAvisos, fechaBogota } = require('./recordatorios');
+  const dia = /^\d{4}-\d{2}-\d{2}$/.test(String(fecha)) ? String(fecha) : fechaBogota(fecha);
+  const avisos = planearAvisos(filas, dia);
+  return { productos: avisos.length, primero: avisos[0] || null };
 }
 
 function estadoDe(f, entrega) {
@@ -150,7 +187,7 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
   for (const f of filas) {
     const k = claveCodigo(f.codigo);
     const datos = cat[k] || {};
-    const proveedor = datos.proveedor || SIN_PROVEEDOR;
+    const { proveedor, origen: origenProveedor } = proveedorDe(k, datos, ajustes);
     const entrega = ajustes.entregas[proveedor] ?? ajustes.entregaPorDefecto;
     const costo = datos.costo > 0 ? datos.costo : null;
     const { recortada, semanasPico } = recortes.get(k);
@@ -159,6 +196,8 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
 
     let riesgo = null;
     let sugerido = null;
+    let minimo = null;
+    let maximo = null;
     let pronostico = null;
     if (f.promedioSemanal > 0) {
       const ventana = P.temporadaDeLaVentana(indice, hasta, semanasSerie, f.semanasProducto, f.semanasRecientes);
@@ -173,6 +212,10 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       riesgo = redondear(P.predictiva(ajuste, futuro(Math.max(entrega, SEMANAS_SE_AGOTA))).probMayorQue(existencias), 3);
       const necesidad = P.predictiva(ajuste, futuro(entrega + ajustes.cadaCuanto)).cuantil(NIVEL_SERVICIO);
       sugerido = Math.max(0, Math.ceil(necesidad - existencias));
+      // Mínimo y máximo, como los llevan muchos programas contables: cuando quedan "mínimo" o
+      // menos, se pide hasta llegar al máximo. El mínimo cubre la entrega en 9 de cada 10 casos.
+      minimo = Math.ceil(P.predictiva(ajuste, futuro(Math.max(entrega, 0.5))).cuantil(NIVEL_SERVICIO));
+      maximo = Math.max(minimo, Math.ceil(necesidad));
       pronostico = [];
       for (let s = 0; s < SEMANAS_PRONOSTICO; s++) {
         const t = P.temporadaDeSemana(indice, hasta, semanasSerie, semanasSerie + s);
@@ -197,6 +240,7 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       codigo: f.codigo,
       nombre: f.nombre,
       proveedor,
+      origenProveedor,
       entrega,
       costo,
       ventasSemana: f.promedioSemanal,
@@ -205,6 +249,8 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       estado,
       riesgo,
       sugerido: sugerencias ? sugerido : null,
+      minimo: sugerencias ? minimo : null,
+      maximo: sugerencias ? maximo : null,
       valor: costo !== null ? Math.round(existencias * costo) : null,
       quieto: costo !== null && f.sobra ? Math.round(sobrante * costo) : null,
       unidadesQuietas: f.sobra ? redondear(sobrante, 1) : 0,
@@ -286,6 +332,9 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       pideYa: cuenta((p) => p.estado === 'pide'),
       sobran: cuenta((p) => p.estado === 'sobra' || (p.estado === 'sin_ventas' && p.existencias > 0)),
       sinVentas: cuenta((p) => p.estado === 'sin_ventas'),
+      // Para cuántas semanas alcanza el producto típico (la mediana de los que se venden).
+      cobertura: P.mediana(productos.filter((p) => p.semanas !== null).map((p) => p.semanas)) || null,
+      sinProveedor: cuenta((p) => p.proveedor === SIN_PROVEEDOR),
       tieneCostos,
       valorInventario: tieneCostos ? suma(productos.map((p) => p.valor || 0)) : null,
       dineroQuieto: tieneCostos ? suma(productos.map((p) => p.quieto || 0)) : null,
@@ -294,6 +343,7 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       picosRecortados: reporte.resumen.picosRecortados || 0,
       productosNuevos: reporte.resumen.productosNuevos || 0,
       acierto: series ? P.medirAcierto(porProducto, hasta, semanasSerie, referencia) : null,
+      avisos: proximosAvisos(filas, fuente.fecha),
     },
     grafico,
     productos,
@@ -303,4 +353,4 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
   };
 }
 
-module.exports = { construirInventario, leerAjustes, recortarPico, SIN_PROVEEDOR, ENTREGA_POR_DEFECTO, CADA_CUANTO_POR_DEFECTO };
+module.exports = { construirInventario, leerAjustes, recortarPico, proveedorDe, SIN_PROVEEDOR, ENTREGA_POR_DEFECTO, CADA_CUANTO_POR_DEFECTO };

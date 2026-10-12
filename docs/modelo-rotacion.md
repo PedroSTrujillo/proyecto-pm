@@ -249,10 +249,11 @@ Con 18 meses o más de ventas, se suma todo el catálogo (sin picos de proyectos
 | Riesgo de agotarse | P(X > existencias) con h = máx(tiempo de entrega, 2 semanas): la probabilidad de quedarse sin él antes de reponerlo. |
 | "Pide ya" | No se agota en 2 semanas, pero Sᵢ < tiempo de entrega + 1. Si el usuario no ha dicho cuánto tarda su proveedor, se supone 1 semana y no hay "pide ya". |
 | Cantidad sugerida | máx(0, ⌈cuantil 90 % de X con h = entrega + cada cuánto pide⌉ − existencias). Alcanza para la entrega y hasta el siguiente pedido en 9 de cada 10 casos. "Cada cuánto pide" es 4 semanas si el usuario no lo cambia. |
+| Mínimo y máximo | Mínimo = ⌈cuantil 90 % de X con h = entrega⌉ (lo que se vende mientras llega un pedido); máximo = ⌈cuantil 90 % de X con h = entrega + cada cuánto pide⌉. Así, sugerido = máx(0, máximo − existencias). Se descargan en Excel para cargarlos en el programa contable, que casi siempre tiene esos dos campos. |
 | Dinero quieto | Lo que hay por encima de 12 semanas de venta (o todo, si no se vendió), a costo. Solo si el archivo trae el costo. |
 | Total del catálogo | La suma de las medias; el rango suma las varianzas, pero nunca es más angosto que lo que varió el total en el último semestre (las ventas de un catálogo no suben y bajan cada una por su lado). |
 
-Costo y proveedor se leen del archivo si vienen (columnas opcionales en `formatos.js`); el tiempo de entrega de cada proveedor y cada cuánto pide los escribe el usuario en "Datos" (`usuarios.inventario`).
+Costo y proveedor se leen del archivo si vienen (columnas opcionales en `formatos.js`); el tiempo de entrega de cada proveedor y cada cuánto pide los escribe el usuario en "Datos" (`usuarios.inventario`). Como casi ningún export trae el proveedor, el usuario también puede decirlo: producto por producto desde la ficha, o por el comienzo del código ("TOR-" → Tornillería Central) en Datos. Manda lo asignado a mano, después el archivo y después el comienzo de código más largo que coincida.
 
 ### 7.5 Qué tan bien acierta, medido con los datos del usuario
 

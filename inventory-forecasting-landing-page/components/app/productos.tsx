@@ -3,10 +3,11 @@
 // Lista de productos con búsqueda y filtros, y la ficha de cada uno.
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
-import { Search, X } from 'lucide-react'
+import { useEffect, useId, useMemo, useState } from 'react'
+import { Download, Search, X } from 'lucide-react'
+import { descargar } from '@/lib/descargar'
 import { cn } from '@/lib/utils'
-import { duracion, mesAnio, numero, plata, porcentaje, semanas, ventasSemana } from '@/lib/formato'
+import { claveCodigo, duracion, mesAnio, numero, plata, porcentaje, semanas, ventasSemana } from '@/lib/formato'
 import type { Estado, Inventario, Producto } from '@/lib/tipos'
 import { useInventario } from './contexto'
 import { BarraRiesgo, GraficoVentas, LeyendaVentas, Sparkline } from './graficos'
@@ -48,6 +49,29 @@ function ProductosCon({ inv }: { inv: Inventario }) {
 
   useEffect(() => setMostrar(POR_PAGINA), [q, filtro, proveedor, orden])
 
+  // Escape cierra la ficha.
+  useEffect(() => {
+    if (!seleccionado) return
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && abrir(null)
+    window.addEventListener('keydown', esc)
+    return () => window.removeEventListener('keydown', esc)
+  })
+
+  // Enter abre la ficha; las flechas recorren la lista y, si la ficha está abierta, la ficha las sigue.
+  function alTeclear(e: React.KeyboardEvent<HTMLTableRowElement>, codigo: string) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      abrir(codigo)
+      return
+    }
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+    e.preventDefault()
+    const otra = (e.key === 'ArrowDown' ? e.currentTarget.nextElementSibling : e.currentTarget.previousElementSibling) as HTMLTableRowElement | null
+    if (!otra) return
+    otra.focus()
+    if (seleccionado && otra.dataset.codigo) abrir(otra.dataset.codigo)
+  }
+
   const buscado = q.trim().toLowerCase()
   const coincide = (p: Producto) =>
     (!buscado || p.codigo.toLowerCase().includes(buscado) || p.nombre.toLowerCase().includes(buscado)) && (proveedor === 'todos' || p.proveedor === proveedor)
@@ -74,7 +98,7 @@ function ProductosCon({ inv }: { inv: Inventario }) {
 
   return (
     <>
-      <Titulo sub="Ordenados por lo que se acaba primero. Toca un producto para ver su ficha.">Productos</Titulo>
+      <Titulo sub="Ordenados por lo que se acaba primero. Toca un producto para ver su ficha." acciones={inv.sugerencias ? <DescargarMinimos inv={inv} /> : undefined}>Productos</Titulo>
 
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-3">
@@ -125,7 +149,8 @@ function ProductosCon({ inv }: { inv: Inventario }) {
                     tabIndex={0}
                     aria-selected={p.codigo === seleccionado}
                     onClick={() => abrir(p.codigo)}
-                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), abrir(p.codigo))}
+                    data-codigo={p.codigo}
+                    onKeyDown={(e) => alTeclear(e, p.codigo)}
                     className={cn('cursor-pointer transition-colors duration-100 hover:bg-[#f8faf7] focus-visible:bg-[#f8faf7]', p.codigo === seleccionado && 'bg-secondary hover:bg-secondary')}
                   >
                     <td className="border-b border-[#f0f1ee] px-2 py-3">
@@ -190,13 +215,12 @@ function consejo(p: Producto, inv: Inventario) {
 }
 
 function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: () => void }) {
-  const { pedido, ponerEnPedido, fuente } = useInventario()
+  const { pedido, ponerEnPedido } = useInventario()
   const e = ESTADOS[p.estado]
   const horizonte = Math.max(p.entrega, inv.umbrales.seAgota)
   const prox4 = p.pronostico?.slice(0, 4) ?? []
   const media4 = prox4.reduce((s, x) => s + x.media, 0)
   const enPedido = pedido[p.codigo]
-  const puedePedir = inv.sugerencias && (fuente.tipo === 'demo' || inv.sugerencias)
   const historia = (p.serie ?? []).map((v, i) => ({ inicio: inv.grafico?.semanas[inv.grafico.semanas.length - (p.serie?.length ?? 0) + i]?.inicio ?? '', valor: v }))
   const pronostico = (p.pronostico ?? []).map((x, i) => ({ ...x, inicio: inv.grafico?.pronostico[i]?.inicio ?? '' }))
 
@@ -257,6 +281,12 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
         <dd className="text-right font-semibold tabular-nums">{numero(p.existencias)}</dd>
         <dt className="text-muted-foreground">El proveedor tarda</dt>
         <dd className="text-right font-semibold tabular-nums">{duracion(p.entrega)}</dd>
+        {p.minimo !== null && p.maximo !== null && (
+          <>
+            <dt className="text-muted-foreground">Mínimo · máximo <span className="text-[0.82rem]">(para tu programa contable)</span></dt>
+            <dd className="text-right font-semibold tabular-nums">{numero(p.minimo)} · {numero(p.maximo)}</dd>
+          </>
+        )}
         {p.tendencia !== null && (
           <>
             <dt className="text-muted-foreground">Últimos 3 meses frente a los anteriores</dt>
@@ -273,6 +303,8 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
         )}
       </dl>
 
+      <CambiarProveedor p={p} inv={inv} />
+
       <details className="group border-t border-border pt-3">
         <summary className="cursor-pointer font-semibold text-primary">¿De dónde sale el número?</summary>
         <div className="mt-2 flex flex-col gap-2 text-[0.93rem] text-foreground/85">
@@ -288,13 +320,16 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
               {p.senales.includes('producto_nuevo') ? `, y como empezó a venderse hace poco se promedia desde su primera venta (${numero(p.explicacion.semanasProducto)} semanas)` : ''}.
             </p>
           )}
+          {p.minimo !== null && p.maximo !== null && (
+            <p className="text-muted-foreground">Mínimo: lo que se vende mientras llega un pedido, en 9 de cada 10 casos ({numero(p.minimo)}). Cuando tengas eso o menos, pide hasta llegar al máximo ({numero(p.maximo)}), que cubre la entrega y {duracion(inv.ajustes.cadaCuanto)} más.</p>
+          )}
           {p.riesgo !== null && (
             <p className="text-muted-foreground">El riesgo y el rango salen de un modelo que mezcla lo que vende este producto con cómo varían sus ventas semana a semana{inv.temporada ? ' y la temporada de tu negocio' : ''}.</p>
           )}
         </div>
       </details>
 
-      {inv.sugerencias && p.sugerido !== null && puedePedir && (
+      {inv.sugerencias && p.sugerido !== null && (
         <div className="flex flex-col gap-3 rounded-2xl border border-[#cfe5e1] bg-secondary p-4">
           <p className="text-[0.95rem] text-[#0b3f3b]">
             {p.sugerido > 0
@@ -309,5 +344,87 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
         </div>
       )}
     </div>
+  )
+}
+
+// El proveedor de un producto, cuando el archivo no lo trae o el usuario quiere cambiarlo.
+function CambiarProveedor({ p, inv }: { p: Producto; inv: Inventario }) {
+  const { guardarAjustes } = useInventario()
+  const [abierto, setAbierto] = useState(false)
+  const [nombre, setNombre] = useState(p.proveedor === 'Sin proveedor' ? '' : p.proveedor)
+  const [guardando, setGuardando] = useState(false)
+  const conocidos = [...new Set([...inv.proveedores.map((x) => x.nombre), ...Object.keys(inv.ajustes.entregas)])].filter((x) => x !== 'Sin proveedor')
+  const listaId = useId()
+
+  useEffect(() => {
+    setAbierto(false)
+    setNombre(p.proveedor === 'Sin proveedor' ? '' : p.proveedor)
+  }, [p.codigo, p.proveedor])
+
+  async function guardar(valor: string | null) {
+    setGuardando(true)
+    const asignaciones = { ...inv.ajustes.asignaciones }
+    const clave = claveCodigo(p.codigo)
+    if (valor) asignaciones[clave] = valor
+    else delete asignaciones[clave]
+    try {
+      await guardarAjustes({ asignaciones })
+      setAbierto(false)
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  if (!abierto) {
+    return (
+      <p className="-mt-2 text-[0.9rem] text-muted-foreground">
+        {p.proveedor === 'Sin proveedor' ? 'Tu archivo no dice quién te lo vende.' : `Proveedor: ${p.proveedor}${p.origenProveedor === 'prefijo' ? ' (por el comienzo del código)' : ''}.`}{' '}
+        <button type="button" className="font-semibold text-primary hover:text-primary-hover" onClick={() => setAbierto(true)}>
+          {p.proveedor === 'Sin proveedor' ? 'Decir el proveedor' : 'Cambiar'}
+        </button>
+      </p>
+    )
+  }
+  return (
+    <form
+      className="aparecer flex flex-col gap-2 rounded-xl border border-border p-3"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (nombre.trim()) guardar(nombre.trim())
+      }}
+    >
+      <label className="flex flex-col gap-1 text-sm font-semibold">
+        ¿Quién te vende {p.nombre}?
+        <input className={claseEntrada} list={listaId} value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre del proveedor" autoFocus />
+        <datalist id={listaId}>{conocidos.map((c) => <option key={c} value={c} />)}</datalist>
+      </label>
+      <p className="text-[0.82rem] text-muted-foreground">Su tiempo de entrega se cambia en Datos. Para asignar muchos productos a la vez, usa el comienzo del código en Datos.</p>
+      <div className="flex flex-wrap gap-2">
+        <Boton type="submit" tamano="chico" variante="primario" disabled={guardando || !nombre.trim()}>{guardando ? 'Guardando…' : 'Guardar'}</Boton>
+        {p.origenProveedor === 'producto' && <Boton tamano="chico" onClick={() => guardar(null)} disabled={guardando}>Quitar</Boton>}
+        <Boton tamano="chico" variante="fantasma" onClick={() => setAbierto(false)}>Cancelar</Boton>
+      </div>
+    </form>
+  )
+}
+
+// Mínimos y máximos de todos los productos, para cargarlos en el programa contable.
+function DescargarMinimos({ inv }: { inv: Inventario }) {
+  const [estado, setEstado] = useState<string | null>(null)
+  async function bajar() {
+    setEstado('Armando el archivo…')
+    try {
+      const productos = inv.productos.filter((p) => p.minimo !== null).map((p) => ({ codigo: p.codigo, nombre: p.nombre, proveedor: p.proveedor === 'Sin proveedor' ? '' : p.proveedor, existencias: p.existencias, minimo: p.minimo, maximo: p.maximo, ventasSemana: Math.round(p.ventasSemana * 100) / 100 }))
+      await descargar('/exportar/minimos.xlsx', { productos }, `minimos-y-maximos-${new Date().toLocaleDateString('en-CA')}.xlsx`)
+      setEstado(null)
+    } catch (e) {
+      setEstado(e instanceof Error ? e.message : 'No pudimos armar el archivo.')
+    }
+  }
+  return (
+    <span className="flex flex-col items-end gap-1">
+      <Boton onClick={bajar} title="Para cargarlos en tu programa contable"><Download /> Mínimos y máximos en Excel</Boton>
+      {estado && <span className="text-sm text-muted-foreground">{estado}</span>}
+    </span>
   )
 }

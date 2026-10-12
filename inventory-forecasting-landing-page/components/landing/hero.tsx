@@ -18,7 +18,7 @@ export function Hero() {
           </p>
           <h1
             id="hero-title"
-            className="mt-6 text-balance text-4xl font-bold leading-[1.05] tracking-tight md:text-6xl"
+            className="mt-6 text-balance text-4xl font-extrabold leading-[1.06] tracking-tight md:text-[3.3rem]"
           >
             Mira qué se agota y qué sobra. <span className="text-primary">Tú decides cuánto pedir.</span>
           </h1>

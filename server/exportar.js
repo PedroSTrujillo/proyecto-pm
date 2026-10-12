@@ -78,4 +78,33 @@ rutas.post('/pedido.xlsx', (req, res) => {
   res.send(buf);
 });
 
+// Mínimos y máximos de todos los productos, para cargarlos en el programa contable (casi todos
+// tienen esos dos campos por producto y avisan cuando se baja del mínimo).
+rutas.post('/minimos.xlsx', (req, res) => {
+  const crudos = Array.isArray(req.body?.productos) ? req.body.productos : [];
+  if (!crudos.length) throw new ErrorUsuario('No hay productos para exportar.');
+  if (crudos.length > 50000) throw new ErrorUsuario('Son demasiados productos para un solo archivo.');
+  const filas = [['Código', 'Producto', 'Proveedor', 'Existencias hoy', 'Mínimo', 'Máximo', 'Ventas por semana']];
+  for (const p of crudos) {
+    const codigo = texto(p.codigo, 60);
+    if (!codigo) continue;
+    const n = (v) => (Number.isFinite(Number(v)) ? Number(v) : '');
+    filas.push([codigo, texto(p.nombre, 160), texto(p.proveedor, 80), n(p.existencias), n(p.minimo), n(p.maximo), n(p.ventasSemana)]);
+  }
+  const libro = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(libro, hoja(filas, [14, 46, 28, 14, 10, 10, 16]), 'Minimos y maximos');
+  const notas = [
+    ['Cómo se calcularon'],
+    [''],
+    ['Mínimo: lo que se vende mientras llega un pedido, en 9 de cada 10 casos. Cuando tengas el mínimo o menos, pide.'],
+    ['Máximo: hasta dónde pedir para cubrir la entrega y el tiempo hasta tu siguiente pedido.'],
+    [`Calculado con SINESC el ${new Date().toLocaleDateString('es-CO', { timeZone: 'America/Bogota' })}. Cambian con tus ventas: actualízalos cada mes.`],
+  ];
+  XLSX.utils.book_append_sheet(libro, hoja(notas, [110]), 'Como se calcularon');
+  const dia = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="minimos-y-maximos-${dia}.xlsx"`);
+  res.send(XLSX.write(libro, { type: 'buffer', bookType: 'xlsx' }));
+});
+
 module.exports = { rutas, libroDePedido };

@@ -8,6 +8,7 @@ export type Producto = {
   codigo: string
   nombre: string
   proveedor: string
+  origenProveedor: 'producto' | 'archivo' | 'prefijo' | null
   entrega: number
   costo: number | null
   ventasSemana: number
@@ -16,6 +17,8 @@ export type Producto = {
   estado: Estado
   riesgo: number | null
   sugerido: number | null
+  minimo: number | null
+  maximo: number | null
   valor: number | null
   quieto: number | null
   unidadesQuietas: number
@@ -58,7 +61,7 @@ export type Inventario = {
     mensual: boolean
   }
   umbrales: { seAgota: number; sobra: number }
-  ajustes: { entregaPorDefecto: number; cadaCuanto: number; entregas: Record<string, number>; nivelServicio: number }
+  ajustes: { entregaPorDefecto: number; cadaCuanto: number; entregas: Record<string, number>; asignaciones: Record<string, string>; prefijos: { prefijo: string; proveedor: string }[]; nivelServicio: number }
   sugerencias: boolean
   temporada: number[] | null
   proveedores: Proveedor[]
@@ -69,6 +72,8 @@ export type Inventario = {
     pideYa: number
     sobran: number
     sinVentas: number
+    cobertura: number | null
+    sinProveedor: number
     tieneCostos: boolean
     valorInventario: number | null
     dineroQuieto: number | null
@@ -76,6 +81,7 @@ export type Inventario = {
     picosRecortados: number
     productosNuevos: number
     acierto: { productos: number; aciertos: number; semanas: number; errorTipico: number | null } | null
+    avisos: { productos: number; primero: { codigo: string; nombre: string; fechaUmbral: string; fechaAviso: string } | null } | null
   }
   grafico: {
     semanas: { inicio: string; total: number; proyectos: number }[]
@@ -92,6 +98,7 @@ export type RespuestaInventario = {
   puedeSubir: boolean
   sugerencias: boolean
   finPrueba: string | null
+  recordatorio?: { activo: boolean; pedidoId: number | null; fechaReporte: string; primerAviso: string | null } | null
 }
 
 export type Usuario = { id: number; email: string; nombre: string; rol: 'usuario' | 'equipo'; sistema: string | null }

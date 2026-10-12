@@ -32,14 +32,14 @@ npm install
 npm install --no-package-lock --prefix inventory-forecasting-landing-page   # la web (Next.js); pnpm se colgaba en Windows
 TEAM_EMAILS=tu-correo@ejemplo.com npm run dev    # http://localhost:3000: API + Next.js en modo desarrollo; PGlite en data/pglite/
 npm run build && NODE_ENV=production npm start  # como en Render
-npm test                                         # node --test test/*.test.js (72 pruebas; no necesitan la web)
+npm test                                         # node --test test/*.test.js (75 pruebas; no necesitan la web)
 node --test test/rotacion.test.js                # un solo archivo
 node --test --test-name-pattern="M = 5" test/listas.test.js   # una prueba por nombre
 npm run ejemplos                                 # regenera los exports inventados de ejemplos/
 npm run texto                                    # revisa los textos buscando marcas de IA (reglas de stop-slop)
 ```
 
-No hay linter, formateador ni paso de compilación. `DATA_DIR=memory://` deja la base en memoria (lo usan las pruebas). Para empezar con la base local vacía, borra `data/pglite/`.
+No hay linter ni formateador. La API no se compila; la web sí (`npm run build`), y `node inventory-forecasting-landing-page/node_modules/typescript/bin/tsc --noEmit -p inventory-forecasting-landing-page` revisa los tipos. `DATA_DIR=memory://` deja la base en memoria (lo usan las pruebas). Para empezar con la base local vacía, borra `data/pglite/`.
 
 ## Arquitectura
 
@@ -49,7 +49,7 @@ No hay linter, formateador ni paso de compilación. `DATA_DIR=memory://` deja la
 
 **Frontend** (`inventory-forecasting-landing-page/`, Next.js 16 + Tailwind 4): leer `AGENTS.md` de esa carpeta antes de tocar APIs de Next. Rutas en `app/`: la página (`page.tsx`), `demo/` (sin cuenta), `(cuenta)/` (entrar, crear cuenta, olvidé, restablecer) y `(app)/` (con sesión: panel, productos, pedidos, datos, cuenta, equipo). Las pantallas son componentes de cliente en `components/app/` que llaman a la API con `lib/api.ts`. `contexto.tsx` tiene la sesión y el inventario (de la cuenta o de un negocio de ejemplo: las mismas pantallas sirven para los dos). `hoja.tsx` es la hoja tipo Excel; `pedido-flujo.tsx`, los 5 pasos; `reporte.tsx`, el reporte de la prueba. `lib/tipos.ts` copia la forma de las respuestas de `server/inventario.js`: si cambias una, cambia la otra. Los colores y las fuentes (Figtree y Plus Jakarta Sans) están en `app/globals.css` y `app/layout.tsx` y los comparten la página y la aplicación. Movimiento: criterios de Emil Kowalski (`.claude/skills`), clases `presionable`, `aparecer`, `entrar-lado` en `globals.css`.
 
-**Inventario guardado y pronóstico** (`server/inventario.js`, `pronostico.js`, `series.js`, `inventario-rutas.js`): al procesar un export se guardan también las ventas por semana de cada producto (`exports.series`) y su costo y proveedor si venían (`exports.catalogo`). `GET /api/inventario` arma, con el último export bueno del usuario y sus tiempos de entrega (`usuarios.inventario`), el panel: riesgo de agotarse, "pide ya", sugerido, dinero quieto, gráfico y acierto medido. No cambia las semanas del reporte. Un probador no puede ver su inventario antes de guardar su primera lista inicial ni ve la cantidad sugerida durante sus 14 días (`permisos`). La demo (`server/demo.js`) genera cinco negocios inventados con semilla fija y los pasa por el mismo cálculo; `GET /api/demo/:id?ajustes=` deja probar otros tiempos de entrega.
+**Inventario guardado y pronóstico** (`server/inventario.js`, `pronostico.js`, `series.js`, `inventario-rutas.js`): al procesar un export se guardan también las ventas por semana de cada producto (`exports.series`) y su costo y proveedor si venían (`exports.catalogo`). `GET /api/inventario` arma, con el último export bueno del usuario y sus ajustes (`usuarios.inventario`: tiempos de entrega, cada cuánto pide y proveedores asignados por producto o por comienzo de código), el panel: riesgo de agotarse, "pide ya", sugerido, mínimo y máximo, dinero quieto, gráfico, próximos avisos y acierto medido. `PUT /api/inventario/ajustes` mezcla con lo guardado. No cambia las semanas del reporte. Un probador no puede ver su inventario antes de guardar su primera lista inicial ni ve la cantidad sugerida durante sus 14 días (`permisos`). La demo (`server/demo.js`) genera cinco negocios inventados con semilla fija y los pasa por el mismo cálculo; `GET /api/demo/:id?ajustes=` deja probar otros tiempos de entrega.
 
 **El flujo de 5 pasos es la herramienta de medición, y sus reglas se hacen cumplir en el servidor** (`server/pedidos.js`), no solo en pantalla:
 1. Lista inicial: se autoguarda como borrador con `PUT` y se fija con `POST`. Después de eso queda inmutable (`WHERE inicial_guardada_en IS NULL`; editarla responde 409).

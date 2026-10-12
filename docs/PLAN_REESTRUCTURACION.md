@@ -43,6 +43,7 @@ Vista como cliente, la app de hoy se siente como una encuesta y no como un produ
 
 - **Fase 0 hecha:** Stitch no generó pantallas (se agotaba el tiempo), así que el prototipo se hizo en un lienzo de diseño de Claude (4 pantallas navegables) y se aprobó. La app final mejora ese prototipo.
 - **Fases 1 a 6 hechas en una primera versión:** Next.js junto con la API en un solo servidor; inventario guardado con proveedores, tiempos de entrega y costos; panel, productos con ficha y gráficos; los 5 pasos de la prueba con el diseño nuevo y el interruptor (la cantidad sugerida se apaga sola durante los 14 días de cada probador); pronóstico Gamma-Poisson con temporada y acierto medido (§7 del modelo); demo con cinco negocios de ejemplo y enlaces desde la página.
+- **Segunda pasada (entrada 8 de HANDOFF):** proveedores asignables por producto o por comienzo de código, mínimos y máximos (ficha y Excel), cobertura y recordatorio en el panel, sección del panel en la página principal y navegación con teclado.
 - **Pendiente:** el equipo prueba todo con sus cuentas en Render; la fila de "Cambios" en el Entregable; subir la rama.
 
 ## Fases

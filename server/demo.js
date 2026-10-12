@@ -391,6 +391,8 @@ function inventarioDemo(id, ajustes = null) {
       entregas: { ...d.entregas, ...(propios.entregas || {}) },
       entregaPorDefecto: propios.entregaPorDefecto ?? 1,
       cadaCuanto: propios.cadaCuanto ?? 4,
+      asignaciones: propios.asignaciones || {},
+      prefijos: propios.prefijos || [],
     },
     fuente: {
       demo: id,

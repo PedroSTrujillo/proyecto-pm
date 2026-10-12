@@ -22,6 +22,7 @@ const { leerExport } = require('./lector');
 const { seriesSemanales } = require('./series');
 const { construirInventario, leerAjustes } = require('./inventario');
 const { inventarioDemo, sectores } = require('./demo');
+const { estadoDe } = require('./recordatorios');
 
 // --- Demo (sin cuenta) -------------------------------------------------------------------
 
@@ -118,11 +119,14 @@ rutas.get('/', async (req, res) => {
     },
     sugerencias: per.sugerencias,
   });
-  res.json({ inventario, ...per });
+  res.json({ inventario, ...per, recordatorio: await estadoDe(req.usuario.id) });
 });
 
+// Se mezcla con lo guardado: cambiar un tiempo de entrega no borra los proveedores asignados, y al revés.
 rutas.put('/ajustes', async (req, res) => {
-  const ajustes = leerAjustes(req.body);
+  const u = await db.uno('SELECT inventario FROM usuarios WHERE id = $1', [req.usuario.id]);
+  const cuerpo = req.body && typeof req.body === 'object' ? req.body : {};
+  const ajustes = leerAjustes({ ...(u && u.inventario), ...cuerpo });
   await db.query('UPDATE usuarios SET inventario = $1::jsonb WHERE id = $2', [JSON.stringify(ajustes), req.usuario.id]);
   res.json({ ajustes });
 });

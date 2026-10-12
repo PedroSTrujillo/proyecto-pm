@@ -136,3 +136,28 @@ test('demo: los cinco negocios se generan igual cada vez y tienen de todo un poc
   assert.ok(corto.resumen.pideYa < inventarioDemo('refrigeracion').resumen.pideYa, 'con una entrega más corta hay menos que pedir ya');
   assert.equal(inventarioDemo('no-existe'), null);
 });
+
+test('proveedor de cada producto: lo asignado manda, después el archivo y después el comienzo del código', () => {
+  const { proveedorDe } = require('../server/inventario');
+  const aj = leerAjustes({ asignaciones: { 'tor-1': 'Manual' }, prefijos: [{ prefijo: 'tor', proveedor: 'Tornillería' }, { prefijo: 'TOR-9', proveedor: 'Especial' }] });
+  assert.deepEqual(proveedorDe('TOR-1', { proveedor: 'Del archivo' }, aj), { proveedor: 'Manual', origen: 'producto' });
+  assert.deepEqual(proveedorDe('TOR-2', { proveedor: 'Del archivo' }, aj), { proveedor: 'Del archivo', origen: 'archivo' });
+  assert.deepEqual(proveedorDe('TOR-2', {}, aj), { proveedor: 'Tornillería', origen: 'prefijo' });
+  assert.deepEqual(proveedorDe('TOR-95', {}, aj), { proveedor: 'Especial', origen: 'prefijo' }, 'gana el comienzo más largo');
+  assert.equal(proveedorDe('CIN-1', {}, aj).proveedor, 'Sin proveedor');
+});
+
+test('mínimo y máximo: el mínimo cubre la entrega y el máximo llega hasta el siguiente pedido', () => {
+  const inv = inventarioDemo('refrigeracion');
+  for (const p of inv.productos.filter((x) => x.ventasSemana > 1)) {
+    assert.ok(p.minimo >= p.ventasSemana * Math.max(p.entrega, 0.5) * 0.8, `${p.codigo}: mínimo ${p.minimo}`);
+    assert.ok(p.maximo >= p.minimo);
+    assert.equal(p.sugerido, Math.max(0, p.maximo - Math.max(p.existencias, 0)), `${p.codigo}: sugerido = máximo − existencias`);
+  }
+  // Asignar un producto a un proveedor con otra entrega cambia su estado.
+  const nacional = inventarioDemo('refrigeracion', { asignaciones: { 'COM-12K': 'Compresores Nacionales' }, entregas: { 'Compresores Nacionales': 1 } });
+  const com = nacional.productos.find((p) => p.codigo === 'COM-12K');
+  assert.equal(com.proveedor, 'Compresores Nacionales');
+  assert.equal(com.estado, 'normal', 'si llega en una semana, 3,5 semanas alcanzan');
+  assert.ok(nacional.resumen.avisos.productos >= 1);
+});

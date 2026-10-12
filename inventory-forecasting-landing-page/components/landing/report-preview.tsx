@@ -72,7 +72,7 @@ export function ReportPreview() {
       </div>
       <figcaption className="sr-only">
         Ejemplo de un reporte de rotación: los productos van de menos a más semanas de inventario, con lo que se agota
-        en rojo y lo que sobra en azul.
+        en naranja y lo que sobra en azul.
       </figcaption>
     </figure>
   )
