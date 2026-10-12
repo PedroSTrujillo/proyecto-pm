@@ -2,10 +2,11 @@
 
 Para gerentes y administradores de inventario que coordinan el reabastecimiento. El usuario sube el export de su software contable y ve sus productos ordenados por **semanas de inventario restantes**: arriba lo que se agota primero y, marcado aparte, lo que sobra. Desde el 2026-10-11 además tiene un panel con lo que hay que atender, la ficha de cada producto con su pronóstico, el riesgo de agotarse antes de que llegue un pedido y el pedido sugerido por proveedor (Excel, WhatsApp o PDF para gerencia).
 
-El MVP existe para probar una hipótesis: *3 de 5 usuarios cambian 5 o más líneas de su pedido en 14 días*. Por eso el flujo obliga a registrar la lista de pedido **antes** de ver el reporte, el producto calcula solo la métrica y la cantidad sugerida no se le muestra a un probador durante sus 14 días.
+El MVP existe para probar una hipótesis: *3 de 5 usuarios cambian 5 o más líneas de su pedido en 14 días*. Por eso el flujo obliga a registrar la lista de pedido **antes** de ver el reporte, el producto calcula solo la métrica y, durante sus 14 días, un probador ve solo lo declarado en el plan de prueba (el reporte de semanas): sin pronóstico, sin tiempo de entrega y sin cantidad sugerida.
 
 - Un solo servidor: Node.js (Express, la API) + Next.js (la página y la aplicación, en `inventory-forecasting-landing-page/`) + PostgreSQL.
 - Demo sin cuenta en `/demo`: cinco negocios inventados (ferretería, muebles, mobiliario de oficina, refrigeración y papelería) armados con lo que contaron los entrevistados.
+- Qué de lo que declara el Entregable 2 corregido hace la app, y en qué se aparta: [`docs/ENTREGABLE_Y_APP.md`](docs/ENTREGABLE_Y_APP.md).
 - Modelo matemático e investigación: [`docs/modelo-rotacion.md`](docs/modelo-rotacion.md) (§7: pronóstico).
 
 ## Correr en local
@@ -38,7 +39,7 @@ npm test
 npm run ejemplos
 ```
 
-`npm test` corre 75 pruebas automáticas: cálculo, pronóstico, comparación de listas, recordatorios, lector de archivos, demo y API. `npm run ejemplos` crea en `ejemplos/` exports inventados con formatos distintos (CSV estilo Siigo, Excel estilo SAP, informe con una columna por mes, un catálogo de 3.000 productos y un informe de mínimos), para hacer demos y pruebas.
+`npm test` corre 78 pruebas automáticas: cálculo, pronóstico, comparación de listas, recordatorios, lector de archivos, demo y API. `npm run ejemplos` crea en `ejemplos/` exports inventados con formatos distintos (CSV estilo Siigo, Excel estilo SAP, informe con una columna por mes, un catálogo de 3.000 productos y un informe de mínimos), para hacer demos y pruebas.
 
 ## Página y aplicación (Next.js)
 
@@ -124,7 +125,7 @@ El documento pide que las plantillas sean iguales al export real de cada probado
 | Proveedores, mínimos y máximos | Proveedor por producto (ficha) o por comienzo de código (Datos), en `usuarios.inventario`; mínimos y máximos en la ficha y en Excel (`/api/exportar/minimos.xlsx`) |
 | Demo para Expoandes, sin cuenta | `server/demo.js` (cinco negocios inventados, el mismo cálculo que un archivo real), `/demo` |
 
-**Cambio de alcance (2026-10-11):** el producto ya sugiere cuánto pedir, ajusta por temporada y por el tiempo de entrega de cada proveedor (§7 del modelo). Para no contaminar la métrica, un probador no ve la cantidad sugerida durante sus 14 días y no ve su inventario antes de guardar su primera lista inicial. Este cambio necesita su fila en "4 · Cambios y Reflexión" del Entregable. Sigue sin conectarse al software contable.
+**Cambio de alcance (2026-10-11):** el producto ya sugiere cuánto pedir, ajusta por temporada y por el tiempo de entrega de cada proveedor (§7 del modelo). Para no contaminar la métrica, durante sus 14 días un probador ve solo el reporte de semanas que declara el plan de prueba, y no ve su inventario antes de guardar su primera lista inicial. La lista inicial se puede respaldar con una foto, y el equipo clasifica el "¿por qué?" para el segundo criterio de pivote. Este cambio necesita su fila en "4 · Cambios y Reflexión" del Entregable. Sigue sin conectarse al software contable.
 
 ## Estructura
 

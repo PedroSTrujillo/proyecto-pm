@@ -70,7 +70,7 @@ export function PanelSection() {
             id="panel-title"
             eyebrow="Además del reporte"
             title="Tu inventario queda guardado y a la vista."
-            description="Lo subes una vez y cada vez que entras ves qué atender. Después de tu prueba, también cuánto pedir."
+            description="Lo subes una vez y queda guardado. En tus 14 días de prueba ves el reporte de semanas; al terminar, también todo esto. En la demo lo ves completo."
           />
           <ul className="mt-8 flex flex-col gap-5">
             {funciones.map((f) => (

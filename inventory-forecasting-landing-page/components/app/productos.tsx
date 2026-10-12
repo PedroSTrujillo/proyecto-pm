@@ -120,7 +120,7 @@ function ProductosCon({ inv }: { inv: Inventario }) {
             Ordenar
             <select className={cn(claseEntrada, 'text-[0.95rem] sm:w-auto')} value={orden} onChange={(e) => setOrden(e.target.value as Orden)}>
               <option value="semanas">Lo que se acaba primero</option>
-              <option value="riesgo">Mayor riesgo</option>
+              {inv.alcance !== 'prueba' && <option value="riesgo">Mayor riesgo</option>}
               <option value="valor">{inv.resumen.tieneCostos ? 'Más plata en inventario' : 'Más unidades'}</option>
               <option value="ventas">Más vendidos</option>
             </select>
@@ -207,6 +207,7 @@ function ProductosCon({ inv }: { inv: Inventario }) {
 }
 
 function consejo(p: Producto, inv: Inventario) {
+  if (p.estado === 'agota' && inv.alcance === 'prueba') return 'Se acaba en menos de 2 semanas si sigues vendiendo al mismo ritmo. Revísalo en tu pedido.'
   if (p.estado === 'agota') return `Se acaba en menos de 2 semanas${p.entrega > 0 ? ` y ${p.proveedor === 'Sin proveedor' ? 'tu proveedor' : p.proveedor} tarda ${duracion(p.entrega)}` : ''}. Va en el pedido de esta semana.`
   if (p.estado === 'pide') return `Te queda para ${semanas(p.semanas)} semanas, pero el pedido tarda ${duracion(p.entrega)} en llegar. Si no lo pides ya, te quedas sin él antes de que llegue.`
   if (p.estado === 'sobra') return `Tienes para ${semanas(p.semanas)} semanas. No lo pidas por ahora${p.ventasSemana < 1 ? '; se vende tan poco que vale la pena pensar si se sigue trayendo' : ''}.`
@@ -248,11 +249,19 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
             </>
           )}
         </div>
-        <div className="rounded-2xl border border-border p-4">
-          <span className="block text-[0.82rem] font-semibold text-muted-foreground">Riesgo de agotarse en {semanas(horizonte)} semanas</span>
-          <strong className="font-display text-[1.8rem] leading-tight tabular-nums">{p.riesgo === null ? '—' : `${Math.round(p.riesgo * 100)} %`}</strong>
-          {p.riesgo !== null && <BarraRiesgo valor={p.riesgo} className="mt-1 [&>span:last-child]:hidden" />}
-        </div>
+        {p.riesgo !== null ? (
+          <div className="rounded-2xl border border-border p-4">
+            <span className="block text-[0.82rem] font-semibold text-muted-foreground">Riesgo de agotarse en {semanas(horizonte)} semanas</span>
+            <strong className="font-display text-[1.8rem] leading-tight tabular-nums">{`${Math.round(p.riesgo * 100)} %`}</strong>
+            <BarraRiesgo valor={p.riesgo} className="mt-1 [&>span:last-child]:hidden" />
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-border p-4">
+            <span className="block text-[0.82rem] font-semibold text-muted-foreground">Vendes por semana</span>
+            <strong className="font-display text-[1.8rem] leading-tight tabular-nums">{ventasSemana(p.ventasSemana)}</strong>
+            <span className="block text-[0.85rem] text-muted-foreground">tienes {numero(p.existencias)}</span>
+          </div>
+        )}
       </div>
 
       <p className="rounded-xl bg-muted px-4 py-3 text-[0.95rem]">{consejo(p, inv)}</p>
@@ -279,8 +288,12 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
         <dd className="text-right font-semibold tabular-nums">{ventasSemana(p.ventasSemana)}</dd>
         <dt className="text-muted-foreground">Tienes hoy</dt>
         <dd className="text-right font-semibold tabular-nums">{numero(p.existencias)}</dd>
-        <dt className="text-muted-foreground">El proveedor tarda</dt>
-        <dd className="text-right font-semibold tabular-nums">{duracion(p.entrega)}</dd>
+        {inv.alcance !== 'prueba' && (
+          <>
+            <dt className="text-muted-foreground">El proveedor tarda</dt>
+            <dd className="text-right font-semibold tabular-nums">{duracion(p.entrega)}</dd>
+          </>
+        )}
         {p.minimo !== null && p.maximo !== null && (
           <>
             <dt className="text-muted-foreground">Mínimo · máximo <span className="text-[0.82rem]">(para tu programa contable)</span></dt>
@@ -303,7 +316,7 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
         )}
       </dl>
 
-      <CambiarProveedor p={p} inv={inv} />
+      {inv.alcance !== 'prueba' && <CambiarProveedor p={p} inv={inv} />}
 
       <details className="group border-t border-border pt-3">
         <summary className="cursor-pointer font-semibold text-primary">¿De dónde sale el número?</summary>

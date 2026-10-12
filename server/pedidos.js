@@ -64,6 +64,7 @@ async function vistaPedido(p) {
   const paso = pasoDe(p);
   let listaFinal = p.lista_final;
   if (!listaFinal && p.reporte_visto_en) listaFinal = p.lista_inicial; // arranca como copia de la inicial
+  const imagenes = await db.query('SELECT id, nombre, tipo, subido_en FROM imagenes_lista WHERE pedido_id = $1 ORDER BY id', [p.id]);
   const archivosSubidos = await db.query(
     "SELECT nombre, tamano, subido_en FROM archivos WHERE pedido_id = $1 AND tipo = 'export' ORDER BY id DESC",
     [p.id],
@@ -76,6 +77,7 @@ async function vistaPedido(p) {
     paso,
     terminado: paso === 6,
     listaInicial: p.lista_inicial,
+    imagenes: imagenes.map((i) => ({ id: i.id, nombre: i.nombre, tipo: i.tipo, subidoEn: i.subido_en })),
     inicialGuardadaEn: p.inicial_guardada_en,
     export: await exportDe(p),
     archivosSubidos: archivosSubidos.map((a) => ({ nombre: a.nombre, tamano: a.tamano, subidoEn: a.subido_en })),
@@ -237,6 +239,45 @@ rutas.post('/:id/importar-lista', subida.single('archivo'), async (req, res) => 
   const resultado = leerLista(Buffer.from(archivo.contenido), archivo.nombre, manual ? { porClave: manual } : { porFirma: mapeos.lista });
   if (resultado.ok && manual && manual[resultado.clave]) await recordarMapeo(req.usuario.id, 'lista', resultado.firma, manual[resultado.clave]);
   res.json({ ...resultado, archivoId: archivo.id, archivo: archivo.nombre });
+});
+
+// Foto de la lista que iba a pedir (el plan de prueba dice "la importa o adjunta una imagen").
+// Es un respaldo: la métrica se calcula con las líneas escritas, porque una foto no se puede
+// comparar por código. Solo antes de ver el reporte, igual que la lista inicial.
+const TIPOS_IMAGEN = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf']);
+const MAX_IMAGENES = 5;
+const subidaImagen = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
+
+rutas.post('/:id/imagen', subidaImagen.single('imagen'), async (req, res) => {
+  const p = await pedidoDe(req);
+  if (p.reporte_visto_en) throw new ErrorUsuario('La foto es de lo que ibas a pedir antes de ver el reporte; en este pedido ya lo viste.', 409);
+  if (!req.file) throw new ErrorUsuario('Elige una foto o un PDF de tu lista.');
+  if (!TIPOS_IMAGEN.has(req.file.mimetype)) throw new ErrorUsuario('Sube una foto (JPG, PNG, WEBP o HEIC) o un PDF.');
+  const { n } = await db.uno('SELECT count(*)::int AS n FROM imagenes_lista WHERE pedido_id = $1', [p.id]);
+  if (n >= MAX_IMAGENES) throw new ErrorUsuario(`Puedes adjuntar hasta ${MAX_IMAGENES} fotos por pedido.`);
+  const nombre = Buffer.from(req.file.originalname, 'latin1').toString('utf8').slice(0, 160);
+  const img = await db.uno(
+    'INSERT INTO imagenes_lista (usuario_id, pedido_id, nombre, tipo, tamano, contenido) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, nombre, subido_en',
+    [req.usuario.id, p.id, nombre, req.file.mimetype, req.file.size, req.file.buffer],
+  );
+  await registrarEvento(req.usuario.id, 'imagen_lista_adjuntada', { pedidoId: p.id, detalle: { nombre } });
+  res.status(201).json({ imagen: { id: img.id, nombre: img.nombre, subidoEn: img.subido_en } });
+});
+
+rutas.get('/:id/imagen/:imagenId', async (req, res) => {
+  const p = await pedidoDe(req);
+  const img = await db.uno('SELECT nombre, tipo, contenido FROM imagenes_lista WHERE id = $1 AND pedido_id = $2', [Number(req.params.imagenId), p.id]);
+  if (!img) throw new ErrorUsuario('No encontramos esa foto.', 404);
+  res.setHeader('Content-Type', img.tipo);
+  res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(img.nombre)}"`);
+  res.send(Buffer.from(img.contenido));
+});
+
+rutas.delete('/:id/imagen/:imagenId', async (req, res) => {
+  const p = await pedidoDe(req);
+  if (p.reporte_visto_en) throw new ErrorUsuario('Ya no se puede quitar: es parte de lo que ibas a pedir.', 409);
+  await db.query('DELETE FROM imagenes_lista WHERE id = $1 AND pedido_id = $2', [Number(req.params.imagenId), p.id]);
+  res.json({ ok: true });
 });
 
 // --- Paso 2: export de ventas y existencias -----------------------------------------------

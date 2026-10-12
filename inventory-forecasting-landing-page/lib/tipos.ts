@@ -63,6 +63,7 @@ export type Inventario = {
   umbrales: { seAgota: number; sobra: number }
   ajustes: { entregaPorDefecto: number; cadaCuanto: number; entregas: Record<string, number>; asignaciones: Record<string, string>; prefijos: { prefijo: string; proveedor: string }[]; nivelServicio: number }
   sugerencias: boolean
+  alcance: 'completo' | 'prueba'
   temporada: number[] | null
   proveedores: Proveedor[]
   resumen: {
@@ -97,6 +98,7 @@ export type RespuestaInventario = {
   inventario: Inventario | null
   puedeSubir: boolean
   sugerencias: boolean
+  alcance?: 'completo' | 'prueba'
   finPrueba: string | null
   recordatorio?: { activo: boolean; pedidoId: number | null; fechaReporte: string; primerAviso: string | null } | null
 }

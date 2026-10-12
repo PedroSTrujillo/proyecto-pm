@@ -5,7 +5,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { api, textoErrores } from '@/lib/api'
-import { dia, fecha, fechaHora, numero, plural } from '@/lib/formato'
+import { dia, fecha, fechaHora, numero, plata, plural } from '@/lib/formato'
 import { sistemaPorId } from '@/lib/sistemas'
 import { cn } from '@/lib/utils'
 import { Aviso, Boton, Cargando, ErrorLista, Tarjeta, Titulo } from './ui'
@@ -30,6 +30,7 @@ const CATEGORIAS: Record<string, { texto: string; clase: string }> = {
   no_cambia: { texto: 'Cambió 0 o 1 líneas', clase: 'bg-rojo-fondo text-rojo-texto' },
   intermedio: { texto: 'Cambió entre 2 y 4 líneas', clase: 'bg-ambar-fondo text-ambar-texto' },
   sin_pedido: { texto: 'Sin lista final en sus 14 días', clase: 'bg-muted text-foreground/70' },
+  por_probar: { texto: 'Cambió por probar la herramienta', clase: 'bg-rojo-fondo text-rojo-texto' },
 }
 
 function textoRecordatorio(r: any) {
@@ -53,7 +54,7 @@ export function Equipo() {
   const r = d.resumen
   const titulos: Record<string, string> = {
     meta_cumplida: `Se cumplió la meta: ${r.cumplen} de ${r.usuarios} cambiaron ${r.reglas.metaLineas} o más líneas`,
-    pivotar: `Toca pivotar: ${r.noCambian} de ${r.usuarios} cambiaron 0 o 1 líneas`,
+    pivotar: `Toca pivotar: ${r.noCambian + (r.porProbar || 0)} de ${r.usuarios} cambiaron 0 o 1 líneas o cambiaron por probar la herramienta`,
     en_curso: 'Todavía no hay resultado',
   }
   const tono = r.veredicto === 'meta_cumplida' ? 'ok' : r.veredicto === 'pivotar' ? 'error' : 'info'
@@ -64,12 +65,14 @@ export function Equipo() {
       <Aviso tono={tono} titulo={titulos[r.veredicto]}>
         {r.veredicto === 'en_curso' && <p className="font-semibold">Por ahora: {r.cumplen} de {r.usuarios} cambiaron {r.reglas.metaLineas} o más líneas y {r.noCambian} cambiaron 0 o 1{r.sinPedido ? `; ${r.sinPedido} aún no ${r.sinPedido === 1 ? 'guarda' : 'guardan'} su lista final` : ''}.</p>}
         <p>Meta: {r.reglas.metaUsuarios} de {r.usuariosEsperados} usuarios cambian {r.reglas.metaLineas} o más líneas de su pedido en {r.reglas.diasPrueba} días. Pivote: {r.reglas.pivoteUsuarios} o más no cambian ninguna línea o cambian solo una.</p>
-        <p className="mt-1 text-[0.9rem] opacity-90">Revisa también las respuestas a &quot;¿por qué cambió?&quot;: si cambiaron por probar la herramienta y no porque el dato les pareciera correcto, también toca pivotar.{r.cumplen ? ` Como apoyo: de los ${r.cumplen} que cumplen, ${r.cumplenCoherentes} movieron la mayoría de sus líneas en la dirección que indica el reporte.` : ''}</p>
+        {r.cumplenSinClasificar > 0 && <p className="mt-1 font-semibold">Falta leer y clasificar el &quot;¿por qué?&quot; de {r.cumplenSinClasificar} de los que cambiaron 5 o más líneas: si fue por probar la herramienta, no cuentan para la meta.</p>}
+        <p className="mt-1 text-[0.9rem] opacity-90">Lean cada respuesta a &quot;¿por qué cambió?&quot; y márquenla abajo: si cambiaron por probar la herramienta y no porque el dato les pareciera correcto, cuentan para el pivote (plan de prueba, pestaña 2).{r.cumplen ? ` Como apoyo: de los ${r.cumplen} que cumplen, ${r.cumplenCoherentes} movieron la mayoría de sus líneas en la dirección que indica el reporte.` : ''}</p>
       </Aviso>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3">
         <Cifra valor={`${r.cumplen} de ${r.usuarios}`} texto={`cambiaron ${r.reglas.metaLineas} o más líneas (meta: ${r.reglas.metaUsuarios})${r.cumplen ? ` · ${r.cumplenReal} real, ${r.cumplenSimulado} simulado` : ''}`} clase="border-verde-borde bg-verde-fondo [&_strong]:text-verde" />
         <Cifra valor={`${r.noCambian} de ${r.usuarios}`} texto={`cambiaron 0 o 1 líneas (pivote si son ${r.reglas.pivoteUsuarios} o más)`} clase="border-rojo-borde bg-rojo-fondo [&_strong]:text-rojo" />
         <Cifra valor={numero(r.intermedios)} texto="cambiaron entre 2 y 4" />
+        <Cifra valor={numero(r.porProbar || 0)} texto="cambiaron por probar la herramienta (cuentan para el pivote)" />
         <Cifra valor={numero(r.sinPedido)} texto="aún sin lista final" />
       </div>
       <h2 className="text-xl font-bold">Stickiness: el recordatorio</h2>
@@ -134,7 +137,19 @@ function Probador({ u }: { u: any }) {
         <span>Cuenta creada: {fecha(u.creadoEn)}</span>
         {u.evaluacion.inicio && <span>Sus 14 días: {fecha(u.evaluacion.inicio)} – {fecha(u.evaluacion.fin)}</span>}
         <span>Recordatorio: <strong>{textoRecordatorio(u.recordatorio)}</strong></span>
+        <span>Cada cuánto pide: <strong>{u.diasEntrePedidos === null ? 'aún no se sabe (un solo pedido)' : `cada ${numero(u.diasEntrePedidos, 1)} días`}</strong></span>
       </div>
+      {u.inventario && (
+        <div className="rounded-xl bg-muted px-4 py-3 text-[0.93rem]">
+          <strong>Cuánto le cuesta equivocarse</strong> <span className="text-muted-foreground">(último archivo, {fecha(u.inventario.fecha)})</span>
+          <div className="mt-1 flex flex-wrap gap-x-6 gap-y-1">
+            <span><strong>{numero(u.inventario.enCero)}</strong> productos que se venden y están en cero</span>
+            <span><strong>{numero(u.inventario.seAgotan)}</strong> se agotan en 2 semanas</span>
+            <span><strong>{numero(u.inventario.sobran)}</strong> sobran de {numero(u.inventario.productos)}</span>
+            {u.inventario.tieneCostos && <span>Dinero quieto: <strong>{plata(u.inventario.dineroQuieto)}</strong> de {plata(u.inventario.valorInventario)}</span>}
+          </div>
+        </div>
+      )}
       {u.pedidos.length ? (
         <div className="overflow-x-auto rounded-xl border border-border">
           <table className="w-full min-w-[980px] border-collapse text-[0.9rem]">
@@ -165,7 +180,15 @@ function Probador({ u }: { u: any }) {
                   <td className="px-3 py-2 text-right font-bold tabular-nums">{p.conteo ? p.conteo.total : '—'}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{p.coherencia?.total ? `${p.coherencia.coherentes} de ${p.coherencia.total}` : '—'}{p.coherencia?.contrarias ? <span className="block text-xs text-muted-foreground">{p.coherencia.contrarias} en contra del reporte</span> : null}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{p.magnitud && p.magnitud.porcentaje !== null ? `${numero(p.magnitud.porcentaje * 100)} %` : '—'}{p.magnitud && <span className="block text-xs text-muted-foreground">{numero(p.magnitud.unidadesMovidas)} de {numero(p.magnitud.unidadesIniciales)}</span>}</td>
-                  <td className="max-w-72 px-3 py-2 whitespace-pre-line">{p.porQue || '—'}</td>
+                  <td className="max-w-80 px-3 py-2">
+                    <span className="whitespace-pre-line">{p.porQue || '—'}</span>
+                    {p.porQue && <Clasificar pedidoId={p.id} inicial={p.clasificacion} />}
+                    {p.imagenes?.length > 0 && (
+                      <span className="mt-1 block text-xs">
+                        Foto de su lista: {p.imagenes.map((i: any, k: number) => <a key={i.id} href={`/api/equipo/imagenes/${i.id}`} target="_blank" rel="noopener noreferrer" className="font-semibold text-primary hover:text-primary-hover">{k ? ', ' : ''}{i.nombre}</a>)}
+                      </span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -183,5 +206,37 @@ function Probador({ u }: { u: any }) {
         </details>
       )}
     </Tarjeta>
+  )
+}
+
+// El equipo lee la respuesta y la marca: es el segundo criterio de pivote del plan de prueba.
+function Clasificar({ pedidoId, inicial }: { pedidoId: number; inicial: string | null }) {
+  const [valor, setValor] = useState<string | null>(inicial)
+  const [guardando, setGuardando] = useState(false)
+  async function poner(v: string | null) {
+    setGuardando(true)
+    try {
+      await api('POST', `/equipo/pedidos/${pedidoId}/clasificacion`, { valor: v })
+      setValor(v)
+    } finally {
+      setGuardando(false)
+    }
+  }
+  const opcion = (v: string, texto: string) => (
+    <button
+      type="button"
+      disabled={guardando}
+      aria-pressed={valor === v}
+      onClick={() => poner(valor === v ? null : v)}
+      className={cn('rounded-full border px-2 py-0.5 text-xs font-semibold', valor === v ? (v === 'dato' ? 'border-verde bg-verde-fondo text-verde' : 'border-rojo bg-rojo-fondo text-rojo-texto') : 'border-input bg-card text-muted-foreground hover:bg-muted')}
+    >
+      {texto}
+    </button>
+  )
+  return (
+    <span className="mt-1.5 flex flex-wrap gap-1.5">
+      {opcion('dato', 'El dato le sirvió')}
+      {opcion('probar', 'Por probar la herramienta')}
+    </span>
   )
 }

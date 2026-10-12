@@ -7,7 +7,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, CalendarDays, Check, FileUp } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CalendarDays, Camera, Check, FileUp, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { api, textoErrores } from '@/lib/api'
 import { claveCodigo, dia, fecha, fechaHora, numero, plural, semanas } from '@/lib/formato'
@@ -28,6 +28,7 @@ type Pedido = {
   paso: number
   terminado: boolean
   listaInicial: LineaGuardada[]
+  imagenes: { id: number; nombre: string; tipo: string; subidoEn: string }[]
   inicialGuardadaEn: string | null
   export: { id: number; subidoEn: string; archivos: { nombre: string }[] } | null
   reporteVistoEn: string | null
@@ -267,6 +268,7 @@ function Paso1({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
         <h2 className="text-xl font-bold">Lo que ibas a pedir</h2>
         <p className="text-muted-foreground">La guardaste el {fechaHora(pedido.inicialGuardadaEn)}. Ya no se puede cambiar: es la base para comparar con tu lista final.</p>
         <Hoja inicial={pedido.listaInicial} soloLectura />
+        <FotosLista pedido={pedido} editable={!pedido.reporteVistoEn} />
         {pedido.paso === 2 && <BotonEnlace href="?paso=2" variante="primario" className="self-end">Seguir: tus ventas y existencias <ArrowRight /></BotonEnlace>}
       </Tarjeta>
     )
@@ -328,7 +330,8 @@ function Paso1({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
       </div>
       <ImportarLista pedidoId={pedido.id} para="inicial" hoja={hoja} alImportar={auto.cambio} />
       <Hoja ref={hoja} inicial={pedido.listaInicial} alCambiar={auto.cambio} />
-      <p className="text-sm text-muted-foreground">Cada línea necesita código de producto y cantidad; el nombre es opcional. No se aceptan fotos ni imágenes de la lista.</p>
+      <p className="text-sm text-muted-foreground">Cada línea necesita código de producto y cantidad; el nombre es opcional.</p>
+      <FotosLista pedido={pedido} editable />
       {error && <ErrorLista mensaje={error.mensaje} lista={error.lista} />}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="text-sm text-muted-foreground" aria-live="polite">{auto.estado}</span>
@@ -689,6 +692,74 @@ function Detalle({ titulo, items }: { titulo: string; items: React.ReactNode[] }
     <div>
       <h3 className="mb-1 font-bold">{titulo} ({items.length})</h3>
       {items.length ? <ul className="flex flex-col gap-1 text-[0.93rem]">{items.map((x, i) => <li key={i}>{x}</li>)}</ul> : <p className="text-sm text-muted-foreground">Ninguna.</p>}
+    </div>
+  )
+}
+
+// Foto de la lista (el plan de prueba dice "la importa o adjunta una imagen"). Queda como
+// respaldo para el equipo; la comparación se hace con lo escrito en la tabla, por código.
+function FotosLista({ pedido, editable }: { pedido: Pedido; editable: boolean }) {
+  const [fotos, setFotos] = useState(pedido.imagenes || [])
+  const [error, setError] = useState<string | null>(null)
+  const [subiendo, setSubiendo] = useState(false)
+  if (!editable && !fotos.length) return null
+
+  async function subir(archivo: File) {
+    setSubiendo(true)
+    setError(null)
+    try {
+      const fd = new FormData()
+      fd.append('imagen', archivo)
+      const r = await api<{ imagen: Pedido['imagenes'][number] }>('POST', `/pedidos/${pedido.id}/imagen`, undefined, { formulario: fd })
+      setFotos((x) => [...x, r.imagen])
+    } catch (e) {
+      setError(textoErrores(e).mensaje)
+    } finally {
+      setSubiendo(false)
+    }
+  }
+
+  async function quitar(id: number) {
+    await api('DELETE', `/pedidos/${pedido.id}/imagen/${id}`).catch(() => {})
+    setFotos((x) => x.filter((f) => f.id !== id))
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-xl border border-dashed border-input p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <strong className="text-[0.95rem]">Foto de tu lista <span className="font-normal text-muted-foreground">(opcional)</span></strong>
+          <p className="text-sm text-muted-foreground">Si la tienes en papel o en una foto, adjúntala. Para comparar con tu lista final, igual escribe los códigos en la tabla.</p>
+        </div>
+        {editable && (
+          <label className="presionable inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-input bg-card px-3 text-sm font-semibold hover:bg-muted focus-within:outline-3 focus-within:outline-ring">
+            <Camera className="size-4" /> {subiendo ? 'Subiendo…' : 'Adjuntar foto'}
+            <input type="file" className="sr-only" accept="image/*,application/pdf" capture="environment" disabled={subiendo} onChange={(e) => { const a = e.target.files?.[0]; e.target.value = ''; if (a) subir(a) }} />
+          </label>
+        )}
+      </div>
+      {fotos.length > 0 && (
+        <ul className="flex flex-wrap gap-3">
+          {fotos.map((f) => (
+            <li key={f.id} className="relative">
+              <a href={`/api/pedidos/${pedido.id}/imagen/${f.id}`} target="_blank" rel="noopener noreferrer" className="block overflow-hidden rounded-lg border border-border">
+                {f.tipo === 'application/pdf' || f.tipo.includes('heic') || f.tipo.includes('heif') ? (
+                  <span className="flex size-24 items-center justify-center bg-muted p-2 text-center text-xs text-muted-foreground">{f.nombre}</span>
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={`/api/pedidos/${pedido.id}/imagen/${f.id}`} alt={`Foto de la lista: ${f.nombre}`} className="size-24 object-cover" />
+                )}
+              </a>
+              {editable && (
+                <button type="button" onClick={() => quitar(f.id)} aria-label={`Quitar ${f.nombre}`} className="absolute -top-2 -right-2 inline-flex size-7 items-center justify-center rounded-full border border-border bg-card shadow hover:bg-muted">
+                  <X className="size-3.5" />
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {error && <ErrorLista mensaje={error} />}
     </div>
   )
 }

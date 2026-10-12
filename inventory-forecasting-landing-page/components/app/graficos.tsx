@@ -162,12 +162,12 @@ export function GraficoVentas({
   )
 }
 
-export function LeyendaVentas({ conProyecto = false }: { conProyecto?: boolean }) {
+export function LeyendaVentas({ conProyecto = false, conPronostico = true }: { conProyecto?: boolean; conPronostico?: boolean }) {
   return (
     <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
       <span className="inline-flex items-center gap-2"><svg width="22" height="8" aria-hidden="true"><line x1="0" y1="4" x2="22" y2="4" stroke="var(--primary)" strokeWidth="2.5" /></svg>Vendido</span>
-      <span className="inline-flex items-center gap-2"><svg width="22" height="8" aria-hidden="true"><line x1="0" y1="4" x2="22" y2="4" stroke="var(--primary)" strokeWidth="2.5" strokeDasharray="5 4" /></svg>Pronóstico</span>
-      <span className="inline-flex items-center gap-2"><span className="h-2.5 w-5 rounded-sm bg-primary/20" />Rango probable: 8 de cada 10 semanas caen aquí</span>
+      {conPronostico && <span className="inline-flex items-center gap-2"><svg width="22" height="8" aria-hidden="true"><line x1="0" y1="4" x2="22" y2="4" stroke="var(--primary)" strokeWidth="2.5" strokeDasharray="5 4" /></svg>Pronóstico</span>}
+      {conPronostico && <span className="inline-flex items-center gap-2"><span className="h-2.5 w-5 rounded-sm bg-primary/20" />Rango probable: 8 de cada 10 semanas caen aquí</span>}
       {conProyecto && <span className="inline-flex items-center gap-2"><span className="h-2.5 w-5 rounded-sm bg-ambar-fondo ring-1 ring-ambar-borde" />Venta de un proyecto</span>}
     </div>
   )

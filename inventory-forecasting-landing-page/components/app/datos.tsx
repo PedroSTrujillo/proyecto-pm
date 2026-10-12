@@ -51,7 +51,13 @@ function DatosCon({ inv }: { inv: Inventario | null }) {
             </>
           )}
         </Tarjeta>
-        {inv && <Proveedores inv={inv} />}
+        {inv && inv.alcance !== 'prueba' && <Proveedores inv={inv} />}
+        {inv && inv.alcance === 'prueba' && (
+          <Tarjeta className="flex flex-col gap-2 p-5 sm:p-6">
+            <h2 className="text-xl font-bold">Tus proveedores</h2>
+            <p className="text-[0.95rem] text-muted-foreground">Cuando termine tu prueba vas a poder decir cuánto tarda cada proveedor. Con eso te avisamos qué pedir antes de que sea tarde y cuánto pedir.</p>
+          </Tarjeta>
+        )}
       </div>
 
       <Historial inv={inv} />

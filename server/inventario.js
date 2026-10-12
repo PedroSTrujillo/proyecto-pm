@@ -134,9 +134,14 @@ function estadoDe(f, entrega) {
  * series: seriesSemanales(...) o null (totales de un periodo).
  * catalogo: { clave: { costo, proveedor } } o null.
  * ajustes: leerAjustes(usuarios.inventario).
- * sugerencias: si se muestra la cantidad sugerida (apagada para probadores en su prueba).
+ * alcance: 'completo' o 'prueba'. En 'prueba' (un probador en sus 14 días) solo sale lo que
+ *   declara el plan de prueba del Entregable 2: el reporte de semanas de inventario, sin
+ *   pronóstico, sin temporada, sin tiempo de entrega ("pide ya", riesgo) y sin cantidad
+ *   sugerida. Así el tratamiento de la prueba es el que se declaró y M mide el reporte.
+ * sugerencias: forma antigua de pedir el alcance (false = 'prueba').
  */
-function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos, fuente = {}, sugerencias = true }) {
+function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos, fuente = {}, alcance = null, sugerencias = true }) {
+  const completo = alcance ? alcance === 'completo' : sugerencias !== false;
   const ajustes = leerAjustes(ajustesCrudos);
   const cat = catalogo || {};
   const hasta = series ? series.hasta : reporte.periodo.hasta;
@@ -178,7 +183,7 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       totalesRecortados[i] += r[i];
     }
   }
-  const indice = series ? P.indiceTemporada(totalesRecortados, hasta) : null;
+  const indice = series && completo ? P.indiceTemporada(totalesRecortados, hasta) : null;
   const futuro = (h) => P.semanasConTemporada(indice, hasta, semanasSerie, h);
 
   const productos = [];
@@ -199,7 +204,7 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
     let minimo = null;
     let maximo = null;
     let pronostico = null;
-    if (f.promedioSemanal > 0) {
+    if (f.promedioSemanal > 0 && completo) {
       const ventana = P.temporadaDeLaVentana(indice, hasta, semanasSerie, f.semanasProducto, f.semanasRecientes);
       const ajuste = P.ajustarProducto({
         tasa: f.promedioSemanal / ventana,
@@ -233,7 +238,7 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
         return ant > 0 ? redondear(ult / ant - 1, 3) : null;
       })()
       : null;
-    const estado = estadoDe(f, entrega);
+    const estado = estadoDe(f, completo ? entrega : 0);
     const sobrante = f.promedioSemanal > 0 ? Math.max(0, existencias - SEMANAS_SOBRA * f.promedioSemanal) : existencias;
     const desde = Math.max(0, semanasSerie - SEMANAS_GRAFICO);
     productos.push({
@@ -248,9 +253,9 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       semanas: f.semanasInventario,
       estado,
       riesgo,
-      sugerido: sugerencias ? sugerido : null,
-      minimo: sugerencias ? minimo : null,
-      maximo: sugerencias ? maximo : null,
+      sugerido: completo ? sugerido : null,
+      minimo: completo ? minimo : null,
+      maximo: completo ? maximo : null,
       valor: costo !== null ? Math.round(existencias * costo) : null,
       quieto: costo !== null && f.sobra ? Math.round(sobrante * costo) : null,
       unidadesQuietas: f.sobra ? redondear(sobrante, 1) : 0,
@@ -290,7 +295,7 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       total: Math.round(total),
       proyectos: Math.round(total - totalesRecortados[desde + j]),
     })),
-    pronostico: mediaSemana.map((m, s) => ({
+    pronostico: !completo ? [] : mediaSemana.map((m, s) => ({
       inicio: inicioDeSemana(hasta, semanasSerie, semanasSerie + s),
       media: Math.round(m),
       bajo: Math.max(0, Math.round(m - z * desviacion(s))),
@@ -322,7 +327,8 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
     },
     umbrales: { seAgota: SEMANAS_SE_AGOTA, sobra: SEMANAS_SOBRA },
     ajustes: { ...ajustes, nivelServicio: NIVEL_SERVICIO },
-    sugerencias,
+    sugerencias: completo,
+    alcance: completo ? 'completo' : 'prueba',
     temporada: indice,
     proveedores: [...proveedores.values()].sort((a, b) => (a.nombre === SIN_PROVEEDOR) - (b.nombre === SIN_PROVEEDOR) || b.productos - a.productos),
     resumen: {
@@ -342,7 +348,7 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       tendencia4: ant4 >= 20 ? redondear(ult4 / ant4 - 1, 3) : null,
       picosRecortados: reporte.resumen.picosRecortados || 0,
       productosNuevos: reporte.resumen.productosNuevos || 0,
-      acierto: series ? P.medirAcierto(porProducto, hasta, semanasSerie, referencia) : null,
+      acierto: series && completo ? P.medirAcierto(porProducto, hasta, semanasSerie, referencia) : null,
       avisos: proximosAvisos(filas, fuente.fecha),
     },
     grafico,

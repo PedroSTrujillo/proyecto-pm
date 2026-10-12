@@ -30,6 +30,7 @@ function PanelCon({ inv }: { inv: Inventario }) {
   const r = inv.resumen
   const demo = fuente.tipo === 'demo'
   // Sin proveedores en el archivo y sin un tiempo de entrega dicho por el usuario, "pide ya" no dice nada.
+  const prueba = inv.alcance === 'prueba'
   const sinTiempos = inv.proveedores.every((p) => p.nombre === 'Sin proveedor') && inv.ajustes.entregaPorDefecto <= 1 && !demo
   const pideTop = inv.proveedores.filter((p) => p.pideYa > 0).sort((a, b) => b.pideYa - a.pideYa || b.entrega - a.entrega)[0]
   const sub = [
@@ -54,17 +55,29 @@ function PanelCon({ inv }: { inv: Inventario }) {
         Tu inventario hoy
       </Titulo>
 
+      {prueba && <AvisoPrueba />}
+
       <section aria-label="Resumen" className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <Cifra
           titulo="Se agotan en 2 semanas"
           tono="text-rojo"
           etiqueta="text-rojo-texto"
           valor={numero(r.seAgotan)}
-          detalle={r.enCero ? `${r.enCero} ya están en cero` : r.seAgotan ? 'Los tienes primero en la lista de abajo' : 'Nada se agota en las próximas 2 semanas'}
+          detalle={r.enCero && !prueba ? `${r.enCero} ya están en cero` : r.seAgotan ? 'Los tienes primero en la lista de abajo' : 'Nada se agota en las próximas 2 semanas'}
           ayuda="Productos que, al ritmo de venta de tu archivo, no alcanzan a durar dos semanas."
           href={`${rutas.productos}?filtro=agota`}
         />
-        {sinTiempos ? (
+        {prueba ? (
+          <Cifra
+            titulo="Ya en cero"
+            tono="text-rojo"
+            etiqueta="text-rojo-texto"
+            valor={numero(r.enCero)}
+            detalle={r.enCero ? 'productos que se venden y no tienes' : 'Ningún producto que se venda está en cero'}
+            ayuda="Productos con ventas en tu archivo y cero existencias hoy."
+            href={`${rutas.productos}?filtro=agota`}
+          />
+        ) : sinTiempos ? (
           <Cifra
             titulo="Pide esta semana"
             tono="text-ambar"
@@ -109,7 +122,7 @@ function PanelCon({ inv }: { inv: Inventario }) {
         {r.cobertura !== null && <span>El producto típico te alcanza para <strong className="text-foreground tabular-nums">{semanas(r.cobertura)} semanas</strong></span>}
         {r.tieneCostos && <span>Inventario a costo: <strong className="text-foreground tabular-nums">{plata(r.valorInventario)}</strong></span>}
         {r.sinVentas > 0 && <span>{plural(r.sinVentas, 'producto sin ventas', 'productos sin ventas')} en el periodo</span>}
-        {!demo && r.sinProveedor > 0 && r.sinProveedor < r.productos && (
+        {!demo && !prueba && r.sinProveedor > 0 && r.sinProveedor < r.productos && (
           <Link href={rutas.datos} className="font-semibold text-primary hover:text-primary-hover">{plural(r.sinProveedor, 'producto', 'productos')} sin proveedor: dinos quién te los vende</Link>
         )}
       </p>
@@ -173,7 +186,7 @@ function PrimeroEnAcabarse({ inv }: { inv: Inventario }) {
               <th scope="col" className="border-b border-border px-2 py-2.5 font-semibold">Ventas/semana</th>
               <th scope="col" className="border-b border-border px-2 py-2.5 text-right font-semibold">Tienes</th>
               <th scope="col" className="border-b border-border px-2 py-2.5 text-right font-semibold">Te alcanza</th>
-              <th scope="col" className="border-b border-border px-2 py-2.5 font-semibold">Riesgo de agotarse</th>
+              <th scope="col" className="border-b border-border px-2 py-2.5 font-semibold">{inv.alcance === 'prueba' ? 'Estado' : 'Riesgo de agotarse'}</th>
             </tr>
           </thead>
           <tbody>
@@ -207,7 +220,7 @@ function FilaPrimero({ p, href }: { p: Producto; href: string }) {
         <span className="block text-xs text-muted-foreground">semanas</span>
       </td>
       <td className="min-w-44 border-b border-[#f0f1ee] px-2 py-3">
-        <BarraRiesgo valor={p.riesgo} />
+        {p.riesgo !== null && <BarraRiesgo valor={p.riesgo} />}
         <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <ChipEstado estado={p.estado} texto={p.estado === 'pide' ? `Pide ya: tarda ${duracion(p.entrega)}` : undefined} />
         </span>
@@ -263,7 +276,14 @@ function AtenderHoy({ inv }: { inv: Inventario }) {
     )
   }
   // Recordatorio de calendario: si ya lo pidió, cuándo llega; si no, qué se le avisaría.
-  if (rec?.activo && rec.primerAviso && rec.pedidoId) {
+  const hoyBogota = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
+  if (rec?.activo && rec.primerAviso && rec.primerAviso <= hoyBogota) {
+    tarjetas.push(
+      <Tarjetita key="rec" icono={<BellRing />} titulo="Llegó tu recordatorio" tono="ambar" accion={<BotonEnlace href={rutas.datos} variante="primario" tamano="chico" className="self-start">Subir mi archivo de hoy</BotonEnlace>}>
+        Desde el {dia(rec.primerAviso)} algunos productos podrían estar llegando a 2 semanas. Sube tu archivo más reciente para confirmarlo con tus ventas de verdad.
+      </Tarjetita>,
+    )
+  } else if (rec?.activo && rec.primerAviso && rec.pedidoId) {
     tarjetas.push(
       <Tarjetita key="rec" icono={<BellRing />} titulo="Tu recordatorio" tono="neutro" accion={<a href={`/api/pedidos/${rec.pedidoId}/recordatorio.ics`} download className="text-[0.92rem] font-semibold text-primary hover:text-primary-hover">Descargar otra vez para el calendario</a>}>
         Tu calendario te avisa el <strong>{dia(rec.primerAviso)}</strong>, antes de que lo primero llegue a 2 semanas. Cuando te avise, sube tu archivo de nuevo para confirmar.
@@ -299,7 +319,7 @@ function AtenderHoy({ inv }: { inv: Inventario }) {
   } else if (nuevo) {
     tarjetas.push(
       <Tarjetita key="nuevo" icono={<Sparkles />} titulo="Producto nuevo" tono="neutro">
-        <strong>{nuevo.nombre}</strong> empezó a venderse hace {numero(nuevo.explicacion.semanasProducto)} semanas: lo medimos desde su primera venta.
+        <strong>{nuevo.nombre}</strong> empezó a venderse después que el resto del catálogo (hace {numero(nuevo.explicacion.semanasProducto)} semanas): su promedio se mide desde su primera venta, no desde el comienzo del archivo.
       </Tarjetita>,
     )
   }
@@ -330,8 +350,9 @@ function Ventas({ inv }: { inv: Inventario }) {
   const media = prox.reduce((s, p) => s + p.media, 0)
   const t = inv.temporada
   const mesAlto = t ? t.indexOf(Math.max(...t)) : -1
-  const texto =
-    serie === 'proyectos'
+  const texto = !g.pronostico.length
+    ? `Así se han vendido tus productos, semana a semana.${hayProyectos ? ' Las semanas con ventas de proyectos van marcadas.' : ''}`
+    : serie === 'proyectos'
       ? 'Los proyectos llegan a saltos: no se pronostican con el promedio. Cuando te aprueben uno, súmalo al pedido.'
       : `En las próximas 4 semanas esperamos vender unas ${numero(Math.round(media / 10) * 10)} unidades${t ? `, ya con la temporada (${MESES[mesAlto]} suele ser el mes más fuerte)` : ''}.`
 
@@ -339,7 +360,7 @@ function Ventas({ inv }: { inv: Inventario }) {
     <Tarjeta aria-labelledby="t-ventas" className="p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 id="t-ventas" className="text-xl font-bold">Ventas por semana y lo que viene</h2>
+          <h2 id="t-ventas" className="text-xl font-bold">{g.pronostico.length ? 'Ventas por semana y lo que viene' : 'Ventas por semana'}</h2>
           <p className="mt-1 text-[0.95rem] text-muted-foreground">{texto}</p>
         </div>
         {hayProyectos && (
@@ -363,8 +384,21 @@ function Ventas({ inv }: { inv: Inventario }) {
         descripcion="Unidades vendidas por semana en el último año y pronóstico de las próximas 8 semanas"
       />
       <div className="mt-3">
-        <LeyendaVentas conProyecto={marcas.length > 0} />
+        <LeyendaVentas conProyecto={marcas.length > 0} conPronostico={pronostico.length > 0} />
       </div>
     </Tarjeta>
+  )
+}
+
+// Durante la prueba, el probador ve lo que declara el plan de prueba: el reporte de semanas.
+function AvisoPrueba() {
+  const { respuesta } = useInventario()
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#cfe5e1] bg-secondary px-5 py-4 text-[0.95rem] text-[#0b3f3b]">
+      <p>
+        <strong>Estás en tu prueba{respuesta?.finPrueba ? ` hasta el ${fecha(respuesta.finPrueba)}` : ''}.</strong> Por ahora ves para cuántas semanas te alcanza cada producto.
+        El pronóstico, el tiempo de entrega de tus proveedores y la cantidad sugerida se activan al terminar.
+      </p>
+    </div>
   )
 }

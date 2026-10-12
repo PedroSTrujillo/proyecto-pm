@@ -397,3 +397,74 @@ test('ajustes del inventario: guardar una parte no borra lo demás; Excel de mí
   const filas = XLSX.utils.sheet_to_json(libro.Sheets[libro.SheetNames[0]], { header: 1 });
   assert.deepEqual(filas[1], ['A1', 'Uno', 'P', 3, 5, 12, 2.5]);
 });
+
+test('alcance del plan de prueba: un probador en sus 14 días ve solo el reporte de semanas', async () => {
+  const pepa = await nuevoUsuario('Pepa', 'pepa.alcance@prueba.co');
+  const { pedido } = await pepa.post('/api/pedidos');
+  await pepa.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
+  await pepa.subir(`/api/pedidos/${pedido.id}/export`, [['e.xlsx', plantillaExport()]]);
+  const r = await pepa.get('/api/inventario');
+  assert.equal(r.alcance, 'prueba');
+  const inv = r.inventario;
+  assert.equal(inv.alcance, 'prueba');
+  assert.ok(inv.productos.every((p) => p.riesgo === null && p.pronostico === null && p.sugerido === null && p.minimo === null), 'sin pronóstico, riesgo ni sugerido');
+  assert.ok(inv.productos.every((p) => p.estado !== 'pide'), 'sin tiempo de entrega no hay "pide ya"');
+  assert.equal(inv.temporada, null);
+  assert.deepEqual(inv.grafico ? inv.grafico.pronostico : [], []);
+  // Las semanas son las mismas del reporte que mide la prueba.
+  const { reporte } = await pepa.get(`/api/pedidos/${pedido.id}/reporte`);
+  for (const f of reporte.filas) assert.equal(inv.productos.find((p) => p.codigo === f.codigo).semanas, f.semanasInventario);
+});
+
+test('foto de la lista inicial: solo antes de ver el reporte, la ve el dueño y el equipo', async () => {
+  const PNG = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
+  const lia = await nuevoUsuario('Lía', 'lia.foto@prueba.co');
+  const { pedido } = await lia.post('/api/pedidos');
+  const subir = (c, nombre, tipo, buf) => {
+    const fd = new FormData();
+    fd.append('imagen', new Blob([buf], { type: tipo }), nombre);
+    return fetch(`${base}/api/pedidos/${pedido.id}/imagen`, { method: 'POST', headers: { Cookie: c.cookie() }, body: fd }).then(async (r) => ({ estado: r.status, ...(await r.json()) }));
+  };
+  assert.equal((await subir(lia, 'nota.txt', 'text/plain', Buffer.from('hola'))).estado, 400, 'solo fotos o PDF');
+  const ok = await subir(lia, 'lista.png', 'image/png', PNG);
+  assert.equal(ok.estado, 201);
+  const vista = await lia.get(`/api/pedidos/${pedido.id}`);
+  assert.equal(vista.pedido.imagenes.length, 1);
+  const ver = await fetch(`${base}/api/pedidos/${pedido.id}/imagen/${ok.imagen.id}`, { headers: { Cookie: lia.cookie() } });
+  assert.equal(ver.headers.get('content-type'), 'image/png');
+  const otro = await nuevoUsuario('Otro', 'otro.foto@prueba.co');
+  assert.equal((await fetch(`${base}/api/pedidos/${pedido.id}/imagen/${ok.imagen.id}`, { headers: { Cookie: otro.cookie() } })).status, 404, 'nadie más la ve');
+
+  await lia.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
+  await lia.subir(`/api/pedidos/${pedido.id}/export`, [['e.xlsx', plantillaExport()]]);
+  await lia.get(`/api/pedidos/${pedido.id}/reporte`);
+  assert.equal((await subir(lia, 'tarde.png', 'image/png', PNG)).estado, 409, 'después del reporte ya no');
+});
+
+test('clasificar el "¿por qué?": cambiar por probar la herramienta cuenta para el pivote', async () => {
+  const dia = 86400000;
+  const t0 = Date.parse('2026-10-01T12:00:00Z');
+  const ped = (total, clasificacion) => ({ id: Math.random(), tipo: 'real', inicialGuardadaEn: new Date(t0), finalGuardadaEn: new Date(t0 + dia), conteo: { total }, clasificacion });
+  assert.equal(evaluarUsuario([ped(6, 'probar')]).categoria, 'por_probar');
+  assert.equal(evaluarUsuario([ped(6, 'dato')]).categoria, 'cumple');
+  assert.equal(evaluarUsuario([ped(1, 'probar')]).categoria, 'no_cambia');
+  const { resumirPrueba } = require('../server/equipo');
+  const u = (p) => ({ evaluacion: evaluarUsuario([p]), recordatorio: null });
+  const r = resumirPrueba([u(ped(0)), u(ped(1)), u(ped(7, 'probar')), u(ped(6, 'dato')), u(ped(5))]);
+  assert.equal(r.veredicto, 'pivotar', '2 no cambian + 1 por probar = 3');
+  assert.equal(r.cumplenSinClasificar, 1);
+
+  // Por la API: solo el equipo, y solo pedidos con respuesta.
+  const eq = cliente();
+  await eq.post('/api/cuenta/entrar', { email: 'equipo@prueba.co', clave: 'clave-segura' });
+  const [{ id }] = await db.query('SELECT id FROM pedidos WHERE por_que IS NOT NULL ORDER BY id LIMIT 1');
+  assert.equal((await eq.post(`/api/equipo/pedidos/${id}/clasificacion`, { valor: 'probar' })).ok, true);
+  assert.equal((await eq.post(`/api/equipo/pedidos/${id}/clasificacion`, { valor: 'otra' })).estado, 400);
+  const res = await eq.get('/api/equipo/resultados');
+  const conPedido = res.usuarios.find((x) => x.pedidos.some((p) => p.id === id));
+  assert.equal(conPedido.pedidos.find((p) => p.id === id).clasificacion, 'probar');
+  assert.ok(conPedido.inventario && conPedido.inventario.productos > 0, 'cuánto le cuesta equivocarse, con su último archivo');
+  const ana = cliente();
+  await ana.post('/api/cuenta/entrar', { email: 'ana@prueba.co', clave: 'clave-segura' });
+  assert.equal((await ana.post(`/api/equipo/pedidos/${id}/clasificacion`, { valor: 'dato' })).estado, 403);
+});

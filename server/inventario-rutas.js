@@ -58,14 +58,17 @@ async function inicioDePrueba(usuarioId) {
   return r && r.inicio ? new Date(r.inicio) : null;
 }
 
-// Qué puede ver y hacer el usuario según dónde va en la prueba.
+// Qué puede ver y hacer el usuario según dónde va en la prueba. Durante sus 14 días un probador
+// ve solo el alcance declarado en el plan de prueba (el reporte de semanas); después, todo.
 async function permisos(usuario) {
-  if (usuario.rol === 'equipo') return { puedeSubir: true, sugerencias: true, finPrueba: null };
+  if (usuario.rol === 'equipo') return { puedeSubir: true, sugerencias: true, alcance: 'completo', finPrueba: null };
   const inicio = await inicioDePrueba(usuario.id);
   const fin = inicio ? new Date(inicio.getTime() + DIAS_PRUEBA * 86400000) : null;
+  const terminada = Boolean(fin && Date.now() > fin.getTime());
   return {
     puedeSubir: Boolean(inicio),
-    sugerencias: Boolean(fin && Date.now() > fin.getTime()),
+    sugerencias: terminada,
+    alcance: terminada ? 'completo' : 'prueba',
     finPrueba: fin,
   };
 }
@@ -117,7 +120,7 @@ rutas.get('/', async (req, res) => {
       programa: u.sistema,
       persona: req.usuario.nombre,
     },
-    sugerencias: per.sugerencias,
+    alcance: per.alcance,
   });
   res.json({ inventario, ...per, recordatorio: await estadoDe(req.usuario.id) });
 });

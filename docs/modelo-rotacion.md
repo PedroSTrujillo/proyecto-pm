@@ -261,7 +261,7 @@ Se esconden las últimas 8 semanas del archivo, se pronostican con lo anterior (
 
 ### 7.6 La prueba con los probadores
 
-Durante los 14 días de prueba de cada probador (desde su primera lista inicial), la cantidad sugerida no se muestra: si la vieran, M ya no mediría el efecto del reporte de semanas, que es lo que dice la hipótesis. El panel, el gráfico y el riesgo sí se ven, pero solo después de guardar la primera lista inicial (`server/inventario-rutas.js`). Este cambio de alcance va con su fila en "4 · Cambios y Reflexión" del Entregable.
+Durante los 14 días de prueba de cada probador (desde su primera lista inicial) la app muestra solo lo que declara el plan de prueba del Entregable 2: las semanas de inventario, "se agota" y "sobra". Nada de esta sección (ni pronóstico, ni temporada, ni tiempo de entrega, ni riesgo, ni cantidad sugerida, ni mínimos y máximos): si lo vieran, M ya no mediría el efecto del reporte de semanas. Y su inventario solo se ve después de guardar la primera lista inicial (`alcance` y `permisos` en `server/inventario-rutas.js`). Ver `docs/ENTREGABLE_Y_APP.md`.
 
 ## Fuentes
 
