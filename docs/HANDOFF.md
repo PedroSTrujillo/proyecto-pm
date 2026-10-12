@@ -27,6 +27,18 @@
 
 ---
 
+## 2026-10-11 (6) — Claude — plan de reestructuración y prototipo en Stitch
+
+- **Rama:** `mejoras-modelo` (solo en local).
+- **Estado:** se acordó reestructurar la app (ver `docs/PLAN_REESTRUCTURACION.md`): Next.js junto con la landing,
+  panel, ficha de producto, pedido sugerido detrás de un interruptor (apagado para probadores durante la prueba),
+  pronóstico Gamma-Poisson, sin IA generativa. La prueba con los 5 probadores no ha empezado.
+  Fase 0 en curso: proyecto de Stitch "SINESC · Rotación de inventario" (id 11994230030974630149) con el sistema de
+  diseño SINESC (verde azulado #0F766E, coral para "se agota", azul para "sobra", Plus Jakarta Sans + Inter).
+  Además: la explicación del cálculo en el reporte quedó en dos líneas; skills de Emil Kowalski instaladas.
+- **Siguiente paso exacto:** terminar las 4 pantallas en Stitch (panel, productos con ficha, preparar pedido, datos),
+  aprobarlas en grupo y arrancar la fase 1 (base Next.js).
+
 ## 2026-10-11 (5) — Claude — landing revisada para Expoandes y prueba con archivos de World Office
 
 - **Rama:** `mejoras-modelo`, lista para subir (solo en local).
