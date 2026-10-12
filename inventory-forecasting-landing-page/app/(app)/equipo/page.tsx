@@ -1,5 +1,10 @@
 import { Equipo } from '@/components/app/equipo'
+import { SoloEquipo } from '@/components/app/solo-equipo'
 
 export default function Page() {
-  return <Equipo />
+  return (
+    <SoloEquipo>
+      <Equipo />
+    </SoloEquipo>
+  )
 }

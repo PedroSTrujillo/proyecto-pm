@@ -80,9 +80,9 @@ function UltimaCarga({ inv }: { inv: Inventario }) {
       </div>
       <div className="flex flex-wrap gap-6">
         {f.filasVenta ? <Dato titulo="Filas de ventas" valor={numero(f.filasVenta)} /> : null}
-        <Dato titulo="Semanas de historia" valor={numero(Math.floor(f.semanas))} />
-        <Dato titulo="Meses de proyecto recortados" valor={numero(inv.resumen.picosRecortados)} />
-        <Dato titulo="Productos nuevos" valor={numero(inv.resumen.productosNuevos)} />
+        <Dato titulo="Semanas de ventas en el archivo" valor={numero(Math.floor(f.semanas))} />
+        <Dato titulo="Meses fuera de lo normal (recortados)" valor={numero(inv.resumen.picosRecortados)} />
+        <Dato titulo="Productos que empezaron hace poco" valor={numero(inv.resumen.productosNuevos)} />
       </div>
     </Tarjeta>
   )

@@ -79,7 +79,7 @@ function PanelCon({ inv }: { inv: Inventario }) {
           />
         ) : sinTiempos ? (
           <Cifra
-            titulo="Pide esta semana"
+            titulo="Pide ya"
             tono="text-ambar"
             etiqueta="text-ambar-texto"
             valor="¿?"
@@ -90,12 +90,12 @@ function PanelCon({ inv }: { inv: Inventario }) {
           />
         ) : (
           <Cifra
-            titulo="Pide esta semana"
+            titulo="Pide ya"
             tono="text-ambar"
             etiqueta="text-ambar-texto"
             valor={numero(r.pideYa)}
             detalle={pideTop ? `${pideTop.pideYa} de ${pideTop.nombre}: tarda ${duracion(pideTop.entrega)}` : 'Ninguno tarda más de lo que te queda'}
-            ayuda="Te alcanzan para más de 2 semanas, pero menos de lo que tarda su proveedor en traerlos. Si no los pides ya, se agotan antes de que llegue el pedido."
+            ayuda="Te alcanzan para más de 2 semanas, pero no para lo que tarda su proveedor en traerlos más una semana de margen. Si esperas al próximo pedido, llegan cuando ya se acabaron."
             href={`${rutas.productos}?filtro=pide`}
           />
         )}
@@ -104,7 +104,7 @@ function PanelCon({ inv }: { inv: Inventario }) {
           tono="text-azul"
           etiqueta="text-azul-texto"
           valor={r.tieneCostos ? plata(r.dineroQuieto) : numero(r.sobran)}
-          detalle={r.tieneCostos ? `en ${numero(r.sobran)} productos que sobran` : 'productos con más de 12 semanas (sube el costo para verlo en pesos)'}
+          detalle={r.tieneCostos ? `en ${numero(r.sobran)} productos que sobran` : 'productos con más de 12 semanas. Si tu archivo trae el costo, aquí ves cuánta plata es.'}
           ayuda="Lo que vale, a costo, el inventario que tienes por encima de 12 semanas de venta, más lo que no se vendió en todo el periodo."
           href={`${rutas.productos}?filtro=sobra`}
         />
@@ -260,7 +260,7 @@ function AtenderHoy({ inv }: { inv: Inventario }) {
   if (pide) {
     tarjetas.push(
       <Tarjetita key="pide" icono={<Truck />} titulo="Pide ya: tarda en llegar" tono="ambar" accion={<BotonEnlace href={rutas.pedido} variante="primario" tamano="chico" className="self-start">Preparar pedido</BotonEnlace>}>
-        <strong>{pide.nombre}</strong> te alcanza para {semanas(pide.semanas)} semanas y {pide.proveedor} tarda {duracion(pide.entrega)}. Si esperas, te quedas sin él hacia el {fecha(sumarDias(hoy, Math.round((pide.semanas ?? 0) * 7)))}.
+        <strong>{pide.nombre}</strong> te alcanza para {semanas(pide.semanas)} semanas y {pide.proveedor} tarda {duracion(pide.entrega)}. Se acaba hacia el {fecha(sumarDias(hoy, Math.round((pide.semanas ?? 0) * 7)))}: pídelo ya para que llegue a tiempo.
       </Tarjetita>,
     )
   }
@@ -306,7 +306,7 @@ function AtenderHoy({ inv }: { inv: Inventario }) {
   if (proyecto && proyecto.pico) {
     tarjetas.push(
       <Tarjetita key="proyecto" icono={<CalendarDays />} titulo="Venta para un proyecto" tono="neutro">
-        En {mesAnio(proyecto.pico.mes)} se vendieron {numero(proyecto.pico.vendido)} de <strong>{proyecto.nombre}</strong>, mucho más que lo normal. Contamos {numero(proyecto.pico.contado)} para no pedir de más.
+        En {mesAnio(proyecto.pico.mes)} se vendieron {numero(proyecto.pico.vendido)} de <strong>{proyecto.nombre}</strong>, mucho más de lo normal. Contamos {numero(proyecto.pico.contado)} para no pedir de más.
       </Tarjetita>,
     )
   }

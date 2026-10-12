@@ -417,31 +417,6 @@ test('alcance del plan de prueba: un probador en sus 14 días ve solo el reporte
   for (const f of reporte.filas) assert.equal(inv.productos.find((p) => p.codigo === f.codigo).semanas, f.semanasInventario);
 });
 
-test('foto de la lista inicial: solo antes de ver el reporte, la ve el dueño y el equipo', async () => {
-  const PNG = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
-  const lia = await nuevoUsuario('Lía', 'lia.foto@prueba.co');
-  const { pedido } = await lia.post('/api/pedidos');
-  const subir = (c, nombre, tipo, buf) => {
-    const fd = new FormData();
-    fd.append('imagen', new Blob([buf], { type: tipo }), nombre);
-    return fetch(`${base}/api/pedidos/${pedido.id}/imagen`, { method: 'POST', headers: { Cookie: c.cookie() }, body: fd }).then(async (r) => ({ estado: r.status, ...(await r.json()) }));
-  };
-  assert.equal((await subir(lia, 'nota.txt', 'text/plain', Buffer.from('hola'))).estado, 400, 'solo fotos o PDF');
-  const ok = await subir(lia, 'lista.png', 'image/png', PNG);
-  assert.equal(ok.estado, 201);
-  const vista = await lia.get(`/api/pedidos/${pedido.id}`);
-  assert.equal(vista.pedido.imagenes.length, 1);
-  const ver = await fetch(`${base}/api/pedidos/${pedido.id}/imagen/${ok.imagen.id}`, { headers: { Cookie: lia.cookie() } });
-  assert.equal(ver.headers.get('content-type'), 'image/png');
-  const otro = await nuevoUsuario('Otro', 'otro.foto@prueba.co');
-  assert.equal((await fetch(`${base}/api/pedidos/${pedido.id}/imagen/${ok.imagen.id}`, { headers: { Cookie: otro.cookie() } })).status, 404, 'nadie más la ve');
-
-  await lia.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
-  await lia.subir(`/api/pedidos/${pedido.id}/export`, [['e.xlsx', plantillaExport()]]);
-  await lia.get(`/api/pedidos/${pedido.id}/reporte`);
-  assert.equal((await subir(lia, 'tarde.png', 'image/png', PNG)).estado, 409, 'después del reporte ya no');
-});
-
 test('clasificar el "¿por qué?": cambiar por probar la herramienta cuenta para el pivote', async () => {
   const dia = 86400000;
   const t0 = Date.parse('2026-10-01T12:00:00Z');
@@ -497,4 +472,34 @@ test('borrar datos: cuenta antes, borra en cascada al confirmar y nunca toca al 
   assert.equal((await db.uno("SELECT count(*)::int AS n FROM archivos WHERE pedido_id = $1", [pedido.id])).n, 0);
   const equipo = await borrarDatos({ email: 'equipo@prueba.co', confirmar: true });
   assert.equal(equipo.usuarios.length, 0, 'las cuentas del equipo no se borran');
+});
+
+test('ejemplos del equipo: un probador no los ve; el equipo carga un negocio y un archivo como su inventario', async () => {
+  const probador = await nuevoUsuario('Probador Ejemplos', 'probador.ejemplos@prueba.co');
+  assert.equal((await probador.get('/api/equipo/ejemplos')).estado, 403);
+  assert.equal((await probador.post('/api/equipo/ejemplos/negocios/ferreteria/cargar')).estado, 403);
+
+  const eq = cliente();
+  const ya = await eq.post('/api/cuenta/entrar', { email: 'equipo@prueba.co', clave: 'clave-segura' });
+  if (ya.estado !== 200) assert.equal((await eq.post('/api/cuenta/crear', { nombre: 'Equipo', email: 'equipo@prueba.co', clave: 'clave-segura' })).estado, 201);
+  const lista = await eq.get('/api/equipo/ejemplos');
+  assert.equal(lista.negocios.length, 5);
+  assert.ok(lista.archivos.every((a) => a.disponible), 'los archivos de ejemplos/ están en el repo');
+
+  // El archivo del negocio pasa por el lector y da lo mismo que la demo.
+  const r = await eq.post('/api/equipo/ejemplos/negocios/ferreteria/cargar');
+  assert.equal(r.ok, true, JSON.stringify(r.errores));
+  const demo = await eq.get('/api/demo/ferreteria');
+  const { inventario } = await eq.get('/api/inventario');
+  assert.equal(inventario.productos.length, demo.inventario.productos.length);
+  const semanasDemo = new Map(demo.inventario.productos.map((p) => [p.codigo, p.semanas]));
+  for (const p of inventario.productos) assert.equal(p.semanas, semanasDemo.get(p.codigo), p.codigo);
+  assert.ok(inventario.productos.some((p) => p.proveedor === 'Importadora Herramientas del Pacífico' && p.entrega === 10), 'trae proveedor y tiempo de entrega');
+
+  const siigo = await eq.post('/api/equipo/ejemplos/archivos/siigo/cargar');
+  assert.equal(siigo.ok, true, JSON.stringify(siigo.errores));
+  assert.equal((await eq.post('/api/equipo/ejemplos/archivos/lista/cargar')).estado, 400, 'la lista se importa en un pedido');
+  const descarga = await fetch(`${base}/api/equipo/ejemplos/archivos/sap/sap-ventas-y-stock.xlsx`, { headers: { Cookie: eq.cookie() } });
+  assert.equal(descarga.status, 200);
+  assert.equal((await fetch(`${base}/api/equipo/ejemplos/archivos/sap/..%2Fpackage.json`, { headers: { Cookie: eq.cookie() } })).status, 404);
 });

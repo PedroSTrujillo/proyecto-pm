@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 // Los mismos de server/demo.js. Aquí solo va lo que se muestra en la tarjeta.
 const NEGOCIOS = [
-  { id: 'ferreteria', icono: Hammer, sector: 'Ferretería', empresa: 'Ferrecentro La Escuadra', ciudad: 'Bogotá', programa: 'World Office', texto: 'Miles de referencias, cemento que se va por bultos y herramienta importada que tarda 10 semanas.' },
+  { id: 'ferreteria', icono: Hammer, sector: 'Ferretería', empresa: 'Ferrecentro La Escuadra', ciudad: 'Bogotá', programa: 'World Office', texto: 'Cemento que se va por bultos, ventas para obras que llegan de golpe y herramienta importada que tarda 10 semanas.' },
   { id: 'muebles', icono: Sofa, sector: 'Muebles para el hogar', empresa: 'Casa Nogal Muebles', ciudad: 'Medellín', programa: 'Helisa', texto: 'Contenedores que tardan 14 semanas: qué volver a traer y qué no, con diciembre encima.' },
   { id: 'oficina', icono: Armchair, sector: 'Mobiliario de oficina', empresa: 'Espacio Ofis', ciudad: 'Bogotá', programa: 'Siigo Nube', texto: 'Venta de mostrador más proyectos grandes que llegan de golpe y no deben inflar el pedido.' },
   { id: 'refrigeracion', icono: Snowflake, sector: 'Refrigeración', empresa: 'Frío Andino', ciudad: 'Cali', programa: 'Siigo Nube', texto: 'Gases y compresores importados, temporada de calor y un gas en desmonte que ya no rota.' },

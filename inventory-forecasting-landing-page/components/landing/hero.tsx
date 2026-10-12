@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { ArrowRight, Check } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
-import { URL_CREAR_CUENTA } from '@/lib/app'
+import { URL_CREAR_CUENTA, URL_DEMO } from '@/lib/app'
 import { cn } from '@/lib/utils'
 import { ReportPreview } from './report-preview'
 
@@ -32,10 +32,10 @@ export function Hero() {
               <ArrowRight data-icon="inline-end" aria-hidden="true" />
             </a>
             <Link
-              href="#como-funciona"
+              href={URL_DEMO}
               className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'h-11 px-5 text-base')}
             >
-              Ver cómo funciona
+              Ver un negocio de ejemplo
             </Link>
           </div>
           <ul className="mt-8 flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:flex-wrap sm:gap-x-6">

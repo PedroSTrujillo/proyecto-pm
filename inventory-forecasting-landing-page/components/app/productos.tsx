@@ -211,7 +211,8 @@ function ProductosCon({ inv }: { inv: Inventario }) {
 function consejo(p: Producto, inv: Inventario) {
   if (p.estado === 'agota' && inv.alcance === 'prueba') return 'Se acaba en menos de 2 semanas si sigues vendiendo al mismo ritmo. Revísalo en tu pedido.'
   if (p.estado === 'agota') return `Se acaba en menos de 2 semanas${p.entrega > 0 ? ` y ${p.proveedor === 'Sin proveedor' ? 'tu proveedor' : p.proveedor} tarda ${duracion(p.entrega)}` : ''}. Va en el pedido de esta semana.`
-  if (p.estado === 'pide') return `Te queda para ${semanas(p.semanas)} semanas, pero el pedido tarda ${duracion(p.entrega)} en llegar. Si no lo pides ya, te quedas sin él antes de que llegue.`
+  if (p.estado === 'pide' && p.semanas !== null && p.semanas < p.entrega) return `Te queda para ${semanas(p.semanas)} semanas y el pedido tarda ${duracion(p.entrega)} en llegar: si no lo pides ya, te quedas sin él antes de que llegue.`
+  if (p.estado === 'pide') return `Te queda para ${semanas(p.semanas)} semanas y el pedido tarda ${duracion(p.entrega)} en llegar. Queda justo: si esperas al próximo pedido, llega cuando ya se acabó.`
   if (p.estado === 'sobra') return `Tienes para ${semanas(p.semanas)} semanas. No lo pidas por ahora${p.ventasSemana < 1 ? '; se vende tan poco que vale la pena pensar si se sigue trayendo' : ''}.`
   if (p.estado === 'sin_ventas') return 'No se vendió en todo el periodo del archivo. Si sigue así, es candidato a salir del catálogo o a una promoción.'
   return `Está bien surtido. ${inv.sugerencias && p.sugerido ? 'Si haces pedido esta semana, ajústalo a lo sugerido.' : 'Revísalo en el próximo pedido.'}`
@@ -274,7 +275,7 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
           <GraficoVentas historia={historia} pronostico={pronostico} marcas={p.semanasPico} alto={200} descripcion={`Ventas semanales de ${p.nombre} y pronóstico de las próximas 8 semanas`} />
           {p.pico && (
             <p className="text-[0.88rem] text-ambar-texto">
-              En {mesAnio(p.pico.mes)} vendió {numero(p.pico.vendido)}, mucho más que lo normal (un proyecto o un cliente puntual). Para el promedio se contaron {numero(p.pico.contado)}.
+              En {mesAnio(p.pico.mes)} vendió {numero(p.pico.vendido)}, mucho más de lo normal (un proyecto o un cliente puntual). Para el promedio se contaron {numero(p.pico.contado)}.
             </p>
           )}
           {prox4.length > 0 && (

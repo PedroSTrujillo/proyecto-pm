@@ -6,7 +6,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState, type ReactNode } from 'react'
-import { BarChart3, ClipboardList, Database, LayoutDashboard, LogOut, Menu, Package, UserRound, X } from 'lucide-react'
+import { BarChart3, ClipboardList, Database, FlaskConical, LayoutDashboard, LogOut, Menu, Package, UserRound, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useInventario, useSesion } from './contexto'
 import { reportarError } from './pantalla-error'
@@ -65,7 +65,7 @@ function itemsDe(demo: boolean, rutas: ReturnType<typeof useInventario>['rutas']
     { href: rutas.pedido, texto: demo ? 'Preparar pedido' : 'Pedidos', icono: <ClipboardList /> },
     { href: rutas.datos, texto: 'Datos', icono: <Database /> },
   ]
-  if (!demo && equipo) base.push({ href: '/equipo', texto: 'Resultados de la prueba', icono: <BarChart3 /> })
+  if (!demo && equipo) base.push({ href: '/equipo', texto: 'Resultados de la prueba', icono: <BarChart3 /> }, { href: '/ejemplos', texto: 'Ejemplos', icono: <FlaskConical /> })
   if (!demo) base.push({ href: '/cuenta', texto: 'Mi cuenta', icono: <UserRound /> })
   return base
 }

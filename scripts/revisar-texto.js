@@ -35,6 +35,8 @@ function textos(fuente) {
 let total = 0;
 const PREDETERMINADOS = [
   ...fs.readdirSync('inventory-forecasting-landing-page/components/landing').map((f) => path.join('inventory-forecasting-landing-page/components/landing', f)),
+  ...fs.readdirSync('inventory-forecasting-landing-page/components/app').map((f) => path.join('inventory-forecasting-landing-page/components/app', f)),
+  'inventory-forecasting-landing-page/app/demo/page.tsx',
   'public/js/app.js', 'public/js/reporte.js', 'public/js/sistemas.js',
 ];
 const archivos = process.argv.slice(2).length ? process.argv.slice(2) : PREDETERMINADOS;

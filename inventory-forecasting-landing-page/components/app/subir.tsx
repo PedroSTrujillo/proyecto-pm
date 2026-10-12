@@ -145,7 +145,7 @@ export function FormularioColumnas({ hojas, campos, alEnviar }: { hojas: HojaMap
                   value={valores[h.clave][c.campo] ?? ''}
                   onChange={(e) => setValores((v) => ({ ...v, [h.clave]: { ...v[h.clave], [c.campo]: e.target.value === '' ? null : Number(e.target.value) } }))}
                 >
-                  <option value="">— No está en esta hoja —</option>
+                  <option value="">No está en esta hoja</option>
                   {h.encabezados.map((x) => <option key={x.indice} value={x.indice}>{x.letra}{x.texto ? ` · ${x.texto}` : ''}</option>)}
                 </select>
               </label>

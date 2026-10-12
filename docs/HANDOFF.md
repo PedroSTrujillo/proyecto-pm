@@ -27,6 +27,19 @@
 
 ---
 
+## 2026-10-12 (12) — Claude — ejemplos para el equipo, sin foto de la lista y textos revisados como cliente
+- **Rama:** `mejoras-modelo` (solo en local).
+- **Estado:**
+  - **Ejemplos (solo equipo):** página `/ejemplos` en el menú del equipo (`components/app/ejemplos.tsx`, `server/ejemplos.js`). Los cinco negocios de la demo se bajan como Excel (hoja de ventas con fecha y de existencias con costo y proveedor) o se cargan directo como el inventario de la cuenta, con los tiempos de entrega de sus proveedores. Lo mismo con los archivos de `ejemplos/` (Siigo, SAP, ventas por mes, catálogo grande); la lista inicial de mínimos solo se descarga, para importarla en el paso 1.
+  - **Solo el equipo ve "Resultados de la prueba" y "Ejemplos":** un probador que entra a `/equipo` o `/ejemplos` vuelve a su panel (`solo-equipo.tsx`); la API ya respondía 403.
+  - **Sin foto de la lista inicial:** se quitó (pantalla, rutas, tabla `imagenes_lista` y su prueba). Leerla con OCR falla con listas a mano y en el primer pedido no hay catálogo para corregir los códigos. Queda como fila de Cambios (`docs/ENTREGABLE_Y_APP.md`).
+  - **Textos revisados como cliente:** "pide ya" ya no dice "te quedas sin él antes de que llegue" cuando sí alcanza; el panel explica el margen de una semana; el pedido sugerido explica por qué unas líneas vienen llenas; el mensaje de WhatsApp; los datos del archivo en Datos; la ferretería de la demo ya no dice "más de 3.000 referencias" con 37 productos. En la página principal (solo frases): ya no dice que la herramienta nunca sugiere cuánto pedir ni que no ajusta por temporada; el botón secundario lleva a la demo; se quitaron frases de relleno.
+  - `npm run texto` revisa también las pantallas de la aplicación.
+- **Base de datos:** se quitó `imagenes_lista` del esquema (la rama no se ha desplegado, así que Neon no la tiene).
+- **Verificación:** `npm test` → 81/81 (sale la de la foto, entra la de ejemplos: el archivo de la ferretería da las mismas semanas que la demo y un probador recibe 403); tipos y `next build` sin errores. En el navegador: cargar ejemplos y su panel, pedido sugerido, ficha, Datos; un probador no entra a `/equipo` ni a `/ejemplos`; sin desbordes a 375 px en la página principal, la demo, el panel, los resultados y los ejemplos.
+- **Siguiente paso exacto (equipo):** el de la entrada 10, más la fila de Cambios por la imagen de la lista.
+- **Notas y bloqueos:** en desarrollo, la recarga automática de Next (websocket `/_next/hmr`) no conecta a través del servidor propio; hay que recargar la página a mano. No afecta producción.
+
 ## 2026-10-12 (11) — Claude — página principal como estaba y repaso completo de la aplicación
 - **Rama:** `mejoras-modelo` (solo en local).
 - **Estado:**

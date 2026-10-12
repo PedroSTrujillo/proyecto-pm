@@ -12,7 +12,8 @@
 const { calcularRotacion } = require('./rotacion');
 const { seriesSemanales } = require('./series');
 const { construirInventario } = require('./inventario');
-const { claveCodigo, textoDia, MS_DIA } = require('./valores');
+const XLSX = require('xlsx');
+const { claveCodigo, textoDia, MS_DIA, EXCEL_EPOCA } = require('./valores');
 
 const SEMANAS_HISTORIA = 82; // un poco más de año y medio: alcanza para ver la temporada
 
@@ -43,7 +44,7 @@ const SECTORES = {
     ciudad: 'Bogotá',
     programa: 'World Office',
     persona: 'Marta Ruiz',
-    resumen: 'Distribuidora de ferretería con más de 3.000 referencias. Compra a fabricantes nacionales y a un importador de herramienta.',
+    resumen: 'Distribuidora de ferretería que compra a fabricantes nacionales y a un importador de herramienta. La demo muestra una parte de su catálogo.',
     archivos: ['Movimiento de inventario.xls', 'Inventarios por bodega.xls'],
     temporada: 'ferreteria',
     proveedores: [
@@ -367,6 +368,8 @@ function datosDelSector(id) {
     entregas: Object.fromEntries(sector.proveedores.map((p) => [p.nombre, p.entrega])),
     filasVenta: ventas.length,
     hasta,
+    ventas,
+    existencias,
   };
   for (const k of cache.keys()) if (!k.endsWith(`:${hasta}`)) cache.delete(k); // las de ayer ya no sirven
   cache.set(llave, datos);
@@ -414,4 +417,24 @@ function sectores() {
   return Object.entries(SECTORES).map(([id, s]) => ({ id, empresa: s.empresa, sector: s.sector, ciudad: s.ciudad, programa: s.programa, resumen: s.resumen, productos: s.productos.length }));
 }
 
-module.exports = { inventarioDemo, sectores, SECTORES };
+/**
+ * El mismo negocio como un archivo de Excel (hoja de ventas con fecha y hoja de existencias con
+ * costo y proveedor), para que el equipo lo suba por el flujo normal y pruebe el lector.
+ */
+function archivoDemo(id) {
+  const sector = SECTORES[id];
+  if (!sector) return null;
+  const d = datosDelSector(id);
+  const libro = XLSX.utils.book_new();
+  const ventas = d.ventas.map((v) => [{ t: 'n', v: v.dia + EXCEL_EPOCA, z: 'dd/mm/yyyy' }, v.codigo, v.nombre, v.cantidad]);
+  XLSX.utils.book_append_sheet(libro, XLSX.utils.aoa_to_sheet([['Fecha', 'Código', 'Producto', 'Cantidad'], ...ventas]), 'Ventas');
+  const existencias = sector.productos.map(([codigo, nombre, prov, , costo], i) => [codigo, nombre, d.existencias[i].existencias, costo, sector.proveedores[prov].nombre]);
+  XLSX.utils.book_append_sheet(libro, XLSX.utils.aoa_to_sheet([['Código', 'Producto', 'Existencias', 'Costo unitario', 'Proveedor'], ...existencias]), 'Existencias');
+  return {
+    nombre: `${id}-${textoDia(d.hasta)}.xlsx`,
+    buffer: XLSX.write(libro, { type: 'buffer', bookType: 'xlsx' }),
+    entregas: d.entregas,
+  };
+}
+
+module.exports = { inventarioDemo, archivoDemo, sectores, SECTORES };

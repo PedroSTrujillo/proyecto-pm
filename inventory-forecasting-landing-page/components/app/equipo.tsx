@@ -184,11 +184,6 @@ function Probador({ u }: { u: any }) {
                   <td className="max-w-80 px-3 py-2">
                     <span className="whitespace-pre-line">{p.porQue || '—'}</span>
                     {p.porQue && <Clasificar pedidoId={p.id} inicial={p.clasificacion} />}
-                    {p.imagenes?.length > 0 && (
-                      <span className="mt-1 block text-xs">
-                        Foto de su lista: {p.imagenes.map((i: any, k: number) => <a key={i.id} href={`/api/equipo/imagenes/${i.id}`} target="_blank" rel="noopener noreferrer" className="font-semibold text-primary hover:text-primary-hover">{k ? ', ' : ''}{i.nombre}</a>)}
-                      </span>
-                    )}
                   </td>
                 </tr>
               ))}

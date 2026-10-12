@@ -24,7 +24,6 @@ async function borrarDatos({ email = null, todos = false, confirmar = false }) {
     usuarios: usuarios.map((u) => u.email),
     pedidos: await contar('pedidos'),
     archivos: await contar('archivos'),
-    fotos: await contar('imagenes_lista'),
     eventos: await contar('eventos'),
   };
   if (confirmar && ids.length) await db.query('DELETE FROM usuarios WHERE id = ANY($1::int[])', [ids]);

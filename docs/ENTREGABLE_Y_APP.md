@@ -15,7 +15,7 @@ Revisión del 2026-10-11 contra `(Corrección) Entregable 2 - Grupo 1.xlsx` (el 
 | Se prueba con 5 usuarios; los simulados se anotan aparte | Cada pedido se marca real o simulado y la vista del equipo lo separa | Paso 1, `equipo.js` |
 | Plan: aplicación web en Next.js con Postgres y autenticación, con acceso público | Next.js (interfaz) + Express (API) en un solo servidor, PostgreSQL (Neon), cuentas con contraseña | `server/index.js`, `inventory-forecasting-landing-page/` |
 | Pantalla del reporte: sube CSV o Excel con 1–2 años de ventas y existencias; tabla con producto, ventas por semana, existencias y semanas; de menor a mayor; filtros; resaltados los de menos de 2 semanas | Igual, con búsqueda y filtros "se agotan" y "sobran" | `components/app/reporte.tsx` |
-| Pantalla de medición: antes de abrir el reporte escribe la lista que iba a pedir, **la importa o adjunta una imagen**; después escribe la lista final; la app guarda las dos y cuenta | Escribir, pegar desde Excel o importar el archivo; **adjuntar foto o PDF de la lista** (como respaldo: la cuenta se hace con lo escrito, por código) | `components/app/pedido-flujo.tsx`, tabla `imagenes_lista` |
+| Pantalla de medición: antes de abrir el reporte escribe la lista que iba a pedir, **la importa o adjunta una imagen**; después escribe la lista final; la app guarda las dos y cuenta | Escribir, pegar desde Excel o importar el archivo. **No se adjunta imagen** (ver Cambios) | `components/app/pedido-flujo.tsx`, `components/app/hoja.tsx` |
 | Cómo miden: cada usuario con sus credenciales; el número sale de la base de datos; hasta guardar la lista inicial no se habilita el reporte | Reglas en el servidor: sin lista inicial, subir el export o pedir el reporte responde 403; la lista inicial queda fija (409) | `server/pedidos.js` |
 | Encuesta de una pregunta: por qué cambió lo que cambió | Paso 5 | `POST /:id/por-que` |
 | Pivote: 3 o más de los 5 cambian 0 o 1 líneas | Veredicto automático | `resumirPrueba` |
@@ -43,7 +43,7 @@ Fuera de la prueba (el equipo, la demo y cada probador cuando terminan sus 14 d�
 
 ## Filas que conviene agregar en "4 · Cambios y Reflexión"
 
-1. Plan de prueba, lista inicial: "adjunta una imagen" queda como respaldo; la métrica se calcula con la lista escrita, porque una foto no se compara por código.
+1. Plan de prueba, lista inicial: "adjunta una imagen" se quitó. Una foto no se compara por código, y leerla con OCR falla con listas escritas a mano; la lista se escribe, se pega desde Excel o se importa de un archivo.
 2. Stickiness: el correo llega cuando el usuario acepta, con la invitación de calendario; el aviso de 3 días antes lo da el calendario (sin cron).
 3. Producto después de la prueba: panel, pronóstico, tiempo de entrega y cantidad sugerida, apagados para los probadores durante sus 14 días. Evidencia: Claudia Mueces (avisos de mínimos), Juan José Aya (importación, qué no volver a traer), Ricardo Osorio (comercialización contra proyectos).
 4. Criterio para clasificar el "¿por qué?" (la vista del equipo lo marca y el veredicto lo cuenta).

@@ -57,7 +57,7 @@ export function Titulo({ children, sub, acciones, etiqueta }: { children: ReactN
 
 export const ESTADOS: Record<Estado, { texto: string; chip: string; numero: string; barra: string; descripcion: string }> = {
   agota: { texto: 'Se agota', chip: 'bg-rojo-fondo text-rojo-texto', numero: 'text-rojo', barra: 'bg-rojo', descripcion: 'Te alcanza para menos de 2 semanas.' },
-  pide: { texto: 'Pide ya', chip: 'bg-ambar-fondo text-ambar-texto', numero: 'text-ambar', barra: 'bg-ambar', descripcion: 'Te alcanza para menos de lo que tarda en llegar un pedido.' },
+  pide: { texto: 'Pide ya', chip: 'bg-ambar-fondo text-ambar-texto', numero: 'text-ambar', barra: 'bg-ambar', descripcion: 'No te alcanza para lo que tarda en llegar un pedido, más una semana de margen.' },
   normal: { texto: 'Normal', chip: 'bg-muted text-foreground/80', numero: 'text-foreground', barra: 'bg-primary', descripcion: 'Bien surtido.' },
   sobra: { texto: 'Sobra', chip: 'bg-azul-fondo text-azul-texto', numero: 'text-azul', barra: 'bg-azul', descripcion: 'Tienes para más de 12 semanas.' },
   sin_ventas: { texto: 'Sin ventas', chip: 'bg-azul-fondo text-azul-texto', numero: 'text-muted-foreground', barra: 'bg-muted-foreground', descripcion: 'No se vendió en el periodo del archivo.' },

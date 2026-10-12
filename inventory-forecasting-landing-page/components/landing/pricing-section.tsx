@@ -5,19 +5,19 @@ import { cn } from '@/lib/utils'
 import { SectionHeading } from './section-heading'
 
 const incluye = [
-  'Reporte de rotación de todos tus productos',
+  'Reporte de rotación de cada producto',
   'Excel o CSV, en uno o en varios archivos',
   'Tu lista de antes y la de después, comparadas',
   'Pedidos reales o simulados',
   'Plantilla para quien lleva el inventario en Excel',
   'Recordatorio en tu calendario antes de que un producto se agote, si lo pides',
+  'Después de tus primeros 14 días: pedido sugerido por proveedor, con su tiempo de entrega y la temporada',
 ]
 
 const noHace = [
-  'No te dice cuánto pedir. Eso lo decides tú.',
-  'No ajusta por temporada ni por el tiempo de entrega del proveedor.',
   'No se conecta a tu software contable: tú subes el archivo.',
-  'No hace pedidos por ti.',
+  'No hace pedidos por ti: el pedido lo mandas tú.',
+  'No usa inteligencia artificial: cada número sale de una cuenta que puedes revisar.',
 ]
 
 export function PricingSection() {
@@ -43,7 +43,7 @@ export function PricingSection() {
               <span className="text-sm text-primary-foreground/75">mientras dure la prueba</span>
             </p>
             <p className="mt-3 leading-relaxed text-primary-foreground/85">
-              Todo lo que hace la herramienta hoy, para todos los pedidos que quieras preparar.
+              Para los pedidos que quieras preparar mientras dure la prueba.
             </p>
             <ul className="mt-6 flex flex-1 flex-col gap-3 text-sm">
               {incluye.map((item) => (
@@ -64,8 +64,7 @@ export function PricingSection() {
           <div className="flex flex-col rounded-2xl border border-border bg-background p-6 md:p-8">
             <h3 className="font-semibold">Lo que no hace, a propósito</h3>
             <p className="mt-3 leading-relaxed text-muted-foreground">
-              Lo dejamos por fuera para mantenerla simple. Primero queremos saber si ver la rotación te cambia el
-              pedido; lo demás puede venir después.
+              Lo dejamos por fuera para que sepas de dónde sale cada número y el pedido siga siendo tuyo.
             </p>
             <ul className="mt-6 mb-8 flex flex-col gap-3 text-sm">
               {noHace.map((item) => (
@@ -76,8 +75,8 @@ export function PricingSection() {
               ))}
             </ul>
             <p className="mt-auto rounded-xl border border-border bg-card p-4 text-sm leading-relaxed text-muted-foreground">
-              Para eso está tu criterio: tú sabes cuándo llega la temporada, qué proveedor se demora y qué cliente
-              grande viene en camino.
+              Lo sugerido es un punto de partida. Tú sabes qué cliente grande viene en camino o qué producto vas a dejar
+              de trabajar.
             </p>
           </div>
         </div>

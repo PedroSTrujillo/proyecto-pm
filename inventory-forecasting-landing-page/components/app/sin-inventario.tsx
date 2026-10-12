@@ -40,7 +40,10 @@ export function SinInventario({ puedeSubir }: { puedeSubir: boolean }) {
       <Tarjeta className="flex max-w-2xl flex-col gap-4 p-7">
         <h1 className="text-2xl font-extrabold">Sube tu inventario</h1>
         <p className="text-muted-foreground">Todavía no tenemos tus ventas y existencias. Súbelas una vez y quedan guardadas: el panel, los productos y el pedido salen de ahí.</p>
-        <BotonEnlace href="/datos" variante="primario" className="self-start">Subir mis archivos</BotonEnlace>
+        <div className="flex flex-wrap items-center gap-3">
+          <BotonEnlace href="/datos" variante="primario">Subir mis archivos</BotonEnlace>
+          {usuario?.rol === 'equipo' && <Link href="/ejemplos" className="font-semibold text-primary hover:text-primary-hover">O carga un ejemplo</Link>}
+        </div>
       </Tarjeta>
     )
   }

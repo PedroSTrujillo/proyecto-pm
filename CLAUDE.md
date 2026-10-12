@@ -76,6 +76,8 @@ Consecuencias que no se ven leyendo un solo archivo:
 
 **Ventas como total de un periodo:** si una tabla trae código y cantidad pero ninguna fecha, `leerExport` devuelve `necesitaPeriodo` y la app le pregunta al usuario desde y hasta cuándo (se guarda en `exports.periodo`). Con eso, `calcularRotacion` usa el promedio simple sobre ese periodo (`periodo.totales`). Solo se considera así si no vino ninguna tabla de ventas con fecha.
 
+**Ejemplos para el equipo** (`server/ejemplos.js`, página `/ejemplos`, solo rol `equipo`): los cinco negocios de la demo como Excel (`archivoDemo` en `demo.js`) y los archivos de `ejemplos/`; cada uno se descarga o se carga como el inventario de la cuenta del equipo (`guardarExport` de `inventario-rutas.js`). `/equipo` y `/ejemplos` mandan al panel a quien no es del equipo (`solo-equipo.tsx`), y sus rutas de la API responden 403.
+
 **Cuentas:** `/api/cuenta/datos` (nombre y programa contable), `/clave` (cambiar), `/olvide` y `/restablecer` (enlace de un solo uso, 24 horas, tabla `restablecimientos` con el hash del token). Sin correo configurado, el enlace lo genera el equipo desde "Resultados de la prueba".
 
 **Lector de archivos** (`lector.js` + `formatos.js`): busca la fila de encabezados y reconoce las columnas por sinónimos normalizados (minúsculas, sin tildes, sin palabras vacías). Acepta CSV con `;` o `,` en UTF-8 o ANSI, varias hojas o archivos, columnas por mes, y fechas y números en formato colombiano. Si falta un campo, devuelve las hojas con columnas de muestra para que el usuario elija la columna desde la pantalla, y el mapeo se recuerda por firma de encabezados en `usuarios.mapeos`. **Para adaptar un formato nuevo se agregan sinónimos en `formatos.js`, sin tocar `lector.js`.** Rechaza imágenes y PDFs a propósito.
@@ -96,7 +98,7 @@ Están ordenados por cuánto ponen en riesgo la prueba o la Entrega 3.
 
 **Diferencias entre lo declarado y lo construido** (se califican en la Entrega 3):
 1. **Stack.** El plan de prueba declara "Next.js con Postgres y autenticación". *Atendido (2026-10-11):* la interfaz ya es Next.js; la API sigue en Express dentro del mismo servidor. Conviene decirlo así en Cambios.
-2. **Lista inicial por imagen.** El plan dice que el usuario "la importa o adjunta una imagen". *Atendido (2026-10-11):* se puede adjuntar una foto o PDF como respaldo (`imagenes_lista`), pero la métrica sale de las líneas escritas, porque una foto no se compara por código. Hay que declararlo así en Cambios.
+2. **Lista inicial por imagen.** El plan dice que el usuario "la importa o adjunta una imagen". *Decisión (2026-10-12):* no se adjunta imagen. La lista se escribe, se pega desde Excel o se importa de un archivo. Una foto no se compara por código, y leerla con OCR falla con listas escritas a mano y, en el primer pedido, no hay catálogo contra el cual corregir los códigos. Hay que declararlo así en Cambios.
 3. **"Dos pantallas"** en el plan contra un flujo de 5 pasos en la app. Es compatible, pero hay que explicarlo.
 4. En el Entregable 2 quedaron vacíos el campo "Qué sostiene lo que no cambió" y la columna de sustentación (ninguna fila marcada Sí, así que no hay bono de revisión).
 

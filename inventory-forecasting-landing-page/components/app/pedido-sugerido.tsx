@@ -29,7 +29,7 @@ export function PedidoSugerido({ encabezado = true }: { encabezado?: boolean }) 
 
 function mensajeWhatsapp(proveedor: string, lineas: { p: Producto; cantidad: number }[], empresa?: string) {
   const items = lineas.map(({ p, cantidad }) => `• ${numero(cantidad)} × ${p.nombre} (${p.codigo})`).join('\n')
-  return `Buenos días. ${empresa ? `Para ${empresa}, ` : ''}por favor:\n${items}\nQuedo atento a la fecha de entrega. Gracias.`
+  return `Buenos días. ${empresa ? `Les escribo de ${empresa}. ` : ''}Por favor, nos envían:\n${items}\nQuedo atento a la fecha de entrega. Gracias.`
 }
 
 function PedidoCon({ inv, encabezado }: { inv: Inventario; encabezado: boolean }) {
@@ -126,6 +126,7 @@ function PedidoCon({ inv, encabezado }: { inv: Inventario; encabezado: boolean }
               />
             )}
           </div>
+          <p className="mb-3 text-[0.95rem] text-muted-foreground">Ya pusimos lo que se agota y lo que hay que pedir ya. Los demás traen su cantidad sugerida por si quieres aprovechar el pedido: toca el número para usarla.</p>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] border-collapse">
               <thead>

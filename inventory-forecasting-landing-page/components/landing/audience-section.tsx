@@ -20,10 +20,9 @@ const traits = [
 ]
 
 const principles = [
-  'Cada número viene con su cuenta.',
-  'Pasos cortos y claros.',
-  'Tu archivo, tal como sale.',
-  'Tú decides cuánto pedir.',
+  'Cada número trae su cuenta',
+  'Subes tu archivo tal como sale',
+  'La última palabra es tuya',
 ]
 
 export function AudienceSection() {
@@ -46,7 +45,7 @@ export function AudienceSection() {
           ))}
         </div>
         <div className="mt-6 flex flex-col gap-4 rounded-2xl bg-secondary p-6 md:flex-row md:items-center md:justify-between">
-          <p className="font-semibold text-secondary-foreground">Tu experiencia sigue mandando.</p>
+          <p className="font-semibold text-secondary-foreground">Así trabaja SINESC:</p>
           <ul className="flex flex-wrap gap-2">
             {principles.map((p) => (
               <li key={p} className="rounded-full bg-card px-3 py-1.5 text-sm text-foreground">

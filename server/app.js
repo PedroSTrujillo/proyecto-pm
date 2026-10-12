@@ -7,6 +7,7 @@ const cuentas = require('./cuentas');
 const pedidos = require('./pedidos');
 const equipo = require('./equipo');
 const inventario = require('./inventario-rutas');
+const ejemplos = require('./ejemplos');
 const exportar = require('./exportar');
 const { limitar, comprimirJson } = require('./limites');
 const errores = require('./errores');
@@ -62,6 +63,7 @@ function crearApp({ web = null, dev = false } = {}) {
   app.use('/api', cuentas.cargarUsuario);
   app.use('/api/cuenta', cuentas.rutas);
   app.use('/api/pedidos', pedidos.rutas);
+  app.use('/api/equipo/ejemplos', ejemplos.rutas);
   app.use('/api/equipo', equipo.rutas);
   app.use('/api/inventario', inventario.rutas);
   app.use('/api/demo', inventario.demo);

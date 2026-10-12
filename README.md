@@ -94,9 +94,11 @@ El documento pide que las plantillas sean iguales al export real de cada probado
 5. Antes de empezar, borren los datos de prueba, para que el resumen cuente solo a los 5 probadores. Con la `DATABASE_URL` de Neon en la terminal: `npm run borrar-datos -- --todos` muestra qué se borraría y `npm run borrar-datos -- --todos --confirmar` lo borra (las cuentas del equipo no se tocan).
 6. Al terminar, si un probador lo pide (sus archivos son datos de su empresa): `npm run borrar-datos -- --email correo@empresa.co --confirmar`.
 
-## Demo
+## Demo y ejemplos
 
 `/demo` muestra la aplicación con cinco negocios inventados (ferretería, muebles, oficina, refrigeración y papelería), sin crear cuenta. Abran la página un minuto antes de mostrarla: el plan gratis de Render tarda unos 50 segundos en despertar.
+
+Con una cuenta del equipo, la página **Ejemplos** del menú deja descargar o cargar en esa cuenta cualquiera de los cinco negocios (como un Excel de ventas y existencias) o los archivos de `ejemplos/` (Siigo, SAP, ventas por mes, catálogo grande y una lista inicial para el paso 1). Los probadores no la ven.
 
 ## Seguridad y errores
 
@@ -136,7 +138,7 @@ El documento pide que las plantillas sean iguales al export real de cada probado
 | Proveedores, mínimos y máximos | Proveedor por producto (ficha) o por comienzo de código (Datos), en `usuarios.inventario`; mínimos y máximos en la ficha y en Excel (`/api/exportar/minimos.xlsx`) |
 | Demo sin cuenta | `server/demo.js` (cinco negocios inventados, el mismo cálculo que un archivo real), `/demo` |
 
-**Cambio de alcance (2026-10-11):** el producto ya sugiere cuánto pedir, ajusta por temporada y por el tiempo de entrega de cada proveedor (§7 del modelo). Para no contaminar la métrica, durante sus 14 días un probador ve solo el reporte de semanas que declara el plan de prueba, y no ve su inventario antes de guardar su primera lista inicial. La lista inicial se puede respaldar con una foto, y el equipo clasifica el "¿por qué?" para el segundo criterio de pivote. Este cambio necesita su fila en "4 · Cambios y Reflexión" del Entregable. Sigue sin conectarse al software contable.
+**Cambio de alcance (2026-10-11):** el producto ya sugiere cuánto pedir, ajusta por temporada y por el tiempo de entrega de cada proveedor (§7 del modelo). Para no contaminar la métrica, durante sus 14 días un probador ve solo el reporte de semanas que declara el plan de prueba, y no ve su inventario antes de guardar su primera lista inicial. El equipo clasifica el "¿por qué?" para el segundo criterio de pivote. Este cambio necesita su fila en "4 · Cambios y Reflexión" del Entregable. Sigue sin conectarse al software contable.
 
 ## Estructura
 

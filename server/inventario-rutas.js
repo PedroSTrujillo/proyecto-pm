@@ -160,22 +160,25 @@ async function exportSuelto(req) {
   return e;
 }
 
+// Guarda los archivos como un export sin pedido (el inventario de la cuenta) y los procesa.
+// archivos: [{ nombre, buffer }]. También lo usa la página de ejemplos del equipo.
+async function guardarExport(usuarioId, archivos, { periodo = null, desde = 'datos' } = {}) {
+  const exp = await db.uno("INSERT INTO exports (usuario_id, pedido_id, estado, periodo) VALUES ($1, NULL, 'procesando', $2::jsonb) RETURNING id", [usuarioId, periodo ? JSON.stringify(periodo) : null]);
+  for (const a of archivos) {
+    await db.query(
+      "INSERT INTO archivos (usuario_id, pedido_id, export_id, tipo, nombre, tamano, contenido) VALUES ($1, NULL, $2, 'export', $3, $4, $5)",
+      [usuarioId, exp.id, a.nombre, a.buffer.length, a.buffer],
+    );
+  }
+  await registrarEvento(usuarioId, 'archivo_subido', { detalle: { tipo: 'export', archivos: archivos.map((a) => a.nombre), desde } });
+  return procesarExport(usuarioId, null, exp.id, null);
+}
+
 rutas.post('/export', subida.array('archivos', 5), async (req, res) => {
   await exigirPuedeSubir(req);
   if (!req.files || !req.files.length) throw new ErrorUsuario('Elige el archivo de ventas y existencias.');
-  const periodo = leerPeriodo(req.body);
-  const exp = await db.uno("INSERT INTO exports (usuario_id, pedido_id, estado, periodo) VALUES ($1, NULL, 'procesando', $2::jsonb) RETURNING id", [req.usuario.id, periodo ? JSON.stringify(periodo) : null]);
-  const nombres = [];
-  for (const f of req.files) {
-    const nombre = Buffer.from(f.originalname, 'latin1').toString('utf8');
-    nombres.push(nombre);
-    await db.query(
-      "INSERT INTO archivos (usuario_id, pedido_id, export_id, tipo, nombre, tamano, contenido) VALUES ($1, NULL, $2, 'export', $3, $4, $5)",
-      [req.usuario.id, exp.id, nombre, f.size, f.buffer],
-    );
-  }
-  await registrarEvento(req.usuario.id, 'archivo_subido', { detalle: { tipo: 'export', archivos: nombres, desde: 'datos' } });
-  res.json(await procesarExport(req.usuario.id, null, exp.id, null));
+  const archivos = req.files.map((f) => ({ nombre: Buffer.from(f.originalname, 'latin1').toString('utf8'), buffer: f.buffer }));
+  res.json(await guardarExport(req.usuario.id, archivos, { periodo: leerPeriodo(req.body) }));
 });
 
 rutas.post('/export/:exportId/columnas', async (req, res) => {
@@ -217,4 +220,4 @@ rutas.get('/cargas', async (req, res) => {
   });
 });
 
-module.exports = { rutas, demo, permisos };
+module.exports = { rutas, demo, permisos, guardarExport };

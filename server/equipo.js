@@ -125,7 +125,6 @@ rutas.get('/resultados', async (_req, res) => {
   const pedidos = await db.query(
     `SELECT p.id, p.usuario_id, p.proveedor, p.tipo, p.creado_en, p.inicial_guardada_en, p.export_id,
             p.reporte_visto_en, p.final_guardada_en, p.terminado_en, p.por_que, p.clasificacion,
-            (SELECT json_agg(json_build_object('id', i.id, 'nombre', i.nombre) ORDER BY i.id) FROM imagenes_lista i WHERE i.pedido_id = p.id) AS imagenes,
             p.comparacion->'conteo' AS conteo, p.comparacion->'magnitud' AS magnitud,
             (p.comparacion->'coherencia') - 'detalle'::text AS coherencia, jsonb_array_length(p.lista_inicial) AS lineas_inicial,
             CASE WHEN p.lista_final IS NULL THEN NULL ELSE jsonb_array_length(p.lista_final) END AS lineas_final
@@ -181,7 +180,6 @@ rutas.get('/resultados', async (_req, res) => {
       coherencia: p.coherencia,
       porQue: p.por_que,
       clasificacion: p.clasificacion,
-      imagenes: p.imagenes || [],
     }));
     const evaluacion = evaluarUsuario(suyos);
     const actividad = eventos.filter((e) => e.usuario_id === u.id).map((e) => ({ tipo: e.tipo, pedidoId: e.pedido_id, detalle: e.detalle, en: e.creado_en }));
@@ -219,15 +217,6 @@ rutas.post('/pedidos/:id/clasificacion', async (req, res) => {
   if (!p) throw new ErrorUsuario('Ese pedido no existe o todavía no tiene respuesta.', 404);
   await registrarEvento(req.usuario.id, 'por_que_clasificado', { pedidoId: p.id, detalle: { valor } });
   res.json({ ok: true, valor });
-});
-
-// La foto de la lista de un probador, para que el equipo la compare con lo que escribió.
-rutas.get('/imagenes/:id', async (req, res) => {
-  const img = await db.uno('SELECT nombre, tipo, contenido FROM imagenes_lista WHERE id = $1', [Number(req.params.id)]);
-  if (!img) throw new ErrorUsuario('No encontramos esa imagen.', 404);
-  res.setHeader('Content-Type', img.tipo);
-  res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(img.nombre)}"`);
-  res.send(Buffer.from(img.contenido));
 });
 
 // Sin correo configurado, el equipo genera el enlace y se lo manda al probador (por ejemplo, por WhatsApp).

@@ -44,7 +44,7 @@ export function Pedidos() {
   return (
     <>
       <Titulo
-        sub="Cuando vayas a pedirle a un proveedor, prepara un pedido: anotas lo que ibas a pedir, miras el reporte y decides."
+        sub="Cada vez que le vayas a pedir a un proveedor: anotas lo que ibas a pedir, miras el reporte y decides tu lista final."
         acciones={<Boton variante="primario" onClick={nuevo} disabled={creando}>{creando ? 'Creando…' : 'Preparar un pedido nuevo'}</Boton>}
       >
         Pedidos
@@ -57,7 +57,7 @@ export function Pedidos() {
               <Sparkles className="mt-1 size-5 shrink-0 text-secondary-foreground" />
               <div>
                 <h2 className="text-lg font-bold text-secondary-foreground">Pedido sugerido</h2>
-                <p className="text-[0.95rem] text-[#0b3f3b]">Cuánto pedir de cada producto, por proveedor, para cubrir el tiempo de entrega. Listo para Excel, WhatsApp o para que gerencia lo apruebe.</p>
+                <p className="text-[0.95rem] text-[#0b3f3b]">Si prefieres partir de una propuesta: cuánto pedir de cada producto, por proveedor, para cubrir lo que tarda en llegar. Lo bajas en Excel, lo copias para WhatsApp o lo imprimes para que gerencia lo apruebe.</p>
               </div>
             </div>
             <BotonEnlace href="/pedidos/sugerido" variante="primario">Abrir el pedido sugerido <ArrowRight /></BotonEnlace>

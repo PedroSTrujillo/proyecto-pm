@@ -103,19 +103,6 @@ const ESQUEMA = [
   // Cómo leyó el equipo el "¿por qué cambió?": 'dato' (el dato le pareció correcto) o 'probar'
   // (cambió por probar la herramienta). Es el segundo criterio de pivote del plan de prueba.
   'ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS clasificacion TEXT',
-  // Foto de la lista que iba a pedir (el plan de prueba dice "la importa o adjunta una imagen").
-  // Queda como respaldo: la comparación se hace con las líneas escritas, por código.
-  `CREATE TABLE IF NOT EXISTS imagenes_lista (
-    id SERIAL PRIMARY KEY,
-    usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-    pedido_id INTEGER NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
-    nombre TEXT NOT NULL,
-    tipo TEXT NOT NULL,
-    tamano INTEGER NOT NULL,
-    contenido BYTEA NOT NULL,
-    subido_en TIMESTAMPTZ NOT NULL DEFAULT now()
-  )`,
-  'CREATE INDEX IF NOT EXISTS imagenes_pedido ON imagenes_lista(pedido_id)',
   // Errores del servidor y de las pantallas (server/errores.js), para la vista del equipo.
   `CREATE TABLE IF NOT EXISTS errores (
     id SERIAL PRIMARY KEY,
