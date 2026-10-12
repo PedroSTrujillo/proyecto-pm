@@ -44,7 +44,8 @@ export default function RootLayout({
     <html lang="es" className={`${texto.variable} ${titulos.variable}`}>
       <body className="font-sans antialiased">
         {children}
-        {process.env.NODE_ENV === 'production' && process.env.VERCEL && <Analytics />}
+        {/* Solo si se activa Web Analytics en Vercel (y se pone ANALITICA_VERCEL=1): si no, su script da 404 en cada página. */}
+        {process.env.NODE_ENV === 'production' && process.env.ANALITICA_VERCEL === '1' && <Analytics />}
       </body>
     </html>
   )

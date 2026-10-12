@@ -43,7 +43,7 @@ export function ReportPreview() {
               <th scope="col" className="hidden w-28 whitespace-nowrap px-3 py-2 text-right font-semibold sm:table-cell">
                 Ventas/semana
               </th>
-              <th scope="col" className="hidden w-28 px-3 py-2 text-right font-semibold sm:table-cell">
+              <th scope="col" className="hidden w-28 px-3 py-2 text-right font-semibold sm:table-cell lg:hidden xl:table-cell">
                 Existencias
               </th>
               <th scope="col" className="w-40 py-2 pl-3 pr-5 text-right font-semibold">
@@ -89,7 +89,7 @@ function Fila({ p }: { p: ProductoEjemplo }) {
         </span>
       </td>
       <td className="hidden px-3 py-3 text-right tabular-nums sm:table-cell">{ventasSemana(p.promedioSemanal)}</td>
-      <td className="hidden px-3 py-3 text-right tabular-nums sm:table-cell">{numero(p.existencias)}</td>
+      <td className="hidden px-3 py-3 text-right tabular-nums sm:table-cell lg:hidden xl:table-cell">{numero(p.existencias)}</td>
       <td className="py-3 pl-3 pr-5 text-right">
         <span className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
           {p.semanasInventario === null ? (
