@@ -7,6 +7,7 @@
 const express = require('express');
 const { ErrorUsuario } = require('./cuentas');
 const X = require('./excel');
+const { pedidoPdf } = require('./pdf');
 
 const MAX_LINEAS = 3000;
 
@@ -109,8 +110,9 @@ const hoyCorto = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Ameri
 
 const rutas = express.Router();
 
-rutas.post('/pedido.xlsx', async (req, res) => {
-  const crudas = Array.isArray(req.body?.lineas) ? req.body.lineas : [];
+// Las líneas del pedido que llegan de la pantalla, limpias.
+function lineasDelPedido(body) {
+  const crudas = Array.isArray(body?.lineas) ? body.lineas : [];
   if (!crudas.length) throw new ErrorUsuario('El pedido está vacío.');
   if (crudas.length > MAX_LINEAS) throw new ErrorUsuario(`El pedido tiene más de ${MAX_LINEAS} líneas.`);
   const lineas = crudas
@@ -120,10 +122,30 @@ rutas.post('/pedido.xlsx', async (req, res) => {
       nombre: texto(l.nombre, 160),
       cantidad: Math.max(0, Math.round(Number(l.cantidad) || 0)),
       costo: Number(l.costo) > 0 ? Number(l.costo) : 0,
+      semanas: Number.isFinite(Number(l.semanas)) && l.semanas !== null ? Number(l.semanas) : null,
     }))
     .filter((l) => l.codigo && l.cantidad > 0);
   if (!lineas.length) throw new ErrorUsuario('El pedido está vacío.');
+  return lineas;
+}
+
+rutas.post('/pedido.xlsx', async (req, res) => {
+  const lineas = lineasDelPedido(req.body);
   enviar(res, `pedido-${hoyCorto()}.xlsx`, await libroDePedido({ empresa: texto(req.body?.empresa, 80), fecha: X.fechaHoy(), lineas }));
+});
+
+// El mismo pedido como PDF tamaño carta, para que gerencia lo apruebe y lo firme (server/pdf.js).
+rutas.post('/pedido.pdf', async (req, res) => {
+  const lineas = lineasDelPedido(req.body);
+  const buf = await pedidoPdf({
+    empresa: texto(req.body?.empresa, 80) || 'mi empresa',
+    fecha: X.fechaHoy(),
+    cadaCuanto: texto(req.body?.cadaCuanto, 30) || '4 semanas',
+    lineas,
+  });
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="pedido-para-aprobar-${hoyCorto()}.pdf"`);
+  res.send(buf);
 });
 
 // Mínimos y máximos de todos los productos, para cargarlos en el programa contable (casi todos

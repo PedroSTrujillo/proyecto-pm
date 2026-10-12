@@ -517,14 +517,34 @@ test('archivos comprimidos (.gz, como los manda el navegador para Vercel) se gua
   const gz = await nuevoUsuario('Gael', 'gael.gz@prueba.co');
   const { pedido } = await gz.post('/api/pedidos');
   await gz.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: INICIAL, tipo: 'simulado' });
-  const r = await gz.subir(`/api/pedidos/${pedido.id}/export`, [['ventas y existencias.xlsx.gz', zlib.gzipSync((await plantillaExport()))]]);
+  const original = await plantillaExport();
+  const r = await gz.subir(`/api/pedidos/${pedido.id}/export`, [['ventas y existencias.xlsx.gz', zlib.gzipSync(original)]]);
   assert.equal(r.ok, true, JSON.stringify(r.errores));
   const guardado = await db.uno("SELECT nombre, tamano FROM archivos WHERE pedido_id = $1 AND tipo = 'export'", [pedido.id]);
   assert.equal(guardado.nombre, 'ventas y existencias.xlsx');
-  assert.equal(guardado.tamano, (await plantillaExport()).length);
+  assert.equal(guardado.tamano, original.length);
   const roto = await gz.subir(`/api/pedidos/${pedido.id}/export`, [['malo.csv.gz', Buffer.from('no es gzip')]]);
   assert.equal(roto.estado, 400);
   assert.equal((await gz.get('/api/salud')).ok, true, 'la API también responde /api/salud');
   const plantilla = await fetch(`${base}/api/plantillas/export.xlsx`);
   assert.equal(plantilla.status, 200);
+});
+
+test('pedido en PDF tamaño carta, para que gerencia lo apruebe', async () => {
+  const pdf = await nuevoUsuario('Paola', 'paola.pdf@prueba.co');
+  const r = await fetch(`${base}/api/exportar/pedido.pdf`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: pdf.cookie() },
+    body: JSON.stringify({ empresa: 'Ferretería Prueba', cadaCuanto: '2 semanas', lineas: [
+      { proveedor: 'Tornillería Central', codigo: 'TOR-1', nombre: 'Tornillo', cantidad: 40, costo: 900, semanas: 1.2 },
+      { proveedor: 'Pinturas', codigo: 'PIN-1', nombre: 'Pintura blanca, galón', cantidad: 6, costo: 42000, semanas: null },
+    ] }),
+  });
+  assert.equal(r.status, 200);
+  assert.equal(r.headers.get('content-type'), 'application/pdf');
+  const buf = Buffer.from(await r.arrayBuffer());
+  assert.equal(buf.subarray(0, 5).toString(), '%PDF-');
+  assert.match(buf.toString('latin1'), /\/MediaBox \[0 0 612 792\]/, 'tamaño carta');
+  const vacio = await fetch(`${base}/api/exportar/pedido.pdf`, { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: pdf.cookie() }, body: JSON.stringify({ lineas: [] }) });
+  assert.equal(vacio.status, 400);
 });

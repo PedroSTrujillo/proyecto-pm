@@ -32,7 +32,7 @@ npm install
 npm install --no-package-lock --prefix inventory-forecasting-landing-page   # la web (Next.js); pnpm se colgaba en Windows
 TEAM_EMAILS=tu-correo@ejemplo.com npm run dev    # http://localhost:3000: API + Next.js en modo desarrollo; PGlite en data/pglite/
 npm run build && NODE_ENV=production npm start  # en producción con un servidor propio (en Vercel: docs/PUBLICAR.md)
-npm test                                         # node --test test/*.test.js (82 pruebas; no necesitan la web)
+npm test                                         # node --test test/*.test.js (84 pruebas; no necesitan la web)
 node --test test/rotacion.test.js                # un solo archivo
 node --test --test-name-pattern="M = 5" test/listas.test.js   # una prueba por nombre
 npm run ejemplos                                 # regenera los exports inventados de ejemplos/
@@ -79,6 +79,8 @@ Consecuencias que no se ven leyendo un solo archivo:
 **Ventas como total de un periodo:** si una tabla trae código y cantidad pero ninguna fecha, `leerExport` devuelve `necesitaPeriodo` y la app le pregunta al usuario desde y hasta cuándo (se guarda en `exports.periodo`). Con eso, `calcularRotacion` usa el promedio simple sobre ese periodo (`periodo.totales`). Solo se considera así si no vino ninguna tabla de ventas con fecha.
 
 **Ejemplos para el equipo** (`server/ejemplos.js`, página `/ejemplos`, solo rol `equipo`): los seis negocios de la demo como Excel (`archivoDemo` en `demo.js`) y los archivos de `ejemplos/`; cada uno se descarga o se carga como el inventario de la cuenta del equipo (`guardarExport` de `inventario-rutas.js`). `/equipo` y `/ejemplos` mandan al panel a quien no es del equipo (`solo-equipo.tsx`), y sus rutas de la API responden 403.
+
+**Archivos que se descargan:** Excel con el diseño de SINESC (logo, colores, tablas) en `server/excel.js` (ExcelJS; asíncrono: las plantillas devuelven una promesa) y el pedido en PDF tamaño carta en `server/pdf.js` (pdfkit, fuentes Helvetica). El logo es `server/logo.js` (PNG en base64, para que funcione empaquetado en Vercel). Los archivos que imitan el export de otro programa (`demo.js`, `scripts/generar-ejemplos.js`) siguen con SheetJS y sin marca, a propósito.
 
 **Cuentas:** `/api/cuenta/datos` (nombre y programa contable), `/clave` (cambiar), `/olvide` y `/restablecer` (enlace de un solo uso, 24 horas, tabla `restablecimientos` con el hash del token). Sin correo configurado, el enlace lo genera el equipo desde "Resultados de la prueba".
 

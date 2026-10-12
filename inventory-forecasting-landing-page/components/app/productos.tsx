@@ -350,7 +350,7 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
         <div className="flex flex-col gap-3 rounded-2xl border border-[#cfe5e1] bg-secondary p-4">
           <p className="text-[0.95rem] text-[#0b3f3b]">
             {p.sugerido > 0
-              ? <>Para cubrir {p.entrega === 1 ? "la semana" : p.entrega === 0.5 ? "la media semana" : `las ${semanas(p.entrega)} semanas`} que tarda en llegar y {duracion(inv.ajustes.cadaCuanto)} más hasta tu próximo pedido, te sugerimos pedir <strong>{numero(p.sugerido)}</strong>.</>
+              ? <>Para cubrir {p.entrega === 1 ? "la semana" : p.entrega === 0.5 ? "la media semana" : `las ${semanas(p.entrega)} semanas`} que tarda en llegar y {duracion(inv.ajustes.cadaCuanto)} más hasta tu próximo pedido, te sugerimos pedir <strong>{numero(p.sugerido)}</strong>.{p.lote > 1 ? ` En tu archivo siempre se vende de a ${numero(p.lote)}, así que va en paquetes completos.` : ''}</>
               : <>Con lo que tienes cubres la entrega y {semanas(inv.ajustes.cadaCuanto)} semanas más: no hace falta pedir.</>}
           </p>
           {enPedido ? (

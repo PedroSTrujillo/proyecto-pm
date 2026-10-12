@@ -152,7 +152,12 @@ test('mínimo y máximo: el mínimo cubre la entrega y el máximo llega hasta el
   for (const p of inv.productos.filter((x) => x.ventasSemana > 1)) {
     assert.ok(p.minimo >= p.ventasSemana * Math.max(p.entrega, 0.5) * 0.8, `${p.codigo}: mínimo ${p.minimo}`);
     assert.ok(p.maximo >= p.minimo);
-    assert.equal(p.sugerido, Math.max(0, p.maximo - Math.max(p.existencias, 0)), `${p.codigo}: sugerido = máximo − existencias`);
+    // Sin paquete, sugerido = máximo − existencias; con paquete, eso redondeado a paquetes completos.
+    const falta = Math.max(0, p.maximo - Math.max(p.existencias, 0));
+    if (p.lote > 1) {
+      assert.equal(p.sugerido % p.lote, 0, `${p.codigo}: en paquetes de ${p.lote}`);
+      assert.ok(p.sugerido >= falta - p.lote && p.sugerido <= falta + p.lote, `${p.codigo}: sugerido cerca de máximo − existencias`);
+    } else assert.equal(p.sugerido, falta, `${p.codigo}: sugerido = máximo − existencias`);
   }
   // Asignar un producto a un proveedor con otra entrega cambia su estado.
   const nacional = inventarioDemo('refrigeracion', { asignaciones: { 'COM-12K': 'Compresores Nacionales' }, entregas: { 'Compresores Nacionales': 1 } });
@@ -160,4 +165,16 @@ test('mínimo y máximo: el mínimo cubre la entrega y el máximo llega hasta el
   assert.equal(com.proveedor, 'Compresores Nacionales');
   assert.equal(com.estado, 'normal', 'si llega en una semana, 3,5 semanas alcanzan');
   assert.ok(nacional.resumen.avisos.productos >= 1);
+});
+
+test('paquete: si siempre se vende de a varios, lo sugerido va en paquetes completos', () => {
+  const { loteDe, aLote } = require('../server/pronostico');
+  const deDiez = [10, 20, 0, 30, 10, 40, 20, 10, 0, 30, 20, 10, 50, 10];
+  assert.equal(loteDe(deDiez), 10);
+  assert.equal(loteDe([...deDiez, 7]), 1, 'una sola venta suelta y ya no hay paquete');
+  assert.equal(loteDe([10, 20, 30]), 1, 'con pocas semanas no se adivina');
+  assert.equal(loteDe(deDiez.map((x) => x / 3)), 1, 'con decimales (ventas mensuales repartidas) no hay paquete');
+  assert.equal(aLote(37, 10), 40);
+  assert.equal(aLote(0, 10), 0);
+  assert.equal(aLote(37, 1), 37);
 });

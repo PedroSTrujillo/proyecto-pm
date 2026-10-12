@@ -199,6 +199,7 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
     const crudo = porProducto[k] || null;
     const existencias = Math.max(f.existencias, 0);
 
+    const lote = P.loteDe(crudo);
     let riesgo = null;
     let sugerido = null;
     let minimo = null;
@@ -216,11 +217,12 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       // o, si el proveedor tarda más, antes de que llegue un pedido hecho hoy.
       riesgo = redondear(P.predictiva(ajuste, futuro(Math.max(entrega, SEMANAS_SE_AGOTA))).probMayorQue(existencias), 3);
       const necesidad = P.predictiva(ajuste, futuro(entrega + ajustes.cadaCuanto)).cuantil(NIVEL_SERVICIO);
-      sugerido = Math.max(0, Math.ceil(necesidad - existencias));
+      // Se pide en paquetes completos si el producto siempre se vende de a varios.
+      sugerido = P.aLote(Math.max(0, Math.ceil(necesidad - existencias)), lote);
       // Mínimo y máximo, como los llevan muchos programas contables: cuando quedan "mínimo" o
       // menos, se pide hasta llegar al máximo. El mínimo cubre la entrega en 9 de cada 10 casos.
       minimo = Math.ceil(P.predictiva(ajuste, futuro(Math.max(entrega, 0.5))).cuantil(NIVEL_SERVICIO));
-      maximo = Math.max(minimo, Math.ceil(necesidad));
+      maximo = P.aLote(Math.max(minimo, Math.ceil(necesidad)), lote);
       pronostico = [];
       for (let s = 0; s < SEMANAS_PRONOSTICO; s++) {
         const t = P.temporadaDeSemana(indice, hasta, semanasSerie, semanasSerie + s);
@@ -254,6 +256,7 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       estado,
       riesgo,
       sugerido: completo ? sugerido : null,
+      lote,
       minimo: completo ? minimo : null,
       maximo: completo ? maximo : null,
       valor: costo !== null ? Math.round(existencias * costo) : null,

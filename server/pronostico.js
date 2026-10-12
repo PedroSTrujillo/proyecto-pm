@@ -143,6 +143,23 @@ function ajustarProducto({ tasa, semanas, serie, referencia }) {
   return { alfa: alfa0 + (tasa * semanas) / phi, beta: BETA_PREVIA + semanas, phi };
 }
 
+// Paquete en que se vende: si en 12 semanas o más todas las ventas son múltiplos de un mismo
+// número (cajas de 10, bultos de 4…), ese es el paquete. Si no, 1. Con que una semana no lo sea
+// (o venga con decimales, como pasa con ventas mensuales repartidas), no hay paquete.
+function loteDe(serie) {
+  if (!serie) return 1;
+  const conVentas = serie.filter((x) => x > 0);
+  if (conVentas.length < 12 || conVentas.some((x) => !Number.isInteger(x))) return 1;
+  const mcd = (a, b) => (b ? mcd(b, a % b) : a);
+  const lote = conVentas.reduce((g, x) => mcd(g, x));
+  return lote >= 2 && lote <= 1000 ? lote : 1;
+}
+
+// Redondea hacia arriba al paquete (0 se queda en 0).
+function aLote(cantidad, lote) {
+  return lote > 1 && cantidad > 0 ? Math.ceil(cantidad / lote) * lote : cantidad;
+}
+
 // --- Temporada ------------------------------------------------------------------------
 
 function mesDeSemana(hasta, semanas, i) {
@@ -264,4 +281,6 @@ module.exports = {
   medirAcierto,
   binomialNegativa,
   zNormal,
+  loteDe,
+  aLote,
 };

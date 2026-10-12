@@ -27,6 +27,16 @@
 
 ---
 
+## 2026-10-12 (15) — Claude — Excel y PDF con la marca, gráfica legible y paquetes en el sugerido
+- **Rama:** `main` en tu fork (`mio`, despliega `sinesc.vercel.app`) y en el repo del grupo.
+- **Estado:**
+  - **Excel** (pedido, mínimos y máximos, plantillas) con logo, colores, encabezado fijo, filas alternas, totales y formato de pesos (`server/excel.js`). Las plantillas mantienen el encabezado en la fila 1 para el lector y traen hoja de instrucciones.
+  - **PDF del pedido para gerencia:** ya no es imprimir la página; el servidor arma un PDF tamaño carta con logo, resumen, una tabla por proveedor (se repite con "continúa" si sigue en otra página), total, firmas y número de página, y se descarga (`server/pdf.js`, `POST /api/exportar/pedido.pdf`).
+  - **Gráfica de ventas:** se dibuja a escala 1:1 (texto de 12 px, antes 5 a 7), cinco líneas guía, el pronóstico escrito ("~800 por semana") y por defecto sin proyectos.
+  - **Modelo:** revisado; se agrega el paquete (§7.4): si un producto siempre se vende en múltiplos de un número, el sugerido y el máximo van en paquetes completos (`loteDe`, `aLote` en `pronostico.js`). Lo demás queda igual.
+- **Verificación:** `npm test` → 84/84; tipos sin errores; copia limpia con `next start` (como Vercel): PDF, Excel y plantillas responden; en el navegador, el botón descarga el PDF. En línea: la cuenta del equipo existe y no hay errores en la tabla `errores`.
+- **Siguiente paso exacto:** cambiar la contraseña de Neon (quedó en el chat) y actualizar `DATABASE_URL` en Vercel.
+
 ## 2026-10-12 (14) — Claude — todo en Vercel + Neon, sin Render
 - **Rama:** `main` y `mejoras-modelo` iguales, en GitHub.
 - **Estado:**

@@ -4,7 +4,8 @@
 // (Excel, WhatsApp o PDF para que gerencia lo apruebe).
 
 import { useMemo, useState } from 'react'
-import { Copy, Download, Minus, Plus, Printer, RotateCcw } from 'lucide-react'
+import { Copy, Download, FileText, Minus, Plus, RotateCcw } from 'lucide-react'
+import { descargar } from '@/lib/descargar'
 import { cn } from '@/lib/utils'
 import { duracion, fecha, numero, plata, semanas } from '@/lib/formato'
 import type { Inventario, Producto } from '@/lib/tipos'
@@ -82,6 +83,20 @@ function PedidoCon({ inv, encabezado }: { inv: Inventario; encabezado: boolean }
       setAviso('Listo: el Excel trae una hoja por proveedor y un resumen para aprobar.')
     } catch (e) {
       setAviso(e instanceof Error ? e.message : 'No pudimos armar el archivo.')
+    }
+  }
+
+  async function pdf() {
+    setAviso(null)
+    try {
+      await descargar('/exportar/pedido.pdf', {
+        empresa: inv.fuente.empresa,
+        cadaCuanto: duracion(inv.ajustes.cadaCuanto),
+        lineas: enPedido.map(({ p, cantidad }) => ({ proveedor: p.proveedor, codigo: p.codigo, nombre: p.nombre, cantidad, costo: p.costo, semanas: p.semanas })),
+      }, `pedido-para-aprobar-${new Date().toLocaleDateString('en-CA')}.pdf`)
+      setAviso('Listo: el PDF trae el pedido por proveedor, los totales y el espacio para la firma.')
+    } catch (e) {
+      setAviso(e instanceof Error ? e.message : 'No pudimos armar el PDF.')
     }
   }
 
@@ -239,7 +254,7 @@ function PedidoCon({ inv, encabezado }: { inv: Inventario; encabezado: boolean }
             <div className="flex flex-col gap-2">
               <Boton variante="primario" onClick={exportar} disabled={!enPedido.length}><Download /> Exportar a Excel</Boton>
               <Boton onClick={copiar} disabled={!lineasMensaje.length}><Copy /> Copiar para WhatsApp</Boton>
-              <Boton onClick={() => window.print()} disabled={!enPedido.length}><Printer /> PDF para que gerencia lo apruebe</Boton>
+              <Boton onClick={pdf} disabled={!enPedido.length}><FileText /> PDF para que gerencia lo apruebe</Boton>
             </div>
             {aviso && <Aviso tono="ok">{aviso}</Aviso>}
           </Tarjeta>
@@ -252,42 +267,6 @@ function PedidoCon({ inv, encabezado }: { inv: Inventario; encabezado: boolean }
         </aside>
       </div>
 
-      <ImprimirPedido inv={inv} lineas={enPedido} />
     </>
-  )
-}
-
-// La versión para imprimir o guardar como PDF: por proveedor, con totales y espacio para la firma.
-function ImprimirPedido({ inv, lineas }: { inv: Inventario; lineas: { p: Producto; cantidad: number }[] }) {
-  const proveedores = [...new Set(lineas.map((x) => x.p.proveedor))]
-  const conCostos = inv.resumen.tieneCostos
-  return (
-    <div className="hidden print:block">
-      <h1 className="text-2xl font-bold">Pedido para aprobar{inv.fuente.empresa ? ` · ${inv.fuente.empresa}` : ''}</h1>
-      <p className="mb-4 text-sm">Preparado el {fecha(new Date().toISOString())} con SINESC. Cantidades sugeridas para cubrir el tiempo de entrega y {duracion(inv.ajustes.cadaCuanto)} más.</p>
-      {proveedores.map((pr) => {
-        const ls = lineas.filter((x) => x.p.proveedor === pr)
-        return (
-          <section key={pr} className="mb-5 break-inside-avoid">
-            <h2 className="mb-1 text-lg font-bold">{pr}</h2>
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b text-left">
-                  <th className="py-1">Código</th><th>Producto</th><th className="text-right">Te alcanza</th><th className="text-right">Cantidad</th>{conCostos && <th className="text-right">Valor</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {ls.map(({ p, cantidad }) => (
-                  <tr key={p.codigo} className="border-b border-gray-200">
-                    <td className="py-1">{p.codigo}</td><td>{p.nombre}</td><td className="text-right">{semanas(p.semanas)} sem</td><td className="text-right">{numero(cantidad)}</td>{conCostos && <td className="text-right">{plata(cantidad * (p.costo ?? 0))}</td>}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-        )
-      })}
-      <p className="mt-10 text-sm">Aprobado por: ______________________________ &nbsp; Fecha: ______________</p>
-    </div>
   )
 }

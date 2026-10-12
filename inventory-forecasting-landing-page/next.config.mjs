@@ -8,7 +8,7 @@ const raiz = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 // pages/api/[[...ruta]].js; en local y en un servidor propio, con server/index.js. Next empaqueta
 // el código de server/, pero no sus librerías: se cargan de node_modules de la raíz (Vercel las
 // instala con vercel.json). Los archivos de ejemplos/ se leen del disco, así que se incluyen aparte.
-const libreriasDeLaApi = ['express', 'multer', 'pg', 'xlsx', '@electric-sql/pglite']
+const libreriasDeLaApi = ['express', 'multer', 'pg', 'xlsx', 'exceljs', 'pdfkit', '@electric-sql/pglite']
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -21,7 +21,8 @@ const nextConfig = {
   outputFileTracingRoot: raiz,
   turbopack: { root: raiz },
   serverExternalPackages: libreriasDeLaApi,
-  outputFileTracingIncludes: { '/api/*': ['../ejemplos/*'] },
+  // pdfkit lee sus fuentes (Helvetica) de su carpeta: van incluidas.
+  outputFileTracingIncludes: { '/api/*': ['../ejemplos/*', '../node_modules/pdfkit/js/data/*'] },
   // Las plantillas y la revisión de salud también las atiende la API.
   async rewrites() {
     return [
