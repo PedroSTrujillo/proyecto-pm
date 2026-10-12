@@ -1,6 +1,6 @@
 'use strict';
 
-// Ejemplos para el equipo: los cinco negocios de la demo como archivos de Excel y los archivos de
+// Ejemplos para el equipo: los seis negocios de la demo como archivos de Excel y los archivos de
 // ejemplos/ (formatos de Siigo, SAP, ventas por mes y un catálogo grande). Se pueden descargar
 // para subirlos por el flujo normal, o cargar directo como el inventario de la cuenta del equipo.
 // Solo el equipo: un probador nunca ve esta página ni estas rutas.
@@ -63,9 +63,12 @@ rutas.get('/', (_req, res) => {
   res.json({ negocios: sectores(), archivos });
 });
 
+// formato: 'ventas' (Excel con la fecha de cada venta) o 'listado' (listado de inventario con
+// las salidas del periodo, como lo saca Helisa; solo los negocios que trabajan así).
 function negocio(req) {
-  const archivo = archivoDemo(req.params.id);
-  if (!archivo) throw new ErrorUsuario('No existe ese negocio de ejemplo.', 404);
+  const formato = req.query.formato === 'listado' ? 'listado' : 'ventas';
+  const archivo = archivoDemo(req.params.id, formato);
+  if (!archivo) throw new ErrorUsuario('No existe ese ejemplo.', 404);
   return archivo;
 }
 
@@ -93,14 +96,15 @@ rutas.get('/negocios/:id/archivo', (req, res) => {
   enviar(res, a.nombre, a.buffer);
 });
 
-// Carga el negocio como el inventario de la cuenta, con los tiempos de entrega de sus proveedores.
+// Carga el negocio como el inventario de la cuenta, con los tiempos de entrega de sus proveedores
+// y cada cuánto pide. El listado ya trae su periodo, así que no se pregunta.
 rutas.post('/negocios/:id/cargar', async (req, res) => {
   const a = negocio(req);
-  const r = await guardarExport(req.usuario.id, [{ nombre: a.nombre, buffer: a.buffer }], { desde: 'ejemplos' });
+  const r = await guardarExport(req.usuario.id, [{ nombre: a.nombre, buffer: a.buffer }], { desde: 'ejemplos', periodo: a.periodo || null });
   if (r.ok) {
     const u = await db.uno('SELECT inventario FROM usuarios WHERE id = $1', [req.usuario.id]);
     const previos = (u && u.inventario) || {};
-    const ajustes = leerAjustes({ ...previos, entregas: { ...(previos.entregas || {}), ...a.entregas } });
+    const ajustes = leerAjustes({ ...previos, cadaCuanto: a.cadaCuanto, entregas: { ...(previos.entregas || {}), ...a.entregas } });
     await db.query('UPDATE usuarios SET inventario = $1::jsonb WHERE id = $2', [JSON.stringify(ajustes), req.usuario.id]);
   }
   res.json(r);

@@ -1,6 +1,6 @@
 'use client'
 
-// Ejemplos para el equipo (server/ejemplos.js): los cinco negocios de la demo y los archivos de
+// Ejemplos para el equipo (server/ejemplos.js): los seis negocios de la demo y los archivos de
 // ejemplos/. Cada uno se puede ver, descargar para subirlo por el flujo normal o cargar directo
 // como el inventario de esta cuenta.
 
@@ -12,7 +12,7 @@ import { numero } from '@/lib/formato'
 import { useInventario } from './contexto'
 import { Aviso, Boton, Cargando, ErrorLista, Tarjeta, Titulo, clasesBoton } from './ui'
 
-type Negocio = { id: string; empresa: string; sector: string; ciudad: string; programa: string; resumen: string; productos: number }
+type Negocio = { id: string; empresa: string; sector: string; ciudad: string; programa: string; resumen: string; productos: number; listado: boolean }
 type Archivo = { id: string; titulo: string; texto: string; archivos: string[]; tipo: 'export' | 'lista'; disponible: boolean }
 type Resultado = { ok: boolean; errores?: string[]; resumen?: { productos: number } }
 
@@ -42,6 +42,7 @@ export function Ejemplos() {
       const t = textoErrores(e)
       setAviso({ ok: false, texto: t.mensaje, lista: t.lista })
     } finally {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
       setCargando(null)
     }
   }
@@ -65,7 +66,7 @@ export function Ejemplos() {
       <section aria-labelledby="t-negocios" className="flex flex-col gap-3">
         <div>
           <h2 id="t-negocios" className="text-xl font-bold">Negocios de ejemplo</h2>
-          <p className="text-muted-foreground">Los mismos de la demo, con costos, proveedores y tiempos de entrega. El archivo trae una hoja de ventas con fecha y otra de existencias.</p>
+          <p className="text-muted-foreground">Los mismos de la demo, con costos, proveedores, tiempos de entrega y cada cuánto piden. El archivo trae una hoja de ventas con fecha y otra de existencias.</p>
         </div>
         <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {datos.negocios.map((n) => (
@@ -84,6 +85,17 @@ export function Ejemplos() {
                   <a href={`/api/equipo/ejemplos/negocios/${n.id}/archivo`} className={clasesBoton('secundario', 'chico')}><Download /> Archivo</a>
                   <Link href={`/demo/${n.id}`} className={clasesBoton('secundario', 'chico')}><Eye /> Demo</Link>
                 </div>
+                {n.listado && (
+                  <div className="flex flex-col gap-2 border-t border-border pt-3">
+                    <p className="text-sm text-muted-foreground">También como lo saca {n.programa}: listado de inventario con las salidas de los últimos 3 meses, sin la fecha de cada venta.</p>
+                    <div className="flex flex-wrap gap-2">
+                      <Boton tamano="chico" disabled={cargando !== null} onClick={() => cargar(`l-${n.id}`, `/equipo/ejemplos/negocios/${n.id}/cargar?formato=listado`, `el listado de ${n.empresa}`)}>
+                        <Upload /> {cargando === `l-${n.id}` ? 'Cargando…' : 'Cargar el listado'}
+                      </Boton>
+                      <a href={`/api/equipo/ejemplos/negocios/${n.id}/archivo?formato=listado`} className={clasesBoton('secundario', 'chico')}><Download /> Listado</a>
+                    </div>
+                  </div>
+                )}
               </Tarjeta>
             </li>
           ))}

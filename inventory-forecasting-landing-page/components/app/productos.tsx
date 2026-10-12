@@ -210,6 +210,7 @@ function ProductosCon({ inv }: { inv: Inventario }) {
 
 function consejo(p: Producto, inv: Inventario) {
   if (p.estado === 'agota' && inv.alcance === 'prueba') return 'Se acaba en menos de 2 semanas si sigues vendiendo al mismo ritmo. Revísalo en tu pedido.'
+  if (p.estado === 'agota' && inv.sugerencias && !p.sugerido) return `Se acaba en menos de 2 semanas, pero alcanza para lo que tarda ${p.proveedor === 'Sin proveedor' ? 'tu proveedor' : p.proveedor} y hasta tu próximo pedido. Revísalo en ese pedido.`
   if (p.estado === 'agota') return `Se acaba en menos de 2 semanas${p.entrega > 0 ? ` y ${p.proveedor === 'Sin proveedor' ? 'tu proveedor' : p.proveedor} tarda ${duracion(p.entrega)}` : ''}. Va en el pedido de esta semana.`
   if (p.estado === 'pide' && p.semanas !== null && p.semanas < p.entrega) return `Te queda para ${semanas(p.semanas)} semanas y el pedido tarda ${duracion(p.entrega)} en llegar: si no lo pides ya, te quedas sin él antes de que llegue.`
   if (p.estado === 'pide') return `Te queda para ${semanas(p.semanas)} semanas y el pedido tarda ${duracion(p.entrega)} en llegar. Queda justo: si esperas al próximo pedido, llega cuando ya se acabó.`

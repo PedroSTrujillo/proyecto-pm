@@ -12,14 +12,14 @@ import { Aviso, Boton, Campo, ErrorLista, claseEntrada } from './ui'
 
 const LEMA = 'Sube lo que exportas de tu programa contable y mira, en semanas de inventario, qué productos se agotan primero y cuáles sobran.'
 
-function Caja({ titulo, children, pie }: { titulo: string; children: ReactNode; pie?: ReactNode }) {
+function Caja({ titulo, sub = LEMA, children, pie }: { titulo: string; sub?: string; children: ReactNode; pie?: ReactNode }) {
   return (
     <div className="tema-app flex min-h-dvh flex-col bg-background">
       <header className="mx-auto w-full max-w-6xl px-4 py-5 sm:px-8"><Marca /></header>
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-5 px-4 pt-4 pb-16">
         <div className="flex flex-col gap-2">
           <h1 className="text-[1.9rem] leading-tight font-extrabold">{titulo}</h1>
-          <p className="text-muted-foreground">{LEMA}</p>
+          <p className="text-muted-foreground">{sub}</p>
         </div>
         <div className="rounded-2xl border border-border bg-card p-6">{children}</div>
         {pie}
@@ -98,7 +98,7 @@ export function CrearCuenta() {
     })
   }
   return (
-    <Caja titulo="Crea tu cuenta" pie={<p className="text-center">¿Ya tienes cuenta? <Link href="/entrar" className="font-semibold text-primary hover:text-primary-hover">Entra</Link>.</p>}>
+    <Caja titulo="Crea tu cuenta" sub="Es gratis mientras dure la prueba. Al entrar, preparas tu primer pedido con tus propios archivos." pie={<p className="text-center">¿Ya tienes cuenta? <Link href="/entrar" className="font-semibold text-primary hover:text-primary-hover">Entra</Link>.</p>}>
       <form className="flex flex-col gap-4" onSubmit={alEnviar} noValidate>
         <Campo etiqueta="Tu nombre"><input className={claseEntrada} type="text" name="nombre" required autoComplete="name" autoFocus /></Campo>
         <Campo etiqueta="Correo"><input className={claseEntrada} type="email" name="email" required autoComplete="email" /></Campo>
@@ -122,7 +122,7 @@ export function Olvide() {
     })
   }
   return (
-    <Caja titulo="¿Olvidaste tu contraseña?" pie={<p className="text-center"><Link href="/entrar" className="font-semibold text-primary hover:text-primary-hover">Volver a entrar</Link></p>}>
+    <Caja titulo="¿Olvidaste tu contraseña?" sub="Escribe el correo con el que creaste tu cuenta." pie={<p className="text-center"><Link href="/entrar" className="font-semibold text-primary hover:text-primary-hover">Volver a entrar</Link></p>}>
       {respuesta === null ? (
         <form className="flex flex-col gap-4" onSubmit={alEnviar} noValidate>
           <Campo etiqueta="Tu correo"><input className={claseEntrada} type="email" name="email" required autoComplete="email" autoFocus /></Campo>
@@ -151,7 +151,7 @@ export function Restablecer({ token }: { token: string }) {
     })
   }
   return (
-    <Caja titulo="Pon una contraseña nueva">
+    <Caja titulo="Pon una contraseña nueva" sub="Con ella vuelves a entrar desde cualquier computador.">
       <form className="flex flex-col gap-4" onSubmit={alEnviar} noValidate>
         <Campo etiqueta="Contraseña nueva" nota="(mínimo 8 caracteres)"><input className={claseEntrada} type="password" name="clave" required autoComplete="new-password" autoFocus /></Campo>
         <Campo etiqueta="Escríbela otra vez"><input className={claseEntrada} type="password" name="repetida" required autoComplete="new-password" /></Campo>

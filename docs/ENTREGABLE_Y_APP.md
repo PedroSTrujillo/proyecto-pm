@@ -39,7 +39,7 @@ Revisión del 2026-10-11 contra `(Corrección) Entregable 2 - Grupo 1.xlsx` (el 
 
 ## Lo que la app hace además de lo declarado
 
-Fuera de la prueba (el equipo, la demo y cada probador cuando terminan sus 14 días): panel con lo que hay que atender, pronóstico Gamma-Poisson con temporada (§7 de `docs/modelo-rotacion.md`), tiempo de entrega por proveedor, riesgo de agotarse, cantidad sugerida, mínimos y máximos, pedido para Excel, WhatsApp o gerencia, y la demo con cinco negocios inventados. Es lo que la pestaña 2 dejó "para después si el reporte se usa"; como no lo ven los probadores durante su prueba, no cambia lo que mide M.
+Fuera de la prueba (el equipo, la demo y cada probador cuando terminan sus 14 días): panel con lo que hay que atender, pronóstico Gamma-Poisson con temporada (§7 de `docs/modelo-rotacion.md`), tiempo de entrega por proveedor, riesgo de agotarse, cantidad sugerida, mínimos y máximos, pedido para Excel, WhatsApp o gerencia, y la demo con seis negocios inventados. Es lo que la pestaña 2 dejó "para después si el reporte se usa"; como no lo ven los probadores durante su prueba, no cambia lo que mide M.
 
 ## Filas que conviene agregar en "4 · Cambios y Reflexión"
 

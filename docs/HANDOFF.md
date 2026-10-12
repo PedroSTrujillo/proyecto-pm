@@ -27,6 +27,18 @@
 
 ---
 
+## 2026-10-12 (13) — Claude — sexto negocio de ejemplo y guía para publicar
+- **Rama:** `mejoras-modelo`. En GitHub está una versión anterior; falta `git push origin mejoras-modelo`.
+- **Estado:**
+  - **Sexto negocio de ejemplo:** `distribuidora` en `server/demo.js` (Surtiferretería del Eje Ltda., inventada), armado con lo que contó en su entrevista el probador de la distribuidora mayorista de ferretería: pide cada semana a cada proveedor (`cadaCuanto: 1`), saca de Helisa el listado de inventario con las salidas del periodo, una línea se dispara de un día para otro y una compra de promoción sigue quieta. Nombre, productos, proveedores y cifras son inventados; no hay datos de ninguna empresa real.
+  - En **Ejemplos**, ese negocio también se baja o se carga como **listado de inventario con salidas de 3 meses** (formato de Helisa, sin fecha por venta): se carga con su periodo, sin preguntar.
+  - Un producto que "se agota" pero cuyo sugerido es 0 (pide cada semana y el proveedor llega rápido) ya no dice "va en el pedido de esta semana".
+  - Cada página de cuenta (crear, olvidé, restablecer) tiene su propio subtítulo; "Export de Helisa" ahora dice "Archivo de Helisa"; después de cargar un ejemplo, la página sube al aviso.
+  - **`docs/PUBLICAR.md`:** pasos para subir la rama, el merge, Render, Neon (copia con una rama y `borrar-datos`) y Vercel, y cómo deshacer.
+- **Verificación:** `npm test` → 81/81 (la demo tiene 6 negocios; el listado se carga con su periodo y deja `cadaCuanto` en 1); tipos y `next build` sin errores; el servidor arranca en producción. En el navegador: la demo de la distribuidora, su pedido sugerido semanal, cargar el listado desde Ejemplos y su panel, y las páginas de cuenta.
+- **Siguiente paso exacto (equipo):** seguir `docs/PUBLICAR.md` de arriba abajo.
+- **Notas y bloqueos:** si el build de Render se queda sin memoria en el plan gratis, la versión anterior sigue en línea (ver la guía).
+
 ## 2026-10-12 (12) — Claude — ejemplos para el equipo, sin foto de la lista y textos revisados como cliente
 - **Rama:** `mejoras-modelo` (solo en local).
 - **Estado:**

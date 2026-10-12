@@ -310,7 +310,7 @@ test('informe con compras y ventas mezcladas: se pregunta una vez qué documento
 test('demo sin cuenta: lista de negocios y el inventario de ejemplo, con tiempos propios', async () => {
   const c = cliente();
   const lista = await c.get('/api/demo');
-  assert.equal(lista.sectores.length, 5);
+  assert.equal(lista.sectores.length, 6);
   const inv = await c.get('/api/demo/ferreteria');
   assert.equal(inv.estado, 200);
   assert.ok(inv.inventario.productos.length > 20);
@@ -483,7 +483,7 @@ test('ejemplos del equipo: un probador no los ve; el equipo carga un negocio y u
   const ya = await eq.post('/api/cuenta/entrar', { email: 'equipo@prueba.co', clave: 'clave-segura' });
   if (ya.estado !== 200) assert.equal((await eq.post('/api/cuenta/crear', { nombre: 'Equipo', email: 'equipo@prueba.co', clave: 'clave-segura' })).estado, 201);
   const lista = await eq.get('/api/equipo/ejemplos');
-  assert.equal(lista.negocios.length, 5);
+  assert.equal(lista.negocios.length, 6);
   assert.ok(lista.archivos.every((a) => a.disponible), 'los archivos de ejemplos/ están en el repo');
 
   // El archivo del negocio pasa por el lector y da lo mismo que la demo.
@@ -495,6 +495,14 @@ test('ejemplos del equipo: un probador no los ve; el equipo carga un negocio y u
   const semanasDemo = new Map(demo.inventario.productos.map((p) => [p.codigo, p.semanas]));
   for (const p of inventario.productos) assert.equal(p.semanas, semanasDemo.get(p.codigo), p.codigo);
   assert.ok(inventario.productos.some((p) => p.proveedor === 'Importadora Herramientas del Pacífico' && p.entrega === 10), 'trae proveedor y tiempo de entrega');
+
+  // El listado de inventario con salidas del periodo (sin fecha por venta) trae su periodo y se lee solo.
+  const listado = await eq.post('/api/equipo/ejemplos/negocios/distribuidora/cargar?formato=listado');
+  assert.equal(listado.ok, true, JSON.stringify(listado.errores));
+  const conListado = await eq.get('/api/inventario');
+  assert.equal(conListado.inventario.productos.length, 30);
+  assert.equal(conListado.inventario.ajustes.cadaCuanto, 1, 'la distribuidora pide cada semana');
+  assert.equal((await eq.post('/api/equipo/ejemplos/negocios/ferreteria/cargar?formato=listado')).estado, 404, 'solo los negocios que trabajan con listado');
 
   const siigo = await eq.post('/api/equipo/ejemplos/archivos/siigo/cargar');
   assert.equal(siigo.ok, true, JSON.stringify(siigo.errores));

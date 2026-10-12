@@ -34,7 +34,7 @@ function PanelCon({ inv }: { inv: Inventario }) {
   const sinTiempos = inv.proveedores.every((p) => p.nombre === 'Sin proveedor') && inv.ajustes.entregaPorDefecto <= 1 && !demo
   const pideTop = inv.proveedores.filter((p) => p.pideYa > 0).sort((a, b) => b.pideYa - a.pideYa || b.entrega - a.entrega)[0]
   const sub = [
-    inv.fuente.programa ? `Export de ${nombrePrograma(inv.fuente.programa)}` : 'Tu último archivo',
+    inv.fuente.programa ? `Archivo de ${nombrePrograma(inv.fuente.programa)}` : 'Tu último archivo',
     `del ${fecha(inv.fuente.fecha)}`,
     `${numero(r.productos)} productos`,
     inv.proveedores.length > 1 ? `${inv.proveedores.length} proveedores` : null,

@@ -1,11 +1,11 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Armchair, ArrowRight, Hammer, PencilRuler, Snowflake, Sofa } from 'lucide-react'
+import { Armchair, ArrowRight, Hammer, PencilRuler, Snowflake, Sofa, Wrench } from 'lucide-react'
 import { Marca } from '@/components/app/marco'
 
 export const metadata: Metadata = {
   title: 'Demo · SINESC',
-  description: 'Mira SINESC con un negocio de ejemplo: ferretería, muebles, mobiliario de oficina, refrigeración o papelería.',
+  description: 'Mira SINESC con un negocio de ejemplo: ferretería, muebles, mobiliario de oficina, refrigeración, papelería o una distribuidora mayorista.',
 }
 
 // Los mismos de server/demo.js. Aquí solo va lo que se muestra en la tarjeta.
@@ -15,6 +15,7 @@ const NEGOCIOS = [
   { id: 'oficina', icono: Armchair, sector: 'Mobiliario de oficina', empresa: 'Espacio Ofis', ciudad: 'Bogotá', programa: 'Siigo Nube', texto: 'Venta de mostrador más proyectos grandes que llegan de golpe y no deben inflar el pedido.' },
   { id: 'refrigeracion', icono: Snowflake, sector: 'Refrigeración', empresa: 'Frío Andino', ciudad: 'Cali', programa: 'Siigo Nube', texto: 'Gases y compresores importados, temporada de calor y un gas en desmonte que ya no rota.' },
   { id: 'papeleria', icono: PencilRuler, sector: 'Papelería', empresa: 'Papelería Punto Escolar', ciudad: 'Bucaramanga', programa: 'Alegra', texto: 'Enero y febrero venden el doble: el pronóstico ya trae la temporada escolar.' },
+  { id: 'distribuidora', icono: Wrench, sector: 'Distribuidora mayorista de ferretería', empresa: 'Surtiferretería del Eje', ciudad: 'Pereira', programa: 'Helisa', texto: 'Pide cada semana a cada proveedor, tiene una línea que se dispara de un día para otro y una promoción que se quedó quieta.' },
 ]
 
 export default function Page() {
@@ -31,7 +32,7 @@ export default function Page() {
           <span className="self-start rounded-full bg-secondary px-3 py-1 text-[0.85rem] font-semibold text-secondary-foreground">Demo sin cuenta</span>
           <h1 className="text-[2.2rem] leading-tight font-extrabold sm:text-[2.7rem]">Mira SINESC con un negocio parecido al tuyo</h1>
           <p className="text-lg text-muted-foreground">
-            Cinco negocios inventados, armados con lo que nos contaron gerentes y contadores en las entrevistas. Cada uno pasa por el mismo cálculo que tu archivo: qué se agota, qué hay que pedir ya, qué sobra y el pedido sugerido.
+            Seis negocios inventados, armados con lo que nos contaron gerentes y contadores en las entrevistas. Cada uno pasa por el mismo cálculo que tu archivo: qué se agota, qué hay que pedir ya, qué sobra y el pedido sugerido.
           </p>
         </div>
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

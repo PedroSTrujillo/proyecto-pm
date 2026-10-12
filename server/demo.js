@@ -1,6 +1,6 @@
 'use strict';
 
-// Datos de ejemplo para la demo (sin cuenta): cinco negocios inventados, armados con lo que
+// Datos de ejemplo para la demo (sin cuenta): seis negocios inventados, armados con lo que
 // contaron los entrevistados (ver Conversaciones Grupo 1): ferretería con miles de referencias,
 // muebles importados que no se deberían volver a traer, mobiliario de oficina vendido por
 // proyectos, refrigeración con importados que tardan semanas y papelería con temporada escolar.
@@ -265,6 +265,59 @@ const SECTORES = {
       ['LAP-TIN', 'Lapicero tinta borrable (descontinuado)', 0, 0, 3200, 0, { stock: 240 }],
     ],
   },
+
+  distribuidora: {
+    empresa: 'Surtiferretería del Eje Ltda.',
+    sector: 'Distribuidora mayorista de ferretería',
+    ciudad: 'Pereira',
+    programa: 'Helisa',
+    persona: 'Hernán Ospina',
+    resumen: 'Distribuidora mayorista de ferretería y eléctricos que le pide cada semana a cada proveedor. Saca de Helisa el listado de inventario con las salidas del periodo, y una compra de promoción lleva meses quieta.',
+    archivos: ['Listado de inventario.xls'],
+    temporada: 'ferreteria',
+    cadaCuanto: 1,
+    listado: true,
+    proveedores: [
+      { nombre: 'Adhesivos y Sellantes de Colombia', entrega: 1 },
+      { nombre: 'Eléctricos del Occidente', entrega: 1 },
+      { nombre: 'Tornillería El Ancla', entrega: 0.5 },
+      { nombre: 'Plásticos Industriales del Valle', entrega: 1.5 },
+      { nombre: 'Grifería Nacional', entrega: 1 },
+      { nombre: 'Importadora Oriente Herramientas', entrega: 8 },
+    ],
+    productos: [
+      ['PEG-INS3', 'Pegante instantáneo 3 g (caja x12)', 0, 60, 14500, 0.7, {}],
+      ['CIN-ENM1', 'Cinta de enmascarar 1" (rollo)', 0, 90, 2600, 1.6, { lote: 12, proyecto: [1, 3] }],
+      ['SIL-ACE', 'Silicona acética transparente 280 ml', 0, 25, 9800, 3, {}],
+      ['SOL-PVC', 'Soldadura líquida PVC 1/32 de galón', 0, 30, 7200, 2.5, { lote: 2 }],
+      ['ESP-POL', 'Espuma de poliuretano 500 ml', 0, 8, 21000, 6, {}],
+      ['ROS-2P', 'Roseta plástica de 2 piezas (compra de promoción)', 1, 12, 1500, 85, {}],
+      ['TOM-DOB', 'Toma doble con polo a tierra', 1, 45, 7400, 1.5, { lote: 5 }],
+      ['INT-DOB', 'Interruptor doble', 1, 30, 6900, 2.8, { lote: 5 }],
+      ['CAB-12', 'Cable THHN #12 (metro)', 1, 400, 2100, 3, { lote: 50, proyecto: [4, 3] }],
+      ['BOM-LED12', 'Bombillo LED 12 W', 1, 70, 5200, 4, { lote: 10 }],
+      ['CAJ-OCT', 'Caja octagonal plástica', 1, 35, 1100, 5, { lote: 10 }],
+      ['TOR-DRY1', 'Tornillo drywall 6 x 1" (caja x1000)', 2, 18, 38000, 2, {}],
+      ['TOR-AUT', 'Tornillo autoperforante 8 x 3/4" (caja x500)', 2, 9, 42000, 4, {}],
+      ['CHA-516', 'Chazo plástico 5/16" (bolsa x100)', 2, 40, 5100, 3.5, { lote: 2 }],
+      ['PUN-2C', 'Puntilla 2" con cabeza (caja de 500 g)', 2, 50, 3900, 6, { lote: 5 }],
+      ['ARA-14', 'Arandela plana 1/4" (bolsa x100)', 2, 6, 4800, 30, {}],
+      ['TUB-34', 'Tubo PVC presión 3/4" x 6 m', 3, 14, 19500, 2.2, {}],
+      ['COD-34', 'Codo PVC presión 3/4"', 3, 60, 900, 5, { lote: 10 }],
+      ['TAN-500', 'Tanque plástico 500 L', 3, 1.2, 285000, 7, { temporada: 'seco' }],
+      ['MAN-12', 'Manguera de jardín 1/2" x 15 m', 3, 3, 26000, 12, { temporada: 'seco' }],
+      ['LLA-PAS', 'Llave de paso 1/2"', 4, 15, 14800, 4, {}],
+      ['GRI-LAV', 'Grifería sencilla para lavamanos', 4, 4, 58000, 9, {}],
+      ['SIF-PVC', 'Sifón plástico para lavamanos', 4, 10, 6500, 15, {}],
+      ['DUC-TEL', 'Ducha teléfono cromada', 4, 1.5, 49000, 20, { baja: true }],
+      ['TAL-12', 'Taladro percutor 1/2" 650 W', 5, 2.5, 175000, 5, {}],
+      ['DIS-412', 'Disco de corte 4½" (caja x25)', 5, 6, 62000, 6, {}],
+      ['JGO-DES', 'Juego de destornilladores 6 piezas', 5, 3, 32000, 11, {}],
+      ['FLE-5M', 'Flexómetro 5 m', 5, 12, 11500, 14, {}],
+      ['CAN-40', 'Candado de hierro 40 mm', 5, 4, 15800, 26, {}],
+      ['LIN-LED', 'Linterna LED recargable', 5, 3, 29000, 3, { nuevo: 8 }],
+    ],
+  },
 };
 
 // --- Generación ------------------------------------------------------------------------
@@ -366,6 +419,7 @@ function datosDelSector(id) {
     series: seriesSemanales(ventas),
     catalogo: Object.fromEntries(sector.productos.map(([codigo, , prov, , costo]) => [claveCodigo(codigo), { costo, proveedor: sector.proveedores[prov].nombre }])),
     entregas: Object.fromEntries(sector.proveedores.map((p) => [p.nombre, p.entrega])),
+    cadaCuanto: sector.cadaCuanto ?? 4,
     filasVenta: ventas.length,
     hasta,
     ventas,
@@ -393,7 +447,7 @@ function inventarioDemo(id, ajustes = null) {
     ajustes: {
       entregas: { ...d.entregas, ...(propios.entregas || {}) },
       entregaPorDefecto: propios.entregaPorDefecto ?? 1,
-      cadaCuanto: propios.cadaCuanto ?? 4,
+      cadaCuanto: propios.cadaCuanto ?? sector.cadaCuanto ?? 4,
       asignaciones: propios.asignaciones || {},
       prefijos: propios.prefijos || [],
     },
@@ -414,17 +468,18 @@ function inventarioDemo(id, ajustes = null) {
 }
 
 function sectores() {
-  return Object.entries(SECTORES).map(([id, s]) => ({ id, empresa: s.empresa, sector: s.sector, ciudad: s.ciudad, programa: s.programa, resumen: s.resumen, productos: s.productos.length }));
+  return Object.entries(SECTORES).map(([id, s]) => ({ id, empresa: s.empresa, sector: s.sector, ciudad: s.ciudad, programa: s.programa, resumen: s.resumen, productos: s.productos.length, listado: Boolean(s.listado) }));
 }
 
 /**
  * El mismo negocio como un archivo de Excel (hoja de ventas con fecha y hoja de existencias con
  * costo y proveedor), para que el equipo lo suba por el flujo normal y pruebe el lector.
  */
-function archivoDemo(id) {
+function archivoDemo(id, formato = 'ventas') {
   const sector = SECTORES[id];
   if (!sector) return null;
   const d = datosDelSector(id);
+  if (formato === 'listado') return sector.listado ? listadoDemo(sector, d, id) : null;
   const libro = XLSX.utils.book_new();
   const ventas = d.ventas.map((v) => [{ t: 'n', v: v.dia + EXCEL_EPOCA, z: 'dd/mm/yyyy' }, v.codigo, v.nombre, v.cantidad]);
   XLSX.utils.book_append_sheet(libro, XLSX.utils.aoa_to_sheet([['Fecha', 'Código', 'Producto', 'Cantidad'], ...ventas]), 'Ventas');
@@ -434,6 +489,39 @@ function archivoDemo(id) {
     nombre: `${id}-${textoDia(d.hasta)}.xlsx`,
     buffer: XLSX.write(libro, { type: 'buffer', bookType: 'xlsx' }),
     entregas: d.entregas,
+    cadaCuanto: d.cadaCuanto,
+  };
+}
+
+const MESES = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+const fechaInforme = (dia) => { const x = new Date(dia * MS_DIA); return `${String(x.getUTCDate()).padStart(2, '0')}/${MESES[x.getUTCMonth()]}/${x.getUTCFullYear()}`; };
+
+// Listado de inventario con las salidas de los últimos 3 meses: sin fecha por venta, así que al
+// subirlo la aplicación propone el periodo que dice el título.
+function listadoDemo(sector, d, id) {
+  const desde = d.hasta - 13 * 7 + 1;
+  const salidas = new Map();
+  for (const v of d.ventas) if (v.dia >= desde) salidas.set(v.codigo, (salidas.get(v.codigo) || 0) + v.cantidad);
+  const filas = sector.productos.map(([codigo, nombre], i) => {
+    const sal = salidas.get(codigo) || 0;
+    const actual = d.existencias[i].existencias;
+    const entradas = Math.round(sal * 0.9);
+    return [codigo, nombre, actual + sal - entradas, entradas, sal, actual];
+  });
+  const total = (k) => filas.reduce((n, f) => n + f[k], 0);
+  const libro = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(libro, XLSX.utils.aoa_to_sheet([
+    [sector.empresa.toUpperCase()], ['LISTADO DE INVENTARIO'], [`Del ${fechaInforme(desde)} al ${fechaInforme(d.hasta)}`], [],
+    ['Código', 'Descripción', 'Saldo Anterior', 'Entradas', 'Salidas', 'Saldo Actual'],
+    ...filas,
+    ['', 'TOTAL GENERAL', total(2), total(3), total(4), total(5)],
+  ]), 'Hoja1');
+  return {
+    nombre: `${id}-listado-${textoDia(d.hasta)}.xlsx`,
+    buffer: XLSX.write(libro, { type: 'buffer', bookType: 'xlsx' }),
+    entregas: d.entregas,
+    cadaCuanto: d.cadaCuanto,
+    periodo: { desde: textoDia(desde), hasta: textoDia(d.hasta) },
   };
 }
 

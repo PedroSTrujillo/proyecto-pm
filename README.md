@@ -5,7 +5,7 @@ Para gerentes y administradores de inventario que coordinan el reabastecimiento.
 El MVP existe para probar una hipótesis: *3 de 5 usuarios cambian 5 o más líneas de su pedido en 14 días*. Por eso el flujo obliga a registrar la lista de pedido **antes** de ver el reporte, el producto calcula solo la métrica y, durante sus 14 días, un probador ve solo lo declarado en el plan de prueba (el reporte de semanas): sin pronóstico, sin tiempo de entrega y sin cantidad sugerida.
 
 - Un solo servidor: Node.js (Express, la API) + Next.js (la página y la aplicación, en `inventory-forecasting-landing-page/`) + PostgreSQL.
-- Demo sin cuenta en `/demo`: cinco negocios inventados (ferretería, muebles, mobiliario de oficina, refrigeración y papelería) armados con lo que contaron los entrevistados.
+- Demo sin cuenta en `/demo`: seis negocios inventados (ferretería, muebles, mobiliario de oficina, refrigeración, papelería y una distribuidora mayorista) armados con lo que contaron los entrevistados.
 - Qué de lo que declara el Entregable 2 corregido hace la app, y en qué se aparta: [`docs/ENTREGABLE_Y_APP.md`](docs/ENTREGABLE_Y_APP.md).
 - Modelo matemático e investigación: [`docs/modelo-rotacion.md`](docs/modelo-rotacion.md) (§7: pronóstico).
 
@@ -43,7 +43,7 @@ npm run ejemplos
 
 ## Página y aplicación (Next.js)
 
-La carpeta `inventory-forecasting-landing-page/` tiene la página de presentación y la aplicación, en Next.js. Rutas: `/` (página), `/demo` y `/demo/<negocio>` (sin cuenta), `/entrar`, `/crear-cuenta`, `/olvide`, `/restablecer/<token>`, y con sesión `/panel`, `/productos`, `/pedidos`, `/pedidos/<id>` (los 5 pasos de la prueba), `/pedidos/sugerido`, `/datos`, `/cuenta` y `/equipo`. Los enlaces viejos con `#/` (por ejemplo, un enlace para cambiar la contraseña ya enviado) se redirigen solos.
+La carpeta `inventory-forecasting-landing-page/` tiene la página de presentación y la aplicación, en Next.js. Rutas: `/` (página), `/demo` y `/demo/<negocio>` (sin cuenta), `/entrar`, `/crear-cuenta`, `/olvide`, `/restablecer/<token>`, y con sesión `/panel`, `/productos`, `/pedidos`, `/pedidos/<id>` (los 5 pasos de la prueba), `/pedidos/sugerido`, `/datos`, `/cuenta`, y solo para el equipo `/equipo` y `/ejemplos`. Los enlaces viejos con `#/` (por ejemplo, un enlace para cambiar la contraseña ya enviado) se redirigen solos.
 
 Si se quiere publicar la página sola (por ejemplo, seguir usando Vercel para `proyecto-pm.vercel.app`), configuren allá `API_URL` con la dirección de la aplicación en Render: `next.config.mjs` le pasa `/api` y `/plantillas`, y para el navegador todo queda en la misma dirección. Ojo: Vercel corta las peticiones de más de 4,5 MB, así que los archivos grandes conviene subirlos desde la dirección de Render.
 
@@ -65,6 +65,8 @@ Si se quiere publicar la página sola (por ejemplo, seguir usando Vercel para `p
 Una cuenta queda con rol de **equipo** si su correo está en `TEAM_EMAILS` al crearla o al iniciar sesión. Las cuentas del equipo no cuentan como usuarios de prueba.
 
 ## Publicar en línea (gratis: Render + Neon)
+
+Para publicar una versión nueva (subir la rama, merge, Render, Neon y Vercel), sigan [`docs/PUBLICAR.md`](docs/PUBLICAR.md).
 
 1. **Base de datos.** En https://neon.tech crea un proyecto y copia la *connection string*: `postgresql://...?sslmode=require`. Las tablas se crean solas al arrancar.
 2. **Código.** Sube esta carpeta a un repositorio de GitHub. `node_modules/` y `data/` ya están en `.gitignore`.
@@ -96,9 +98,9 @@ El documento pide que las plantillas sean iguales al export real de cada probado
 
 ## Demo y ejemplos
 
-`/demo` muestra la aplicación con cinco negocios inventados (ferretería, muebles, oficina, refrigeración y papelería), sin crear cuenta. Abran la página un minuto antes de mostrarla: el plan gratis de Render tarda unos 50 segundos en despertar.
+`/demo` muestra la aplicación con seis negocios inventados (ferretería, muebles, oficina, refrigeración, papelería y una distribuidora mayorista), sin crear cuenta. Abran la página un minuto antes de mostrarla: el plan gratis de Render tarda unos 50 segundos en despertar.
 
-Con una cuenta del equipo, la página **Ejemplos** del menú deja descargar o cargar en esa cuenta cualquiera de los cinco negocios (como un Excel de ventas y existencias) o los archivos de `ejemplos/` (Siigo, SAP, ventas por mes, catálogo grande y una lista inicial para el paso 1). Los probadores no la ven.
+Con una cuenta del equipo, la página **Ejemplos** del menú deja descargar o cargar en esa cuenta cualquiera de los seis negocios (como un Excel de ventas y existencias) o los archivos de `ejemplos/` (Siigo, SAP, ventas por mes, catálogo grande y una lista inicial para el paso 1). Los probadores no la ven.
 
 ## Seguridad y errores
 
@@ -136,7 +138,7 @@ Con una cuenta del equipo, la página **Ejemplos** del menú deja descargar o ca
 | Stack declarado en el plan de prueba (Next.js con Postgres y autenticación) | La interfaz es Next.js (`inventory-forecasting-landing-page/`), servida junto con la API de Express por `server/index.js` |
 | Panel, ficha de producto, pronóstico y pedido sugerido (reestructuración, 2026-10-11) | `server/inventario.js`, `server/pronostico.js`, `server/series.js`, `server/inventario-rutas.js`; pantallas en `components/app/`. Ver `docs/PLAN_REESTRUCTURACION.md` y §7 del modelo |
 | Proveedores, mínimos y máximos | Proveedor por producto (ficha) o por comienzo de código (Datos), en `usuarios.inventario`; mínimos y máximos en la ficha y en Excel (`/api/exportar/minimos.xlsx`) |
-| Demo sin cuenta | `server/demo.js` (cinco negocios inventados, el mismo cálculo que un archivo real), `/demo` |
+| Demo sin cuenta | `server/demo.js` (seis negocios inventados, el mismo cálculo que un archivo real), `/demo` |
 
 **Cambio de alcance (2026-10-11):** el producto ya sugiere cuánto pedir, ajusta por temporada y por el tiempo de entrega de cada proveedor (§7 del modelo). Para no contaminar la métrica, durante sus 14 días un probador ve solo el reporte de semanas que declara el plan de prueba, y no ve su inventario antes de guardar su primera lista inicial. El equipo clasifica el "¿por qué?" para el segundo criterio de pivote. Este cambio necesita su fila en "4 · Cambios y Reflexión" del Entregable. Sigue sin conectarse al software contable.
 
@@ -160,7 +162,7 @@ server/
   pronostico.js   Gamma-Poisson, temporada y acierto medido
   inventario.js   lo que ve el panel: riesgo, sugerido, dinero quieto
   inventario-rutas.js  /api/inventario y /api/demo
-  demo.js         los cinco negocios de ejemplo
+  demo.js         los seis negocios de ejemplo
   exportar.js     el pedido como Excel
   listas.js       validación y comparación de listas
   plantillas.js   plantillas descargables

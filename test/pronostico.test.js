@@ -120,9 +120,9 @@ test('ajustes: solo se guardan tiempos razonables', () => {
   assert.equal(a.entregaPorDefecto, 2);
 });
 
-test('demo: los cinco negocios se generan igual cada vez y tienen de todo un poco', () => {
+test('demo: los seis negocios se generan igual cada vez y tienen de todo un poco', () => {
   const lista = sectores();
-  assert.equal(lista.length, 5);
+  assert.equal(lista.length, 6);
   for (const s of lista) {
     const inv = inventarioDemo(s.id);
     assert.equal(inv.fuente.empresa, s.empresa);
