@@ -21,7 +21,7 @@ const pieces = [
   },
   {
     label: 'Se agota o sobra',
-    body: `Menos de ${SEMANAS_SE_AGOTA} semanas: se agota y va arriba, en naranja. Más de ${SEMANAS_SOBRA} semanas, o sin ventas: sobra, en azul.`,
+    body: `Menos de ${SEMANAS_SE_AGOTA} semanas: se agota y va arriba, en rojo. Más de ${SEMANAS_SOBRA} semanas, o sin ventas: sobra, en azul.`,
     example: `${semanas(ejemplo.semanasInventario)} → se agota`,
   },
 ]

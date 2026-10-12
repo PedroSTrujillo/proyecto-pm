@@ -63,7 +63,7 @@ export function Equipo() {
     <>
       <Titulo sub={`Calculado con los datos guardados el ${fechaHora(d.generadoEn)}.`} acciones={<Boton onClick={cargar}>Actualizar</Boton>}>Resultados de la prueba</Titulo>
       <Aviso tono={tono} titulo={titulos[r.veredicto]}>
-        {r.veredicto === 'en_curso' && <p className="font-semibold">Por ahora: {r.cumplen} de {r.usuarios} cambiaron {r.reglas.metaLineas} o más líneas y {r.noCambian} cambiaron 0 o 1{r.sinPedido ? `; ${r.sinPedido} aún no ${r.sinPedido === 1 ? 'guarda' : 'guardan'} su lista final` : ''}.</p>}
+        {r.veredicto === 'en_curso' && <p className="font-semibold">Por ahora: {r.cumplen} de {r.usuarios} cambiaron {r.reglas.metaLineas} o más líneas y {r.noCambian} {r.noCambian === 1 ? 'cambió' : 'cambiaron'} 0 o 1{r.sinPedido ? `; ${r.sinPedido} aún no ${r.sinPedido === 1 ? 'guarda' : 'guardan'} su lista final` : ''}.</p>}
         <p>Meta: {r.reglas.metaUsuarios} de {r.usuariosEsperados} usuarios cambian {r.reglas.metaLineas} o más líneas de su pedido en {r.reglas.diasPrueba} días. Pivote: {r.reglas.pivoteUsuarios} o más no cambian ninguna línea o cambian solo una.</p>
         {r.cumplenSinClasificar > 0 && <p className="mt-1 font-semibold">Falta leer y clasificar el &quot;¿por qué?&quot; de {r.cumplenSinClasificar} de los que cambiaron 5 o más líneas: si fue por probar la herramienta, no cuentan para la meta.</p>}
         <p className="mt-1 text-[0.9rem] opacity-90">Lean cada respuesta a &quot;¿por qué cambió?&quot; y márquenla abajo: si cambiaron por probar la herramienta y no porque el dato les pareciera correcto, cuentan para el pivote (plan de prueba, pestaña 2).{r.cumplen ? ` Como apoyo: de los ${r.cumplen} que cumplen, ${r.cumplenCoherentes} movieron la mayoría de sus líneas en la dirección que indica el reporte.` : ''}</p>
@@ -138,7 +138,7 @@ function Probador({ u }: { u: any }) {
         <span>Cuenta creada: {fecha(u.creadoEn)}</span>
         {u.evaluacion.inicio && <span>Sus 14 días: {fecha(u.evaluacion.inicio)} – {fecha(u.evaluacion.fin)}</span>}
         <span>Recordatorio: <strong>{textoRecordatorio(u.recordatorio)}</strong></span>
-        <span>Cada cuánto pide: <strong>{u.diasEntrePedidos === null ? 'aún no se sabe (un solo pedido)' : `cada ${numero(u.diasEntrePedidos, 1)} días`}</strong></span>
+        <span>Cada cuánto pide: <strong>{u.diasEntrePedidos === null ? 'aún no se sabe (un solo pedido)' : u.diasEntrePedidos < 1 ? 'aún no se sabe (sus pedidos son del mismo día)' : `cada ${numero(u.diasEntrePedidos, 1)} días`}</strong></span>
       </div>
       {u.inventario && (
         <div className="rounded-xl bg-muted px-4 py-3 text-[0.93rem]">
@@ -253,7 +253,7 @@ function ErroresRecientes() {
     <Tarjeta className="flex flex-col gap-2 p-5">
       <h2 className="text-lg font-bold">Errores recientes</h2>
       {lista.length === 0 ? (
-        <p className="text-muted-foreground">Ninguno. Nadie se ha tropezado con la aplicación.</p>
+        <p className="text-muted-foreground">Ninguno.</p>
       ) : (
         <ul className="flex flex-col gap-1.5 text-[0.9rem]">
           {lista.map((e) => (

@@ -94,6 +94,8 @@ function ProductosCon({ inv }: { inv: Inventario }) {
     { id: 'normal', texto: 'Normales', cuenta: cuenta('normal') },
     { id: 'sobra', texto: 'Sobran', cuenta: cuenta('sobra') },
   ]
+  // Durante la prueba no hay tiempo de entrega, así que no existe "pide ya".
+  if (inv.alcance === 'prueba') opciones.splice(2, 1)
   if (cuenta('sin_ventas')) opciones.push({ id: 'sin_ventas', texto: 'Sin ventas', cuenta: cuenta('sin_ventas') })
 
   return (

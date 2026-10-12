@@ -29,7 +29,7 @@ Vista como cliente, la app de hoy se siente como una encuesta y no como un produ
 3. **Preparar pedido** (el flujo de la prueba, más corto): qué ibas a pedir → el reporte → tu lista final → por qué cambió. Con el interruptor encendido muestra además la cantidad sugerida por proveedor, editable y exportable a Excel o como texto para WhatsApp.
 4. **Datos**: subir o actualizar archivos (guía por programa, plantilla para Excel), historial de cargas. El inventario queda guardado: no se sube de nuevo en cada pedido.
 5. **Recordatorios** y **Mi cuenta**, como hoy.
-6. **Demo**: "Ver con datos de ejemplo" desde la landing, para Expoandes: el valor en diez segundos sin crear cuenta ni subir nada.
+6. **Demo**: `/demo`, con negocios de ejemplo, para ver la aplicación sin crear cuenta ni subir nada.
 
 ## Pronóstico
 

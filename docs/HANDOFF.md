@@ -27,7 +27,18 @@
 
 ---
 
-## 2026-10-11 (10) — Claude — lo que faltaba para salir: seguridad, velocidad, errores, borrar datos y Expoandes
+## 2026-10-12 (11) — Claude — página principal como estaba y repaso completo de la aplicación
+- **Rama:** `mejoras-modelo` (solo en local).
+- **Estado:**
+  - **Página principal:** vuelve a ser la de antes de la reestructuración (componentes de `components/landing/` y `app/page.tsx` como en `2119f9a`, con su letra y sus colores). Se quitó `/expo`, `panel-section.tsx` y el QR. Se conservan los enlaces relativos (`lib/app.ts`), la redirección de los enlaces viejos `#/` y los rewrites para Vercel.
+  - **Tema de la aplicación:** los colores y las letras nuevas van solo dentro de `.tema-app` (`globals.css`), en la raíz del marco, la demo, las pantallas de cuenta y la de error. La página principal no los hereda.
+  - **Arreglos encontrados al recorrer el flujo completo con una cuenta de probador:** "Seguir: arma tu lista final" no avanzaba la primera vez que se veía el reporte (ahora recarga el pedido antes de pasar al paso 4); el campo "Proveedor o nombre del pedido" quedaba apretado; el filtro "Pide ya" salía durante la prueba; en la vista del equipo, "cada 0 días" y "1 cambiaron".
+  - Se quitó el recorrido de tres pasos de la demo y toda mención de la feria en código y documentos.
+- **Verificación:** `npm test` → 81/81; tipos sin errores; `next build` pasa. En el navegador: la página principal con su letra y colores originales; los 5 pasos de punta a punta con una cuenta de probador (lista inicial, archivo de Siigo de `ejemplos/`, reporte y recordatorio, lista final, ¿por qué?), panel, productos y datos en modo prueba, la vista del equipo y la demo en 375 px sin desbordes.
+- **Siguiente paso exacto (equipo):** el mismo de la entrada 10: subir la rama, desplegar en Render, `npm run borrar-datos -- --todos --confirmar` contra Neon, exports reales de los probadores y las filas de Cambios del Excel.
+- **Notas y bloqueos:** en Windows, `npm install --prefix inventory-forecasting-landing-page` con `node_modules` ya creado puede fallar con "Cannot read properties of null (reading 'matches')" (error de npm); `npm run build --prefix inventory-forecasting-landing-page` compila igual. En Render la instalación es limpia.
+
+## 2026-10-11 (10) — Claude — lo que faltaba para salir: seguridad, velocidad, errores y borrar datos
 
 - **Rama:** `mejoras-modelo` (solo en local).
 - **Estado:** el plan está terminado en el código. Lo que falta depende del equipo (ver "Siguiente paso").
@@ -36,10 +47,9 @@
   - **Errores:** tabla `errores` con los del servidor y los de las pantallas (pantalla de error amable en la app, la demo y las de cuenta); se ven al final de "Resultados de la prueba".
   - **Borrar datos:** `npm run borrar-datos` (`--todos` o `--email`, con `--confirmar`), en cascada y sin tocar al equipo. Sirve para limpiar antes de la prueba y para borrar los datos de un probador al terminar.
   - **Helisa, listado de inventario con salidas del periodo:** ya se leía (pregunta el periodo); ahora además propone el periodo que trae el título del informe ("Del 01/ENE/2026 al 30/SEP/2026").
-  - **Expoandes:** `/expo` (pantalla del stand con QR a la demo, `public/qr-demo.svg`) y un recorrido de tres pasos en la demo.
   - **Vercel:** si la página sigue publicada allá sin configurar nada, `/api` y `/plantillas` van a la app de Render; los botones de entrar y crear cuenta funcionan en las dos direcciones.
 - **Base de datos:** tabla `errores` (IF NOT EXISTS).
-- **Verificación:** `npm test` → 81/81; tipos sin errores. En el navegador (375 px): `/expo`, recorrido de la demo; respuesta comprimida comprobada con curl.
+- **Verificación:** `npm test` → 81/81; tipos sin errores. En el navegador (375 px): la demo; respuesta comprimida comprobada con curl.
 - **Siguiente paso exacto (equipo):** 1) subir la rama y desplegar en Render; si el build se queda sin memoria en el plan gratis, subir de plan o avisar; 2) probar con una cuenta del equipo y una de probador; 3) `npm run borrar-datos -- --todos --confirmar` contra Neon antes de los 5 probadores; 4) pedirle a cada probador un export real y subirlo con una cuenta del equipo; 5) las filas de Cambios del Excel (`docs/ENTREGABLE_Y_APP.md`).
 - **Notas y bloqueos:** el correo del recordatorio sigue saliendo al aceptar (sin cron); si quieren el correo el mismo día del aviso, hay que aceptar una tarea programada (por ejemplo, GitHub Actions una vez al día).
 
@@ -102,7 +112,7 @@
 - **Siguiente paso exacto:** terminar las 4 pantallas en Stitch (panel, productos con ficha, preparar pedido, datos),
   aprobarlas en grupo y arrancar la fase 1 (base Next.js).
 
-## 2026-10-11 (5) — Claude — landing revisada para Expoandes y prueba con archivos de World Office
+## 2026-10-11 (5) — Claude — landing revisada y prueba con archivos de World Office
 
 - **Rama:** `mejoras-modelo`, lista para subir (solo en local).
 - **Estado:**

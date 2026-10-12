@@ -5,9 +5,9 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: var(--fuente-texto), system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-display: var(--fuente-titulos), var(--fuente-texto), system-ui, sans-serif;
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-display: var(--fuente-titulos), var(--fuente-texto), system-ui, sans-serif;
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -59,13 +59,75 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Paleta de SINESC: la misma de la página y de la aplicación. Los estados se distinguen también
-   por lo claro u oscuro, no solo por el tono (naranja = se agota, ámbar = pide ya, azul = sobra). */
+/* Mismos colores que la aplicación (public/estilos.css). */
 :root {
   color-scheme: light;
+  --background: #f5f6f8;
+  --foreground: #141a26;
+  --card: #ffffff;
+  --card-foreground: #1d2433;
+  --popover: #ffffff;
+  --popover-foreground: #1d2433;
+  --primary: #0f766e;
+  --primary-hover: #0b5d57;
+  --primary-foreground: #ffffff;
+  --secondary: #e6f4f2;
+  --secondary-foreground: #0b5d57;
+  --muted: #f1f3f6;
+  --muted-foreground: #475064;
+  --accent: #e6f4f2;
+  --accent-foreground: #0b5d57;
+  --highlight: #7cc4bc;
+  --destructive: #b42318;
+  --border: #d9dde4;
+  --input: #c9ced6;
+  --ring: #7cc4bc;
+  --rojo: #b42318;
+  --rojo-fondo: #fef0ee;
+  --rojo-borde: #f6c9c2;
+  --azul: #1d5bbf;
+  --azul-fondo: #eef4fd;
+  --azul-borde: #c7daf6;
+  --verde: #12703f;
+  --verde-fondo: #e9f7ef;
+  --ambar: #8a5a00;
+  --ambar-fondo: #fff6e0;
+  --ambar-borde: #f5d9a8;
+  --ambar-texto: #8a5a00;
+  --rojo-texto: #b42318;
+  --azul-texto: #1d5bbf;
+  --verde-borde: #bfe3cb;
+  --superficie: #ffffff;
+  --chart-1: #0f766e;
+  --chart-2: #1d5bbf;
+  --chart-3: #b42318;
+  --chart-4: #8a5a00;
+  --chart-5: #5b6475;
+  --radius: 0.625rem;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    scroll-behavior: smooth;
+    font-size: 106.25%; /* 17 px: un poco más grande, como la aplicación */
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* ------------------------------------------------------------------------------------------
+   La aplicación (panel, productos, pedidos, datos, cuenta y la demo) usa su propia paleta y
+   sus propias letras, dentro de .tema-app. La página principal se queda como estaba.
+   Los estados se distinguen también por lo claro u oscuro, no solo por el tono
+   (naranja = se agota, ámbar = pide ya, azul = sobra).
+   ------------------------------------------------------------------------------------------ */
+.tema-app {
   --background: #f6f7f5;
   --foreground: #111827;
-  --superficie: #ffffff;
   --card: #ffffff;
   --card-foreground: #111827;
   --popover: #ffffff;
@@ -80,7 +142,6 @@
   --accent: #e7f3f1;
   --accent-foreground: #0b5d57;
   --highlight: #99d5ce;
-  --destructive: #b42318;
   --border: #e5e7eb;
   --input: #d1d5db;
   --ring: #99d5ce;
@@ -99,39 +160,23 @@
   --verde: #15803d;
   --verde-fondo: #eaf6ee;
   --verde-borde: #bfe3cb;
-  --chart-1: #0f766e;
-  --chart-2: #1e4e8c;
-  --chart-3: #c2410c;
-  --chart-4: #b45309;
-  --chart-5: #6b7280;
   --radius: 0.75rem;
+  font-family: var(--fuente-texto), system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background-color: var(--background);
+  color: var(--foreground);
 }
-
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  html {
-    scroll-behavior: smooth;
-    font-size: 106.25%; /* 17 px: un poco más grande, como la aplicación */
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-  h1,
-  h2,
-  h3 {
-    font-family: var(--font-display);
-    letter-spacing: -0.015em;
-  }
-  .tabular-nums,
-  .num {
-    font-variant-numeric: tabular-nums;
-  }
-  :focus-visible {
-    outline: 3px solid var(--ring);
-    outline-offset: 2px;
-  }
+.tema-app h1,
+.tema-app h2,
+.tema-app h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.015em;
+}
+.tema-app .num {
+  font-variant-numeric: tabular-nums;
+}
+.tema-app :focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 2px;
 }
 
 /* Movimiento de la aplicación (criterios de Emil Kowalski): corto, con salida suave, solo

@@ -19,7 +19,7 @@ const NEGOCIOS = [
 
 export default function Page() {
   return (
-    <div className="min-h-dvh bg-background">
+    <div className="tema-app min-h-dvh bg-background">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-4 py-5 sm:px-8">
         <Marca />
         <Link href="/crear-cuenta" className="presionable inline-flex min-h-10 items-center rounded-xl border border-primary bg-primary px-4 text-[0.95rem] font-semibold text-primary-foreground hover:bg-primary-hover">

@@ -120,7 +120,7 @@ export function Marco({ children }: { children: ReactNode }) {
   )
 
   return (
-    <div className="min-h-dvh bg-background lg:flex">
+    <div className="tema-app min-h-dvh bg-background lg:flex">
       {/* Menú lateral (escritorio) */}
       <aside className="no-imprimir hidden w-64 shrink-0 flex-col gap-7 border-r border-border bg-card px-4 py-6 lg:sticky lg:top-0 lg:flex lg:h-dvh">
         <Marca href={demo ? '/' : rutas.panel} />

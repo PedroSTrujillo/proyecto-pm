@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { ArrowRight, Check } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
-import { URL_CREAR_CUENTA, URL_DEMO } from '@/lib/app'
+import { URL_CREAR_CUENTA } from '@/lib/app'
 import { cn } from '@/lib/utils'
 import { ReportPreview } from './report-preview'
 
@@ -18,7 +18,7 @@ export function Hero() {
           </p>
           <h1
             id="hero-title"
-            className="mt-6 text-balance text-4xl font-extrabold leading-[1.06] tracking-tight md:text-[3.3rem]"
+            className="mt-6 text-balance text-4xl font-bold leading-[1.05] tracking-tight md:text-6xl"
           >
             Mira qué se agota y qué sobra. <span className="text-primary">Tú decides cuánto pedir.</span>
           </h1>
@@ -32,10 +32,10 @@ export function Hero() {
               <ArrowRight data-icon="inline-end" aria-hidden="true" />
             </a>
             <Link
-              href={URL_DEMO}
+              href="#como-funciona"
               className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'h-11 px-5 text-base')}
             >
-              Verlo con datos de ejemplo
+              Ver cómo funciona
             </Link>
           </div>
           <ul className="mt-8 flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:flex-wrap sm:gap-x-6">

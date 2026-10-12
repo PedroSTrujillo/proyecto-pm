@@ -6,9 +6,6 @@ import { SectionHeading } from './section-heading'
 
 const incluye = [
   'Reporte de rotación de todos tus productos',
-  'Panel con lo que se agota, lo que hay que pedir ya y el dinero quieto',
-  'Pronóstico con la temporada de tu negocio y el tiempo de entrega de cada proveedor',
-  'Pedido sugerido por proveedor, para Excel, WhatsApp o aprobación de gerencia',
   'Excel o CSV, en uno o en varios archivos',
   'Tu lista de antes y la de después, comparadas',
   'Pedidos reales o simulados',
@@ -17,8 +14,8 @@ const incluye = [
 ]
 
 const noHace = [
-  'La cantidad sugerida es una ayuda: el pedido lo decides tú.',
-  'No usa inteligencia artificial generativa ni manda tus datos a terceros.',
+  'No te dice cuánto pedir. Eso lo decides tú.',
+  'No ajusta por temporada ni por el tiempo de entrega del proveedor.',
   'No se conecta a tu software contable: tú subes el archivo.',
   'No hace pedidos por ti.',
 ]
@@ -67,8 +64,8 @@ export function PricingSection() {
           <div className="flex flex-col rounded-2xl border border-border bg-background p-6 md:p-8">
             <h3 className="font-semibold">Lo que no hace, a propósito</h3>
             <p className="mt-3 leading-relaxed text-muted-foreground">
-              Te ayuda a decidir; no decide por ti. Y mientras dura tu prueba, primero queremos saber si ver la
-              rotación te cambia el pedido.
+              Lo dejamos por fuera para mantenerla simple. Primero queremos saber si ver la rotación te cambia el
+              pedido; lo demás puede venir después.
             </p>
             <ul className="mt-6 mb-8 flex flex-col gap-3 text-sm">
               {noHace.map((item) => (
@@ -79,8 +76,8 @@ export function PricingSection() {
               ))}
             </ul>
             <p className="mt-auto rounded-xl border border-border bg-card p-4 text-sm leading-relaxed text-muted-foreground">
-              Tu criterio sigue mandando: tú sabes qué cliente grande viene en camino, qué producto vas a dejar de
-              traer y cuándo conviene comprar antes de que suba el dólar.
+              Para eso está tu criterio: tú sabes cuándo llega la temporada, qué proveedor se demora y qué cliente
+              grande viene en camino.
             </p>
           </div>
         </div>

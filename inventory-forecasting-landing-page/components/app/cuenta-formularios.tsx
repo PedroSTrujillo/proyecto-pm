@@ -14,7 +14,7 @@ const LEMA = 'Sube lo que exportas de tu programa contable y mira, en semanas de
 
 function Caja({ titulo, children, pie }: { titulo: string; children: ReactNode; pie?: ReactNode }) {
   return (
-    <div className="flex min-h-dvh flex-col bg-background">
+    <div className="tema-app flex min-h-dvh flex-col bg-background">
       <header className="mx-auto w-full max-w-6xl px-4 py-5 sm:px-8"><Marca /></header>
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-5 px-4 pt-4 pb-16">
         <div className="flex flex-col gap-2">

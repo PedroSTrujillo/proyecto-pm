@@ -94,11 +94,9 @@ El documento pide que las plantillas sean iguales al export real de cada probado
 5. Antes de empezar, borren los datos de prueba, para que el resumen cuente solo a los 5 probadores. Con la `DATABASE_URL` de Neon en la terminal: `npm run borrar-datos -- --todos` muestra qué se borraría y `npm run borrar-datos -- --todos --confirmar` lo borra (las cuentas del equipo no se tocan).
 6. Al terminar, si un probador lo pide (sus archivos son datos de su empresa): `npm run borrar-datos -- --email correo@empresa.co --confirmar`.
 
-## Expoandes
+## Demo
 
-- `/expo` es la pantalla para el stand: el título, los cinco negocios de ejemplo y un código QR que lleva a la demo. Déjenla abierta en un computador o un televisor.
-- El QR (`inventory-forecasting-landing-page/public/qr-demo.svg`) apunta a `https://rotacion-inventario.onrender.com/demo`. Si la dirección cambia, se genera otro, por ejemplo con `npx qrcode -t svg -o qr-demo.svg <dirección>/demo`.
-- La demo tiene un recorrido de tres pasos (se puede ocultar). Abran la página un minuto antes: el plan gratis de Render tarda unos 50 segundos en despertar.
+`/demo` muestra la aplicación con cinco negocios inventados (ferretería, muebles, oficina, refrigeración y papelería), sin crear cuenta. Abran la página un minuto antes de mostrarla: el plan gratis de Render tarda unos 50 segundos en despertar.
 
 ## Seguridad y errores
 
@@ -136,7 +134,7 @@ El documento pide que las plantillas sean iguales al export real de cada probado
 | Stack declarado en el plan de prueba (Next.js con Postgres y autenticación) | La interfaz es Next.js (`inventory-forecasting-landing-page/`), servida junto con la API de Express por `server/index.js` |
 | Panel, ficha de producto, pronóstico y pedido sugerido (reestructuración, 2026-10-11) | `server/inventario.js`, `server/pronostico.js`, `server/series.js`, `server/inventario-rutas.js`; pantallas en `components/app/`. Ver `docs/PLAN_REESTRUCTURACION.md` y §7 del modelo |
 | Proveedores, mínimos y máximos | Proveedor por producto (ficha) o por comienzo de código (Datos), en `usuarios.inventario`; mínimos y máximos en la ficha y en Excel (`/api/exportar/minimos.xlsx`) |
-| Demo para Expoandes, sin cuenta | `server/demo.js` (cinco negocios inventados, el mismo cálculo que un archivo real), `/demo` |
+| Demo sin cuenta | `server/demo.js` (cinco negocios inventados, el mismo cálculo que un archivo real), `/demo` |
 
 **Cambio de alcance (2026-10-11):** el producto ya sugiere cuánto pedir, ajusta por temporada y por el tiempo de entrega de cada proveedor (§7 del modelo). Para no contaminar la métrica, durante sus 14 días un probador ve solo el reporte de semanas que declara el plan de prueba, y no ve su inventario antes de guardar su primera lista inicial. La lista inicial se puede respaldar con una foto, y el equipo clasifica el "¿por qué?" para el segundo criterio de pivote. Este cambio necesita su fila en "4 · Cambios y Reflexión" del Entregable. Sigue sin conectarse al software contable.
 

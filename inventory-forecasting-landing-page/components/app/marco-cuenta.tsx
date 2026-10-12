@@ -9,7 +9,7 @@ function ConSesion({ children }: { children: ReactNode }) {
   const { usuario, cargando } = useSesion()
   if (cargando || !usuario) {
     return (
-      <div className="mx-auto max-w-[1240px] px-4 py-10 sm:px-8">
+      <div className="tema-app min-h-dvh px-4 py-10 sm:px-8">
         <Cargando texto="Revisando tu sesión…" />
       </div>
     )

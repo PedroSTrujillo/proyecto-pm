@@ -117,7 +117,7 @@ export function PedidoFlujo({ id }: { id: number }) {
 
       {paso === 1 && <Paso1 pedido={pedido} ir={ir} />}
       {paso === 2 && <Paso2 pedido={pedido} ir={ir} />}
-      {paso === 3 && <Paso3 pedido={pedido} />}
+      {paso === 3 && <Paso3 pedido={pedido} ir={ir} />}
       {paso === 4 && <Paso4 pedido={pedido} ir={ir} />}
       {paso === 5 && <Paso5 pedido={pedido} recargar={cargar} />}
     </>
@@ -308,8 +308,8 @@ function Paso1({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
         <h2 className="text-xl font-bold">Lo que ibas a pedir</h2>
         <p className="mt-1 text-muted-foreground">Antes de ver el reporte, anota lo que ibas a pedir hoy, como lo harías normalmente. Al final comparamos esta lista con la que decidas después de ver la rotación.</p>
       </div>
-      <div className="grid gap-4 md:grid-cols-[1fr_auto]">
-        <label className="flex flex-col gap-1.5 font-semibold">
+      <div className="flex flex-wrap items-start gap-4">
+        <label className="flex min-w-0 flex-[1_1_18rem] flex-col gap-1.5 font-semibold">
           <span>Proveedor o nombre del pedido <span className="font-normal text-muted-foreground">(opcional)</span></span>
           <input className={claseEntrada} maxLength={120} placeholder="Ej.: Tornillería Central" value={proveedor} onChange={(e) => { setProveedor(e.target.value); auto.cambio() }} />
         </label>
@@ -419,7 +419,8 @@ function useReporte(id: number) {
   return { r, error }
 }
 
-function Paso3({ pedido }: { pedido: Pedido }) {
+// Ver el reporte habilita el paso 4 en el servidor: "Seguir" recarga el pedido antes de avanzar.
+function Paso3({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
   const { r, error } = useReporte(pedido.id)
   if (error) return <ErrorLista mensaje={error} />
   if (!r) return <Cargando texto="Cargando el reporte…" />
@@ -433,11 +434,11 @@ function Paso3({ pedido }: { pedido: Pedido }) {
             {!pedido.terminado && <Link href="?paso=2" className="font-semibold text-primary hover:text-primary-hover">Usar otro archivo</Link>}
           </p>
         </div>
-        {!pedido.terminado && <BotonEnlace href="?paso=4" variante="primario">Seguir: arma tu lista final <ArrowRight /></BotonEnlace>}
+        {!pedido.terminado && <Boton variante="primario" onClick={() => ir(4)}>Seguir: arma tu lista final <ArrowRight /></Boton>}
       </div>
       <Recordatorio pedidoId={pedido.id} />
       <Reporte r={r} />
-      {!pedido.terminado && <BotonEnlace href="?paso=4" variante="primario" className="self-end">Seguir: arma tu lista final <ArrowRight /></BotonEnlace>}
+      {!pedido.terminado && <Boton variante="primario" className="self-end" onClick={() => ir(4)}>Seguir: arma tu lista final <ArrowRight /></Boton>}
     </Tarjeta>
   )
 }

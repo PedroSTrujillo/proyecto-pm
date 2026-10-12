@@ -4,7 +4,7 @@
 // ventas con su pronóstico y lo que conviene atender hoy.
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { ArrowRight, BellRing, CalendarDays, Sparkles, Truck, Wallet } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { dia, duracion, fecha, mesAnio, numero, plata, plural, porcentaje, semanas, sumarDias, ventasSemana } from '@/lib/formato'
@@ -56,7 +56,6 @@ function PanelCon({ inv }: { inv: Inventario }) {
       </Titulo>
 
       {prueba && <AvisoPrueba />}
-      {demo && <RecorridoDemo inv={inv} />}
 
       <section aria-label="Resumen" className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <Cifra
@@ -400,52 +399,6 @@ function AvisoPrueba() {
         <strong>Estás en tu prueba{respuesta?.finPrueba ? ` hasta el ${fecha(respuesta.finPrueba)}` : ''}.</strong> Por ahora ves para cuántas semanas te alcanza cada producto.
         El pronóstico, el tiempo de entrega de tus proveedores y la cantidad sugerida se activan al terminar.
       </p>
-    </div>
-  )
-}
-
-// En la demo, tres pasos para que quien llega (por ejemplo, en Expoandes) vea el valor rápido.
-function RecorridoDemo({ inv }: { inv: Inventario }) {
-  const { rutas } = useInventario()
-  const [visible, setVisible] = useState(false)
-  useEffect(() => {
-    try {
-      setVisible(window.localStorage.getItem('sinesc-recorrido-visto') !== '1')
-    } catch {
-      setVisible(true)
-    }
-  }, [])
-  if (!visible) return null
-  const primero = inv.productos.find((p) => p.estado === 'pide') || inv.productos.find((p) => p.estado === 'agota')
-  const cerrar = () => {
-    setVisible(false)
-    try {
-      window.localStorage.setItem('sinesc-recorrido-visto', '1')
-    } catch {
-      // sin almacenamiento: vuelve a salir la próxima vez
-    }
-  }
-  const pasos = [
-    { n: 1, texto: 'Mira qué se te acaba primero', href: '#t-primero' },
-    { n: 2, texto: primero ? `Abre la ficha de ${primero.nombre}` : 'Abre la ficha de un producto', href: primero ? `${rutas.productos}?p=${encodeURIComponent(primero.codigo)}` : rutas.productos },
-    { n: 3, texto: 'Arma el pedido sugerido', href: rutas.pedido },
-  ]
-  return (
-    <div className="aparecer flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 lg:flex-row lg:items-center">
-      <div className="flex items-center justify-between gap-3 lg:contents">
-        <strong className="px-1 text-[0.95rem]">En 30 segundos:</strong>
-        <button type="button" onClick={cerrar} className="rounded-lg px-2 py-1 text-sm font-semibold text-muted-foreground hover:bg-muted hover:text-foreground lg:order-last">Ocultar</button>
-      </div>
-      <ol className="flex flex-1 flex-col gap-2 sm:flex-row sm:flex-wrap">
-        {pasos.map((p) => (
-          <li key={p.n}>
-            <Link href={p.href} className="presionable inline-flex min-h-10 items-center gap-2 rounded-full bg-secondary py-1 pr-3.5 pl-1.5 text-[0.92rem] font-semibold text-secondary-foreground hover:bg-[#d5ede9]">
-              <span className="inline-flex size-7 items-center justify-center rounded-full bg-primary text-sm text-primary-foreground tabular-nums">{p.n}</span>
-              {p.texto}
-            </Link>
-          </li>
-        ))}
-      </ol>
     </div>
   )
 }

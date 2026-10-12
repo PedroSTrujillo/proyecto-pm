@@ -152,8 +152,8 @@ function Resultado({ r, semanasPeriodo, existencias }: { r: Rotacion; semanasPer
     return (
       <Mensaje icono={AlertTriangle} tono="rojo">
         {alcanza === 0
-          ? 'No tienes existencias y el producto sí se vende. En el reporte saldría de primero, en naranja.'
-          : `Se agota: si sigues vendiendo igual, no te alcanza ni para ${SEMANAS_SE_AGOTA} semanas. En el reporte saldría arriba, en naranja.`}
+          ? 'No tienes existencias y el producto sí se vende. En el reporte saldría de primero, en rojo.'
+          : `Se agota: si sigues vendiendo igual, no te alcanza ni para ${SEMANAS_SE_AGOTA} semanas. En el reporte saldría arriba, en rojo.`}
       </Mensaje>
     )
   }
@@ -187,7 +187,7 @@ function Mensaje({
     <div
       className={cn(
         'mt-6 flex gap-3 rounded-xl border p-4 text-sm',
-        tono === 'rojo' && 'border-rojo-borde bg-rojo-fondo text-rojo-texto',
+        tono === 'rojo' && 'border-rojo-borde bg-rojo-fondo text-[#7a1a12]',
         tono === 'azul' && 'border-azul-borde bg-azul-fondo text-[#163f80]',
         tono === 'verde' && 'border-primary/20 bg-secondary text-secondary-foreground',
         !tono && 'border-border bg-muted text-muted-foreground',

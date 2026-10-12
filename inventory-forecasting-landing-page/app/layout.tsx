@@ -3,7 +3,7 @@ import type { Metadata, Viewport } from 'next'
 import { Figtree, Plus_Jakarta_Sans } from 'next/font/google'
 import './globals.css'
 
-// Figtree para el texto (se lee bien en tablas con números) y Plus Jakarta Sans para títulos.
+// Letras de la aplicación (.tema-app en globals.css). La página principal sigue con las del sistema.
 const texto = Figtree({ subsets: ['latin'], variable: '--fuente-texto', display: 'swap' })
 const titulos = Plus_Jakarta_Sans({ subsets: ['latin'], weight: ['600', '700', '800'], variable: '--fuente-titulos', display: 'swap' })
 
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   colorScheme: 'light',
-  themeColor: '#f6f7f5',
+  themeColor: '#ffffff',
 }
 
 export default function RootLayout({
