@@ -5,12 +5,12 @@ const costs = [
   {
     icon: PackageMinus,
     title: 'Quedarse corto',
-    body: 'Te enteras de que algo se acabó cuando un cliente lo pide. El pedido falla cada mes y se arregla con pedidos extra, llamadas de afán y clientes que se van sin su producto.',
+    body: 'Te enteras de que algo se acabó cuando un cliente lo pide, y se arregla con pedidos de afán.',
   },
   {
     icon: PackagePlus,
     title: 'Comprar de más',
-    body: 'Se repite el pedido de siempre y la bodega se va llenando de lo que casi no se vende. Es plata quieta que nadie ve hasta el próximo inventario.',
+    body: 'Se repite el pedido de siempre y la bodega se va llenando de lo que casi no se vende. Es dinero quieto, y lo descubres en el próximo inventario.',
   },
 ]
 
@@ -21,8 +21,8 @@ export function ProblemSection() {
         <SectionHeading
           id="problema-title"
           eyebrow="El problema"
-          title="Los datos para pedir mejor ya existen. Solo llegan tarde."
-          description="Tus ventas y tus existencias ya están en el software contable. Pero nadie las convierte a tiempo en algo que sirva para decidir, y el pedido se sigue armando con experiencia, conteos a mano e informes que llegan cuando ya pasó la semana."
+          title="El pedido se arma a ojo, aunque los datos ya están en tu programa contable."
+          description="Convertir ventas y existencias en un pedido toma horas de Excel. Por eso, en catálogos grandes, casi todo se pide igual que la vez anterior."
         />
         <div className="flex flex-col gap-4">
           {costs.map((cost) => (

@@ -163,8 +163,9 @@ function buscarEncabezado(hoja, campos) {
 // Asigna a cada campo la columna que mejor le sirve (cada columna, un solo campo).
 function detectarColumnas(encabezados, campos) {
   const candidatos = [];
+  const vecinos = new Set(encabezados.map((e) => normalizarEncabezado(e)));
   encabezados.forEach((texto, col) => {
-    for (const m of camposDeEncabezado(texto)) {
+    for (const m of camposDeEncabezado(texto, vecinos)) {
       if (campos.includes(m.campo)) candidatos.push({ ...m, col });
     }
   });
@@ -219,9 +220,22 @@ function analizarHoja(hoja, campos, mapeo) {
       if (Number.isInteger(v) && v >= 0 && v < encabezados.length) columnas[campo] = v;
     }
   }
+  if (!manual && iEnc >= 0) columnas = realinearColumnas(hoja, iEnc, columnas, firma);
   const usadas = new Set(Object.values(columnas));
   const meses = campos.includes('fecha') && columnas.fecha === undefined ? columnasDeMes(brutos, usadas) : [];
-  return { iEnc, encabezados, columnas, meses, firma, manual: Boolean(manual) };
+  let codigoEnNombre = false;
+  if (columnas.codigo === undefined && columnas.nombre !== undefined) {
+    const nombres = valoresDe(filasDeMuestra(hoja, iEnc + 1, firma), columnas.nombre);
+    const parte = (fn) => nombres.length >= 3 && nombres.filter(fn).length / nombres.length >= 0.6;
+    if (parte((v) => /^[A-Za-z0-9._/-]{1,20}$/.test(String(v).trim()))) {
+      // Una columna "Producto" con valores como "TV123" trae códigos, no nombres (así exporta World Office).
+      columnas = { ...columnas, codigo: columnas.nombre };
+      delete columnas.nombre;
+    } else {
+      codigoEnNombre = parte((v) => RE_CODIGO_EN_NOMBRE.test(String(v)));
+    }
+  }
+  return { iEnc, encabezados, columnas, meses, firma, manual: Boolean(manual), codigoEnNombre };
 }
 
 function describirColumna(hoja, analisis, col) {
@@ -238,6 +252,7 @@ function resumenParaMapeo(indiceArchivo, hoja, analisis, campos) {
     filaEncabezados: analisis.iEnc >= 0 ? hoja.primeraFila + analisis.iEnc : null,
     encabezados: analisis.encabezados.map((t, i) => ({ indice: i, letra: letraColumna(hoja, i), texto: t === null || t === undefined ? '' : String(t) })),
     columnas: Object.fromEntries(campos.map((c) => [c, analisis.columnas[c] ?? null])),
+    sugeridas: sugerirPorContenido(hoja, analisis, campos),
     mensual: analisis.meses.length > 0,
   };
 }
@@ -290,15 +305,183 @@ function muestraColumna(filas, desde, col, max = 3000) {
 
 // --- Export de ventas y existencias -----------------------------------------------
 
-const CAMPOS_EXPORT = ['codigo', 'nombre', 'fecha', 'cantidad', 'existencias'];
+// costo, costoTotal y proveedor son opcionales: si vienen, el panel muestra el dinero en
+// inventario y agrupa el pedido por proveedor. Su falta nunca impide leer el archivo.
+const CAMPOS_EXPORT = ['codigo', 'nombre', 'fecha', 'cantidad', 'existencias', 'documento', 'costo', 'costoTotal', 'proveedor'];
+
+// --- Informes "de impresora" y otros formatos difíciles -------------------------------
+
+const RE_PAGINA = /p[aá]gina\s+\d+\s+de\s+\d+/i;
+const RE_CODIGO_EN_NOMBRE = /\(([^()]{2,30})\)\s*$/; // «TORNILLO HEX 1/4 (AB-100)»
+// Documentos que casi siempre son ventas: se dejan marcados al preguntar.
+const RE_DOC_VENTA = /^(FV|FE|FED|FVE|FAC|FACT|FACTURA|POS|VTA|VEN|VENTA|VENTAS|SALIDA|SALIDAS)$/;
+
+function celdasLlenas(f) {
+  return f.filter((c) => c !== null && c !== undefined && String(c).trim() !== '').length;
+}
+
+function soloNumeros(f) {
+  const llenas = f.filter((c) => c !== null && c !== undefined && String(c).trim() !== '');
+  return llenas.length > 0 && llenas.every((c) => typeof c === 'number' || /^[\s$\d.,()-]+$/.test(String(c)));
+}
+
+// Encabezados de página repetidos, "Página 3 de 53" y la fila de títulos repetida en cada página.
+function esFilaDeRuido(f, firma) {
+  if (f.some((c) => typeof c === 'string' && RE_PAGINA.test(c))) return true;
+  return Boolean(firma) && celdasLlenas(f) >= 2 && firmaEncabezados(f) === firma;
+}
+
+// Filas que no son datos: totales, subtotales (solo números) y títulos sueltos sin código.
+function esFilaQueSeSalta(f, codigo) {
+  if (esFilaDeTotal(f) && (!codigo || /total/i.test(codigo))) return true;
+  return !codigo && (celdasLlenas(f) <= 2 || soloNumeros(f));
+}
+
+function codigoYNombre(f, analisis) {
+  const c = analisis.columnas;
+  const nombre = c.nombre !== undefined && f[c.nombre] !== null && f[c.nombre] !== undefined ? String(f[c.nombre]).trim() : '';
+  if (c.codigo !== undefined) return { codigo: V.textoCodigo(f[c.codigo]), nombre };
+  if (!analisis.codigoEnNombre) return { codigo: '', nombre };
+  const m = RE_CODIGO_EN_NOMBRE.exec(nombre);
+  return m ? { codigo: V.textoCodigo(m[1]), nombre: nombre.slice(0, m.index).trim() } : { codigo: '', nombre };
+}
+
+// "FED 137529" → FED · "FV-1-1000" → FV · "Salida por venta" → SALIDA
+function prefijoDocumento(v) {
+  if (v === null || v === undefined) return '(vacío)';
+  const m = /^[\s]*([A-Za-zÁÉÍÓÚÑáéíóúñ]+)/.exec(String(v));
+  return m ? m[1].toUpperCase() : '(sin letras)';
+}
+
+/**
+ * Algunos programas exportan la fecha con el año cortado por el ancho de la columna
+ * ("01/MAR/202"). Como esos informes van en orden de fecha, el año se completa con el de la
+ * última fecha completa de la misma columna (o el siguiente, si el mes ya dio la vuelta).
+ */
+function fechaConAnioCortado(v, ultimo, orden) {
+  if (typeof v !== 'string' || !ultimo) return null;
+  const m = /^(\s*\d{1,2}[/.-][A-Za-z]{3,}[/.-]|\s*\d{1,2}[/.-]\d{1,2}[/.-])(\d{1,3})\s*$/.exec(v);
+  if (!m) return null;
+  const anio = new Date(ultimo * V.MS_DIA).getUTCFullYear();
+  for (const candidato of [anio, anio + 1]) {
+    if (!String(candidato).startsWith(m[2])) continue;
+    const fecha = V.leerFecha(m[1] + candidato, orden);
+    if (fecha && fecha.dia >= ultimo - 31) return fecha;
+  }
+  return null;
+}
+
+function filasDeMuestra(hoja, desde, firma, max = 80) {
+  const out = [];
+  // Una fila con muy pocas celdas suele ser un título suelto, salvo que la tabla misma tenga pocas columnas.
+  const minimo = Math.min(3, Math.max(1, celdasLlenas(hoja.filas[desde - 1] || [])));
+  for (let i = desde; i < hoja.filas.length && out.length < max; i++) {
+    const f = hoja.filas[i];
+    if (filaVacia(f) || esFilaDeRuido(f, firma) || esFilaDeTotal(f) || celdasLlenas(f) < minimo) continue;
+    out.push(f);
+  }
+  return out;
+}
+
+function valoresDe(filas, col) {
+  return filas.map((f) => f[col]).filter((v) => v !== null && v !== undefined && String(v).trim() !== '');
+}
+
+// ¿Los valores de una columna parecen de este campo?
+function pareceDelCampo(campo, valores) {
+  if (!valores.length) return false;
+  const frac = (fn) => valores.filter(fn).length / valores.length;
+  const esNumero = (v) => typeof v === 'number' || V.leerNumero(String(v), V.inferirDecimal([String(v)])) !== null;
+  const esFecha = (v) => v instanceof Date || V.leerFecha(v) !== null;
+  switch (campo) {
+    case 'fecha': return frac(esFecha) >= 0.6;
+    case 'cantidad':
+    case 'existencias':
+    case 'costo':
+    case 'costoTotal': return frac((v) => esNumero(v) && !(v instanceof Date)) >= 0.8;
+    case 'proveedor': return frac((v) => typeof v === 'string' && /[a-záéíóúñ]{3}/i.test(v)) >= 0.6;
+    case 'nombre': return frac((v) => typeof v === 'string' && /[a-záéíóúñ]{3}/i.test(v)) >= 0.6;
+    case 'documento': return frac((v) => typeof v === 'string' && /[a-zñ]/i.test(v)) >= 0.6;
+    default: return frac((v) => !(v instanceof Date)) >= 0.6; // código: cualquier texto o número
+  }
+}
+
+/**
+ * En los informes armados como página de impresión, el título de una columna no cae encima de
+ * sus datos (por ejemplo, "CANTIDAD" en la columna M y los números en la N). Si una columna
+ * reconocida está casi vacía, se toma la vecina más cercana (hasta 4 columnas) cuyos datos sí
+ * parecen de ese campo.
+ */
+function realinearColumnas(hoja, iEnc, columnas, firma) {
+  const muestra = filasDeMuestra(hoja, iEnc + 1, firma);
+  if (muestra.length < 3) return columnas;
+  const lleno = (col) => valoresDe(muestra, col).length / muestra.length;
+  const out = { ...columnas };
+  const usadas = new Set(Object.values(out).filter((col) => lleno(col) >= 0.3));
+  for (const [campo, col] of Object.entries(columnas)) {
+    if (lleno(col) >= 0.3) continue;
+    for (let dist = 1; dist <= 4; dist++) {
+      const opcion = [col - dist, col + dist].find((c) => c >= 0 && !usadas.has(c) && lleno(c) >= 0.5 && pareceDelCampo(campo, valoresDe(muestra, c)));
+      if (opcion !== undefined) { out[campo] = opcion; usadas.add(opcion); break; }
+    }
+  }
+  return out;
+}
+
+// Los informes de totales casi siempre dicen su periodo en el título ("Del 01/ENE/2026 al
+// 30/SEP/2026", "Periodo: 2025-10-01 - 2026-09-30"). Se busca en las primeras filas para
+// proponerlo al preguntar; el usuario lo confirma.
+const RE_FECHA_TITULO = /\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/.-](?:\d{1,2}|[A-Za-zÁÉÍÓÚáéíóú]{3,})[/.-]\d{2,4}/g;
+function periodoDelTitulo(hojas) {
+  for (const hoja of hojas) {
+    for (const fila of hoja.filas.slice(0, 12)) {
+      const textoFila = fila.filter((c) => typeof c === 'string').join(' ');
+      const dias = (textoFila.match(RE_FECHA_TITULO) || []).map((t) => V.leerFecha(t)).filter(Boolean).map((f) => f.dia);
+      if (dias.length >= 2) {
+        const desde = Math.min(...dias);
+        const hasta = Math.max(...dias);
+        if (hasta - desde >= 6) return { desde: V.textoDia(desde), hasta: V.textoDia(hasta) };
+      }
+    }
+  }
+  return null;
+}
+
+// Para el formulario de columnas: lo que parece cada columna por su contenido.
+function sugerirPorContenido(hoja, analisis, campos) {
+  const muestra = filasDeMuestra(hoja, analisis.iEnc + 1, analisis.firma, 60);
+  const sugeridas = {};
+  if (muestra.length < 3) return sugeridas;
+  const usadas = new Set(Object.values(analisis.columnas));
+  const ancho = Math.max(...muestra.map((f) => f.length));
+  const libres = () => Array.from({ length: ancho }, (_, i) => i).filter((i) => !usadas.has(i) && valoresDe(muestra, i).length / muestra.length >= 0.5);
+  const tomar = (campo, criterio) => {
+    if (!campos.includes(campo) || analisis.columnas[campo] !== undefined) return;
+    const col = libres().filter((i) => pareceDelCampo(campo, valoresDe(muestra, i))).sort(criterio)[0];
+    if (col !== undefined) { sugeridas[campo] = col; usadas.add(col); }
+  };
+  const largo = (i) => valoresDe(muestra, i).reduce((s, v) => s + String(v).length, 0) / Math.max(valoresDe(muestra, i).length, 1);
+  tomar('fecha', (a, b) => a - b);
+  tomar('nombre', (a, b) => largo(b) - largo(a)); // el texto más largo
+  tomar('codigo', (a, b) => largo(a) - largo(b)); // el texto corto que queda
+  tomar('cantidad', (a, b) => a - b);
+  tomar('existencias', (a, b) => a - b);
+  return sugeridas;
+}
+
 
 /**
  * archivos: [{ nombre, buffer }]
  * mapeo: { porClave: { "0:Ventas": {codigo: 0, ...} }, porFirma: { firma: {...} } }
- * Devuelve { ok: true, ventas, existencias, mensual, hojasUsadas, avisos }
+ * Devuelve { ok: true, ventas, existencias, mensual, periodo, hojasUsadas, avisos }
+ *
+ * opciones.periodo = { desde, hasta } ("YYYY-MM-DD"): para los informes que traen el total
+ * vendido de cada producto en un periodo, sin una fecha por venta (por ejemplo, "Ventas por
+ * ítems" de Alegra o el listado de inventario con la casilla de salidas). Si el archivo es así
+ * y no viene el periodo, se devuelve { ok: false, necesitaPeriodo: true } para preguntarlo.
  *       o  { ok: false, errores, hojas } (hojas sirve para que el usuario elija columnas)
  */
-function leerExport(archivos, mapeo = {}) {
+function leerExport(archivos, mapeo = {}, opciones = {}) {
   const errores = [];
   const avisos = [];
   const hojasLeidas = [];
@@ -311,7 +494,9 @@ function leerExport(archivos, mapeo = {}) {
   });
   if (errores.length) return { ok: false, errores, hojas: [] };
 
-  const conDatos = hojasLeidas.filter(({ hoja }) => hoja.filas.some((f) => !filaVacia(f)));
+  // Las hojas de ayuda de una plantilla ("Instrucciones", "Ejemplo") no son datos del usuario.
+  const esHojaDeAyuda = (h) => /^(instrucciones?|ejemplos?|ayuda|como llenar.*)$/.test(normalizarEncabezado(h.hoja || ''));
+  const conDatos = hojasLeidas.filter(({ hoja }) => !esHojaDeAyuda(hoja) && hoja.filas.some((f) => !filaVacia(f)));
   if (!conDatos.length) return { ok: false, errores: ['El archivo no tiene datos.'], hojas: [] };
   const varias = conDatos.length > 1;
 
@@ -320,19 +505,70 @@ function leerExport(archivos, mapeo = {}) {
     const manual = mapeo.porClave && mapeo.porClave[clave];
     const analisis = analizarHoja(hoja, CAMPOS_EXPORT, manual ? { porClave: manual } : { porFirma: mapeo.porFirma });
     const c = analisis.columnas;
-    const tieneCodigo = c.codigo !== undefined;
+    const tieneCodigo = c.codigo !== undefined || analisis.codigoEnNombre;
     const esVentas = tieneCodigo && ((c.fecha !== undefined && c.cantidad !== undefined) || analisis.meses.length >= 2);
     const esExistencias = tieneCodigo && c.existencias !== undefined;
-    return { indiceArchivo, hoja, clave, analisis, esVentas, esExistencias };
+    // Código y cantidad sin ninguna fecha: es el total vendido de un periodo.
+    const esVentasPeriodo = tieneCodigo && !esVentas && c.cantidad !== undefined;
+    return { indiceArchivo, hoja, clave, analisis, esVentas, esExistencias, esVentasPeriodo };
   });
 
-  const hojasVentas = analizadas.filter((h) => h.esVentas);
+  let hojasVentas = analizadas.filter((h) => h.esVentas);
+  // Solo si no hay ventas con fecha: un archivo de existencias con una columna "Cantidad"
+  // no debe confundirse con ventas cuando sí vinieron las ventas de verdad.
+  const porPeriodo = hojasVentas.length ? [] : analizadas.filter((h) => h.esVentasPeriodo);
+  if (porPeriodo.length) hojasVentas = porPeriodo;
   const soloExistencias = analizadas.filter((h) => h.esExistencias && !h.esVentas);
   const hojasExistencias = soloExistencias.length ? soloExistencias : analizadas.filter((h) => h.esExistencias);
   const resumenHojas = analizadas.map((h) => resumenParaMapeo(h.indiceArchivo, h.hoja, h.analisis, CAMPOS_EXPORT));
 
   if (!hojasVentas.length || !hojasExistencias.length) {
     return { ok: false, errores: explicarFaltantes(analizadas, hojasVentas.length > 0, hojasExistencias.length > 0, varias), hojas: resumenHojas };
+  }
+  // Informes que mezclan compras, ventas y ajustes: el usuario marca cuáles son ventas.
+  const documentosElegidos = new Map(); // clave de hoja → Set de prefijos
+  for (const h of hojasVentas) {
+    const c = h.analisis.columnas;
+    if (c.documento === undefined) continue;
+    const conteo = new Map();
+    for (let i = h.analisis.iEnc + 1; i < h.hoja.filas.length; i++) {
+      const fila = h.hoja.filas[i];
+      if (filaVacia(fila) || esFilaDeRuido(fila, h.analisis.firma)) continue;
+      const { codigo } = codigoYNombre(fila, h.analisis);
+      if (esFilaQueSeSalta(fila, codigo)) continue;
+      const p = prefijoDocumento(fila[c.documento]);
+      const e = conteo.get(p) || { prefijo: p, filas: 0, ejemplo: String(fila[c.documento] ?? '').trim().slice(0, 30) };
+      e.filas++;
+      conteo.set(p, e);
+    }
+    if (conteo.size < 2) continue;
+    const elegidos = opciones.documentos || (opciones.documentosPorFirma && opciones.documentosPorFirma[h.analisis.firma]);
+    if (!elegidos) {
+      return {
+        ok: false,
+        necesitaDocumentos: true,
+        documentos: [...conteo.values()].sort((a, b) => b.filas - a.filas).map((e) => ({ ...e, sugerido: RE_DOC_VENTA.test(e.prefijo) })),
+        errores: ['Tu archivo trae varios tipos de documento (por ejemplo, compras y ventas). Marca cuáles son ventas.'],
+        hojas: resumenHojas,
+      };
+    }
+    documentosElegidos.set(h.clave, new Set(elegidos));
+  }
+
+  let periodo = null;
+  if (porPeriodo.length) {
+    if (!opciones.periodo) {
+      return {
+        ok: false,
+        necesitaPeriodo: true,
+        periodoSugerido: periodoDelTitulo(porPeriodo.map((h) => h.hoja)),
+        errores: ['Tu archivo trae el total vendido de cada producto, pero no la fecha de cada venta. Dinos de qué fecha a qué fecha son esas ventas.'],
+        hojas: resumenHojas,
+      };
+    }
+    const dia = (t) => V.diaDe(...t.split('-').map(Number));
+    periodo = { desde: dia(opciones.periodo.desde), hasta: dia(opciones.periodo.hasta) };
+    avisos.push(`Tu archivo trae el total vendido de cada producto del ${opciones.periodo.desde} al ${opciones.periodo.hasta}, sin la fecha de cada venta.`);
   }
 
   // Ventas
@@ -341,7 +577,29 @@ function leerExport(archivos, mapeo = {}) {
   let filasDatos = 0;
   let filasTotal = 0;
   let todasMensuales = true;
+  let filasOtrosDocumentos = 0;
+  let fechasCompletadas = 0;
   const existenciasDeVentas = new Map(); // si la misma tabla trae ventas y existencias
+  // Costo y proveedor de cada producto, si el archivo los trae (gana la última fila con dato).
+  const catalogo = new Map();
+  const anotarCatalogo = (codigo, f, c, decimal, existenciasFila = null) => {
+    if (c.costo === undefined && c.costoTotal === undefined && c.proveedor === undefined) return;
+    const clave = V.claveCodigo(codigo);
+    const e = catalogo.get(clave) || {};
+    if (c.costo !== undefined) {
+      const v = V.leerNumero(f[c.costo], decimal);
+      if (v !== null && v > 0) e.costo = v;
+    }
+    if (c.costoTotal !== undefined && e.costo === undefined && existenciasFila > 0) {
+      const v = V.leerNumero(f[c.costoTotal], decimal);
+      if (v !== null && v > 0) e.costo = v / existenciasFila;
+    }
+    if (c.proveedor !== undefined && f[c.proveedor] !== null && f[c.proveedor] !== undefined) {
+      const t = String(f[c.proveedor]).replace(/\s+/g, ' ').trim().slice(0, 80);
+      if (t) e.proveedor = t;
+    }
+    catalogo.set(clave, e);
+  };
   for (const h of hojasVentas) {
     const { hoja, analisis } = h;
     const c = analisis.columnas;
@@ -350,15 +608,46 @@ function leerExport(archivos, mapeo = {}) {
     const decimal = V.inferirDecimal(muestraColumna(hoja.filas, desde, c.cantidad ?? analisis.meses[0]?.col));
     const orden = c.fecha !== undefined ? V.inferirOrdenFecha(muestraColumna(hoja.filas, desde, c.fecha)) : 'dm';
     const decimalExist = c.existencias !== undefined ? V.inferirDecimal(muestraColumna(hoja.filas, desde, c.existencias)) : 'coma';
+    let ultimaFecha = null;
+    const decimalCosto = V.inferirDecimal(muestraColumna(hoja.filas, desde, c.costo ?? c.costoTotal));
+    // Si la misma tabla trae el saldo, se queda el de la fila más reciente de cada producto.
+    const anotarSaldo = (codigo, nombre, f, dia) => {
+      if (!h.esExistencias || soloExistencias.length) return;
+      const e = V.leerNumero(f[c.existencias], decimalExist);
+      const clave = V.claveCodigo(codigo);
+      const prev = existenciasDeVentas.get(clave);
+      if (e !== null && (!prev || dia >= prev.dia)) existenciasDeVentas.set(clave, { codigo, nombre, existencias: e, dia });
+    };
     for (let i = desde; i < hoja.filas.length; i++) {
       const f = hoja.filas[i];
       if (filaVacia(f)) continue;
       const fila = hoja.primeraFila + i;
-      const codigo = V.textoCodigo(f[c.codigo]);
-      if (esFilaDeTotal(f) && (!codigo || /total/i.test(codigo))) { filasTotal++; continue; }
+      if (esFilaDeRuido(f, analisis.firma)) continue;
+      const { codigo, nombre } = codigoYNombre(f, analisis);
+      if (esFilaQueSeSalta(f, codigo)) { filasTotal++; continue; }
+      const docs = documentosElegidos.get(h.clave);
+      if (docs && !docs.has(prefijoDocumento(f[c.documento]))) {
+        // No es una venta, pero su saldo sí cuenta: en un kardex, el saldo de hoy es el del último
+        // movimiento, sea una venta, una compra o un ajuste.
+        filasOtrosDocumentos++;
+        if (codigo && c.fecha !== undefined) {
+          const fechaOtro = V.leerFecha(f[c.fecha], orden) || fechaConAnioCortado(f[c.fecha], ultimaFecha, orden);
+          if (fechaOtro) anotarSaldo(codigo, nombre, f, fechaOtro.dia);
+        }
+        continue;
+      }
       filasDatos++;
       if (!codigo) { problemas.push({ tipo: 'sin_codigo', fila, donde }); continue; }
-      const nombre = c.nombre !== undefined && f[c.nombre] !== null ? String(f[c.nombre]).trim() : '';
+      anotarCatalogo(codigo, f, c, decimalCosto, c.existencias !== undefined ? V.leerNumero(f[c.existencias], decimalExist) : null);
+      if (periodo) {
+        const bruto = f[c.cantidad];
+        if (bruto === null || bruto === undefined) continue; // sin ventas en el periodo
+        const cantidad = V.leerNumero(bruto, decimal);
+        if (cantidad === null) { problemas.push({ tipo: 'cantidad', fila, donde, valor: textoValor(bruto), columna: describirColumna(hoja, analisis, c.cantidad) }); continue; }
+        if (cantidad !== 0) ventas.push({ codigo, nombre, dia: periodo.hasta, cantidad });
+        todasMensuales = false;
+        continue;
+      }
       if (analisis.meses.length) {
         for (const m of analisis.meses) {
           const bruto = f[m.col];
@@ -368,24 +657,28 @@ function leerExport(archivos, mapeo = {}) {
           if (cantidad !== 0) ventas.push({ codigo, nombre, dia: m.dia, cantidad });
           if (!m.mensual) todasMensuales = false;
         }
+        if (h.esExistencias && !soloExistencias.length) {
+          const e = V.leerNumero(f[c.existencias], decimalExist);
+          if (e !== null) existenciasDeVentas.set(V.claveCodigo(codigo), { codigo, nombre, existencias: e, dia: Infinity });
+        }
         continue;
       }
       const brutoFecha = f[c.fecha];
       if (brutoFecha === null || brutoFecha === undefined) { problemas.push({ tipo: 'sin_fecha', fila, donde }); continue; }
-      const fecha = V.leerFecha(brutoFecha, orden);
+      let fecha = V.leerFecha(brutoFecha, orden);
+      if (!fecha) {
+        fecha = fechaConAnioCortado(brutoFecha, ultimaFecha, orden);
+        if (fecha) fechasCompletadas++;
+      }
       if (!fecha) { problemas.push({ tipo: 'fecha', fila, donde, valor: textoValor(brutoFecha), columna: describirColumna(hoja, analisis, c.fecha) }); continue; }
+      ultimaFecha = fecha.dia;
       const brutoCant = f[c.cantidad];
       if (brutoCant === null || brutoCant === undefined) { problemas.push({ tipo: 'sin_cantidad', fila, donde }); continue; }
       const cantidad = V.leerNumero(brutoCant, decimal);
       if (cantidad === null) { problemas.push({ tipo: 'cantidad', fila, donde, valor: textoValor(brutoCant), columna: describirColumna(hoja, analisis, c.cantidad) }); continue; }
       if (!fecha.mensual) todasMensuales = false;
       ventas.push({ codigo, nombre, dia: fecha.dia, cantidad });
-      if (h.esExistencias && !soloExistencias.length) {
-        const e = V.leerNumero(f[c.existencias], decimalExist);
-        const clave = V.claveCodigo(codigo);
-        const prev = existenciasDeVentas.get(clave);
-        if (e !== null && (!prev || fecha.dia >= prev.dia)) existenciasDeVentas.set(clave, { codigo, nombre, existencias: e, dia: fecha.dia });
-      }
+      anotarSaldo(codigo, nombre, f, fecha.dia);
     }
   }
 
@@ -399,15 +692,16 @@ function leerExport(archivos, mapeo = {}) {
       const donde = varias ? capital(nombreHoja(hoja, true)) : '';
       const desde = analisis.iEnc + 1;
       const decimal = V.inferirDecimal(muestraColumna(hoja.filas, desde, c.existencias));
+      const decimalCosto = V.inferirDecimal(muestraColumna(hoja.filas, desde, c.costo ?? c.costoTotal));
       for (let i = desde; i < hoja.filas.length; i++) {
         const f = hoja.filas[i];
         if (filaVacia(f)) continue;
         const fila = hoja.primeraFila + i;
-        const codigo = V.textoCodigo(f[c.codigo]);
-        if (esFilaDeTotal(f) && (!codigo || /total/i.test(codigo))) { filasTotal++; continue; }
+        if (esFilaDeRuido(f, analisis.firma)) continue;
+        const { codigo, nombre } = codigoYNombre(f, analisis);
+        if (esFilaQueSeSalta(f, codigo)) { filasTotal++; continue; }
         filasDatos++;
         if (!codigo) { problemas.push({ tipo: 'sin_codigo', fila, donde }); continue; }
-        const nombre = c.nombre !== undefined && f[c.nombre] !== null ? String(f[c.nombre]).trim() : '';
         const bruto = f[c.existencias];
         let valor = 0;
         if (bruto === null || bruto === undefined) existenciasEnBlanco++;
@@ -416,6 +710,7 @@ function leerExport(archivos, mapeo = {}) {
           if (valor === null) { problemas.push({ tipo: 'existencias', fila, donde, valor: textoValor(bruto), columna: describirColumna(hoja, analisis, c.existencias) }); continue; }
         }
         existencias.push({ codigo, nombre, existencias: valor });
+        anotarCatalogo(codigo, f, c, decimalCosto, valor);
       }
     }
   } else {
@@ -441,7 +736,10 @@ function leerExport(archivos, mapeo = {}) {
   if (problemas.length) {
     avisos.push(`${problemas.length === 1 ? 'Una fila no se tuvo' : `${problemas.length} filas no se tuvieron`} en cuenta:`, ...resumirProblemas(problemas));
   }
-  if (filasTotal) avisos.push(filasTotal === 1 ? 'Se ignoró una fila de totales.' : `Se ignoraron ${filasTotal} filas de totales.`);
+  if (filasTotal) avisos.push(filasTotal === 1 ? 'Se ignoró una fila de totales o títulos.' : `Se ignoraron ${filasTotal} filas de totales o títulos.`);
+  if (fechasCompletadas) avisos.push(`${fechasCompletadas} ${fechasCompletadas === 1 ? 'fecha venía' : 'fechas venían'} con el año cortado (por ejemplo, "01/MAR/202"): se completó con el año de las filas vecinas.`);
+  if (filasOtrosDocumentos) avisos.push(`Se dejaron por fuera ${filasOtrosDocumentos} ${filasOtrosDocumentos === 1 ? 'fila' : 'filas'} de documentos que no son ventas.`);
+  if (analizadas.some((h) => h.analisis.codigoEnNombre && (hojasVentas.includes(h) || hojasExistencias.includes(h)))) avisos.push('El código de cada producto se tomó de los paréntesis al final de su nombre.');
   if (existenciasEnBlanco) avisos.push(`${existenciasEnBlanco} ${existenciasEnBlanco === 1 ? 'producto tiene' : 'productos tienen'} la casilla de existencias vacía: se tomaron como 0.`);
 
   const hojasUsadas = analizadas
@@ -457,7 +755,8 @@ function leerExport(archivos, mapeo = {}) {
       manual: h.analisis.manual,
     }));
 
-  return { ok: true, ventas, existencias, mensual: todasMensuales, hojasUsadas, avisos, hojas: resumenHojas };
+  const documentos = documentosElegidos.size ? Object.fromEntries(analizadas.filter((h) => documentosElegidos.has(h.clave)).map((h) => [h.analisis.firma, [...documentosElegidos.get(h.clave)]])) : null;
+  return { ok: true, ventas, existencias, mensual: todasMensuales, periodo, documentos, catalogo: Object.fromEntries(catalogo), hojasUsadas, avisos, hojas: resumenHojas };
 }
 
 function explicarFaltantes(analizadas, hayVentas, hayExistencias, varias) {
@@ -471,7 +770,7 @@ function explicarFaltantes(analizadas, hayVentas, hayExistencias, varias) {
     if (cand && cand.f.length < 3) {
       errores.push(`Para las ventas, en ${nombreHoja(cand.h.hoja, varias)} ${cand.f.length === 1 ? 'falta la columna' : 'faltan las columnas'} de ${listaCampos(cand.f)}.`);
     } else {
-      errores.push('No encontramos las ventas: falta una tabla con código de producto, fecha y cantidad vendida.');
+      errores.push('No encontramos las ventas: falta una tabla con código de producto y cantidad vendida (con la fecha de cada venta, o el total de un periodo).');
     }
   }
   if (!hayExistencias) {

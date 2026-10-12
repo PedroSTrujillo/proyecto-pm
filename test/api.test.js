@@ -4,6 +4,7 @@
 
 process.env.DATA_DIR = 'memory://';
 process.env.TEAM_EMAILS = 'equipo@prueba.co';
+process.env.SIN_LIMITES = '1'; // las pruebas crean muchas cuentas desde la misma dirección
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -42,6 +43,7 @@ function cliente() {
     return { estado: r.status, ...datos };
   }
   return {
+    cookie: () => cookie,
     get: (ruta) => pedir('GET', ruta),
     post: (ruta, cuerpo) => pedir('POST', ruta, cuerpo ?? {}),
     put: (ruta, cuerpo) => pedir('PUT', ruta, cuerpo),
@@ -187,4 +189,325 @@ test('mapeo de columnas: se elige una vez y la próxima vez se lee solo', async 
   const id2 = await crear();
   const r3 = await dani.subir(`/api/pedidos/${id2}/export`, [['raro otra vez.csv', archivo]]);
   assert.equal(r3.ok, true, 'reconoce el mismo formato sin preguntar');
+});
+
+test('la coherencia con el reporte se guarda para el equipo y no se le muestra al usuario', async () => {
+  const eli = await nuevoUsuario('Eli', 'eli@prueba.co');
+  const { pedido } = await eli.post('/api/pedidos');
+  await eli.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
+  await eli.subir(`/api/pedidos/${pedido.id}/export`, [['export.xlsx', plantillaExport()]]);
+  await eli.get(`/api/pedidos/${pedido.id}/reporte`);
+  const f = await eli.post(`/api/pedidos/${pedido.id}/lista-final`, { lineas: [...INICIAL, { codigo: 'CAN-0040', cantidad: '6' }] });
+  assert.equal(f.pedido.comparacion.conteo.total, 1);
+  assert.equal(f.pedido.comparacion.coherencia, undefined, 'el usuario no ve la coherencia antes de decir por qué cambió');
+  const [guardado] = await db.query("SELECT comparacion->'coherencia' AS c FROM pedidos WHERE id = $1", [pedido.id]);
+  assert.equal(guardado.c.total, 1);
+  assert.equal(guardado.c.detalle[0].codigo, 'CAN-0040');
+});
+
+test('recordatorio: se ofrece después del reporte, se descarga como calendario y se puede apagar', async () => {
+  const fer = await nuevoUsuario('Fer', 'fer@prueba.co');
+  const { pedido } = await fer.post('/api/pedidos');
+  await fer.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
+  await fer.subir(`/api/pedidos/${pedido.id}/export`, [['export.xlsx', plantillaExport()]]);
+  assert.equal((await fer.get(`/api/pedidos/${pedido.id}/recordatorio`)).estado, 409, 'antes de ver el reporte no se ofrece');
+  await fer.get(`/api/pedidos/${pedido.id}/reporte`);
+
+  const oferta = await fer.get(`/api/pedidos/${pedido.id}/recordatorio`);
+  assert.equal(oferta.respuesta, null);
+  assert.ok(oferta.plan.productos > 0, 'la plantilla trae productos que llegan a 2 semanas en 3 meses');
+  assert.equal(oferta.plan.correo, false, 'en pruebas no hay correo configurado');
+  const si = await fer.post(`/api/pedidos/${pedido.id}/recordatorio`, { activo: true });
+  assert.equal(si.respuesta.activo, true);
+  assert.equal(si.respuesta.primerAviso, si.plan.primero.fechaAviso);
+  assert.equal(si.correo, 'no_configurado');
+
+  const r = await fetch(`${base}/api/pedidos/${pedido.id}/recordatorio.ics`, { headers: { Cookie: fer.cookie() } });
+  assert.equal(r.status, 200);
+  assert.ok(r.headers.get('content-type').startsWith('text/calendar'));
+  assert.ok((await r.text()).includes('SUMMARY:Revisar inventario:'));
+
+  const no = await fer.post(`/api/pedidos/${pedido.id}/recordatorio`, { activo: false });
+  assert.equal(no.respuesta.activo, false);
+  assert.equal(no.respuesta.primerAviso, null);
+
+  const equipo = cliente();
+  await equipo.post('/api/cuenta/entrar', { email: 'equipo@prueba.co', clave: 'clave-segura' });
+  const res = await equipo.get('/api/equipo/resultados');
+  const suyo = res.usuarios.find((u) => u.email === 'fer@prueba.co').recordatorio;
+  assert.deepEqual({ activo: suyo.activo, descargo: suyo.descargoCalendario }, { activo: false, descargo: true });
+});
+
+test('export con el total vendido de un periodo: la app pregunta el periodo y con eso calcula', async () => {
+  const gabi = await nuevoUsuario('Gabi', 'gabi@prueba.co');
+  const { pedido } = await gabi.post('/api/pedidos');
+  await gabi.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: [{ codigo: 'AB-1', cantidad: '10' }], tipo: 'real' });
+  const listado = Buffer.from('Referencia;Descripción;Salidas;Saldo\nAB-1;Tornillo;520;30\nAB-2;Tuerca;0;12\n');
+  const r = await gabi.subir(`/api/pedidos/${pedido.id}/export`, [['listado.csv', listado]]);
+  assert.equal(r.ok, false);
+  assert.equal(r.necesitaPeriodo, true);
+  assert.equal((await gabi.post(`/api/pedidos/${pedido.id}/export/${r.exportId}/periodo`, { desde: '2026-03-01', hasta: '2026-02-01' })).estado, 400, 'la fecha final no puede ir antes');
+  const ok = await gabi.post(`/api/pedidos/${pedido.id}/export/${r.exportId}/periodo`, { desde: '2025-07-01', hasta: '2026-06-29' }); // 364 días = 52 semanas
+  assert.equal(ok.ok, true, JSON.stringify(ok.errores));
+  const { reporte } = await gabi.get(`/api/pedidos/${pedido.id}/reporte`);
+  assert.equal(reporte.periodo.totales, true);
+  const ab1 = reporte.filas.find((f) => f.codigo === 'AB-1');
+  assert.equal(ab1.promedioSemanal, 10); // 520 ÷ 52
+  assert.equal(ab1.semanasInventario, 3);
+});
+
+test('cuenta: programa contable, cambiar contraseña y restablecerla con el enlace que genera el equipo', async () => {
+  const hugo = await nuevoUsuario('Hugo', 'hugo@prueba.co');
+  const d = await hugo.put('/api/cuenta/datos', { sistema: 'alegra' });
+  assert.equal(d.usuario.sistema, 'alegra');
+  assert.equal((await hugo.put('/api/cuenta/datos', { sistema: '<script>' })).estado, 400);
+
+  assert.equal((await hugo.put('/api/cuenta/clave', { actual: 'mala', nueva: 'otra-clave-1' })).estado, 400);
+  assert.equal((await hugo.put('/api/cuenta/clave', { actual: 'clave-segura', nueva: 'otra-clave-1' })).ok, true);
+
+  assert.deepEqual(await cliente().post('/api/cuenta/olvide', { email: 'hugo@prueba.co' }), { estado: 200, correo: false }, 'sin correo configurado, se avisa');
+
+  const equipo = cliente();
+  await equipo.post('/api/cuenta/entrar', { email: 'equipo@prueba.co', clave: 'clave-segura' });
+  const [{ id }] = await db.query("SELECT id FROM usuarios WHERE email = 'hugo@prueba.co'");
+  assert.equal((await hugo.post(`/api/equipo/usuarios/${id}/restablecer`)).estado, 403, 'solo el equipo genera enlaces');
+  const { enlace } = await equipo.post(`/api/equipo/usuarios/${id}/restablecer`);
+  const token = enlace.split('/restablecer/')[1];
+  assert.ok(token);
+
+  const otro = cliente();
+  assert.equal((await otro.post('/api/cuenta/restablecer', { token, clave: 'corta' })).estado, 400);
+  const r = await otro.post('/api/cuenta/restablecer', { token, clave: 'clave-nueva-2' });
+  assert.equal(r.usuario.email, 'hugo@prueba.co');
+  assert.equal((await otro.post('/api/cuenta/restablecer', { token, clave: 'clave-nueva-3' })).estado, 400, 'el enlace sirve una sola vez');
+  assert.equal((await hugo.get('/api/pedidos')).estado, 401, 'las sesiones anteriores se cierran');
+  assert.equal((await cliente().post('/api/cuenta/entrar', { email: 'hugo@prueba.co', clave: 'clave-nueva-2' })).estado, 200);
+});
+
+test('informe con compras y ventas mezcladas: se pregunta una vez qué documentos son ventas y se recuerda', async () => {
+  const iris = await nuevoUsuario('Iris', 'iris@prueba.co');
+  const kardex = Buffer.from('Código;Fecha;Comprobante;Cantidad;Saldo\nAB-1;10/01/2026;FV-1-10;5;40\nAB-1;11/01/2026;FC-2-3;100;140\nAB-1;20/03/2026;FV-1-11;7;133\n');
+  const crear = async () => {
+    const { pedido } = await iris.post('/api/pedidos');
+    await iris.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: [{ codigo: 'AB-1', cantidad: '10' }], tipo: 'real' });
+    return pedido.id;
+  };
+  const id = await crear();
+  const r = await iris.subir(`/api/pedidos/${id}/export`, [['kardex.csv', kardex]]);
+  assert.equal(r.necesitaDocumentos, true);
+  assert.deepEqual(r.documentos.map((x) => [x.prefijo, x.filas, x.sugerido]), [['FV', 2, true], ['FC', 1, false]]);
+  assert.equal((await iris.post(`/api/pedidos/${id}/export/${r.exportId}/documentos`, { documentos: [] })).estado, 400);
+  const ok = await iris.post(`/api/pedidos/${id}/export/${r.exportId}/documentos`, { documentos: ['FV'] });
+  assert.equal(ok.ok, true, JSON.stringify(ok.errores));
+  const { reporte } = await iris.get(`/api/pedidos/${id}/reporte`);
+  assert.equal(reporte.filas[0].vendido, 12, 'solo las ventas: 5 + 7');
+
+  const id2 = await crear();
+  const otra = await iris.subir(`/api/pedidos/${id2}/export`, [['kardex.csv', kardex]]);
+  assert.equal(otra.ok, true, 'la segunda vez el mismo informe se lee solo');
+});
+
+test('demo sin cuenta: lista de negocios y el inventario de ejemplo, con tiempos propios', async () => {
+  const c = cliente();
+  const lista = await c.get('/api/demo');
+  assert.equal(lista.sectores.length, 6);
+  const inv = await c.get('/api/demo/ferreteria');
+  assert.equal(inv.estado, 200);
+  assert.ok(inv.inventario.productos.length > 20);
+  assert.equal(inv.inventario.sugerencias, true, 'en la demo se ve la cantidad sugerida');
+  const ajustes = encodeURIComponent(JSON.stringify({ entregas: { 'Importadora Herramientas del Pacífico': 1 } }));
+  const corto = await c.get(`/api/demo/ferreteria?ajustes=${ajustes}`);
+  assert.ok(corto.inventario.resumen.pideYa < inv.inventario.resumen.pideYa);
+  assert.equal((await c.get('/api/demo/no-existe')).estado, 404);
+});
+
+test('inventario guardado: no se ve antes de la lista inicial, sin sugerido en la prueba y se reusa en otro pedido', async () => {
+  const beto = await nuevoUsuario('Beto', 'beto.inventario@prueba.co');
+  const antes = await beto.get('/api/inventario');
+  assert.deepEqual([antes.inventario, antes.puedeSubir, antes.sugerencias], [null, false, false]);
+  assert.equal((await beto.subir('/api/inventario/export', [['e.xlsx', plantillaExport()]])).estado, 403, 'sin lista inicial no puede ver su inventario');
+
+  const { pedido } = await beto.post('/api/pedidos');
+  await beto.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: INICIAL, tipo: 'simulado' });
+  assert.equal((await beto.subir(`/api/pedidos/${pedido.id}/export`, [['e.xlsx', plantillaExport()]])).ok, true);
+
+  const inv = await beto.get('/api/inventario');
+  assert.equal(inv.puedeSubir, true);
+  assert.equal(inv.sugerencias, false, 'durante sus 14 días no ve cantidad sugerida');
+  assert.ok(inv.inventario.productos.every((p) => p.sugerido === null));
+  assert.equal(inv.inventario.resumen.tieneCostos, false, 'la plantilla de export no trae costos: el dinero quieto se cuenta en productos');
+
+  const guardados = await beto.put('/api/inventario/ajustes', { entregaPorDefecto: 3, cadaCuanto: 2 });
+  assert.deepEqual([guardados.ajustes.entregaPorDefecto, guardados.ajustes.cadaCuanto], [3, 2]);
+  assert.equal((await beto.get('/api/inventario')).inventario.ajustes.entregaPorDefecto, 3);
+
+  // Ya puede subir desde Datos, y un pedido nuevo puede usar lo que ya subió.
+  assert.equal((await beto.subir('/api/inventario/export', [['nuevo.xlsx', plantillaExport()]])).ok, true);
+  const otro = (await beto.post('/api/pedidos')).pedido;
+  assert.equal((await beto.post(`/api/pedidos/${otro.id}/export/usar-ultimo`)).estado, 403, 'primero la lista inicial');
+  await beto.post(`/api/pedidos/${otro.id}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
+  assert.equal((await beto.post(`/api/pedidos/${otro.id}/export/usar-ultimo`)).ok, true);
+  const { reporte } = await beto.get(`/api/pedidos/${otro.id}/reporte`);
+  assert.equal(reporte.archivos[0], 'nuevo.xlsx');
+  const { cargas } = await beto.get('/api/inventario/cargas');
+  assert.equal(cargas.length, 2);
+  assert.equal(cargas[0].pedidoId, null, 'la de Datos no es de ningún pedido');
+
+  // El equipo sí ve el sugerido.
+  const eq = cliente();
+  const ya = await eq.post('/api/cuenta/entrar', { email: 'equipo@prueba.co', clave: 'clave-segura' });
+  if (ya.estado !== 200) assert.equal((await eq.post('/api/cuenta/crear', { nombre: 'Equipo', email: 'equipo@prueba.co', clave: 'clave-segura' })).estado, 201);
+  const { pedido: p2 } = await eq.post('/api/pedidos');
+  await eq.post(`/api/pedidos/${p2.id}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
+  await eq.subir(`/api/pedidos/${p2.id}/export`, [['e.xlsx', plantillaExport()]]);
+  const invEq = await eq.get('/api/inventario');
+  assert.equal(invEq.sugerencias, true);
+  assert.ok(invEq.inventario.productos.some((p) => p.sugerido > 0));
+});
+
+test('exportar el pedido a Excel: una hoja por proveedor y un resumen', async () => {
+  const XLSX = require('xlsx');
+  const r = await fetch(`${base}/api/exportar/pedido.xlsx`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ empresa: 'Prueba', lineas: [{ proveedor: 'A/B: [raro]', codigo: 'X1', nombre: 'Uno', cantidad: 3, costo: 100 }, { proveedor: 'Otro', codigo: 'X2', nombre: 'Dos', cantidad: 0 }] }),
+  });
+  assert.equal(r.status, 200);
+  const libro = XLSX.read(Buffer.from(await r.arrayBuffer()), { type: 'buffer' });
+  assert.deepEqual(libro.SheetNames, ['Resumen', 'A B   raro'], 'sin caracteres que Excel no acepta, y sin la línea en cero');
+  const vacio = await fetch(`${base}/api/exportar/pedido.xlsx`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"lineas":[]}' });
+  assert.equal(vacio.status, 400);
+});
+
+test('ajustes del inventario: guardar una parte no borra lo demás; Excel de mínimos y máximos', async () => {
+  const c = await nuevoUsuario('Cami', 'cami.ajustes@prueba.co');
+  await c.put('/api/inventario/ajustes', { entregas: { Lejano: 8 }, cadaCuanto: 3 });
+  const r = await c.put('/api/inventario/ajustes', { prefijos: [{ prefijo: 'tor-', proveedor: 'Lejano' }] });
+  assert.deepEqual(r.ajustes.entregas, { Lejano: 8 }, 'el tiempo de entrega sigue');
+  assert.equal(r.ajustes.cadaCuanto, 3);
+  assert.deepEqual(r.ajustes.prefijos, [{ prefijo: 'TOR-', proveedor: 'Lejano' }]);
+
+  const XLSX = require('xlsx');
+  const x = await fetch(`${base}/api/exportar/minimos.xlsx`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ productos: [{ codigo: 'A1', nombre: 'Uno', proveedor: 'P', existencias: 3, minimo: 5, maximo: 12, ventasSemana: 2.5 }] }),
+  });
+  assert.equal(x.status, 200);
+  const libro = XLSX.read(Buffer.from(await x.arrayBuffer()), { type: 'buffer' });
+  const filas = XLSX.utils.sheet_to_json(libro.Sheets[libro.SheetNames[0]], { header: 1 });
+  assert.deepEqual(filas[1], ['A1', 'Uno', 'P', 3, 5, 12, 2.5]);
+});
+
+test('alcance del plan de prueba: un probador en sus 14 días ve solo el reporte de semanas', async () => {
+  const pepa = await nuevoUsuario('Pepa', 'pepa.alcance@prueba.co');
+  const { pedido } = await pepa.post('/api/pedidos');
+  await pepa.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
+  await pepa.subir(`/api/pedidos/${pedido.id}/export`, [['e.xlsx', plantillaExport()]]);
+  const r = await pepa.get('/api/inventario');
+  assert.equal(r.alcance, 'prueba');
+  const inv = r.inventario;
+  assert.equal(inv.alcance, 'prueba');
+  assert.ok(inv.productos.every((p) => p.riesgo === null && p.pronostico === null && p.sugerido === null && p.minimo === null), 'sin pronóstico, riesgo ni sugerido');
+  assert.ok(inv.productos.every((p) => p.estado !== 'pide'), 'sin tiempo de entrega no hay "pide ya"');
+  assert.equal(inv.temporada, null);
+  assert.deepEqual(inv.grafico ? inv.grafico.pronostico : [], []);
+  // Las semanas son las mismas del reporte que mide la prueba.
+  const { reporte } = await pepa.get(`/api/pedidos/${pedido.id}/reporte`);
+  for (const f of reporte.filas) assert.equal(inv.productos.find((p) => p.codigo === f.codigo).semanas, f.semanasInventario);
+});
+
+test('clasificar el "¿por qué?": cambiar por probar la herramienta cuenta para el pivote', async () => {
+  const dia = 86400000;
+  const t0 = Date.parse('2026-10-01T12:00:00Z');
+  const ped = (total, clasificacion) => ({ id: Math.random(), tipo: 'real', inicialGuardadaEn: new Date(t0), finalGuardadaEn: new Date(t0 + dia), conteo: { total }, clasificacion });
+  assert.equal(evaluarUsuario([ped(6, 'probar')]).categoria, 'por_probar');
+  assert.equal(evaluarUsuario([ped(6, 'dato')]).categoria, 'cumple');
+  assert.equal(evaluarUsuario([ped(1, 'probar')]).categoria, 'no_cambia');
+  const { resumirPrueba } = require('../server/equipo');
+  const u = (p) => ({ evaluacion: evaluarUsuario([p]), recordatorio: null });
+  const r = resumirPrueba([u(ped(0)), u(ped(1)), u(ped(7, 'probar')), u(ped(6, 'dato')), u(ped(5))]);
+  assert.equal(r.veredicto, 'pivotar', '2 no cambian + 1 por probar = 3');
+  assert.equal(r.cumplenSinClasificar, 1);
+
+  // Por la API: solo el equipo, y solo pedidos con respuesta.
+  const eq = cliente();
+  await eq.post('/api/cuenta/entrar', { email: 'equipo@prueba.co', clave: 'clave-segura' });
+  const [{ id }] = await db.query('SELECT id FROM pedidos WHERE por_que IS NOT NULL ORDER BY id LIMIT 1');
+  assert.equal((await eq.post(`/api/equipo/pedidos/${id}/clasificacion`, { valor: 'probar' })).ok, true);
+  assert.equal((await eq.post(`/api/equipo/pedidos/${id}/clasificacion`, { valor: 'otra' })).estado, 400);
+  const res = await eq.get('/api/equipo/resultados');
+  const conPedido = res.usuarios.find((x) => x.pedidos.some((p) => p.id === id));
+  assert.equal(conPedido.pedidos.find((p) => p.id === id).clasificacion, 'probar');
+  assert.ok(conPedido.inventario && conPedido.inventario.productos > 0, 'cuánto le cuesta equivocarse, con su último archivo');
+  const ana = cliente();
+  await ana.post('/api/cuenta/entrar', { email: 'ana@prueba.co', clave: 'clave-segura' });
+  assert.equal((await ana.post(`/api/equipo/pedidos/${id}/clasificacion`, { valor: 'dato' })).estado, 403);
+});
+
+test('límite de intentos: después de 8 intentos de entrar con el mismo correo, espera', () => {
+  delete process.env.SIN_LIMITES;
+  const { limitar } = require('../server/limites');
+  const mw = limitar({ max: 8, minutos: 15, clave: (r) => r.body.email });
+  const req = { ip: '1.2.3.4', body: { email: 'X@y.co' } };
+  const resultados = [];
+  for (let i = 0; i < 9; i++) mw(req, {}, (e) => resultados.push(e ? e.estado : 'ok'));
+  assert.deepEqual(resultados.slice(0, 8), new Array(8).fill('ok'));
+  assert.equal(resultados[8], 429);
+  mw({ ip: '1.2.3.4', body: { email: 'otro@y.co' } }, {}, (e) => assert.equal(e, undefined, 'otro correo no se bloquea'));
+  process.env.SIN_LIMITES = '1';
+});
+
+test('borrar datos: cuenta antes, borra en cascada al confirmar y nunca toca al equipo', async () => {
+  const { borrarDatos } = require('../server/borrar');
+  const z = await nuevoUsuario('Zoe', 'zoe.borrar@prueba.co');
+  const { pedido } = await z.post('/api/pedidos');
+  await z.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
+  await z.subir(`/api/pedidos/${pedido.id}/export`, [['e.xlsx', plantillaExport()]]);
+  const antes = await borrarDatos({ email: 'zoe.borrar@prueba.co' });
+  assert.deepEqual([antes.usuarios, antes.pedidos, antes.archivos, antes.borrado], [['zoe.borrar@prueba.co'], 1, 1, false]);
+  const r = await borrarDatos({ email: 'zoe.borrar@prueba.co', confirmar: true });
+  assert.equal(r.borrado, true);
+  assert.equal((await db.uno("SELECT count(*)::int AS n FROM pedidos WHERE id = $1", [pedido.id])).n, 0);
+  assert.equal((await db.uno("SELECT count(*)::int AS n FROM archivos WHERE pedido_id = $1", [pedido.id])).n, 0);
+  const equipo = await borrarDatos({ email: 'equipo@prueba.co', confirmar: true });
+  assert.equal(equipo.usuarios.length, 0, 'las cuentas del equipo no se borran');
+});
+
+test('ejemplos del equipo: un probador no los ve; el equipo carga un negocio y un archivo como su inventario', async () => {
+  const probador = await nuevoUsuario('Probador Ejemplos', 'probador.ejemplos@prueba.co');
+  assert.equal((await probador.get('/api/equipo/ejemplos')).estado, 403);
+  assert.equal((await probador.post('/api/equipo/ejemplos/negocios/ferreteria/cargar')).estado, 403);
+
+  const eq = cliente();
+  const ya = await eq.post('/api/cuenta/entrar', { email: 'equipo@prueba.co', clave: 'clave-segura' });
+  if (ya.estado !== 200) assert.equal((await eq.post('/api/cuenta/crear', { nombre: 'Equipo', email: 'equipo@prueba.co', clave: 'clave-segura' })).estado, 201);
+  const lista = await eq.get('/api/equipo/ejemplos');
+  assert.equal(lista.negocios.length, 6);
+  assert.ok(lista.archivos.every((a) => a.disponible), 'los archivos de ejemplos/ están en el repo');
+
+  // El archivo del negocio pasa por el lector y da lo mismo que la demo.
+  const r = await eq.post('/api/equipo/ejemplos/negocios/ferreteria/cargar');
+  assert.equal(r.ok, true, JSON.stringify(r.errores));
+  const demo = await eq.get('/api/demo/ferreteria');
+  const { inventario } = await eq.get('/api/inventario');
+  assert.equal(inventario.productos.length, demo.inventario.productos.length);
+  const semanasDemo = new Map(demo.inventario.productos.map((p) => [p.codigo, p.semanas]));
+  for (const p of inventario.productos) assert.equal(p.semanas, semanasDemo.get(p.codigo), p.codigo);
+  assert.ok(inventario.productos.some((p) => p.proveedor === 'Importadora Herramientas del Pacífico' && p.entrega === 10), 'trae proveedor y tiempo de entrega');
+
+  // El listado de inventario con salidas del periodo (sin fecha por venta) trae su periodo y se lee solo.
+  const listado = await eq.post('/api/equipo/ejemplos/negocios/distribuidora/cargar?formato=listado');
+  assert.equal(listado.ok, true, JSON.stringify(listado.errores));
+  const conListado = await eq.get('/api/inventario');
+  assert.equal(conListado.inventario.productos.length, 30);
+  assert.equal(conListado.inventario.ajustes.cadaCuanto, 1, 'la distribuidora pide cada semana');
+  assert.equal((await eq.post('/api/equipo/ejemplos/negocios/ferreteria/cargar?formato=listado')).estado, 404, 'solo los negocios que trabajan con listado');
+
+  const siigo = await eq.post('/api/equipo/ejemplos/archivos/siigo/cargar');
+  assert.equal(siigo.ok, true, JSON.stringify(siigo.errores));
+  assert.equal((await eq.post('/api/equipo/ejemplos/archivos/lista/cargar')).estado, 400, 'la lista se importa en un pedido');
+  const descarga = await fetch(`${base}/api/equipo/ejemplos/archivos/sap/sap-ventas-y-stock.xlsx`, { headers: { Cookie: eq.cookie() } });
+  assert.equal(descarga.status, 200);
+  assert.equal((await fetch(`${base}/api/equipo/ejemplos/archivos/sap/..%2Fpackage.json`, { headers: { Cookie: eq.cookie() } })).status, 404);
 });

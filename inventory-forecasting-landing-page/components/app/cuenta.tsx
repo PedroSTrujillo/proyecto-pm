@@ -1,0 +1,75 @@
+'use client'
+
+// Mi cuenta: nombre, programa contable y contraseña.
+
+import { useState, type FormEvent } from 'react'
+import { api, textoErrores } from '@/lib/api'
+import { SISTEMAS } from '@/lib/sistemas'
+import type { Usuario } from '@/lib/tipos'
+import { useSesion } from './contexto'
+import { Aviso, Boton, Campo, ErrorLista, Tarjeta, Titulo, claseEntrada } from './ui'
+
+export function Cuenta() {
+  const { usuario, fijar } = useSesion()
+  const [msgDatos, setMsgDatos] = useState<{ ok?: string; error?: ReturnType<typeof textoErrores> } | null>(null)
+  const [msgClave, setMsgClave] = useState<{ ok?: string; error?: ReturnType<typeof textoErrores> } | null>(null)
+  if (!usuario) return null
+
+  async function guardarDatos(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const d = Object.fromEntries(new FormData(e.currentTarget)) as Record<string, string>
+    try {
+      const r = await api<{ usuario: Usuario }>('PUT', '/cuenta/datos', { nombre: d.nombre, sistema: d.sistema || null })
+      fijar(r.usuario)
+      setMsgDatos({ ok: 'Guardado.' })
+    } catch (err) {
+      setMsgDatos({ error: textoErrores(err) })
+    }
+  }
+
+  async function cambiarClave(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const form = e.currentTarget
+    try {
+      await api('PUT', '/cuenta/clave', Object.fromEntries(new FormData(form)))
+      form.reset()
+      setMsgClave({ ok: 'Listo, cambiaste tu contraseña. Si tenías la sesión abierta en otro computador, allá tendrás que entrar de nuevo.' })
+    } catch (err) {
+      setMsgClave({ error: textoErrores(err) })
+    }
+  }
+
+  return (
+    <>
+      <Titulo>Mi cuenta</Titulo>
+      <div className="grid items-start gap-5 lg:grid-cols-2">
+        <Tarjeta className="p-5 sm:p-6">
+          <h2 className="mb-4 text-xl font-bold">Tus datos</h2>
+          <form className="flex flex-col gap-4" onSubmit={guardarDatos} noValidate>
+            <Campo etiqueta="Nombre"><input className={claseEntrada} name="nombre" required defaultValue={usuario.nombre} autoComplete="name" /></Campo>
+            <Campo etiqueta="Correo"><input className={claseEntrada} type="email" value={usuario.email} disabled /></Campo>
+            <Campo etiqueta="Programa contable">
+              <select className={claseEntrada} name="sistema" defaultValue={usuario.sistema || ''}>
+                <option value="">Elige una opción</option>
+                {SISTEMAS.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+              </select>
+            </Campo>
+            {msgDatos?.ok && <Aviso tono="ok">{msgDatos.ok}</Aviso>}
+            {msgDatos?.error && <ErrorLista mensaje={msgDatos.error.mensaje} lista={msgDatos.error.lista} />}
+            <Boton type="submit" variante="primario" className="self-start">Guardar</Boton>
+          </form>
+        </Tarjeta>
+        <Tarjeta className="p-5 sm:p-6">
+          <h2 className="mb-4 text-xl font-bold">Cambiar contraseña</h2>
+          <form className="flex flex-col gap-4" onSubmit={cambiarClave} noValidate>
+            <Campo etiqueta="Contraseña actual"><input className={claseEntrada} type="password" name="actual" required autoComplete="current-password" /></Campo>
+            <Campo etiqueta="Contraseña nueva" nota="(mínimo 8 caracteres)"><input className={claseEntrada} type="password" name="nueva" required autoComplete="new-password" /></Campo>
+            {msgClave?.ok && <Aviso tono="ok">{msgClave.ok}</Aviso>}
+            {msgClave?.error && <ErrorLista mensaje={msgClave.error.mensaje} lista={msgClave.error.lista} />}
+            <Boton type="submit" variante="primario" className="self-start">Cambiar contraseña</Boton>
+          </form>
+        </Tarjeta>
+      </div>
+    </>
+  )
+}

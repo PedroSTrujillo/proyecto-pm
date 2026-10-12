@@ -34,7 +34,7 @@ const CAMPOS = {
       'nombre producto', 'nombre', 'descripcion', 'descripcion producto', 'producto',
       'nombre item', 'descripcion item', 'nombre articulo', 'descripcion articulo',
       'texto breve material', 'denominacion', 'detalle', 'nombre referencia',
-      'descripcion referencia', 'description', 'product name', 'name',
+      'descripcion referencia', 'description', 'product name', 'name', 'concepto',
     ],
   },
   fecha: {
@@ -52,7 +52,7 @@ const CAMPOS = {
       'cantidad vendida', 'unidades vendidas', 'cant vendida', 'ventas unidades',
       'ventas cantidad', 'cantidad facturada', 'cant facturada', 'cantidad', 'cant',
       'unidades', 'salidas', 'cantidad salida', 'salida', 'cantidad salidas',
-      'qty', 'quantity', 'ctd',
+      'qty', 'quantity', 'ctd', 'uds', 'unds', 'und vendidas', 'unidades vendidas periodo',
     ],
   },
   existencias: {
@@ -63,7 +63,42 @@ const CAMPOS = {
       'stock actual', 'inventario', 'inventario actual', 'disponible', 'cantidad disponible',
       'unidades disponibles', 'cant disponible', 'libre utilizacion', 'inv actual',
       'existencia fisica', 'cantidad existencia', 'cant existencia', 'saldo inventario',
-      'unidades stock', 'on hand',
+      'unidades stock', 'on hand', 'existencias hoy', 'existencia hoy', 'stock hoy', 'inventario hoy',
+      'saldo hoy', 'cantidad actual', 'unidades actuales', 'cantidad bodega', 'cantidad en bodega',
+    ],
+  },
+  // Opcional: el tipo de documento de cada fila. Sirve para los informes que mezclan compras,
+  // ventas y ajustes (movimiento de inventario, kardex): el usuario marca cuáles son ventas.
+  documento: {
+    nombre: 'tipo de documento',
+    sinonimos: [
+      'tipo documento', 'tipo doc', 'tipo comprobante', 'tipo movimiento', 'clase documento',
+      'comprobante', 'documento', 'doc', 'prefijo',
+    ],
+  },
+  // Opcionales: con el costo, el panel muestra cuánto dinero hay en cada producto y cuánto está
+  // quieto; con el proveedor, el pedido se arma por proveedor con su tiempo de entrega.
+  // "Precio" no está a propósito: casi siempre es el de venta.
+  costo: {
+    nombre: 'costo unitario',
+    sinonimos: [
+      'costo unitario', 'costo promedio', 'costo unit', 'costo prom', 'costo promedio unitario',
+      'vr unitario costo', 'valor unitario costo', 'costo', 'precio costo', 'ultimo costo',
+      'costo ultima compra', 'unit cost', 'cost',
+    ],
+  },
+  costoTotal: {
+    nombre: 'costo total del inventario',
+    sinonimos: [
+      'costo total', 'valor inventario', 'valor total inventario', 'saldo valor', 'valor saldo',
+      'total costo', 'costo saldo', 'valor existencias', 'valor total costo', 'total value',
+    ],
+  },
+  proveedor: {
+    nombre: 'proveedor',
+    sinonimos: [
+      'proveedor', 'nombre proveedor', 'proveedor principal', 'razon social proveedor',
+      'tercero proveedor', 'supplier', 'vendor',
     ],
   },
   // Cantidad en la lista de pedido (la hoja con la que arman el pedido).
@@ -85,6 +120,14 @@ const PLANTILLA_EXPORT = {
   existencias: { hoja: 'Existencias', columnas: ['Código', 'Nombre', 'Existencias'] },
 };
 
+// Plantilla para quien lleva el inventario en Excel o a mano: una fila por producto, lo que
+// tiene hoy y lo vendido en cada uno de los últimos 12 meses.
+const PLANTILLA_INVENTARIO = {
+  archivo: 'plantilla-inventario-sinesc.xlsx',
+  hoja: 'Productos',
+  columnas: ['Código', 'Producto', 'Proveedor', 'Costo unitario', 'Existencias hoy'], // y después, una columna por mes
+};
+
 // Plantilla de la lista de pedido: forma de un informe de mínimos para la reunión de compras.
 // Solo se leen Código y Cantidad a pedir (Descripción se usa como nombre si viene).
 const PLANTILLA_LISTA = {
@@ -93,9 +136,13 @@ const PLANTILLA_LISTA = {
   columnas: ['Código', 'Descripción', 'Proveedor', 'Existencia', 'Mínimo', 'Máximo', 'Cantidad a pedir'],
 };
 
+// World Office escribe "Detalle: Cantidad" o "Encab: Tipo Documento": el prefijo no cuenta.
+const PREFIJO_DE_SECCION = /^\s*(detalle|encab|encabezado)\s*:\s*/i;
+
 function normalizarEncabezado(texto) {
   if (texto === null || texto === undefined) return '';
   return String(texto)
+    .replace(PREFIJO_DE_SECCION, '')
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
@@ -115,14 +162,30 @@ for (const [campo, def] of Object.entries(CAMPOS)) {
   });
 }
 
-function camposDeEncabezado(texto) {
-  return INDICE.get(normalizarEncabezado(texto)) || [];
+// Encabezados que cambian de significado según las otras columnas de la misma tabla.
+// En el detalle de facturas de Helisa, "Cantidad Disponible" es lo facturado menos las
+// "Unidades Devueltas" de esa línea: la venta neta, no lo que hay en bodega. Leída como
+// existencias, el reporte salía con el inventario de cada producto inventado.
+const SEGUN_CONTEXTO = [
+  { encabezado: 'cantidad disponible', siHay: 'unidades devueltas', campo: 'cantidad' },
+];
+
+// vecinos (opcional): encabezados normalizados de la misma fila.
+function camposDeEncabezado(texto, vecinos = null) {
+  const k = normalizarEncabezado(texto);
+  if (vecinos) {
+    for (const r of SEGUN_CONTEXTO) {
+      if (k === normalizarEncabezado(r.encabezado) && vecinos.has(normalizarEncabezado(r.siHay))) return [{ campo: r.campo, prioridad: -1 }];
+    }
+  }
+  return INDICE.get(k) || [];
 }
 
 module.exports = {
   CAMPOS,
   PLANTILLA_EXPORT,
   PLANTILLA_LISTA,
+  PLANTILLA_INVENTARIO,
   normalizarEncabezado,
   camposDeEncabezado,
 };

@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { revisarLista, compararListas } = require('../server/listas');
+const { revisarLista, compararListas, coherenciaConReporte } = require('../server/listas');
 const { leerNumero } = require('../server/valores');
 
 test('la comparación da el mismo número que un conteo a mano (ejemplo conocido)', () => {
@@ -91,4 +91,28 @@ test('leer números: separadores, negativos de SAP y paréntesis', () => {
   assert.equal(leerNumero('$ 1.200'), 1200);
   assert.equal(leerNumero('abc'), null);
   assert.equal(leerNumero(''), null);
+});
+
+// Mismo ejemplo contado a mano de arriba (M = 5), con un reporte inventado.
+const INICIAL_EJEMPLO = [{ codigo: 'A', cantidad: 10 }, { codigo: 'B', cantidad: 5 }, { codigo: 'C', cantidad: 8 }, { codigo: 'D', cantidad: 3 }, { codigo: 'E', cantidad: 1 }];
+const FINAL_EJEMPLO = [{ codigo: 'A', cantidad: 10 }, { codigo: 'B', cantidad: 7 }, { codigo: 'C', cantidad: 8 }, { codigo: 'E', cantidad: 2 }, { codigo: 'F', cantidad: 4 }, { codigo: 'G', cantidad: 6 }];
+
+test('magnitud: unidades movidas sobre las unidades de la lista inicial', () => {
+  // F 4 + G 6 (agregadas) + D 3 (quitada) + B 2 + E 1 (cambiadas) = 16 de 27
+  const { magnitud } = compararListas(INICIAL_EJEMPLO, FINAL_EJEMPLO);
+  assert.deepEqual({ ...magnitud, porcentaje: Math.round(magnitud.porcentaje * 1000) / 1000 }, { unidadesMovidas: 16, unidadesIniciales: 27, porcentaje: 0.593 });
+});
+
+test('coherencia: cuántos cambios van en la dirección que indica el reporte', () => {
+  const reporte = [
+    { codigo: 'F', estado: 'se_agota', sobra: false }, // agregada y se agota: coherente
+    { codigo: 'G', estado: 'sobra', sobra: true }, // agregada y sobra: contraria
+    { codigo: 'D', estado: 'sin_ventas', sobra: true }, // quitada y sobra: coherente
+    { codigo: 'B', estado: 'normal', sobra: false }, // subió y está normal: neutra
+    // E no aparece en el reporte: neutra
+  ];
+  const c = coherenciaConReporte(compararListas(INICIAL_EJEMPLO, FINAL_EJEMPLO), reporte);
+  assert.deepEqual({ coherentes: c.coherentes, contrarias: c.contrarias, neutras: c.neutras, total: c.total, porcentaje: c.porcentaje }, { coherentes: 2, contrarias: 1, neutras: 2, total: 5, porcentaje: 0.4 });
+  assert.deepEqual(c.detalle.find((x) => x.codigo === 'E'), { codigo: 'E', direccion: 'sube', estado: 'fuera_del_reporte', clase: 'neutra' });
+  assert.equal(coherenciaConReporte(compararListas(INICIAL_EJEMPLO, INICIAL_EJEMPLO), reporte).porcentaje, null, 'sin cambios no hay porcentaje');
 });

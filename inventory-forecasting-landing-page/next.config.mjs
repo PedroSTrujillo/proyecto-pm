@@ -6,6 +6,18 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Normalmente la web y la API van juntas (server/index.js). Si la web se publica sola (por
+  // ejemplo, en Vercel), API_URL es la dirección de la aplicación en Render y se le pasan /api y
+  // /plantillas: para el navegador todo queda en la misma dirección y la sesión funciona.
+  async rewrites() {
+    // En Vercel, sin configurar nada, se usa la aplicación de Render (render.yaml: rotacion-inventario).
+    const api = (process.env.API_URL || (process.env.VERCEL ? 'https://rotacion-inventario.onrender.com' : '')).replace(/\/+$/, '')
+    if (!api) return []
+    return [
+      { source: '/api/:ruta*', destination: `${api}/api/:ruta*` },
+      { source: '/plantillas/:ruta*', destination: `${api}/plantillas/:ruta*` },
+    ]
+  },
   async headers() {
     return [
       {

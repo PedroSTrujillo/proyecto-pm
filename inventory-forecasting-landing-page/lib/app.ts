@@ -1,11 +1,9 @@
-// Dirección de la aplicación (el servidor de Express de la raíz del repositorio).
-// En producción apunta a la app en Render y en desarrollo al servidor local.
-// NEXT_PUBLIC_APP_URL es opcional: si está definida, reemplaza a ambas.
-const APP_URL = (
-  process.env.NEXT_PUBLIC_APP_URL ||
-  (process.env.NODE_ENV === 'production' ? 'https://rotacion-inventario.onrender.com' : 'http://localhost:3000')
-).replace(/\/+$/, '')
+// La página y la aplicación son un solo sitio (server/index.js sirve las dos con la API), así que
+// los enlaces son relativos. Si la página se publica sola (por ejemplo, en Vercel), API_URL en
+// next.config.mjs manda /api y /plantillas a la aplicación.
 
-export const URL_CREAR_CUENTA = `${APP_URL}/#/crear-cuenta`
-export const URL_ENTRAR = `${APP_URL}/#/entrar`
-export const URL_PLANTILLA_EXPORT = `${APP_URL}/plantillas/export.xlsx`
+export const URL_CREAR_CUENTA = '/crear-cuenta'
+export const URL_ENTRAR = '/entrar'
+export const URL_DEMO = '/demo'
+export const URL_PLANTILLA_EXPORT = '/plantillas/export.xlsx'
+export const URL_PLANTILLA_INVENTARIO = '/plantillas/inventario.xlsx'

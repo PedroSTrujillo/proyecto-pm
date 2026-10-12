@@ -1,6 +1,6 @@
 // Reporte de rotación: una fila por producto, de menos a más semanas de inventario.
 
-import { html, montar, numero, ventasSemana, semanas, dia, plural } from './util.js';
+import { html, montar, numero, ventasSemana, semanas, plural } from './util.js';
 
 const POR_PAGINA = 200;
 
@@ -9,7 +9,19 @@ const SENALES = {
   no_en_existencias: 'No aparece en las existencias (se tomó 0)',
   existencias_negativas: 'Existencias negativas en el archivo',
   devoluciones: 'Las devoluciones igualan o superan las ventas',
+  pico_recortado: (f) => `Mes fuera de lo normal: en ${mes(f.pico.mes)} vendió ${numero(f.pico.vendido)} y se contaron ${numero(f.pico.contado)}`,
+  producto_nuevo: (f) => `Empezó a venderse hace poco: se cuentan ${semanas(f.semanasProducto)} semanas`,
 };
+
+function textoSenal(s, f) {
+  const t = SENALES[s];
+  return typeof t === 'function' ? t(f) : t || s;
+}
+
+const fmtMes = new Intl.DateTimeFormat('es-CO', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+function mes(texto) {
+  return fmtMes.format(new Date(`${texto}-01T00:00:00Z`));
+}
 
 function etiquetaEstado(f, umbrales) {
   if (f.estado === 'se_agota') return html`<span class="etiqueta roja" title="Menos de ${umbrales.seAgota} semanas">Se agota</span>`;
@@ -21,24 +33,26 @@ function filaHTML(f, umbrales) {
   const clase = f.estado === 'se_agota' ? 'se-agota' : f.sobra ? 'sobra' : '';
   return html`<tr class="${clase}">
     <td class="codigo">${f.codigo}</td>
-    <td>${f.nombre || html`<span class="sin-ventas">Sin nombre en el archivo</span>`}${f.senales.map((s) => html`<span class="senal">${SENALES[s] || s}</span>`)}</td>
-    <td class="numero">${f.estado === 'sin_ventas' ? '0' : ventasSemana(f.promedioSemanal)}</td>
+    <td>${f.nombre || html`<span class="sin-ventas">Sin nombre en el archivo</span>`}${f.senales.map((s) => html`<span class="senal">${textoSenal(s, f)}</span>`)}</td>
+    <td class="numero" title="${f.promedioSimple !== undefined && f.estado !== 'sin_ventas' ? `Sin ajustes: ${ventasSemana(f.promedioSimple)} por semana` : ''}">${f.estado === 'sin_ventas' ? '0' : ventasSemana(f.promedioSemanal)}</td>
     <td class="numero">${numero(f.existencias)}</td>
     <td class="numero semanas">${f.semanasInventario === null ? html`<span class="sin-ventas">Sin ventas en el periodo</span>` : semanas(f.semanasInventario)}${etiquetaEstado(f, umbrales)}</td>
   </tr>`;
 }
 
+// El cálculo en dos líneas, con un producto del propio archivo (requisito del MVP: que el número
+// se entienda). Los reportes viejos y los de totales por periodo usan el promedio simple.
 function explicacion(r) {
-  const p = r.periodo;
   const e = r.ejemplo;
-  const T = semanas(p.semanas);
-  return html`<div class="explicacion">
-    <h3>¿De dónde sale el número?</h3>
-    <p><span class="formula">Ventas promedio por semana</span> = todo lo vendido de ese producto en tu archivo ÷ las ${T} semanas que cubre (del ${dia(p.desde)} al ${dia(p.hasta)}).
-    <span class="formula">Semanas de inventario</span> = existencias ÷ ventas promedio por semana: cuántas semanas te alcanza lo que tienes si sigues vendiendo igual.</p>
-    ${e ? html`<p class="ejemplo"><strong>Ejemplo con tu archivo:</strong> ${e.codigo}${e.nombre ? ` (${e.nombre})` : ''} vendió ${numero(e.vendido)} unidades en ${T} semanas → ${numero(e.vendido)} ÷ ${T} = ${ventasSemana(e.promedioSemanal)} por semana.
-      Tienes ${numero(e.existencias)} en existencias → ${numero(e.existencias)} ÷ ${ventasSemana(e.promedioSemanal)} = <strong>${semanas(e.semanasInventario)} semanas</strong> de inventario.</p>` : ''}
-  </div>`;
+  const conAjustes = r.ajustes && !r.periodo.totales;
+  return html`<details class="explicacion">
+    <summary>¿De dónde sale el número?</summary>
+    <p><strong>Semanas de inventario = existencias ÷ ventas por semana.</strong>
+      ${e ? `Por ejemplo, ${e.codigo} vende ${ventasSemana(e.promedioSemanal)} por semana y tienes ${numero(e.existencias)}: te alcanza para ${semanas(e.semanasInventario)} semanas.` : ''}</p>
+    <p class="nota">${conAjustes
+      ? 'Las ventas por semana salen de tu archivo: lo de los últimos 3 meses cuenta doble, un mes fuera de lo normal no infla el promedio y un producto nuevo se mide desde su primera venta.'
+      : `Las ventas por semana son todo lo vendido en tu archivo dividido entre sus ${semanas(r.periodo.semanas)} semanas.`}</p>
+  </details>`;
 }
 
 function notas(r) {
@@ -83,7 +97,7 @@ export function pintarReporte(contenedor, r, { compacto = false } = {}) {
     <div class="marco-tabla ${compacto ? 'limitado' : ''}">
       <table class="datos">
         <thead><tr>
-          <th>Código</th><th>Producto</th><th class="numero">Ventas promedio por semana</th><th class="numero">Existencias</th><th class="numero">Semanas de inventario</th>
+          <th>Código</th><th>Producto</th><th class="numero">Ventas/semana</th><th class="numero">Existencias</th><th class="numero">Semanas de inventario</th>
         </tr></thead>
         <tbody></tbody>
       </table>

@@ -3,7 +3,7 @@ services:
     name: rotacion-inventario
     runtime: node
     plan: free
-    buildCommand: npm install
+    buildCommand: npm install && npm run build
     startCommand: npm start
     healthCheckPath: /salud
     envVars:
@@ -12,4 +12,13 @@ services:
       - key: DATABASE_URL
         sync: false
       - key: TEAM_EMAILS
+        sync: false
+      # Opcional: manda el recordatorio de calendario también por correo (server/correo.js).
+      - key: BREVO_API_KEY
+        sync: false
+      - key: CORREO_REMITENTE
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: LANDING_URL
         sync: false

@@ -71,8 +71,51 @@ const ESQUEMA = [
     detalle JSONB,
     creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
+  // Recordatorio de calendario (server/recordatorios.js): la última respuesta de cada usuario.
+  // Las fechas van como texto "YYYY-MM-DD" en hora de Colombia, para que no se corran por la
+  // zona horaria del servidor.
+  `CREATE TABLE IF NOT EXISTS recordatorios (
+    usuario_id INTEGER PRIMARY KEY REFERENCES usuarios(id) ON DELETE CASCADE,
+    pedido_id INTEGER REFERENCES pedidos(id) ON DELETE SET NULL,
+    activo BOOLEAN NOT NULL,
+    fecha_reporte TEXT,
+    primer_aviso TEXT,
+    respondido_en TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
+  // Columnas agregadas después de crear las tablas (la base de Neon ya las tiene creadas).
+  'ALTER TABLE exports ADD COLUMN IF NOT EXISTS periodo JSONB', // { desde, hasta } si las ventas son totales de un periodo
+  'ALTER TABLE exports ADD COLUMN IF NOT EXISTS documentos JSONB', // tipos de documento que el usuario marcó como ventas
+  'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS sistema TEXT', // programa contable que eligió (public/js/sistemas.js)
+  // Ventas por semana de cada producto (server/series.js) y su costo y proveedor si el archivo los traía:
+  // con esto se arma el panel y el pronóstico sin volver a leer el archivo.
+  'ALTER TABLE exports ADD COLUMN IF NOT EXISTS series JSONB',
+  'ALTER TABLE exports ADD COLUMN IF NOT EXISTS catalogo JSONB',
+  // Tiempos de entrega por proveedor y cada cuánto pide (server/inventario.js, leerAjustes).
+  "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS inventario JSONB NOT NULL DEFAULT '{}'::jsonb",
+  // Enlaces para restablecer la contraseña: se guarda el hash del token, nunca el token.
+  `CREATE TABLE IF NOT EXISTS restablecimientos (
+    token_hash TEXT PRIMARY KEY,
+    usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expira_en TIMESTAMPTZ NOT NULL,
+    usado_en TIMESTAMPTZ
+  )`,
+  // Cómo leyó el equipo el "¿por qué cambió?": 'dato' (el dato le pareció correcto) o 'probar'
+  // (cambió por probar la herramienta). Es el segundo criterio de pivote del plan de prueba.
+  'ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS clasificacion TEXT',
+  // Errores del servidor y de las pantallas (server/errores.js), para la vista del equipo.
+  `CREATE TABLE IF NOT EXISTS errores (
+    id SERIAL PRIMARY KEY,
+    usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+    origen TEXT NOT NULL,
+    mensaje TEXT NOT NULL,
+    ruta TEXT NOT NULL DEFAULT '',
+    detalle TEXT NOT NULL DEFAULT '',
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
   'CREATE INDEX IF NOT EXISTS pedidos_usuario ON pedidos(usuario_id)',
   'CREATE INDEX IF NOT EXISTS exports_pedido ON exports(pedido_id)',
+  'CREATE INDEX IF NOT EXISTS exports_usuario ON exports(usuario_id, subido_en)',
   'CREATE INDEX IF NOT EXISTS archivos_export ON archivos(export_id)',
   'CREATE INDEX IF NOT EXISTS eventos_usuario ON eventos(usuario_id, creado_en)',
   'CREATE INDEX IF NOT EXISTS sesiones_usuario ON sesiones(usuario_id)',

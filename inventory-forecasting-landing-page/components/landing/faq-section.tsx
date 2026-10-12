@@ -1,5 +1,5 @@
 import { ChevronDown } from 'lucide-react'
-import { URL_PLANTILLA_EXPORT } from '@/lib/app'
+import { URL_PLANTILLA_INVENTARIO } from '@/lib/app'
 import { SectionHeading } from './section-heading'
 
 const faqs: { q: string; a: React.ReactNode }[] = [
@@ -7,23 +7,23 @@ const faqs: { q: string; a: React.ReactNode }[] = [
     q: '¿Qué archivo necesito?',
     a: (
       <>
-        El que sacas de tu software contable con las ventas de uno a dos años (código del producto, fecha y cantidad
-        vendida) y las existencias de hoy. Puede ser un Excel con dos hojas o dos archivos aparte, en Excel o CSV. Si
-        quieres ver cómo se ve, descarga la{' '}
-        <a href={URL_PLANTILLA_EXPORT} className="text-primary underline underline-offset-2 hover:text-primary-hover">
-          plantilla con un ejemplo
-        </a>
-        .
+        Lo que sacas de tu programa contable: las ventas del último año, con la fecha de cada venta o el total del
+        periodo, y las existencias de hoy. Uno o varios archivos, en Excel o CSV, tal como salen. Al elegir tu
+        programa te mostramos dónde está cada informe. Si llevas el inventario en Excel, descarga la{' '}
+        <a href={URL_PLANTILLA_INVENTARIO} className="text-primary underline underline-offset-2 hover:text-primary-hover">
+          plantilla
+        </a>{' '}
+        y llénala.
       </>
     ),
   },
   {
     q: '¿Tengo que conectar Siigo, SAP o mi POS?',
-    a: 'No. Subes el archivo tal como sale y reconocemos las columnas. Si alguna no la reconocemos, nos dices cuál es cuál una sola vez y la próxima vez la leemos sin preguntar.',
+    a: 'No. Subes el archivo tal como sale y reconocemos las columnas. Si alguna no la reconocemos, o si el informe mezcla compras y ventas, te preguntamos una sola vez y la próxima vez lo leemos sin preguntar.',
   },
   {
     q: '¿La herramienta me dice cuánto pedir?',
-    a: 'No, y es a propósito. Te muestra para cuántas semanas te alcanza cada producto y tú decides. El pedido se lo sigues mandando al proveedor como siempre.',
+    a: 'En tus primeros 14 días te muestra para cuántas semanas te alcanza cada producto y tú decides. Después se activa el pedido sugerido: cuánto pedir de cada producto para cubrir lo que tarda tu proveedor y hasta tu siguiente pedido. Puedes cambiar cualquier cantidad, y el pedido se lo sigues mandando tú al proveedor.',
   },
   {
     q: '¿Por qué tengo que anotar mi pedido antes de ver el reporte?',
@@ -34,12 +34,12 @@ const faqs: { q: string; a: React.ReactNode }[] = [
     a: 'No. Puedes marcarlo como simulado y armarlo como si fueras a pedir hoy. Igual ves el reporte completo con tus datos.',
   },
   {
-    q: '¿Y si mi archivo tiene cosas raras?',
+    q: '¿Qué pasa si mi archivo tiene errores?',
     a: 'Te lo decimos. Si algo no se puede leer, te indicamos la fila y la columna. En el reporte también te avisamos si hay productos que no aparecen en las ventas o en las existencias, existencias negativas o menos de seis meses de ventas.',
   },
   {
     q: '¿Quién puede ver mi información?',
-    a: 'Tus pedidos y tus archivos solo los ves tú. Mientras dura la prueba, el equipo que hace la herramienta ve cuántas líneas cambiaste y lo que respondes sobre por qué, para saber si te está sirviendo.',
+    a: 'Tus pedidos y tus archivos solo los ves tú. Mientras dura la prueba, el equipo que hace la herramienta ve cuántas líneas cambiaste y lo que respondes sobre por qué, para saber si te está sirviendo. Si quieres que borremos tus datos, escríbenos y los borramos.',
   },
 ]
 

@@ -8,7 +8,7 @@ export function SiteFooter() {
       <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-10 md:flex-row md:items-center md:justify-between md:px-6">
         <div className="flex flex-col gap-2">
           <Logo />
-          <p className="text-sm text-muted-foreground">Rotación de inventario para distribuidoras. Hecho en Colombia.</p>
+          <p className="text-sm text-muted-foreground">SINESC: Sistema de Inteligencia de Negocio para Softwares Contables. Hecho en Colombia.</p>
         </div>
         <nav aria-label="Pie de página">
           <ul className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
@@ -34,7 +34,7 @@ export function SiteFooter() {
             </li>
           </ul>
         </nav>
-        <p className="text-sm text-muted-foreground">© 2026 Rotación de inventario</p>
+        <p className="text-sm text-muted-foreground">© 2026 SINESC</p>
       </div>
     </footer>
   )

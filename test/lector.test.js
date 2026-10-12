@@ -148,3 +148,164 @@ test('fechas en los formatos de los exports', () => {
   assert.equal(t(new Date(Date.UTC(2026, 0, 15))), '2026-01-15');
   assert.equal(diaDe(2026, 1, 15), leerFecha('15/01/2026').dia);
 });
+
+test('detalle de facturas de Helisa: "Cantidad Disponible" es la venta neta de devoluciones, no existencias', () => {
+  // Mismas columnas que el informe real; los datos son inventados.
+  const facturas = xlsx({ Facturas: [
+    ['Tipo Doc.', 'Documento', 'Fecha', 'Beneficiario Nombre', 'Cantidad', 'Unidades Devueltas', 'Cantidad Disponible', 'Vr. Unitario', 'Bodega Nombre', 'Referencia'],
+    ['FED', 'FED 1', '2026/08/05', 'CLIENTE UNO', '4.00', '0.00', '4.00', '2,500.00', 'PRINCIPAL', 'XY-100'],
+    ['FED', 'FED 2', '2026/09/10', 'CLIENTE DOS', '10.00', '3.00', '7.00', '1,000.00', 'PRINCIPAL', 'XY-100'],
+  ] });
+  const soloFacturas = leerExport([{ nombre: 'facturas.xls', buffer: facturas }]);
+  assert.equal(soloFacturas.ok, false, 'sin un archivo de existencias no se inventan');
+  assert.match(soloFacturas.errores.join(' '), /existencias/);
+
+  const saldos = csv('Referencia;Saldo\nXY-100;25\n', 'saldos.csv');
+  const r = leerExport([{ nombre: 'facturas.xls', buffer: facturas }, saldos]);
+  assert.equal(r.ok, true, JSON.stringify(r.errores));
+  assert.deepEqual(r.ventas.map((v) => v.cantidad), [4, 7], 'se toma lo facturado menos lo devuelto');
+  assert.deepEqual(r.existencias.map((e) => e.existencias), [25]);
+});
+
+test('total vendido de un periodo (sin fecha por venta): se pide el periodo y luego se lee', () => {
+  // Como el listado de inventario con la casilla de salidas, o "Ventas por ítems": datos inventados.
+  const listado = csv('Referencia;Descripción;Entradas;Salidas;Saldo\nAB-1;Tornillo;100;120;30\nAB-2;Tuerca;0;0;12\nAB-3;Arandela;10;8;0\n', 'listado.csv');
+  const sinPeriodo = leerExport([listado]);
+  assert.equal(sinPeriodo.ok, false);
+  assert.equal(sinPeriodo.necesitaPeriodo, true);
+
+  const r = leerExport([listado], {}, { periodo: { desde: '2026-01-01', hasta: '2026-03-31' } });
+  assert.equal(r.ok, true, JSON.stringify(r.errores));
+  assert.deepEqual(r.ventas.map((v) => [v.codigo, v.cantidad, v.dia]), [['AB-1', 120, diaDe(2026, 3, 31)], ['AB-3', 8, diaDe(2026, 3, 31)]]);
+  assert.deepEqual(r.existencias.map((e) => [e.codigo, e.existencias]), [['AB-1', 30], ['AB-2', 12], ['AB-3', 0]]);
+  assert.deepEqual(r.periodo, { desde: diaDe(2026, 1, 1), hasta: diaDe(2026, 3, 31) });
+});
+
+test('un archivo de existencias con columna "Cantidad" no se toma por ventas si vinieron ventas con fecha', () => {
+  const ventas = csv('Código;Fecha;Cantidad\nAB-1;15/01/2026;5\nAB-1;20/02/2026;7\n', 'ventas.csv');
+  const stock = csv('Código;Saldo\nAB-1;9\n', 'stock.csv');
+  const r = leerExport([ventas, stock]);
+  assert.equal(r.ok, true, JSON.stringify(r.errores));
+  assert.equal(r.periodo, null);
+  assert.equal(r.ventas.length, 2);
+});
+
+// Informe "de impresora", como los de Helisa: títulos que no caen sobre sus columnas, encabezado
+// repetido en cada página, filas de totales, código entre paréntesis, años cortados y compras
+// mezcladas con ventas. Datos inventados con la misma forma.
+function informeImpreso() {
+  const titulo = [null, null, null, null, null, null, null, null, null, 'EMPRESA DE PRUEBA S.A.S.'];
+  const encabezado = [null, null, 'FECHA', null, 'DOCUMENTO', null, 'BODEGA', null, null, null, 'CONCEPTO', null, 'CANTIDAD', null, 'VALOR NETO'];
+  const fila = (fecha, doc, nombre, cant) => [fecha, null, null, doc, null, 'PRINCIPAL', null, nombre, null, null, null, null, null, String(cant), null, '1000'];
+  return xlsx({ Hoja1: [
+    titulo, [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 'Página  1 de 2'],
+    encabezado,
+    fila('02/ENE/2026', 'FV 0001', 'TORNILLO HEX 1/4 (AB-100)', 10),
+    fila('02/ENE/2026', 'FC 0007', 'TORNILLO HEX 1/4 (AB-100)', 500), // compra: no cuenta
+    [null, null, null, null, null, null, null, null, null, null, null, 'TOTAL 02/ENE/2026'],
+    [null, null, null, null, null, null, null, null, null, null, null, null, null, '510', null, '2000'],
+    titulo, [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 'Página  2 de 2'],
+    encabezado,
+    fila('15/FEB/202', 'FV 0002', 'TUERCA 1/4 (AB-200)', 4), // año cortado por el ancho de la columna
+    fila('03/MAR/2026', 'FV 0003', 'TORNILLO HEX 1/4 (AB-100)', 6),
+  ] });
+}
+
+test('informe de impresora: columnas corridas, código entre paréntesis, años cortados y compras mezcladas', () => {
+  const stock = csv('Código;Saldo\nAB-100;20\nAB-200;3\n', 'saldos.csv');
+  const primero = leerExport([{ nombre: 'movimiento.xls', buffer: informeImpreso() }, stock]);
+  assert.equal(primero.ok, false);
+  assert.equal(primero.necesitaDocumentos, true);
+  assert.deepEqual(primero.documentos.map((x) => [x.prefijo, x.filas, x.sugerido]), [['FV', 3, true], ['FC', 1, false]]);
+
+  const r = leerExport([{ nombre: 'movimiento.xls', buffer: informeImpreso() }, stock], {}, { documentos: ['FV'] });
+  assert.equal(r.ok, true, JSON.stringify(r.errores));
+  assert.deepEqual(r.ventas.map((v) => [v.codigo, v.nombre, v.cantidad, textoDia(v.dia)]), [
+    ['AB-100', 'TORNILLO HEX 1/4', 10, '2026-01-02'],
+    ['AB-200', 'TUERCA 1/4', 4, '2026-02-15'],
+    ['AB-100', 'TORNILLO HEX 1/4', 6, '2026-03-03'],
+  ]);
+  assert.ok(r.avisos.some((a) => a.includes('año cortado')));
+  assert.ok(r.avisos.some((a) => a.includes('paréntesis')));
+  assert.deepEqual(Object.values(r.documentos), [['FV']], 'la elección se devuelve para recordarla');
+});
+
+test('ventas una columna por mes con existencias en la misma hoja (plantilla para llenar a mano)', () => {
+  const hoja = xlsx({ Productos: [
+    ['Código', 'Producto', 'Existencias hoy', 'Ene-2026', 'Feb-2026', 'Mar-2026'],
+    ['AB-1', 'Tornillo', 12, 30, 20, 25],
+    ['AB-2', 'Tuerca', 0, 5, null, 8],
+  ] });
+  const r = leerExport([{ nombre: 'inventario.xlsx', buffer: hoja }]);
+  assert.equal(r.ok, true, JSON.stringify(r.errores));
+  assert.equal(r.ventas.length, 5);
+  assert.deepEqual(r.existencias.map((e) => [e.codigo, e.existencias]), [['AB-1', 12], ['AB-2', 0]]);
+});
+
+test('columnas con títulos que no reconocemos: se sugieren por su contenido', () => {
+  const raro = csv('Ref;Texto;Día;Movidas;Stock\nA1;Tornillo de acero;15/01/2026;5;10\nA2;Arandela plana;20/02/2026;3;0\nA3;Tuerca hexagonal;21/02/2026;7;4\n', 'raro.csv');
+  const r = leerExport([raro]);
+  assert.equal(r.ok, false, 'sin la cantidad no se puede calcular solo: se pregunta');
+  const h = r.hojas[0];
+  assert.deepEqual(h.sugeridas, { nombre: 1, cantidad: 3 }, 'lo que no se reconoce por el título se sugiere por el contenido');
+  assert.deepEqual([h.columnas.codigo, h.columnas.fecha, h.columnas.existencias], [0, 2, 4]);
+});
+
+test('plantilla para llenar a mano: se lee la hoja Productos y se ignoran Ejemplo e Instrucciones', () => {
+  const { plantillaInventario, ultimosDoceMeses } = require('../server/plantillas');
+  const vacia = leerExport([{ nombre: 'plantilla.xlsx', buffer: plantillaInventario() }]);
+  assert.equal(vacia.ok, false, 'sin llenar no hay datos: el ejemplo no se cuela');
+
+  const libro = XLSX.read(plantillaInventario(), { type: 'buffer' });
+  const meses = ultimosDoceMeses();
+  assert.equal(meses.length, 12);
+  XLSX.utils.sheet_add_aoa(libro.Sheets.Productos, [['AB-1', 'Tornillo', 'Ferretera Uno', 1500, 6, ...meses.map(() => 13)]], { origin: 'A2' });
+  const r = leerExport([{ nombre: 'llena.xlsx', buffer: XLSX.write(libro, { type: 'buffer', bookType: 'xlsx' }) }]);
+  assert.equal(r.ok, true, JSON.stringify(r.errores));
+  assert.equal(r.ventas.length, 12);
+  assert.deepEqual(r.existencias.map((e) => [e.codigo, e.existencias]), [['AB-1', 6]]);
+  assert.equal(r.mensual, true);
+  assert.deepEqual(r.catalogo, { 'AB-1': { costo: 1500, proveedor: 'Ferretera Uno' } }, 'proveedor y costo, si vienen, se guardan por producto');
+});
+
+test('kardex con saldo: el saldo de hoy es el del último movimiento, aunque sea una compra', () => {
+  const kardex = csv('Código;Fecha;Comprobante;Cantidad;Saldo\nAB-1;10/01/2026;FV-1;5;40\nAB-1;20/03/2026;FV-2;7;33\nAB-1;25/03/2026;FC-9;100;133\n', 'kardex.csv');
+  const r = leerExport([kardex], {}, { documentos: ['FV'] });
+  assert.equal(r.ok, true, JSON.stringify(r.errores));
+  assert.deepEqual(r.ventas.map((v) => v.cantidad), [5, 7]);
+  assert.deepEqual(r.existencias.map((e) => e.existencias), [133]);
+});
+
+test('formato World Office: títulos con "Detalle:" y "Encab:", y la columna Producto trae el código', () => {
+  // Mismas columnas que la plantilla oficial "Documentos Ventas Movimiento Inventario"; datos inventados.
+  const ventas = xlsx({ 'Movimientos Inventarios': [
+    ['Encab: Empresa', 'Encab: Tipo Documento', 'Encab: Prefijo', 'Encab: Documento Número', 'Detalle: Producto', 'Detalle: Bodega', 'Detalle: UnidadDeMedida', 'Detalle: Cantidad', 'Detalle: Valor Unitario'],
+    ['EMPRESA DE PRUEBA', 'FV', null, '1', 'AB100', 'Principal', 'Und.', '10', '2000'],
+    ['EMPRESA DE PRUEBA', 'FV', null, '1', 'AB200', 'Principal', 'Und.', '4', '2000'],
+    ['EMPRESA DE PRUEBA', 'FV', null, '2', 'AB100', 'Principal', 'Und.', '6', '2000'],
+  ] });
+  const saldos = csv('Producto;Existencia\nAB100;8\nAB200;1\nAB300;5\n', 'saldos.csv');
+  const r = leerExport([{ nombre: 'ventas.xls', buffer: ventas }, saldos], {}, { periodo: { desde: '2026-01-01', hasta: '2026-03-31' } });
+  assert.equal(r.ok, true, JSON.stringify(r.errores));
+  assert.deepEqual(r.ventas.map((v) => [v.codigo, v.cantidad]), [['AB100', 10], ['AB200', 4], ['AB100', 6]]);
+  assert.deepEqual(r.existencias.map((e) => [e.codigo, e.existencias]), [['AB100', 8], ['AB200', 1], ['AB300', 5]]);
+});
+
+test('listado de inventario con salidas del periodo: se pregunta el periodo y se propone el del título', () => {
+  const libro = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(libro, XLSX.utils.aoa_to_sheet([
+    ['EMPRESA DE PRUEBA'], ['LISTADO DE INVENTARIO'], ['Del 01/ENE/2026 al 30/SEP/2026'], [],
+    ['Código', 'Descripción', 'Saldo Anterior', 'Entradas', 'Salidas', 'Saldo Actual'],
+    ['AB-1', 'Tornillo', 100, 50, 120, 30],
+    ['AB-2', 'Tuerca', 10, 0, 4, 6],
+    ['', 'TOTAL GENERAL', 110, 50, 124, 36],
+  ]), 'Hoja1');
+  const buf = XLSX.write(libro, { type: 'buffer', bookType: 'xlsx' });
+  const sin = leerExport([{ nombre: 'listado.xlsx', buffer: buf }]);
+  assert.equal(sin.necesitaPeriodo, true);
+  assert.deepEqual(sin.periodoSugerido, { desde: '2026-01-01', hasta: '2026-09-30' });
+  const con = leerExport([{ nombre: 'listado.xlsx', buffer: buf }], {}, { periodo: sin.periodoSugerido });
+  assert.equal(con.ok, true, JSON.stringify(con.errores));
+  assert.deepEqual(con.ventas.map((v) => [v.codigo, v.cantidad]), [['AB-1', 120], ['AB-2', 4]], 'las salidas son las ventas');
+  assert.deepEqual(con.existencias.map((e) => [e.codigo, e.existencias]), [['AB-1', 30], ['AB-2', 6]], 'el saldo actual son las existencias');
+});
