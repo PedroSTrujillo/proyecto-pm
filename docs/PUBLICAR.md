@@ -13,7 +13,7 @@ En local todo sigue igual: `npm run dev` levanta la API y la página juntas con 
 ## Primera vez
 
 1. **El repositorio.** En GitHub, *Fork* del repositorio del grupo a tu cuenta, o súbelo a un repositorio tuyo. Vercel despliega solo los commits de los repositorios de tu cuenta.
-2. **El proyecto en Vercel.** En vercel.com: *Add New → Project*, importa el repositorio y en *Root Directory* elige `inventory-forecasting-landing-page`. El resto lo trae `inventory-forecasting-landing-page/vercel.json`, que instala también las librerías de la API (las de la raíz del repositorio). Todavía no le des *Deploy*.
+2. **El proyecto en Vercel.** (`vercel.json` solo deja compilar el repositorio de `DavidAlvarez26`: en otros, Vercel salta el despliegue. Si cambia el dueño, cambien `ignoreCommand`.) En vercel.com: *Add New → Project*, importa el repositorio y en *Root Directory* elige `inventory-forecasting-landing-page`. El resto lo trae `inventory-forecasting-landing-page/vercel.json`, que instala también las librerías de la API (las de la raíz del repositorio). Todavía no le des *Deploy*.
 3. **La base de datos.** Hay dos caminos:
    - *Nueva y conectada sola (lo más fácil):* en el proyecto de Vercel, *Storage → Create Database → Neon*, plan gratis, en la región más cercana (por ejemplo, Washington D.C.). Vercel crea `DATABASE_URL` por su cuenta.
    - *La que ya tienen en Neon:* en la consola de Neon, *Connect*, copien la cadena **con pooling** (el host lleva `-pooler`) y pónganla en Vercel como `DATABASE_URL`.

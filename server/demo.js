@@ -229,7 +229,7 @@ const SECTORES = {
     sector: 'Papelería y útiles escolares',
     ciudad: 'Bucaramanga',
     programa: 'Alegra',
-    persona: 'Sandra Pinzón',
+    persona: 'Liliana Pinzón',
     resumen: 'Papelería con venta al detal y a colegios. Enero y febrero venden el doble; en agosto llega la temporada de calendario B.',
     archivos: ['Ventas por ítems.xlsx', 'Inventario valorizado.xlsx'],
     temporada: 'escolar',

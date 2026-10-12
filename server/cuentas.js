@@ -187,7 +187,7 @@ rutas.post('/salir', async (req, res) => {
 
 // LANDING_URL: la página de presentación, para el enlace "Página principal".
 rutas.get('/yo', (req, res) => {
-  res.json({ usuario: req.usuario ? publico(req.usuario) : null, landing: process.env.LANDING_URL || 'https://proyecto-pm.vercel.app' });
+  res.json({ usuario: req.usuario ? publico(req.usuario) : null, landing: process.env.LANDING_URL || '/' });
 });
 
 // --- Página de cuenta ---------------------------------------------------------------
