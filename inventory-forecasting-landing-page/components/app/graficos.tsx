@@ -2,7 +2,7 @@
 
 // Gráficos hechos a mano en SVG: livianos, sin librerías y con los colores de la marca.
 
-import { useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { fechaCorta, mesCorto, numero, sumarDias } from '@/lib/formato'
 
@@ -20,6 +20,7 @@ export function Sparkline({ valores, className, color = 'var(--primary)' }: { va
   )
 }
 
+// Un tope redondo para el eje (1, 1,5, 2, 2,5, 3, 4, 5, 6, 8 o 10 por una potencia de 10).
 function techo(v: number) {
   if (v <= 0) return 1
   const p = 10 ** Math.floor(Math.log10(v))
@@ -30,9 +31,27 @@ function techo(v: number) {
 type Punto = { inicio: string; valor: number; extra?: number }
 type PuntoPronostico = { inicio: string; media: number; bajo: number; alto: number }
 
+// Ancho real del contenedor: el SVG se dibuja a escala 1:1 para que el texto se lea igual en un
+// computador que en un celular (si se encoge con el dibujo, queda de 5 a 7 px).
+function useAncho(inicial = 640) {
+  const [ancho, setAncho] = useState(inicial)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const medir = () => setAncho(Math.max(260, Math.round(el.getBoundingClientRect().width)))
+    medir()
+    const ro = new ResizeObserver(medir)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  return { ref, ancho }
+}
+
 /**
- * Ventas por semana (línea), pronóstico (línea punteada) y su rango probable (banda).
- * marcas: semanas resaltadas (por ejemplo, las de un proyecto que no cuenta en el promedio).
+ * Ventas por semana (línea), pronóstico (línea punteada) y su rango probable (banda), con el
+ * número del pronóstico escrito arriba. marcas: semanas resaltadas (por ejemplo, las de un
+ * proyecto que no cuenta en el promedio).
  */
 export function GraficoVentas({
   historia,
@@ -40,7 +59,7 @@ export function GraficoVentas({
   marcas = [],
   unidad = 'unidades',
   className,
-  alto = 240,
+  alto = 260,
   descripcion,
 }: {
   historia: Punto[]
@@ -52,15 +71,16 @@ export function GraficoVentas({
   descripcion: string
 }) {
   const id = useId()
+  const { ref, ancho } = useAncho()
   const [foco, setFoco] = useState<number | null>(null)
-  const ancho = 800
-  const izq = 46
-  const der = 14
-  const arriba = 18
-  const abajo = 30
   const n = historia.length + pronostico.length
   const geo = useMemo(() => {
     const max = techo(Math.max(1, ...historia.map((p) => p.valor), ...pronostico.map((p) => p.alto)) * 1.05)
+    const marcasY = [0, 0.25, 0.5, 0.75, 1].map((f) => max * f)
+    const izq = 14 + 7.5 * Math.max(...marcasY.map((v) => numero(v).length))
+    const der = 16
+    const arriba = pronostico.length ? 46 : 16
+    const abajo = 30
     const x = (i: number) => izq + (i * (ancho - izq - der)) / Math.max(n - 1, 1)
     const y = (v: number) => alto - abajo - (Math.max(v, 0) / max) * (alto - arriba - abajo)
     const linea = (pts: [number, number][]) => pts.map(([i, v], k) => `${k ? 'L' : 'M'}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(' ')
@@ -70,7 +90,7 @@ export function GraficoVentas({
     const arribaPts = [[h0, ultimo], ...pronostico.map((p, k) => [h0 + 1 + k, p.alto])] as [number, number][]
     const abajoPts = ([[h0, ultimo], ...pronostico.map((p, k) => [h0 + 1 + k, p.bajo])] as [number, number][]).reverse()
     const banda = [...arribaPts, ...abajoPts].map(([i, v]) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
-    // Etiquetas de mes: la primera semana de cada mes, espaciadas para que no se monten.
+    // Etiquetas de mes: la primera semana de cada mes, con al menos 56 px entre una y otra.
     const todas = [...historia.map((p) => p.inicio), ...pronostico.map((p) => p.inicio)]
     const meses: { i: number; texto: string }[] = []
     let ultimoMes = ''
@@ -79,26 +99,28 @@ export function GraficoVentas({
       const m = t.slice(0, 7)
       if (m !== ultimoMes) {
         ultimoMes = m
-        if (!meses.length || i - meses[meses.length - 1].i >= Math.max(3, Math.round(n / 9))) meses.push({ i, texto: mesCorto(sumarDias(t, 3)) })
+        if (!meses.length || x(i) - x(meses[meses.length - 1].i) >= 56) meses.push({ i, texto: mesCorto(sumarDias(t, 3)) })
       }
     })
-    return { max, x, y, historia: linea(historia.map((p, i) => [i, p.valor])), pronostico: linea(pronosticoPts), banda, meses, h0 }
-  }, [historia, pronostico, n, alto])
+    const mediaPronostico = pronostico.length ? pronostico.reduce((s, p) => s + p.media, 0) / pronostico.length : null
+    return { marcasY, izq, der, arriba, abajo, x, y, historia: linea(historia.map((p, i) => [i, p.valor])), pronostico: linea(pronosticoPts), banda, meses, h0, mediaPronostico }
+  }, [historia, pronostico, n, alto, ancho])
 
   const puntoFoco = foco === null ? null : foco < historia.length ? { tipo: 'h' as const, p: historia[foco] } : { tipo: 'p' as const, p: pronostico[foco - historia.length] }
 
   function mover(e: React.PointerEvent<SVGSVGElement>) {
     const r = e.currentTarget.getBoundingClientRect()
-    const px = ((e.clientX - r.left) / r.width) * ancho
-    const i = Math.round(((px - izq) / (ancho - izq - der)) * (n - 1))
+    const i = Math.round(((e.clientX - r.left - geo.izq) / (ancho - geo.izq - geo.der)) * (n - 1))
     setFoco(Math.max(0, Math.min(n - 1, i)))
   }
 
   return (
-    <div className={cn('relative', className)}>
+    <div ref={ref} className={cn('relative', className)}>
       <svg
+        width={ancho}
+        height={alto}
         viewBox={`0 0 ${ancho} ${alto}`}
-        className="block h-auto w-full touch-pan-y"
+        className="block max-w-full touch-pan-y"
         role="img"
         aria-label={descripcion}
         onPointerMove={mover}
@@ -106,43 +128,48 @@ export function GraficoVentas({
       >
         <defs>
           <clipPath id={`${id}-area`}>
-            <rect x={izq} y={0} width={ancho - izq - der} height={alto - abajo} />
+            <rect x={geo.izq} y={0} width={ancho - geo.izq - geo.der} height={alto - geo.abajo} />
           </clipPath>
         </defs>
-        {[0, 0.5, 1].map((f) => (
-          <g key={f}>
-            <line x1={izq} x2={ancho - der} y1={geo.y(geo.max * f)} y2={geo.y(geo.max * f)} stroke={f === 0 ? '#e5e7eb' : '#f0f1ee'} />
-            <text x={izq - 8} y={geo.y(geo.max * f) + 4} textAnchor="end" fontSize={11} fill="#6b7280">{numero(geo.max * f)}</text>
+        {geo.marcasY.map((v, k) => (
+          <g key={k}>
+            <line x1={geo.izq} x2={ancho - geo.der} y1={geo.y(v)} y2={geo.y(v)} stroke={k === 0 ? '#d1d5db' : '#eceee9'} />
+            <text x={geo.izq - 8} y={geo.y(v) + 4} textAnchor="end" fontSize={12} fill="#4b5563">{numero(v)}</text>
           </g>
         ))}
         {marcas.map((i) => (
-          <rect key={i} x={geo.x(i) - 5} y={arriba} width={10} height={alto - arriba - abajo} fill="var(--ambar-fondo)" />
+          <rect key={i} x={geo.x(i) - 4} y={geo.arriba} width={8} height={alto - geo.arriba - geo.abajo} fill="var(--ambar-fondo)" />
         ))}
         <g clipPath={`url(#${id}-area)`}>
-          {pronostico.length > 0 && <polygon points={geo.banda} fill="var(--primary)" fillOpacity={0.13} />}
-          <path d={geo.historia} fill="none" stroke="var(--primary)" strokeWidth={2.4} strokeLinejoin="round" strokeLinecap="round" />
-          {pronostico.length > 0 && <path d={geo.pronostico} fill="none" stroke="var(--primary)" strokeWidth={2.4} strokeDasharray="6 6" strokeLinecap="round" />}
+          {pronostico.length > 0 && <polygon points={geo.banda} fill="var(--primary)" fillOpacity={0.14} />}
+          <path d={geo.historia} fill="none" stroke="var(--primary)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+          {pronostico.length > 0 && <path d={geo.pronostico} fill="none" stroke="var(--primary)" strokeWidth={2.5} strokeDasharray="6 5" strokeLinecap="round" />}
         </g>
         {pronostico.length > 0 && (
           <g>
-            <line x1={geo.x(geo.h0)} x2={geo.x(geo.h0)} y1={arriba - 6} y2={alto - abajo} stroke="#9ca3af" strokeDasharray="3 4" />
-            <text x={geo.x(geo.h0)} y={arriba - 8} textAnchor="middle" fontSize={11} fill="#4b5563">hoy</text>
+            <line x1={geo.x(geo.h0)} x2={geo.x(geo.h0)} y1={geo.arriba - 4} y2={alto - geo.abajo} stroke="#9ca3af" strokeDasharray="3 4" />
+            <text x={geo.x(geo.h0) - 6} y={geo.arriba - 10} textAnchor="end" fontSize={12} fill="#4b5563">hoy</text>
+            {geo.mediaPronostico !== null && (
+              <text x={ancho - geo.der} y={geo.arriba - 28} textAnchor="end" fontSize={12} fontWeight={700} fill="var(--secondary-foreground)">
+                ~{numero(geo.mediaPronostico > 100 ? Math.round(geo.mediaPronostico / 10) * 10 : Math.round(geo.mediaPronostico))} por semana
+              </text>
+            )}
           </g>
         )}
         {geo.meses.map((m) => (
-          <text key={m.i} x={geo.x(m.i)} y={alto - 9} textAnchor="middle" fontSize={11} fill="#6b7280">{m.texto}</text>
+          <text key={m.i} x={geo.x(m.i)} y={alto - 9} textAnchor="middle" fontSize={12} fill="#4b5563">{m.texto}</text>
         ))}
         {foco !== null && puntoFoco && (
           <g pointerEvents="none">
-            <line x1={geo.x(foco)} x2={geo.x(foco)} y1={arriba} y2={alto - abajo} stroke="#111827" strokeOpacity={0.18} />
-            <circle cx={geo.x(foco)} cy={geo.y(puntoFoco.tipo === 'h' ? puntoFoco.p.valor : puntoFoco.p.media)} r={4.5} fill="#fff" stroke="var(--primary)" strokeWidth={2} />
+            <line x1={geo.x(foco)} x2={geo.x(foco)} y1={geo.arriba} y2={alto - geo.abajo} stroke="#111827" strokeOpacity={0.2} />
+            <circle cx={geo.x(foco)} cy={geo.y(puntoFoco.tipo === 'h' ? puntoFoco.p.valor : puntoFoco.p.media)} r={5} fill="#fff" stroke="var(--primary)" strokeWidth={2} />
           </g>
         )}
       </svg>
       {foco !== null && puntoFoco && (
         <div
-          className="pointer-events-none absolute top-0 z-10 w-max max-w-56 -translate-x-1/2 rounded-lg bg-foreground px-2.5 py-1.5 text-[0.8rem] leading-snug text-background shadow-lg"
-          style={{ left: `${Math.min(88, Math.max(12, (geo.x(foco) / ancho) * 100))}%` }}
+          className="pointer-events-none absolute top-0 z-10 w-max max-w-56 -translate-x-1/2 rounded-lg bg-foreground px-2.5 py-1.5 text-[0.85rem] leading-snug text-background shadow-lg"
+          style={{ left: `${Math.min(85, Math.max(15, (geo.x(foco) / ancho) * 100))}%` }}
         >
           <span className="block text-background/70">Semana del {fechaCorta(puntoFoco.p.inicio)}</span>
           {puntoFoco.tipo === 'h' ? (

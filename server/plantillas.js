@@ -1,9 +1,10 @@
 'use strict';
 
-// Plantillas descargables, con un ejemplo lleno. Los nombres y el orden de las
-// columnas salen de formatos.js (PLANTILLA_EXPORT y PLANTILLA_LISTA).
+// Plantillas descargables, con un ejemplo lleno y el diseño de SINESC (excel.js). Los nombres y
+// el orden de las columnas salen de formatos.js (PLANTILLA_EXPORT y PLANTILLA_LISTA). El
+// encabezado de cada tabla va en la fila 1, que es donde el lector lo busca primero.
 
-const XLSX = require('xlsx');
+const X = require('./excel');
 const { PLANTILLA_EXPORT, PLANTILLA_LISTA, PLANTILLA_INVENTARIO } = require('./formatos');
 const { EXCEL_EPOCA, MS_DIA } = require('./valores');
 
@@ -54,33 +55,38 @@ function ventasEjemplo(semanas = 52) {
   return filas;
 }
 
-function celdaFecha(dia) {
-  return { t: 'n', v: dia + EXCEL_EPOCA, z: 'dd/mm/yyyy' };
+// Hoja "Instrucciones" con el logo. El lector ignora las hojas que se llaman así.
+function hojaInstrucciones(libro, titulo, lineas) {
+  const { hoja, inicio } = X.hojaConMarca(libro, 'Instrucciones', { titulo, subtitulo: 'Plantilla de SINESC', anchos: [110] });
+  X.parrafos(hoja, inicio, lineas);
 }
 
-function hojaDesdeFilas(encabezados, filas, anchos) {
-  const ws = XLSX.utils.aoa_to_sheet([encabezados, ...filas]);
-  ws['!cols'] = anchos.map((wch) => ({ wch }));
-  return ws;
-}
-
-function plantillaExport() {
-  const libro = XLSX.utils.book_new();
+async function plantillaExport() {
+  const libro = X.nuevoLibro();
   const cv = PLANTILLA_EXPORT.ventas.columnas;
-  const ventas = ventasEjemplo().map((v) => cv.map((_, i) => [v.codigo, v.nombre, celdaFecha(v.dia), v.cantidad][i]));
-  XLSX.utils.book_append_sheet(libro, hojaDesdeFilas(cv, ventas, [12, 38, 12, 10]), PLANTILLA_EXPORT.ventas.hoja);
+  const ventas = ventasEjemplo().map((v) => [v.codigo, v.nombre, v.dia + EXCEL_EPOCA, v.cantidad]);
+  X.hojaPlantilla(libro, PLANTILLA_EXPORT.ventas.hoja, cv, ventas, [14, 40, 13, 11], ['', '', 'fecha', 'entero']);
   const ce = PLANTILLA_EXPORT.existencias.columnas;
-  const existencias = PRODUCTOS_EJEMPLO.map((p) => [p.codigo, p.nombre, p.existencias]);
-  XLSX.utils.book_append_sheet(libro, hojaDesdeFilas(ce, existencias, [12, 38, 12]), PLANTILLA_EXPORT.existencias.hoja);
-  return XLSX.write(libro, { type: 'buffer', bookType: 'xlsx' });
+  X.hojaPlantilla(libro, PLANTILLA_EXPORT.existencias.hoja, ce, PRODUCTOS_EJEMPLO.map((p) => [p.codigo, p.nombre, p.existencias]), [14, 40, 13], ['', '', 'entero']);
+  hojaInstrucciones(libro, 'Ventas y existencias', [
+    '1. En la hoja "Ventas", una fila por cada venta: código, nombre, fecha y cantidad. Lo ideal es el último año.',
+    '2. En la hoja "Existencias", una fila por producto con lo que tienes hoy.',
+    '3. Borra los productos de ejemplo, pega los tuyos, guarda y sube el archivo en SINESC.',
+  ]);
+  return X.aBuffer(libro);
 }
 
-function plantillaLista() {
-  const libro = XLSX.utils.book_new();
+async function plantillaLista() {
+  const libro = X.nuevoLibro();
   const pedir = { 'CIN-0003': 100, 'TOR-0610': 60, 'LIJ-0120': 100, 'PVC-0250': 12, 'MAN-1215': 10 };
   const filas = PRODUCTOS_EJEMPLO.map((p) => [p.codigo, p.nombre, p.proveedor, p.existencias, p.minimo, p.maximo, pedir[p.codigo] ?? null]);
-  XLSX.utils.book_append_sheet(libro, hojaDesdeFilas(PLANTILLA_LISTA.columnas, filas, [12, 38, 22, 11, 9, 9, 16]), PLANTILLA_LISTA.hoja);
-  return XLSX.write(libro, { type: 'buffer', bookType: 'xlsx' });
+  X.hojaPlantilla(libro, PLANTILLA_LISTA.hoja, PLANTILLA_LISTA.columnas, filas, [14, 40, 24, 12, 10, 10, 17], ['', '', '', 'entero', 'entero', 'entero', 'entero']);
+  hojaInstrucciones(libro, 'Lista de pedido', [
+    '1. En la hoja "Pedido", una fila por producto que ibas a pedir: código y cantidad a pedir. Lo demás es opcional.',
+    '2. Los productos sin cantidad no se tienen en cuenta.',
+    '3. Guarda el archivo y súbelo en el paso 1 de tu pedido en SINESC.',
+  ]);
+  return X.aBuffer(libro);
 }
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -99,33 +105,29 @@ function ultimosDoceMeses(hoy = new Date()) {
  * Para quien lleva el inventario en Excel o a mano. Tres hojas: "Productos" para llenar,
  * "Ejemplo" ya lleno e "Instrucciones". El lector ignora las hojas Ejemplo e Instrucciones.
  */
-function plantillaInventario() {
-  const libro = XLSX.utils.book_new();
+async function plantillaInventario() {
+  const libro = X.nuevoLibro();
   const meses = ultimosDoceMeses();
   const encabezados = [...PLANTILLA_INVENTARIO.columnas, ...meses];
   const anchos = [12, 34, 22, 14, 15, ...meses.map(() => 9)];
-  XLSX.utils.book_append_sheet(libro, hojaDesdeFilas(encabezados, [], anchos), PLANTILLA_INVENTARIO.hoja);
+  const formatos = ['', '', '', 'plata', 'entero', ...meses.map(() => 'entero')];
+  X.hojaPlantilla(libro, PLANTILLA_INVENTARIO.hoja, encabezados, [], anchos, formatos);
   const azar = aleatorio(20261011);
   const ejemplo = PRODUCTOS_EJEMPLO.slice(0, 4).map((p) => [
     p.codigo, p.nombre, p.proveedor, p.costo, p.existencias,
     ...meses.map(() => (p.porSemana ? Math.round(p.porSemana * 4.3 * (0.7 + azar() * 0.6)) : null)),
   ]);
-  XLSX.utils.book_append_sheet(libro, hojaDesdeFilas(encabezados, ejemplo, anchos), 'Ejemplo');
-  const instrucciones = [
-    ['Cómo llenar esta plantilla'],
-    [''],
-    ['1. En la hoja "Productos", escribe una fila por producto: código, nombre y cuántas unidades tienes hoy.'],
-    ['   Proveedor y costo unitario son opcionales: con ellos ves cuánto dinero tienes en cada producto y el pedido sale por proveedor.'],
-    ['2. En cada mes, escribe las unidades que vendiste. Si no vendiste nada, déjalo en blanco.'],
-    ['3. Si no usas códigos, copia el nombre del producto en la columna Código.'],
-    ['4. Guarda el archivo y súbelo en el paso 2 de SINESC.'],
-    [''],
-    ['La hoja "Ejemplo" muestra cómo se ve llena. No hace falta borrarla: no se tiene en cuenta.'],
-  ];
-  const wi = XLSX.utils.aoa_to_sheet(instrucciones);
-  wi['!cols'] = [{ wch: 100 }];
-  XLSX.utils.book_append_sheet(libro, wi, 'Instrucciones');
-  return XLSX.write(libro, { type: 'buffer', bookType: 'xlsx' });
+  X.hojaPlantilla(libro, 'Ejemplo', encabezados, ejemplo, anchos, formatos);
+  hojaInstrucciones(libro, 'Cómo llenar esta plantilla', [
+    '1. En la hoja "Productos", escribe una fila por producto: código, nombre y cuántas unidades tienes hoy.',
+    '   Proveedor y costo unitario son opcionales: con ellos ves cuánto dinero tienes en cada producto y el pedido sale por proveedor.',
+    '2. En cada mes, escribe las unidades que vendiste. Si no vendiste nada, déjalo en blanco.',
+    '3. Si no usas códigos, copia el nombre del producto en la columna Código.',
+    '4. Guarda el archivo y súbelo en el paso 2 de SINESC.',
+    '',
+    'La hoja "Ejemplo" muestra cómo se ve llena. No hace falta borrarla: no se tiene en cuenta.',
+  ]);
+  return X.aBuffer(libro);
 }
 
 module.exports = { plantillaExport, plantillaLista, plantillaInventario, ultimosDoceMeses, ventasEjemplo, PRODUCTOS_EJEMPLO };

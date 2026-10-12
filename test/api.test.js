@@ -77,7 +77,7 @@ test('flujo completo con las reglas del documento', async () => {
 
   // Sin lista inicial: no hay export ni reporte.
   assert.equal((await ana.get(`/api/pedidos/${id}/reporte`)).estado, 403);
-  assert.equal((await ana.subir(`/api/pedidos/${id}/export`, [['export.xlsx', plantillaExport()]])).estado, 403);
+  assert.equal((await ana.subir(`/api/pedidos/${id}/export`, [['export.xlsx', (await plantillaExport())]])).estado, 403);
 
   // Borrador y validación
   assert.equal((await ana.put(`/api/pedidos/${id}/lista-inicial`, { lineas: INICIAL, tipo: 'real' })).estado, 200);
@@ -94,7 +94,7 @@ test('flujo completo con las reglas del documento', async () => {
   assert.equal((await ana.post(`/api/pedidos/${id}/lista-inicial`, { lineas: INICIAL, tipo: 'simulado' })).estado, 409);
 
   // Export y reporte
-  const exp = await ana.subir(`/api/pedidos/${id}/export`, [['Export año 2026.xlsx', plantillaExport()]]);
+  const exp = await ana.subir(`/api/pedidos/${id}/export`, [['Export año 2026.xlsx', (await plantillaExport())]]);
   assert.equal(exp.ok, true, JSON.stringify(exp.errores));
   const { reporte } = await ana.get(`/api/pedidos/${id}/reporte`);
   assert.equal(reporte.filas[0].codigo, 'CIN-0003', 'lo que se agota primero va arriba');
@@ -195,7 +195,7 @@ test('la coherencia con el reporte se guarda para el equipo y no se le muestra a
   const eli = await nuevoUsuario('Eli', 'eli@prueba.co');
   const { pedido } = await eli.post('/api/pedidos');
   await eli.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
-  await eli.subir(`/api/pedidos/${pedido.id}/export`, [['export.xlsx', plantillaExport()]]);
+  await eli.subir(`/api/pedidos/${pedido.id}/export`, [['export.xlsx', (await plantillaExport())]]);
   await eli.get(`/api/pedidos/${pedido.id}/reporte`);
   const f = await eli.post(`/api/pedidos/${pedido.id}/lista-final`, { lineas: [...INICIAL, { codigo: 'CAN-0040', cantidad: '6' }] });
   assert.equal(f.pedido.comparacion.conteo.total, 1);
@@ -209,7 +209,7 @@ test('recordatorio: se ofrece después del reporte, se descarga como calendario 
   const fer = await nuevoUsuario('Fer', 'fer@prueba.co');
   const { pedido } = await fer.post('/api/pedidos');
   await fer.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
-  await fer.subir(`/api/pedidos/${pedido.id}/export`, [['export.xlsx', plantillaExport()]]);
+  await fer.subir(`/api/pedidos/${pedido.id}/export`, [['export.xlsx', (await plantillaExport())]]);
   assert.equal((await fer.get(`/api/pedidos/${pedido.id}/recordatorio`)).estado, 409, 'antes de ver el reporte no se ofrece');
   await fer.get(`/api/pedidos/${pedido.id}/reporte`);
 
@@ -325,11 +325,11 @@ test('inventario guardado: no se ve antes de la lista inicial, sin sugerido en l
   const beto = await nuevoUsuario('Beto', 'beto.inventario@prueba.co');
   const antes = await beto.get('/api/inventario');
   assert.deepEqual([antes.inventario, antes.puedeSubir, antes.sugerencias], [null, false, false]);
-  assert.equal((await beto.subir('/api/inventario/export', [['e.xlsx', plantillaExport()]])).estado, 403, 'sin lista inicial no puede ver su inventario');
+  assert.equal((await beto.subir('/api/inventario/export', [['e.xlsx', (await plantillaExport())]])).estado, 403, 'sin lista inicial no puede ver su inventario');
 
   const { pedido } = await beto.post('/api/pedidos');
   await beto.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: INICIAL, tipo: 'simulado' });
-  assert.equal((await beto.subir(`/api/pedidos/${pedido.id}/export`, [['e.xlsx', plantillaExport()]])).ok, true);
+  assert.equal((await beto.subir(`/api/pedidos/${pedido.id}/export`, [['e.xlsx', (await plantillaExport())]])).ok, true);
 
   const inv = await beto.get('/api/inventario');
   assert.equal(inv.puedeSubir, true);
@@ -342,7 +342,7 @@ test('inventario guardado: no se ve antes de la lista inicial, sin sugerido en l
   assert.equal((await beto.get('/api/inventario')).inventario.ajustes.entregaPorDefecto, 3);
 
   // Ya puede subir desde Datos, y un pedido nuevo puede usar lo que ya subió.
-  assert.equal((await beto.subir('/api/inventario/export', [['nuevo.xlsx', plantillaExport()]])).ok, true);
+  assert.equal((await beto.subir('/api/inventario/export', [['nuevo.xlsx', (await plantillaExport())]])).ok, true);
   const otro = (await beto.post('/api/pedidos')).pedido;
   assert.equal((await beto.post(`/api/pedidos/${otro.id}/export/usar-ultimo`)).estado, 403, 'primero la lista inicial');
   await beto.post(`/api/pedidos/${otro.id}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
@@ -359,7 +359,7 @@ test('inventario guardado: no se ve antes de la lista inicial, sin sugerido en l
   if (ya.estado !== 200) assert.equal((await eq.post('/api/cuenta/crear', { nombre: 'Equipo', email: 'equipo@prueba.co', clave: 'clave-segura' })).estado, 201);
   const { pedido: p2 } = await eq.post('/api/pedidos');
   await eq.post(`/api/pedidos/${p2.id}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
-  await eq.subir(`/api/pedidos/${p2.id}/export`, [['e.xlsx', plantillaExport()]]);
+  await eq.subir(`/api/pedidos/${p2.id}/export`, [['e.xlsx', (await plantillaExport())]]);
   const invEq = await eq.get('/api/inventario');
   assert.equal(invEq.sugerencias, true);
   assert.ok(invEq.inventario.productos.some((p) => p.sugerido > 0));
@@ -395,15 +395,15 @@ test('ajustes del inventario: guardar una parte no borra lo demás; Excel de mí
   });
   assert.equal(x.status, 200);
   const libro = XLSX.read(Buffer.from(await x.arrayBuffer()), { type: 'buffer' });
-  const filas = XLSX.utils.sheet_to_json(libro.Sheets[libro.SheetNames[0]], { header: 1 });
-  assert.deepEqual(filas[1], ['A1', 'Uno', 'P', 3, 5, 12, 2.5]);
+  const filas = XLSX.utils.sheet_to_json(libro.Sheets[libro.SheetNames[0]], { header: 1, blankrows: false }).filter((f) => f.length);
+  assert.deepEqual(filas.find((f) => f[0] === 'A1'), ['A1', 'Uno', 'P', 3, 5, 12, 2.5]);
 });
 
 test('alcance del plan de prueba: un probador en sus 14 días ve solo el reporte de semanas', async () => {
   const pepa = await nuevoUsuario('Pepa', 'pepa.alcance@prueba.co');
   const { pedido } = await pepa.post('/api/pedidos');
   await pepa.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
-  await pepa.subir(`/api/pedidos/${pedido.id}/export`, [['e.xlsx', plantillaExport()]]);
+  await pepa.subir(`/api/pedidos/${pedido.id}/export`, [['e.xlsx', (await plantillaExport())]]);
   const r = await pepa.get('/api/inventario');
   assert.equal(r.alcance, 'prueba');
   const inv = r.inventario;
@@ -463,7 +463,7 @@ test('borrar datos: cuenta antes, borra en cascada al confirmar y nunca toca al 
   const z = await nuevoUsuario('Zoe', 'zoe.borrar@prueba.co');
   const { pedido } = await z.post('/api/pedidos');
   await z.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
-  await z.subir(`/api/pedidos/${pedido.id}/export`, [['e.xlsx', plantillaExport()]]);
+  await z.subir(`/api/pedidos/${pedido.id}/export`, [['e.xlsx', (await plantillaExport())]]);
   const antes = await borrarDatos({ email: 'zoe.borrar@prueba.co' });
   assert.deepEqual([antes.usuarios, antes.pedidos, antes.archivos, antes.borrado], [['zoe.borrar@prueba.co'], 1, 1, false]);
   const r = await borrarDatos({ email: 'zoe.borrar@prueba.co', confirmar: true });
@@ -517,11 +517,11 @@ test('archivos comprimidos (.gz, como los manda el navegador para Vercel) se gua
   const gz = await nuevoUsuario('Gael', 'gael.gz@prueba.co');
   const { pedido } = await gz.post('/api/pedidos');
   await gz.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: INICIAL, tipo: 'simulado' });
-  const r = await gz.subir(`/api/pedidos/${pedido.id}/export`, [['ventas y existencias.xlsx.gz', zlib.gzipSync(plantillaExport())]]);
+  const r = await gz.subir(`/api/pedidos/${pedido.id}/export`, [['ventas y existencias.xlsx.gz', zlib.gzipSync((await plantillaExport()))]]);
   assert.equal(r.ok, true, JSON.stringify(r.errores));
   const guardado = await db.uno("SELECT nombre, tamano FROM archivos WHERE pedido_id = $1 AND tipo = 'export'", [pedido.id]);
   assert.equal(guardado.nombre, 'ventas y existencias.xlsx');
-  assert.equal(guardado.tamano, plantillaExport().length);
+  assert.equal(guardado.tamano, (await plantillaExport()).length);
   const roto = await gz.subir(`/api/pedidos/${pedido.id}/export`, [['malo.csv.gz', Buffer.from('no es gzip')]]);
   assert.equal(roto.estado, 400);
   assert.equal((await gz.get('/api/salud')).ok, true, 'la API también responde /api/salud');

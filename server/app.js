@@ -70,10 +70,10 @@ function crearApp({ web = null, dev = false } = {}) {
   app.use('/api/exportar', exportar.rutas);
   app.use('/api/errores', errores.rutas);
 
-  const enviarXlsx = (nombre, generar) => (_req, res) => {
+  const enviarXlsx = (nombre, generar) => async (_req, res) => {
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${nombre}"`);
-    res.send(generar());
+    res.send(await generar());
   };
   // En Vercel todo llega por /api (next.config.mjs reescribe /plantillas y /salud): por eso
   // también responden con /api adelante.

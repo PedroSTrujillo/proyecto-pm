@@ -338,7 +338,8 @@ function Ventas({ inv }: { inv: Inventario }) {
   const g = inv.grafico!
   const esProyecto = (s: { total: number; proyectos: number }) => s.proyectos > 0.15 * s.total
   const hayProyectos = g.semanas.some(esProyecto)
-  const [serie, setSerie] = useState<Serie>('todo')
+  // Por defecto sin proyectos: es la base del pronóstico, y un pico de proyecto no aplasta la escala.
+  const [serie, setSerie] = useState<Serie>(hayProyectos ? 'comercial' : 'todo')
   const historia = g.semanas.map((s) => ({
     inicio: s.inicio,
     valor: serie === 'todo' ? s.total : serie === 'comercial' ? s.total - s.proyectos : s.proyectos,
@@ -369,9 +370,9 @@ function Ventas({ inv }: { inv: Inventario }) {
             valor={serie}
             onCambio={setSerie}
             opciones={[
-              { id: 'todo', texto: 'Todo' },
-              { id: 'comercial', texto: 'Comercialización' },
-              { id: 'proyectos', texto: 'Proyectos' },
+              { id: 'comercial', texto: 'Sin proyectos' },
+              { id: 'todo', texto: 'Con proyectos' },
+              { id: 'proyectos', texto: 'Solo proyectos' },
             ]}
           />
         )}
