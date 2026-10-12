@@ -11,7 +11,7 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node server/index.js",
-    "build": "npm install --no-package-lock --prefix inventory-forecasting-landing-page && npm run build --prefix inventory-forecasting-landing-page",
+    "build": "node scripts/construir-web.js",
     "test": "node --test test/*.test.js",
     "ejemplos": "node scripts/generar-ejemplos.js",
     "texto": "node scripts/revisar-texto.js",

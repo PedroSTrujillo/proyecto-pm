@@ -1,5 +1,14 @@
+// En Render (plan gratis, 512 MB) se compila con poca memoria: un solo proceso y sin source maps
+// (scripts/construir-web.js pone POCA_MEMORIA y compila con webpack).
+const pocaMemoria = Boolean(process.env.RENDER || process.env.POCA_MEMORIA)
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  productionBrowserSourceMaps: false,
+  enablePrerenderSourceMaps: !pocaMemoria,
+  experimental: pocaMemoria
+    ? { cpus: 1, workerThreads: false, webpackBuildWorker: false, webpackMemoryOptimizations: true, serverSourceMaps: false }
+    : {},
   typescript: {
     ignoreBuildErrors: true,
   },

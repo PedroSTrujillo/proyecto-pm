@@ -18,7 +18,7 @@ node inventory-forecasting-landing-page/node_modules/typescript/bin/tsc --noEmit
 npm run build --prefix inventory-forecasting-landing-page
 ```
 
-Las 81 pruebas tienen que pasar y el build no puede dar errores. Si `npm run build` (el de la raíz) falla en Windows con "Cannot read properties of null (reading 'matches')", es un error de npm con `node_modules` ya creado: el segundo comando compila igual. Después del build, borren `inventory-forecasting-landing-page/.next` si van a seguir con `npm run dev`.
+Las 81 pruebas tienen que pasar y el build no puede dar errores. Para compilar como en Render (con poca memoria): `POCA_MEMORIA=1 npm run build`. Después del build, borren `inventory-forecasting-landing-page/.next` si van a seguir con `npm run dev`.
 
 Revisen que nada privado quedó en el código ni en los mensajes de commit (datos reales de un probador, contraseñas, archivos de `data/`).
 
@@ -47,7 +47,7 @@ git push origin main
    - `APP_URL`: la dirección que usan los probadores (por ejemplo, `https://rotacion-inventario.onrender.com`). Sale en los enlaces para cambiar la contraseña y en los recordatorios.
    - Opcionales: `BREVO_API_KEY` y `CORREO_REMITENTE`, para mandar el recordatorio por correo.
    - `LANDING_URL` ya no se usa; se puede borrar.
-3. Si el despliegue falla en *Build* por falta de memoria (el plan gratis tiene 512 MB y compilar Next.js es pesado), sigue funcionando la versión anterior. Opciones: volver a intentar con *Manual Deploy → Clear build cache & deploy*, o subir el servicio al plan Starter mientras dura la prueba.
+3. La web se compila con `scripts/construir-web.js`: en Render usa webpack en un solo proceso y sin source maps, porque el build normal llega a ~2 GB y el plan gratis tiene 512 MB (así baja a ~600 MB). Si aun así falla en *Build* por memoria, sigue en línea la versión anterior; en ese caso suban el servicio al plan Starter mientras dura la prueba, o vuelvan a intentar con *Manual Deploy → Clear build cache & deploy*. Si en *Settings* el *Build Command* no es `npm install && npm run build`, cámbienlo a ese: con solo `npm install` el servidor arranca sin la página nueva y muestra la versión vieja.
 4. Cuando diga *Live*, abran `/salud` (tiene que responder `{"ok":true}`), luego `/`, `/demo` y entren con una cuenta del equipo: el menú tiene que mostrar "Resultados de la prueba" y "Ejemplos".
 
 ## 4. Neon
@@ -70,7 +70,7 @@ En PowerShell, la variable se pone antes con `$env:DATABASE_URL="postgresql://�
 
 ## 5. Vercel
 
-- Si el proyecto de Vercel está conectado al repositorio con *Root Directory* `inventory-forecasting-landing-page`, despliega solo al cambiar `main`. Se ve en *Deployments*.
+- Si el proyecto de Vercel está conectado al repositorio con *Root Directory* `inventory-forecasting-landing-page`, despliega solo al cambiar `main`. Se ve en *Deployments*. En el plan Hobby, Vercel no despliega commits de alguien que no es parte del proyecto: el dueño del proyecto tiene que entrar a *Deployments* y darle *Redeploy* al último commit de `main` (o autorizarlo si aparece como bloqueado).
 - No necesita variables: sin `API_URL`, manda `/api` y `/plantillas` a `https://rotacion-inventario.onrender.com`. Si la dirección de Render cambia, pongan `API_URL` en *Settings → Environment Variables* y vuelvan a desplegar.
 - Vercel no deja subir archivos de más de 4,5 MB. A los probadores denles la dirección de Render, y dejen la de Vercel para mostrar la página.
 
