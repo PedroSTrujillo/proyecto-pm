@@ -1,6 +1,6 @@
 // Reporte de rotación: una fila por producto, de menos a más semanas de inventario.
 
-import { html, montar, numero, ventasSemana, semanas, dia, plural } from './util.js';
+import { html, montar, numero, ventasSemana, semanas, plural } from './util.js';
 
 const POR_PAGINA = 200;
 
@@ -40,44 +40,18 @@ function filaHTML(f, umbrales) {
   </tr>`;
 }
 
-// El cálculo paso a paso, con un producto del propio archivo. Los reportes guardados antes de
-// los ajustes (sin `r.ajustes`) se explican con el promedio simple con que se calcularon.
+// El cálculo en dos líneas, con un producto del propio archivo (requisito del MVP: que el número
+// se entienda). Los reportes viejos y los de totales por periodo usan el promedio simple.
 function explicacion(r) {
-  if (!r.ajustes || r.periodo.totales) return explicacionSimple(r);
-  const p = r.periodo;
   const e = r.ejemplo;
-  const a = r.ajustes;
-  const s = r.resumen;
+  const conAjustes = r.ajustes && !r.periodo.totales;
   return html`<details class="explicacion">
     <summary>¿De dónde sale el número?</summary>
-    <p><span class="formula">Semanas de inventario</span> = existencias ÷ ventas por semana: cuántas semanas te alcanza lo que tienes si sigues vendiendo al mismo ritmo.</p>
-    <p><span class="formula">Ventas por semana</span> sale de lo vendido en tu archivo (del ${dia(p.desde)} al ${dia(p.hasta)}, ${semanas(p.semanas)} semanas), con tres ajustes:</p>
-    <ol class="ajustes">
-      <li><strong>Lo reciente cuenta doble.</strong> Lo vendido desde el ${dia(p.recientesDesde)} (las últimas ${semanas(p.semanasRecientes)} semanas) pesa el doble, porque dice más de lo que viene que lo de hace un año.</li>
-      <li><strong>Un mes fuera de lo normal no infla el promedio.</strong> Si un mes vendió más de ${a.vecesLoNormal} veces lo normal de ese producto y más del doble que cualquier otro mes (por ejemplo, una venta para un proyecto), se cuenta como ${a.vecesLoNormal} veces lo normal.${s.picosRecortados ? ` Pasó en ${plural(s.picosRecortados, 'producto', 'productos')}.` : ''}</li>
-      <li><strong>Un producto nuevo no sale lento.</strong> Si su primera venta llegó mucho después del inicio del archivo (más de ${a.semanasMinimasProducto} semanas, y no porque se venda de vez en cuando), se cuentan las semanas desde esa primera venta y no todo el archivo.${s.productosNuevos ? ` Pasó en ${plural(s.productosNuevos, 'producto', 'productos')}.` : ''}</li>
-    </ol>
-    ${e ? html`<div class="ejemplo"><strong>Ejemplo con tu archivo: ${e.codigo}${e.nombre ? ` (${e.nombre})` : ''}</strong>
-      <ol class="pasos-calculo">
-        <li>Vendió ${numero(e.vendidoAjustado)} unidades en ${semanas(e.semanasProducto)} semanas; ${numero(e.vendidoReciente)} de ellas en las últimas ${semanas(e.semanasRecientes)}.</li>
-        <li>Ventas por semana = (${numero(e.vendidoAjustado)} + ${numero(e.vendidoReciente)}) ÷ (${semanas(e.semanasProducto)} + ${semanas(e.semanasRecientes)}) = <strong>${ventasSemana(e.promedioSemanal)}</strong>.
-          <span class="nota">Sin el ajuste serían ${numero(e.vendido)} ÷ ${semanas(e.semanasHistorico)} = ${ventasSemana(e.promedioSimple)}.</span></li>
-        <li>Semanas de inventario = ${numero(e.existencias)} en existencias ÷ ${ventasSemana(e.promedioSemanal)} = <strong>${semanas(e.semanasInventario)} semanas</strong>.</li>
-      </ol></div>` : ''}
-  </details>`;
-}
-
-function explicacionSimple(r) {
-  const p = r.periodo;
-  const e = r.ejemplo;
-  const T = semanas(p.semanas);
-  return html`<details class="explicacion">
-    <summary>¿De dónde sale el número?</summary>
-    <p><span class="formula">Ventas promedio por semana</span> = todo lo vendido de ese producto en tu archivo ÷ las ${T} semanas que cubre (del ${dia(p.desde)} al ${dia(p.hasta)}).
-    <span class="formula">Semanas de inventario</span> = existencias ÷ ventas promedio por semana: cuántas semanas te alcanza lo que tienes si sigues vendiendo igual.</p>
-    ${p.totales ? html`<p class="nota">Tu archivo trae el total vendido de cada producto en el periodo, no cada venta con su fecha. Por eso se usa el promedio simple: sin fechas no se sabe qué se vendió hace poco, qué mes fue un pico ni cuándo empezó a venderse un producto.</p>` : ''}
-    ${e ? html`<p class="ejemplo"><strong>Ejemplo con tu archivo:</strong> ${e.codigo}${e.nombre ? ` (${e.nombre})` : ''} vendió ${numero(e.vendido)} unidades en ${T} semanas → ${numero(e.vendido)} ÷ ${T} = ${ventasSemana(e.promedioSemanal)} por semana.
-      Tienes ${numero(e.existencias)} en existencias → ${numero(e.existencias)} ÷ ${ventasSemana(e.promedioSemanal)} = <strong>${semanas(e.semanasInventario)} semanas</strong> de inventario.</p>` : ''}
+    <p><strong>Semanas de inventario = existencias ÷ ventas por semana.</strong>
+      ${e ? `Por ejemplo, ${e.codigo} vende ${ventasSemana(e.promedioSemanal)} por semana y tienes ${numero(e.existencias)}: te alcanza para ${semanas(e.semanasInventario)} semanas.` : ''}</p>
+    <p class="nota">${conAjustes
+      ? 'Las ventas por semana salen de tu archivo: lo de los últimos 3 meses cuenta doble, un mes fuera de lo normal no infla el promedio y un producto nuevo se mide desde su primera venta.'
+      : `Las ventas por semana son todo lo vendido en tu archivo dividido entre sus ${semanas(r.periodo.semanas)} semanas.`}</p>
   </details>`;
 }
 
