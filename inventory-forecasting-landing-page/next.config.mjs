@@ -10,6 +10,9 @@ const raiz = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 // instala con vercel.json). Los archivos de ejemplos/ se leen del disco, así que se incluyen aparte.
 const libreriasDeLaApi = ['express', 'multer', 'pg', 'xlsx', 'exceljs', 'pdfkit', '@electric-sql/pglite']
 
+// PostHog (instrumentation-client.ts) va por el mismo dominio, en /ingest.
+const posthog = process.env.NEXT_PUBLIC_POSTHOG_REGION === 'eu' ? 'eu' : 'us'
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   typescript: {
@@ -28,6 +31,8 @@ const nextConfig = {
     return [
       { source: '/plantillas/:ruta*', destination: '/api/plantillas/:ruta*' },
       { source: '/salud', destination: '/api/salud' },
+      { source: '/ingest/static/:ruta*', destination: `https://${posthog}-assets.i.posthog.com/static/:ruta*` },
+      { source: '/ingest/:ruta*', destination: `https://${posthog}.i.posthog.com/:ruta*` },
     ]
   },
   async headers() {

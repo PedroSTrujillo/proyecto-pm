@@ -58,6 +58,8 @@ En Vercel, la API de Express corre dentro del mismo proyecto como la función `p
 | `DATA_DIR` | Carpeta de PGlite. `memory://` la deja en memoria. | `./data/pglite` |
 | `BREVO_API_KEY` | Opcional. Para que el recordatorio de calendario llegue también por correo, con [Brevo](https://www.brevo.com) (gratis hasta 300 correos al día). Sin ella, el recordatorio solo se descarga. | `xkeysib-…` |
 | `CORREO_REMITENTE` | El correo que verificaron en Brevo como remitente. | `avisos@grupo1.co` |
+| `NEXT_PUBLIC_POSTHOG_KEY` | Opcional. La clave del proyecto de [PostHog](https://posthog.com) para el embudo y las grabaciones de sesión. Sin ella no se carga nada. Las grabaciones tapan las tablas y lo que se escribe (`instrumentation-client.ts`). Se lee al compilar: después de ponerla hay que volver a desplegar. | `phc_…` |
+| `NEXT_PUBLIC_POSTHOG_REGION` | `eu` si el proyecto de PostHog está en Europa; si no, Estados Unidos. | `us` |
 | `APP_URL` | Opcional. La dirección pública, para los enlaces de los recordatorios y de "cambiar contraseña". En Vercel, sin ella, se usa la dirección de producción del proyecto. | `https://sinesc.vercel.app` |
 
 Una cuenta queda con rol de **equipo** si su correo está en `TEAM_EMAILS` al crearla o al iniciar sesión. Las cuentas del equipo no cuentan como usuarios de prueba.

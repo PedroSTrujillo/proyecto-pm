@@ -22,6 +22,7 @@ En local todo sigue igual: `npm run dev` levanta la API y la página juntas con 
 4. **Variables** (*Settings → Environment Variables*, para *Production*):
    - `DATABASE_URL`: la de Neon (si usaron *Storage*, ya está).
    - `TEAM_EMAILS`: los correos del equipo, separados por coma. Esas cuentas ven "Resultados de la prueba" y "Ejemplos".
+   - Opcional, `NEXT_PUBLIC_POSTHOG_KEY` (y `NEXT_PUBLIC_POSTHOG_REGION=eu` si el proyecto de PostHog está en Europa): embudo y grabaciones de sesión. Se lee al compilar, así que después de ponerla hay que hacer *Redeploy*.
    - Opcionales: `BREVO_API_KEY` y `CORREO_REMITENTE`, para mandar el recordatorio por correo. `APP_URL` solo si usan un dominio propio; si no, se usa sola la dirección de producción de Vercel.
 5. *Deploy*. Cuando termine, revisen:
    - `/salud` responde `{"ok":true}`.
