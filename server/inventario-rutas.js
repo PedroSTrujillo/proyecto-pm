@@ -76,7 +76,7 @@ async function permisos(usuario) {
 async function ultimoExport(usuarioId) {
   return db.uno(
     `SELECT id, pedido_id, subido_en, reporte, series, catalogo, periodo, documentos
-       FROM exports WHERE usuario_id = $1 AND estado = 'ok' ORDER BY subido_en DESC, id DESC LIMIT 1`,
+       FROM exports WHERE usuario_id = $1 AND estado = 'ok' AND ${db.EXPORT_VIGENTE} ORDER BY subido_en DESC, id DESC LIMIT 1`,
     [usuarioId],
   );
 }
@@ -107,7 +107,7 @@ const MAX_CALCULADOS = 40;
 
 rutas.get('/', async (req, res) => {
   const per = await permisos(req.usuario);
-  const cab = await db.uno("SELECT id FROM exports WHERE usuario_id = $1 AND estado = 'ok' ORDER BY subido_en DESC, id DESC LIMIT 1", [req.usuario.id]);
+  const cab = await db.uno(`SELECT id FROM exports WHERE usuario_id = $1 AND estado = 'ok' AND ${db.EXPORT_VIGENTE} ORDER BY subido_en DESC, id DESC LIMIT 1`, [req.usuario.id]);
   if (!cab) return res.json({ inventario: null, ...per });
   const u = await db.uno('SELECT inventario, sistema, nombre FROM usuarios WHERE id = $1', [req.usuario.id]);
   const llave = JSON.stringify([cab.id, per.alcance, u.inventario, u.sistema, u.nombre]);
@@ -212,7 +212,7 @@ rutas.get('/cargas', async (req, res) => {
   const filas = await db.query(
     `SELECT e.id, e.subido_en, e.estado, e.pedido_id, e.reporte->'resumen'->>'productos' AS productos,
             (SELECT json_agg(a.nombre ORDER BY a.id) FROM archivos a WHERE a.export_id = e.id) AS archivos
-       FROM exports e WHERE e.usuario_id = $1 ORDER BY e.subido_en DESC, e.id DESC LIMIT 30`,
+       FROM exports e WHERE e.usuario_id = $1 AND ${db.EXPORT_VIGENTE} ORDER BY e.subido_en DESC, e.id DESC LIMIT 30`,
     [req.usuario.id],
   );
   res.json({

@@ -363,7 +363,7 @@ rutas.post('/:id/export/usar-ultimo', async (req, res) => {
   const p = await pedidoDe(req);
   exigirInicialGuardada(p);
   if (p.terminado_en) throw new ErrorUsuario('Este pedido ya está terminado.', 409);
-  const e = await db.uno("SELECT id, reporte->'resumen' AS resumen, reporte->'periodo' AS periodo FROM exports WHERE usuario_id = $1 AND estado = 'ok' ORDER BY subido_en DESC, id DESC LIMIT 1", [req.usuario.id]);
+  const e = await db.uno(`SELECT id, reporte->'resumen' AS resumen, reporte->'periodo' AS periodo FROM exports WHERE usuario_id = $1 AND estado = 'ok' AND ${db.EXPORT_VIGENTE} ORDER BY subido_en DESC, id DESC LIMIT 1`, [req.usuario.id]);
   if (!e) throw new ErrorUsuario('Todavía no has subido tu inventario. Súbelo aquí.', 404);
   await db.query('UPDATE pedidos SET export_id = $1 WHERE id = $2', [e.id, p.id]);
   await registrarEvento(req.usuario.id, 'export_reusado', { pedidoId: p.id, detalle: { exportId: e.id } });

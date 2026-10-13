@@ -188,4 +188,11 @@ function nombreMotor() {
   return motor ? motor.nombre : null;
 }
 
-module.exports = { iniciar, query, uno, tx, cerrar, nombreMotor };
+// Un archivo (export) cuenta como el inventario del usuario salvo que sea de un pedido que él
+// borró y ningún pedido vivo lo reutilice ("usar el último inventario"). Va en un WHERE sobre
+// la tabla exports (con o sin alias).
+const EXPORT_VIGENTE = `NOT (pedido_id IS NOT NULL
+  AND pedido_id IN (SELECT id FROM pedidos WHERE borrado_en IS NOT NULL)
+  AND id NOT IN (SELECT export_id FROM pedidos WHERE export_id IS NOT NULL AND borrado_en IS NULL))`;
+
+module.exports = { EXPORT_VIGENTE, iniciar, query, uno, tx, cerrar, nombreMotor };

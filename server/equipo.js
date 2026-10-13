@@ -147,7 +147,7 @@ rutas.get('/resultados', async (_req, res) => {
   // Sale del último archivo de cada probador y de las fechas de sus listas iniciales.
   const ultimos = await db.query(
     `SELECT DISTINCT ON (usuario_id) usuario_id, subido_en, reporte, catalogo
-       FROM exports WHERE estado = 'ok' ORDER BY usuario_id, subido_en DESC, id DESC`,
+       FROM exports WHERE estado = 'ok' AND ${db.EXPORT_VIGENTE} ORDER BY usuario_id, subido_en DESC, id DESC`,
   );
   const costoDe = (usuarioId) => {
     const e = ultimos.find((x) => x.usuario_id === usuarioId);

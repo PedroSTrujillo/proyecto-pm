@@ -52,6 +52,7 @@ export function PedidoFlujo({ id }: { id: number }) {
   const [error, setError] = useState<string | null>(null)
   const params = useSearchParams()!
   const { ventana: ventanaBorrar, preguntar: preguntarBorrar } = useConfirmar()
+  const { recargar } = useInventario()
   const router = useRouter()
   const ruta = usePathname()!
 
@@ -77,6 +78,7 @@ export function PedidoFlujo({ id }: { id: number }) {
     if (!si) return
     try {
       await api('DELETE', `/pedidos/${id}`)
+      recargar() // si el archivo era de este pedido, el panel y Datos ya no lo usan
       router.push('/pedidos')
     } catch (e) {
       setError(textoErrores(e).mensaje)

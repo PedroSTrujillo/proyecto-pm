@@ -22,7 +22,7 @@ export function Pedidos() {
   const [error, setError] = useState<ReturnType<typeof textoErrores> | null>(null)
   const [creando, setCreando] = useState(false)
   const router = useRouter()
-  const { respuesta, inventario } = useInventario()
+  const { respuesta, inventario, recargar } = useInventario()
   const { ventana, preguntar } = useConfirmar()
 
   useEffect(() => {
@@ -49,6 +49,7 @@ export function Pedidos() {
     try {
       await api('DELETE', `/pedidos/${id}`)
       setPedidos((x) => (x ? x.filter((p) => p.id !== id) : x))
+      recargar() // si el archivo era de ese pedido, el panel y Datos ya no lo usan
     } catch (e) {
       setError(textoErrores(e))
     }

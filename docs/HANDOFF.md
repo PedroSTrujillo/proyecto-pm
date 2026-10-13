@@ -27,6 +27,12 @@
 
 ---
 
+## 2026-10-13 (19) — Claude — lo que reportó Jose Manuel al probar
+- **Rama:** `main` en el fork (`mio`) y en el repo del grupo.
+- **Estado:** el archivo de un pedido borrado ya no aparece en Panel ni en Datos (`db.EXPORT_VIGENTE`), salvo que otro pedido vivo lo use; la pantalla se actualiza al borrar. Confirmado que una lista con el mismo código en varias filas se suma al guardar y se avisa (`revisarLista`).
+- **Pendiente del equipo:** dos probadores de Jose Manuel son de la misma empresa (vacío 13 de CLAUDE.md): decidir si se cambia uno o se cuentan como una sola empresa.
+- **Verificación:** `npm test` → 87/87 (nueva: archivo de pedido borrado).
+
 ## 2026-10-12 (18) — Claude — borrar pedidos sin terminar (pedido de Jose Manuel)
 - **Rama:** `main` en el fork (`mio`) y en el repo del grupo.
 - **Estado:** botón "Borrar" con confirmación en la lista de pedidos y dentro de cada pedido sin terminar. Los terminados no se borran (son resultados). Borrado suave: `pedidos.borrado_en` (ALTER IF NOT EXISTS); no corre los 14 días y el equipo lo ve marcado.

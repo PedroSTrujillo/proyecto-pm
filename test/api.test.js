@@ -586,3 +586,25 @@ test('borrar un pedido sin terminar: desaparece para el usuario, la prueba no ca
   const suyo = r.usuarios.find((u) => u.email === 'bea.borrar@prueba.co');
   assert.equal(suyo.pedidos.find((p) => p.id === a.id).borrado, true);
 });
+
+test('el archivo de un pedido borrado deja de ser el inventario (salvo que otro pedido lo use)', async () => {
+  const ivo = await nuevoUsuario('Ivo', 'ivo.borrar@prueba.co');
+  const { pedido: a } = await ivo.post('/api/pedidos');
+  await ivo.post(`/api/pedidos/${a.id}/lista-inicial`, { lineas: INICIAL, tipo: 'simulado' });
+  await ivo.subir(`/api/pedidos/${a.id}/export`, [['e.xlsx', await plantillaExport()]]);
+  assert.ok((await ivo.get('/api/inventario')).inventario, 'con el archivo, hay inventario');
+
+  // Otro pedido reutiliza ese archivo: al borrar el primero, el inventario sigue.
+  const { pedido: b } = await ivo.post('/api/pedidos');
+  await ivo.post(`/api/pedidos/${b.id}/lista-inicial`, { lineas: INICIAL, tipo: 'simulado' });
+  assert.equal((await ivo.post(`/api/pedidos/${b.id}/export/usar-ultimo`)).ok, true);
+  await ivo.del(`/api/pedidos/${a.id}`);
+  assert.ok((await ivo.get('/api/inventario')).inventario, 'lo usa un pedido vivo');
+
+  // Al borrar también el segundo, ya no hay inventario ni cargas, pero puede volver a subir.
+  await ivo.del(`/api/pedidos/${b.id}`);
+  const inv = await ivo.get('/api/inventario');
+  assert.equal(inv.inventario, null);
+  assert.equal(inv.puedeSubir, true);
+  assert.equal((await ivo.get('/api/inventario/cargas')).cargas.length, 0);
+});
