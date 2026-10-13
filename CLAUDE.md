@@ -32,7 +32,7 @@ npm install
 npm install --no-package-lock --prefix inventory-forecasting-landing-page   # la web (Next.js); pnpm se colgaba en Windows
 TEAM_EMAILS=tu-correo@ejemplo.com npm run dev    # http://localhost:3000: API + Next.js en modo desarrollo; PGlite en data/pglite/
 npm run build && NODE_ENV=production npm start  # en producción con un servidor propio (en Vercel: docs/PUBLICAR.md)
-npm test                                         # node --test test/*.test.js (87 pruebas; no necesitan la web)
+npm test                                         # node --test test/*.test.js (88 pruebas; no necesitan la web)
 node --test test/rotacion.test.js                # un solo archivo
 node --test --test-name-pattern="M = 5" test/listas.test.js   # una prueba por nombre
 npm run ejemplos                                 # regenera los exports inventados de ejemplos/
@@ -63,7 +63,7 @@ No hay linter ni formateador. La API no se compila; la web sí (`npm run build`)
 
 `pasoDe(p)` deduce el paso a partir de las marcas de tiempo del pedido. No existe una columna de estado.
 
-Un pedido **sin terminar** se puede borrar (`DELETE /api/pedidos/:id`, con confirmación en pantalla); uno terminado no (409), porque es parte de los resultados. El borrado es suave (`pedidos.borrado_en`): para el usuario desaparece y `pedidoDe` responde 404, pero su lista inicial sigue marcando el comienzo de los 14 días y el equipo lo ve como "Lo borró sin terminar". Los pedidos se numeran por usuario (`numero`), sin contar los borrados. El archivo de un pedido borrado deja de ser el inventario del usuario (Panel, Datos, "usar el último") salvo que un pedido vivo lo reutilice: condición `db.EXPORT_VIGENTE` en cada consulta que busca el último export.
+Un pedido se puede borrar **antes de guardar la lista final** (`DELETE /api/pedidos/:id`, con confirmación en pantalla); después no (409), porque ahí ya se calculó la métrica y es parte de los resultados. Los borrados no cuentan en el veredicto ni en "cada cuánto pide". El borrado es suave (`pedidos.borrado_en`): para el usuario desaparece y `pedidoDe` responde 404, pero su lista inicial sigue marcando el comienzo de los 14 días y el equipo lo ve como "Lo borró sin terminar". Los pedidos se numeran por usuario (`numero`), sin contar los borrados. El archivo de un pedido borrado deja de ser el inventario del usuario (Panel, Datos, "usar el último") salvo que un pedido vivo lo reutilice: condición `db.EXPORT_VIGENTE` en cada consulta que busca el último export.
 
 Consecuencias que no se ven leyendo un solo archivo:
 - El reporte se calcula **una vez, al subir el archivo**. Si cambias `rotacion.js`, los reportes ya guardados no se recalculan. Los exports originales sí quedan en `archivos`, así que se pueden reprocesar.

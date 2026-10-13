@@ -184,11 +184,12 @@ rutas.get('/', async (req, res) => {
   });
 });
 
-// Borrar un pedido sin terminar (por ejemplo, uno que se empezó para probar). Un pedido terminado
-// no se borra: es parte de los resultados de la prueba.
+// Borrar un pedido sin terminar (por ejemplo, uno que se empezó para probar). Desde que guarda la
+// lista final ya no se borra: ahí se calcula la métrica y es parte de los resultados de la prueba.
 rutas.delete('/:id', async (req, res) => {
   const p = await pedidoDe(req);
   if (p.terminado_en) throw new ErrorUsuario('Un pedido terminado no se puede borrar: es parte de tus resultados.', 409);
+  if (p.final_guardada_en) throw new ErrorUsuario('Ya guardaste la lista final de este pedido: es parte de tus resultados y no se puede borrar. Termínalo contándonos por qué cambió.', 409);
   await db.query('UPDATE pedidos SET borrado_en = now() WHERE id = $1', [p.id]);
   await registrarEvento(req.usuario.id, 'pedido_borrado', { pedidoId: p.id });
   res.json({ ok: true });

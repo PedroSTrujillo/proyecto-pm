@@ -112,7 +112,7 @@ export function Pedidos() {
                     <td className={cn('px-4 py-3 text-right tabular-nums', p.conteo && 'font-semibold')}>{p.conteo ? numero(p.conteo.total) : '—'}</td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       <Link href={`/pedidos/${p.id}`} className="font-semibold text-primary hover:text-primary-hover">{p.paso === 6 ? 'Ver' : 'Continuar'}</Link>
-                      {p.paso < 6 && (
+                      {p.paso < 5 && (
                         <button type="button" onClick={() => borrar(p.id, numeros.get(p.id))} aria-label={`Borrar el Pedido ${numeros.get(p.id)}`} title="Borrar este pedido" className="presionable ml-2 inline-flex size-8 items-center justify-center rounded-lg align-middle text-muted-foreground hover:bg-rojo-fondo hover:text-rojo-texto">
                           <Trash2 className="size-4" />
                         </button>

@@ -97,7 +97,7 @@ export function PedidoFlujo({ id }: { id: number }) {
         <h1 className="text-[1.9rem] font-extrabold">Pedido {pedido.numero}{pedido.proveedor ? ` · ${pedido.proveedor}` : ''}</h1>
         {pedido.tipo && <span className={cn('rounded-full px-2.5 py-0.5 text-xs font-bold', pedido.tipo === 'real' ? 'bg-verde-fondo text-verde' : 'bg-muted text-foreground/70')}>{pedido.tipo === 'real' ? 'Pedido real' : 'Pedido simulado'}</span>}
         {pedido.terminado && <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-bold text-secondary-foreground">Terminado</span>}
-        {!pedido.terminado && (
+        {pedido.paso < 5 && (
           <Boton tamano="chico" variante="fantasma" className="ml-auto text-muted-foreground hover:text-rojo-texto" onClick={borrar}>
             <Trash2 /> Borrar pedido
           </Boton>

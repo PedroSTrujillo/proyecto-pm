@@ -573,6 +573,7 @@ test('borrar un pedido sin terminar: desaparece para el usuario, la prueba no ca
   await bea.subir(`/api/pedidos/${b.id}/export`, [['e.xlsx', await plantillaExport()]]);
   await bea.get(`/api/pedidos/${b.id}/reporte`);
   await bea.post(`/api/pedidos/${b.id}/lista-final`, { lineas: INICIAL });
+  assert.equal((await bea.del(`/api/pedidos/${b.id}`)).estado, 409, 'con la lista final guardada ya es un resultado');
   await bea.post(`/api/pedidos/${b.id}/por-que`, { respuesta: 'No cambié nada.' });
   assert.equal((await bea.del(`/api/pedidos/${b.id}`)).estado, 409);
 
@@ -607,4 +608,47 @@ test('el archivo de un pedido borrado deja de ser el inventario (salvo que otro 
   assert.equal(inv.inventario, null);
   assert.equal(inv.puedeSubir, true);
   assert.equal((await ivo.get('/api/inventario/cargas')).cargas.length, 0);
+});
+
+test('cada tipo de usuario ve lo que le toca: visitante, probador nuevo, en prueba, después de la prueba y equipo', async () => {
+  // Visitante: la demo sí; lo de una cuenta, no.
+  const visita = cliente();
+  assert.equal((await visita.get('/api/demo/ferreteria')).inventario.alcance, 'completo');
+  for (const ruta of ['/api/inventario', '/api/pedidos', '/api/equipo/resultados', '/api/equipo/ejemplos']) {
+    assert.equal((await visita.get(ruta)).estado, 401, ruta);
+  }
+
+  // Probador nuevo: sin lista inicial no ve inventario ni puede subirlo; nada del equipo.
+  const tito = await nuevoUsuario('Tito', 'tito.tipos@prueba.co');
+  const nuevo = await tito.get('/api/inventario');
+  assert.equal(nuevo.inventario, null);
+  assert.equal(nuevo.puedeSubir, false);
+  assert.equal((await tito.subir('/api/inventario/export', [['e.xlsx', await plantillaExport()]])).estado, 403);
+  assert.equal((await tito.get('/api/equipo/resultados')).estado, 403);
+  assert.equal((await tito.get('/api/equipo/ejemplos')).estado, 403);
+
+  // En prueba: solo semanas, sin sugerido.
+  const { pedido } = await tito.post('/api/pedidos');
+  await tito.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
+  await tito.subir(`/api/pedidos/${pedido.id}/export`, [['e.xlsx', await plantillaExport()]]);
+  const enPrueba = await tito.get('/api/inventario');
+  assert.equal(enPrueba.alcance, 'prueba');
+  assert.equal(enPrueba.sugerencias, false);
+
+  // Después de sus 14 días: ve todo, con pronóstico y sugerido.
+  await db.query("UPDATE pedidos SET inicial_guardada_en = now() - interval '15 days' WHERE id = $1", [pedido.id]);
+  const despues = await tito.get('/api/inventario');
+  assert.equal(despues.alcance, 'completo');
+  assert.equal(despues.sugerencias, true);
+  assert.ok(despues.inventario.productos.some((p) => p.pronostico && p.riesgo !== null), 'con pronóstico y riesgo');
+  assert.equal((await tito.get('/api/equipo/resultados')).estado, 403, 'sigue sin ver resultados');
+
+  // Equipo: todo desde el primer día, y no cuenta como probador.
+  const eq = cliente();
+  const ya = await eq.post('/api/cuenta/entrar', { email: 'equipo@prueba.co', clave: 'clave-segura' });
+  if (ya.estado !== 200) await eq.post('/api/cuenta/crear', { nombre: 'Equipo', email: 'equipo@prueba.co', clave: 'clave-segura' });
+  assert.equal((await eq.get('/api/inventario')).alcance, 'completo');
+  const r = await eq.get('/api/equipo/resultados');
+  assert.ok(r.usuarios.some((u) => u.email === 'tito.tipos@prueba.co'));
+  assert.ok(!r.usuarios.some((u) => u.email === 'equipo@prueba.co'));
 });

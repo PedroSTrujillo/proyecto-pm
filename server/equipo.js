@@ -34,7 +34,7 @@ function evaluarUsuario(pedidos) {
   const fin = inicio + DIAS_PRUEBA * 86400000;
   let mejor = null;
   for (const p of pedidos) {
-    if (!p.finalGuardadaEn || !p.conteo) continue;
+    if (p.borrado || !p.finalGuardadaEn || !p.conteo) continue;
     const t = new Date(p.finalGuardadaEn).getTime();
     p.dentroDePrueba = t <= fin;
     if (!p.dentroDePrueba) continue;
@@ -157,7 +157,7 @@ rutas.get('/resultados', async (_req, res) => {
     return { fecha: e.subido_en, productos: r.productos, seAgotan: r.seAgotan, enCero: r.enCero, sobran: r.sobran, tieneCostos: r.tieneCostos, valorInventario: r.valorInventario, dineroQuieto: r.dineroQuieto };
   };
   const diasEntre = (suyos) => {
-    const t = suyos.filter((p) => p.inicialGuardadaEn).map((p) => new Date(p.inicialGuardadaEn).getTime()).sort((a, b) => a - b);
+    const t = suyos.filter((p) => p.inicialGuardadaEn && !p.borrado).map((p) => new Date(p.inicialGuardadaEn).getTime()).sort((a, b) => a - b);
     if (t.length < 2) return null;
     return Math.round(((t[t.length - 1] - t[0]) / (t.length - 1) / 86400000) * 10) / 10;
   };

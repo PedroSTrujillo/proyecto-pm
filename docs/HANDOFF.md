@@ -27,6 +27,10 @@
 
 ---
 
+## 2026-10-13 (20) — Claude — revisión por tipo de usuario y más casos de pedidos borrados
+- **Estado:** un pedido ya no se puede borrar después de guardar la lista final (antes sí: un probador podía borrar un resultado). Los borrados no cuentan en el veredicto ni en "cada cuánto pide". Prueba nueva que recorre visitante, probador nuevo, en prueba, después de la prueba y equipo.
+- **Verificación:** `npm test` → 88/88; en el navegador, borrar un pedido con archivo deja el Panel y Datos sin ese archivo.
+
 ## 2026-10-13 (19) — Claude — lo que reportó Jose Manuel al probar
 - **Rama:** `main` en el fork (`mio`) y en el repo del grupo.
 - **Estado:** el archivo de un pedido borrado ya no aparece en Panel ni en Datos (`db.EXPORT_VIGENTE`), salvo que otro pedido vivo lo use; la pantalla se actualiza al borrar. Confirmado que una lista con el mismo código en varias filas se suma al guardar y se avisa (`revisarLista`).
