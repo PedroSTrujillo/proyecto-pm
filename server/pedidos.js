@@ -13,6 +13,7 @@ const zlib = require('zlib');
 const db = require('./db');
 const { requiereUsuario, registrarEvento, ErrorUsuario } = require('./cuentas');
 const { leerExport, leerLista } = require('./lector');
+const { soloEjemplo } = require('./plantillas');
 const { calcularRotacion } = require('./rotacion');
 const { seriesSemanales } = require('./series');
 const { revisarLista, compararListas, coherenciaConReporte } = require('./listas');
@@ -267,7 +268,12 @@ rutas.post('/:id/importar-lista', subida.single('archivo'), async (req, res) => 
 
   const manual = leerMapeoManual(req.body?.mapeo);
   const mapeos = await mapeosDe(req.usuario.id);
-  const resultado = leerLista(Buffer.from(archivo.contenido), archivo.nombre, manual ? { porClave: manual } : { porFirma: mapeos.lista });
+  let resultado = leerLista(Buffer.from(archivo.contenido), archivo.nombre, manual ? { porClave: manual } : { porFirma: mapeos.lista });
+  // Una plantilla vieja sin llenar trae el ejemplo en la hoja Pedido: guardarlo como lista inicial
+  // la dejaría fija con productos inventados.
+  if (resultado.ok && soloEjemplo(resultado.lineas.map((l) => l.codigo))) {
+    resultado = { ok: false, errores: ['Este archivo trae los productos de ejemplo de la plantilla. Bórralos, escribe los que ibas a pedir y vuelve a subirlo.'], hojas: [] };
+  }
   if (resultado.ok && manual && manual[resultado.clave]) await recordarMapeo(req.usuario.id, 'lista', resultado.firma, manual[resultado.clave]);
   res.json({ ...resultado, archivoId: archivo.id, archivo: archivo.nombre });
 });

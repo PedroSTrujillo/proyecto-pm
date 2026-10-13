@@ -652,3 +652,25 @@ test('cada tipo de usuario ve lo que le toca: visitante, probador nuevo, en prue
   assert.ok(r.usuarios.some((u) => u.email === 'tito.tipos@prueba.co'));
   assert.ok(!r.usuarios.some((u) => u.email === 'equipo@prueba.co'));
 });
+
+test('la lista de ejemplo de una plantilla vieja no se acepta como lista inicial', async () => {
+  const XLSX = require('xlsx');
+  const { PRODUCTOS_EJEMPLO } = require('../server/plantillas');
+  const libro = XLSX.utils.book_new();
+  const filas = [['Código', 'Descripción', 'Cantidad a pedir'], ...PRODUCTOS_EJEMPLO.slice(0, 5).map((p) => [p.codigo, p.nombre, 10])];
+  XLSX.utils.book_append_sheet(libro, XLSX.utils.aoa_to_sheet(filas), 'Pedido');
+  const vieja = XLSX.write(libro, { type: 'buffer', bookType: 'xlsx' });
+  const nico = await nuevoUsuario('Nico', 'nico@prueba.co');
+  const { pedido } = await nico.post('/api/pedidos');
+  const subirLista = (buf) => {
+    const fd = new FormData();
+    fd.append('archivo', new Blob([buf]), 'plantilla-lista-pedido.xlsx');
+    return fetch(`${base}/api/pedidos/${pedido.id}/importar-lista`, { method: 'POST', headers: { Cookie: nico.cookie() }, body: fd }).then((r) => r.json());
+  };
+  const r = await subirLista(vieja);
+  assert.equal(r.ok, false);
+  assert.match(r.errores[0], /productos de ejemplo/);
+  const propia = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(propia, XLSX.utils.aoa_to_sheet([['Código', 'Cantidad a pedir'], ['CIN-0003', 10], ['ZZ-9', 4]]), 'Pedido');
+  assert.equal((await subirLista(XLSX.write(propia, { type: 'buffer', bookType: 'xlsx' }))).ok, true, 'con un producto propio sí se acepta');
+});

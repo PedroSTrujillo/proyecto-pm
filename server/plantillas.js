@@ -76,18 +76,29 @@ async function plantillaExport() {
   return X.aBuffer(libro);
 }
 
+// La hoja "Pedido" va vacía y el ejemplo en su propia hoja: un probador que subió la plantilla
+// sin llenar guardó los productos de ejemplo como su lista inicial, y esa lista ya no se cambia.
 async function plantillaLista() {
   const libro = X.nuevoLibro();
   const pedir = { 'CIN-0003': 100, 'TOR-0610': 60, 'LIJ-0120': 100, 'PVC-0250': 12, 'MAN-1215': 10 };
   const filas = PRODUCTOS_EJEMPLO.map((p) => [p.codigo, p.nombre, p.proveedor, p.existencias, p.minimo, p.maximo, pedir[p.codigo] ?? null]);
-  X.hojaPlantilla(libro, PLANTILLA_LISTA.hoja, PLANTILLA_LISTA.columnas, filas, [14, 40, 24, 12, 10, 10, 17], ['', '', '', 'entero', 'entero', 'entero', 'entero']);
+  const anchos = [14, 40, 24, 12, 10, 10, 17];
+  const formatos = ['', '', '', 'entero', 'entero', 'entero', 'entero'];
+  X.hojaPlantilla(libro, PLANTILLA_LISTA.hoja, PLANTILLA_LISTA.columnas, [], anchos, formatos);
+  X.hojaPlantilla(libro, 'Ejemplo', PLANTILLA_LISTA.columnas, filas, anchos, formatos);
   hojaInstrucciones(libro, 'Lista de pedido', [
     '1. En la hoja "Pedido", una fila por producto que ibas a pedir: código y cantidad a pedir. Lo demás es opcional.',
     '2. Los productos sin cantidad no se tienen en cuenta.',
     '3. Guarda el archivo y súbelo en el paso 1 de tu pedido en SINESC.',
+    '',
+    'La hoja "Ejemplo" muestra cómo se ve llena. No hace falta borrarla: no se tiene en cuenta.',
   ]);
   return X.aBuffer(libro);
 }
+
+// Códigos de los productos de ejemplo: si un archivo solo trae estos, es una plantilla sin llenar.
+const CODIGOS_EJEMPLO = new Set(PRODUCTOS_EJEMPLO.map((p) => p.codigo));
+const soloEjemplo = (codigos) => codigos.length > 0 && codigos.every((c) => CODIGOS_EJEMPLO.has(String(c).trim().toUpperCase()));
 
 const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
@@ -215,4 +226,4 @@ async function plantillaInventario() {
   return X.aBuffer(libro);
 }
 
-module.exports = { plantillaExport, plantillaLista, plantillaInventario, ultimosDoceMeses, ventasEjemplo, PRODUCTOS_EJEMPLO };
+module.exports = { plantillaExport, plantillaLista, plantillaInventario, ultimosDoceMeses, ventasEjemplo, soloEjemplo, PRODUCTOS_EJEMPLO };

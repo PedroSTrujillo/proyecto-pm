@@ -20,9 +20,18 @@ test('la plantilla descargable se lee sin errores', async () => {
   assert.equal(r.ok, true);
   assert.equal(r.existencias.length, 8);
   assert.ok(r.ventas.length > 100);
-  const l = leerLista((await plantillaLista()), 'lista.xlsx');
-  assert.equal(l.ok, true);
-  assert.equal(l.lineas.length, 5);
+});
+
+test('plantilla de lista: la hoja Pedido viene vacía y el ejemplo no se cuela', async () => {
+  const vacia = leerLista((await plantillaLista()), 'lista.xlsx');
+  assert.equal(vacia.ok, false, 'sin llenar no hay lista');
+  assert.match(vacia.errores[0], /sin productos/);
+  const libro = XLSX.read((await plantillaLista()), { type: 'buffer' });
+  assert.ok(libro.SheetNames.includes('Ejemplo'));
+  XLSX.utils.sheet_add_aoa(libro.Sheets.Pedido, [['AB-1', 'Tornillo', '', 4, 2, 10, 6], ['AB-2', 'Tuerca', '', 0, 2, 10, 12]], { origin: 'A2' });
+  const l = leerLista(XLSX.write(libro, { type: 'buffer', bookType: 'xlsx' }), 'lista.xlsx');
+  assert.equal(l.ok, true, JSON.stringify(l.errores));
+  assert.deepEqual(l.lineas.map((x) => [x.codigo, x.cantidad]), [['AB-1', 6], ['AB-2', 12]]);
 });
 
 test('CSV estilo Siigo: punto y coma, ANSI, títulos arriba, fechas día/mes/año y fila de total', async () => {
@@ -255,6 +264,8 @@ test('plantilla para llenar a mano: se lee la hoja Productos y se ignoran Ejempl
   const { plantillaInventario, ultimosDoceMeses } = require('../server/plantillas');
   const vacia = leerExport([{ nombre: 'plantilla.xlsx', buffer: (await plantillaInventario()) }]);
   assert.equal(vacia.ok, false, 'sin llenar no hay datos: el ejemplo no se cuela');
+  assert.match(vacia.errores[0], /sin productos/, 'dice que es la plantilla sin llenar');
+  assert.deepEqual(vacia.hojas, [], 'no pide elegir columnas');
 
   const libro = XLSX.read((await plantillaInventario()), { type: 'buffer' });
   const meses = ultimosDoceMeses();

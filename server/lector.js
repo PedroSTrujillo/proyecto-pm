@@ -20,6 +20,12 @@ const MINIMO_FILAS_CON_PROBLEMAS = 10;
 
 class ErrorArchivo extends Error {}
 
+// Un archivo con los encabezados y sin productos: casi siempre es una plantilla de SINESC sin llenar.
+const SIN_LLENAR = 'El archivo solo trae los encabezados, sin productos. Si es la plantilla de SINESC, escribe tus productos en la primera hoja, guárdala y vuelve a subirla.';
+
+// Las hojas de ayuda de una plantilla ("Instrucciones", "Ejemplo") no son datos del usuario.
+const esHojaDeAyuda = (h) => /^(instrucciones?|ejemplos?|ayuda|como llenar.*)$/.test(normalizarEncabezado(h.hoja || ''));
+
 function extension(nombre) {
   const m = String(nombre || '').toLowerCase().match(/\.([a-z0-9]+)$/);
   return m ? m[1] : '';
@@ -494,8 +500,6 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
   });
   if (errores.length) return { ok: false, errores, hojas: [] };
 
-  // Las hojas de ayuda de una plantilla ("Instrucciones", "Ejemplo") no son datos del usuario.
-  const esHojaDeAyuda = (h) => /^(instrucciones?|ejemplos?|ayuda|como llenar.*)$/.test(normalizarEncabezado(h.hoja || ''));
   const conDatos = hojasLeidas.filter(({ hoja }) => !esHojaDeAyuda(hoja) && hoja.filas.some((f) => !filaVacia(f)));
   if (!conDatos.length) return { ok: false, errores: ['El archivo no tiene datos.'], hojas: [] };
   const varias = conDatos.length > 1;
@@ -719,6 +723,10 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
   }
 
   if (!ventas.length) {
+    // Solo los encabezados: casi siempre es la plantilla de SINESC subida sin llenar.
+    if (!filasDatos && !problemas.length && !existencias.some((e) => e.existencias)) {
+      return { ok: false, errores: [SIN_LLENAR], hojas: [] };
+    }
     const errs = ['No encontramos ninguna venta que podamos leer en el archivo.'];
     if (problemas.length) errs.push(...resumirProblemas(problemas));
     return { ok: false, errores: errs, hojas: resumenHojas };
@@ -805,7 +813,7 @@ const CAMPOS_LISTA = ['codigo', 'nombre', 'pedir'];
 function leerLista(buffer, nombreArchivo, mapeo = {}) {
   let hojas;
   try {
-    hojas = abrirArchivo(buffer, nombreArchivo).filter((h) => h.filas.some((f) => !filaVacia(f)));
+    hojas = abrirArchivo(buffer, nombreArchivo).filter((h) => !esHojaDeAyuda(h) && h.filas.some((f) => !filaVacia(f)));
   } catch (e) {
     if (e instanceof ErrorArchivo) return { ok: false, errores: [e.message], hojas: [] };
     throw e;
@@ -846,6 +854,7 @@ function leerLista(buffer, nombreArchivo, mapeo = {}) {
     if (bruto === null || bruto === undefined || bruto === 0 || bruto === '0') { if (codigo) omitidas++; continue; }
     lineas.push({ codigo, nombre, cantidad: typeof bruto === 'number' ? bruto : String(bruto), fila: hoja.primeraFila + i });
   }
+  if (!lineas.length && !omitidas) return { ok: false, errores: [SIN_LLENAR], hojas: [] };
   return {
     ok: true,
     lineas,

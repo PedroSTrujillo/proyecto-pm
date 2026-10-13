@@ -27,6 +27,18 @@
 
 ---
 
+## 2026-10-13 (21) — Claude — plantillas sin llenar no se cuelan en la prueba
+- **Rama:** `mejoras-modelo` (y `main`), en los dos repos.
+- **Estado:** el primer probador real (13 de octubre) subió en el paso 1 la plantilla de lista sin llenar y quedó guardado el ejemplo como su lista inicial; en el paso 2 subió la plantilla de inventario vacía y el error ("No encontramos ninguna venta") no le dijo qué hacer. Ahora:
+  - La plantilla de lista trae la hoja "Pedido" vacía y el ejemplo en la hoja "Ejemplo" (el lector ignora las hojas de ayuda también en las listas).
+  - Un archivo con solo encabezados responde "solo trae los encabezados, sin productos…" (export y lista), sin pedir columnas.
+  - Importar una lista que solo trae los códigos de ejemplo (plantilla vieja) se rechaza con un mensaje claro.
+- **Archivos tocados:** `server/plantillas.js` (`plantillaLista`, `soloEjemplo`), `server/lector.js` (`SIN_LLENAR`, `esHojaDeAyuda` a nivel de módulo), `server/pedidos.js` (importar-lista), pruebas.
+- **Base de datos:** nada nuevo.
+- **Verificación:** `npm test` → 90/90.
+- **Siguiente paso exacto:** pedirle al probador que borre su pedido 1 (la lista inicial tiene los productos de ejemplo) y lo repita con su lista real. Correr las 5 pruebas de usuario grabadas antes del jueves 15 (Entrega 3).
+- **Notas y bloqueos:** la plantilla de ventas y existencias (`/plantillas/export.xlsx`) sigue con el ejemplo en las hojas de datos: las pruebas la usan como archivo de muestra. Si alguien la sube sin cambiar, ve un reporte de ferretería inventado.
+
 ## 2026-10-13 (20) — Claude — revisión por tipo de usuario y más casos de pedidos borrados
 - **Estado:** un pedido ya no se puede borrar después de guardar la lista final (antes sí: un probador podía borrar un resultado). Los borrados no cuentan en el veredicto ni en "cada cuánto pide". Prueba nueva que recorre visitante, probador nuevo, en prueba, después de la prueba y equipo.
 - **Verificación:** `npm test` → 88/88; en el navegador, borrar un pedido con archivo deja el Panel y Datos sin ese archivo.
