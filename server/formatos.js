@@ -71,6 +71,8 @@ const CAMPOS = {
       'saldo hoy', 'cantidad actual', 'unidades actuales', 'cantidad bodega', 'cantidad en bodega',
       // Siigo Pyme (Balance de inventarios), Loggro (Saldos al día por bodega), SAP Business One y ContaPyme.
       'nuevo saldo', 'saldo nuevo', 'cant fisica', 'cantidad fisica', 'saldo final cantidad', 'existencia fisica', 'cant disp',
+      // Siigo Nube, "Movimiento de productos" (kardex con entradas y salidas).
+      'saldo cantidades', 'saldo de cantidades',
     ],
   },
   // Opcional: el tipo de documento de cada fila. Sirve para los informes que mezclan compras,

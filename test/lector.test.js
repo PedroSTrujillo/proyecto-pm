@@ -339,3 +339,46 @@ test('Balance de inventarios de Siigo Pyme: un solo archivo con salidas del peri
   assert.deepEqual(r.ventas.map((v) => [v.codigo, v.cantidad]), [['AB-1', 120], ['AB-2', 4]], 'las salidas son las ventas');
   assert.deepEqual(r.existencias.map((e) => [e.codigo, e.existencias]), [['AB-1', 30], ['AB-2', 6]], 'el nuevo saldo son las existencias');
 });
+
+test('una hoja que declara menos columnas de las que trae se lee completa', () => {
+  // Un "Movimiento de productos" de Siigo Nube declara la hoja como A1:A3935 aunque trae de la A a la N.
+  const libro = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(libro, XLSX.utils.aoa_to_sheet([
+    ['Código', 'Nombre', 'Fecha', 'Cantidad', 'Existencias'],
+    ['AB-1', 'Tornillo', '05/01/2026', 3, 10],
+    ['AB-1', 'Tornillo', '20/02/2026', 2, 8],
+  ]), 'Hoja1');
+  const zip = XLSX.CFB.read(XLSX.write(libro, { type: 'buffer', bookType: 'xlsx' }), { type: 'buffer' });
+  const hoja = XLSX.CFB.find(zip, '/xl/worksheets/sheet1.xml');
+  hoja.content = Buffer.from(Buffer.from(hoja.content).toString().replace(/<dimension ref="[^"]*"\/>/, '<dimension ref="A1:A3"/>'));
+  hoja.size = hoja.content.length;
+  const r = leerExport([{ nombre: 'movimiento.xlsx', buffer: Buffer.from(XLSX.CFB.write(zip, { type: 'buffer', fileType: 'zip' })) }]);
+  assert.equal(r.ok, true, JSON.stringify(r.errores));
+  assert.deepEqual(r.ventas.map((v) => v.cantidad), [3, 2]);
+});
+
+test('kardex de Siigo Nube: filas de grupo, productos sin movimiento y remisiones', () => {
+  // Misma forma que el "Movimiento de productos" de Siigo Nube; datos inventados.
+  const enc = ['Código producto', 'Nombre producto', 'Referencia de fabrica', 'Comprobante', 'Secuencia', 'Fecha elaboración', 'Cantidad inicial', 'Cantidad entrada', 'Cantidad salida', 'Saldo cantidades', 'Valor inicial', 'Valor entrada', 'Valor salida', 'Saldo valor'];
+  const filas = [
+    ['Movimiento de productos'], ['EMPRESA DE PRUEBA SAS'], ['De Enero 01 2026 a Marzo 31 2026'],
+    enc,
+    ['Código producto: AB-1 Tornillo', null, null, null, null, null, 10, 20, 12, 18, 1000, 2000, 1200, 1800],
+    ['AB-1', 'Tornillo', null, 'FC-1-10', 1, '05/01/2026', null, 20, 0, 30, null, 2000, 0, 3000],
+    ['AB-1', 'Tornillo', null, 'FV-2-100', 1, '10/01/2026', null, 0, 5, 25, null, 0, 500, 2500],
+    ['AB-1', 'Tornillo', null, 'RM-1-50', 1, '20/02/2026', null, 0, 7, 18, null, 0, 700, 1800],
+    ['AB-1', 'Tornillo', null, 'CC-11-1', 1, '28/02/2026', null, 0, 0, 18, null, 0, 0, 1800],
+    ['Código producto: AB-2 Tuerca', null, null, null, null, null, 4, 0, 0, 4, 400, 0, 0, 400],
+    ['AB-2', 'Tuerca', null, null, null, null, null, 0, 0, 4, null, 0, 0, 400],
+    ['Procesado en: Octubre 13 2026 18:03'],
+  ];
+  const archivo = [{ nombre: 'movimiento.xlsx', buffer: xlsx({ Sheet1: filas }) }];
+  const pregunta = leerExport(archivo);
+  assert.equal(pregunta.necesitaDocumentos, true);
+  assert.deepEqual(pregunta.documentos.map((d) => d.prefijo).sort(), ['CC', 'FC', 'FV', 'RM'], 'las filas de grupo y las de saldo no son un tipo de documento');
+  assert.deepEqual(pregunta.documentos.filter((d) => d.sugerido).map((d) => d.prefijo).sort(), ['FV', 'RM'], 'la remisión se sugiere como venta');
+  const r = leerExport(archivo, {}, { documentos: ['FV', 'RM'] });
+  assert.equal(r.ok, true, JSON.stringify(r.errores));
+  assert.deepEqual(r.ventas.map((v) => [v.codigo, v.cantidad]), [['AB-1', 5], ['AB-1', 7]]);
+  assert.deepEqual(r.existencias.map((e) => [e.codigo, e.existencias]).sort(), [['AB-1', 18], ['AB-2', 4]], 'el producto sin movimientos conserva su saldo');
+});

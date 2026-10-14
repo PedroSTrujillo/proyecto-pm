@@ -126,7 +126,9 @@ function abrirArchivo(buffer, nombreArchivo) {
   const hojas = [];
   for (const nombreHoja of libro.SheetNames) {
     const ws = libro.Sheets[nombreHoja];
-    if (!ws || !ws['!ref']) continue;
+    if (!ws) continue;
+    ajustarRango(ws);
+    if (!ws['!ref']) continue;
     const rango = XLSX.utils.decode_range(ws['!ref']);
     const filas = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null, blankrows: true, UTC: true });
     const limpias = filas.map((f) => f.map((c) => (typeof c === 'string' ? (c.trim() === '' ? null : c.trim()) : c)));
@@ -134,6 +136,31 @@ function abrirArchivo(buffer, nombreArchivo) {
     hojas.push({ archivo: nombreArchivo, hoja: nombreHoja, filas: limpias, primeraFila: rango.s.r + 1, primeraColumna: rango.s.c });
   }
   return hojas;
+}
+
+// Algunos programas (un "Movimiento de productos" de Siigo, por ejemplo) declaran la hoja como
+// A1:A3935 aunque traen datos de la A a la N, y el lector solo veía la columna A. El rango se
+// recalcula con las celdas que de verdad hay (la hoja se lee con dense: true).
+function ajustarRango(ws) {
+  const datos = ws['!data'];
+  if (!Array.isArray(datos)) return;
+  let ultimaFila = -1;
+  let ultimaColumna = -1;
+  datos.forEach((fila, r) => {
+    if (!fila) return;
+    fila.forEach((celda, c) => {
+      if (celda && celda.v !== undefined && celda.v !== null && celda.v !== '') {
+        if (r > ultimaFila) ultimaFila = r;
+        if (c > ultimaColumna) ultimaColumna = c;
+      }
+    });
+  });
+  if (ultimaFila < 0) return;
+  const actual = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']) : { s: { r: 0, c: 0 }, e: { r: 0, c: 0 } };
+  if (ultimaFila <= actual.e.r && ultimaColumna <= actual.e.c) return;
+  actual.e.r = Math.max(actual.e.r, ultimaFila);
+  actual.e.c = Math.max(actual.e.c, ultimaColumna);
+  ws['!ref'] = XLSX.utils.encode_range(actual);
 }
 
 function esLibroBinario(buf) {
@@ -320,7 +347,13 @@ const CAMPOS_EXPORT = ['codigo', 'nombre', 'fecha', 'cantidad', 'existencias', '
 const RE_PAGINA = /p[aá]gina\s+\d+\s+de\s+\d+/i;
 const RE_CODIGO_EN_NOMBRE = /\(([^()]{2,30})\)\s*$/; // «TORNILLO HEX 1/4 (AB-100)»
 // Documentos que casi siempre son ventas: se dejan marcados al preguntar.
-const RE_DOC_VENTA = /^(FV|FE|FED|FVE|FAC|FACT|FACTURA|POS|VTA|VEN|VENTA|VENTAS|SALIDA|SALIDAS)$/;
+// RM y REM: remisión de venta (en Siigo saca la mercancía antes de la factura).
+// En un kardex, la fila de un producto sin movimientos en el periodo trae su saldo, sin fecha ni
+// documento. No es una venta ni un tipo de documento que haya que preguntar.
+const esFilaDeSaldoSinMovimiento = (f, c) =>
+  c.documento !== undefined && c.fecha !== undefined && prefijoDocumento(f[c.documento]) === '(vacío)' && (f[c.fecha] === null || f[c.fecha] === undefined || f[c.fecha] === '');
+
+const RE_DOC_VENTA = /^(FV|FE|FED|FVE|FAC|FACT|FACTURA|POS|VTA|VEN|VENTA|VENTAS|SALIDA|SALIDAS|RM|REM)$/;
 
 function celdasLlenas(f) {
   return f.filter((c) => c !== null && c !== undefined && String(c).trim() !== '').length;
@@ -338,8 +371,13 @@ function esFilaDeRuido(f, firma) {
 }
 
 // Filas que no son datos: totales, subtotales (solo números) y títulos sueltos sin código.
+// Encabezado de grupo de un kardex: "Código producto: 31010002 Codo de cobre…", con los totales
+// del producto en la misma fila (Movimiento de productos de Siigo Nube).
+const RE_FILA_DE_GRUPO = /^c[oó]d(igo|\.)?(\s+(de\s+)?(producto|art[ií]culo|item|[ií]tem|referencia))?\s*:/i;
+
 function esFilaQueSeSalta(f, codigo) {
   if (esFilaDeTotal(f) && (!codigo || /total/i.test(codigo))) return true;
+  if (RE_FILA_DE_GRUPO.test(codigo)) return true;
   return !codigo && (celdasLlenas(f) <= 2 || soloNumeros(f));
 }
 
@@ -539,7 +577,7 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
       const fila = h.hoja.filas[i];
       if (filaVacia(fila) || esFilaDeRuido(fila, h.analisis.firma)) continue;
       const { codigo } = codigoYNombre(fila, h.analisis);
-      if (esFilaQueSeSalta(fila, codigo)) continue;
+      if (esFilaQueSeSalta(fila, codigo) || esFilaDeSaldoSinMovimiento(fila, c)) continue;
       const p = prefijoDocumento(fila[c.documento]);
       const e = conteo.get(p) || { prefijo: p, filas: 0, ejemplo: String(fila[c.documento] ?? '').trim().slice(0, 30) };
       e.filas++;
@@ -629,6 +667,10 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
       if (esFilaDeRuido(f, analisis.firma)) continue;
       const { codigo, nombre } = codigoYNombre(f, analisis);
       if (esFilaQueSeSalta(f, codigo)) { filasTotal++; continue; }
+      if (codigo && esFilaDeSaldoSinMovimiento(f, c)) {
+        anotarSaldo(codigo, nombre, f, -Infinity); // cualquier movimiento con fecha gana
+        continue;
+      }
       const docs = documentosElegidos.get(h.clave);
       if (docs && !docs.has(prefijoDocumento(f[c.documento]))) {
         // No es una venta, pero su saldo sí cuenta: en un kardex, el saldo de hoy es el del último

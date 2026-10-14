@@ -27,6 +27,19 @@
 
 ---
 
+## 2026-10-13 (24) — Claude — "Movimiento de productos" de Siigo Nube
+- **Rama:** `mejoras-modelo` (y `main`), en los dos repos.
+- **Estado:** un export real de Siigo Nube ("Movimiento de productos", kardex de la A a la N) salía con "solo una columna": el archivo declara la hoja como A1:A3935. Ahora:
+  - `ajustarRango` (lector) recalcula el rango con las celdas reales.
+  - "Saldo cantidades" se reconoce como existencias.
+  - Las filas "Código producto: …" (grupo con totales) se saltan; la fila de un producto sin movimientos aporta su saldo y no aparece como tipo de documento.
+  - RM y REM (remisión) se sugieren como venta, junto a FV.
+  - Probado en local con los dos archivos reales (no se copian al repo): 784 productos, 1.564 ventas con FV y RM.
+- **Archivos tocados:** `server/lector.js`, `server/formatos.js`, `test/lector.test.js` (datos inventados con la misma forma).
+- **Verificación:** `npm test` → 93/93.
+- **Siguiente paso exacto:** que el probador vuelva a subir sus dos archivos y marque FV y RM como ventas.
+- **Notas y bloqueos:** NC (notas crédito, devoluciones) no se restan de las ventas.
+
 ## 2026-10-13 (23) — Claude — comentarios de los monitores a la landing y "es del equipo"
 - **Rama:** `mejoras-modelo` (y `main`), en los dos repos.
 - **Estado:**
