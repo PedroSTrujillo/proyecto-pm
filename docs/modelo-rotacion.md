@@ -114,7 +114,7 @@ Un producto con más de 12 semanas de inventario rota menos de 52 ÷ 12 ≈ 4,3 
 | Con existencias y no aparece en las ventas | Se incluye como "sin ventas en el periodo" y se señala "No aparece en las ventas". |
 | Con ventas y no aparece en las existencias | Se incluye con existencias 0 (Sᵢ = 0) y se señala "No aparece en las existencias (se tomó 0)". La mayoría de los programas no listan los productos en cero. |
 | Existencias negativas | Se cuentan como 0 semanas y se señalan. |
-| Devoluciones (cantidades negativas) | Se restan. Si el neto queda ≤ 0, el producto pasa a "sin ventas". |
+| Devoluciones de clientes | Cuando el archivo trae tipo de documento, el usuario marca cada tipo como venta, devolución (NC se sugiere) o nada. Una devolución resta, en la fecha en que se hizo, lo que entró (columna "Cantidad entrada" de un kardex) o, si no hay esa columna, el valor absoluto de la cantidad de la fila. En un informe sin tipo de documento, las cantidades negativas también restan. Si el neto queda ≤ 0, el producto pasa a "sin ventas". En las ventas por semana del pronóstico (§7.1), una semana que queda negativa se descuenta de las semanas anteriores. |
 | Varias bodegas | Las existencias se suman. |
 | Códigos `00123` y `123` | Son el mismo producto (Excel suele borrar los ceros a la izquierda). Tampoco importan las mayúsculas ni los espacios sobrantes. |
 | Histórico de menos de 26 semanas | Se calcula igual y se avisa que es más confiable con uno o dos años. |

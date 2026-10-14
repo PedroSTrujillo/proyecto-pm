@@ -16,7 +16,7 @@
 const express = require('express');
 const db = require('./db');
 const { requiereUsuario, registrarEvento, ErrorUsuario } = require('./cuentas');
-const { procesarExport, leerPeriodo, leerMapeoManual, subida, archivoSubido } = require('./pedidos');
+const { procesarExport, leerPeriodo, leerMapeoManual, subida, archivoSubido, leerDocumentos } = require('./pedidos');
 const { DIAS_PRUEBA } = require('./equipo');
 const { leerExport } = require('./lector');
 const { seriesSemanales } = require('./series');
@@ -192,9 +192,7 @@ rutas.post('/export/:exportId/columnas', async (req, res) => {
 rutas.post('/export/:exportId/documentos', async (req, res) => {
   await exigirPuedeSubir(req);
   const exp = await exportSuelto(req);
-  const lista = Array.isArray(req.body?.documentos) ? req.body.documentos.map((x) => String(x).slice(0, 30)).slice(0, 50) : [];
-  if (!lista.length) throw new ErrorUsuario('Marca al menos un tipo de documento que sea venta.');
-  await db.query('UPDATE exports SET documentos = $1::jsonb WHERE id = $2', [JSON.stringify(lista), exp.id]);
+  await db.query('UPDATE exports SET documentos = $1::jsonb WHERE id = $2', [JSON.stringify(leerDocumentos(req.body)), exp.id]);
   res.json(await procesarExport(req.usuario.id, null, exp.id, leerMapeoManual(req.body?.mapeo)));
 });
 

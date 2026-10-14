@@ -236,7 +236,7 @@ test('informe de impresora: columnas corridas, código entre paréntesis, años 
   ]);
   assert.ok(r.avisos.some((a) => a.includes('año cortado')));
   assert.ok(r.avisos.some((a) => a.includes('paréntesis')));
-  assert.deepEqual(Object.values(r.documentos), [['FV']], 'la elección se devuelve para recordarla');
+  assert.deepEqual(Object.values(r.documentos), [{ ventas: ['FV'], devoluciones: [] }], 'la elección se devuelve para recordarla');
 });
 
 test('ventas una columna por mes con existencias en la misma hoja (plantilla para llenar a mano)', async () => {
@@ -381,4 +381,45 @@ test('kardex de Siigo Nube: filas de grupo, productos sin movimiento y remisione
   assert.equal(r.ok, true, JSON.stringify(r.errores));
   assert.deepEqual(r.ventas.map((v) => [v.codigo, v.cantidad]), [['AB-1', 5], ['AB-1', 7]]);
   assert.deepEqual(r.existencias.map((e) => [e.codigo, e.existencias]).sort(), [['AB-1', 18], ['AB-2', 4]], 'el producto sin movimientos conserva su saldo');
+});
+
+test('devoluciones de clientes: en un kardex se resta lo que entró con la nota crédito', () => {
+  const enc = ['Código producto', 'Nombre producto', 'Comprobante', 'Fecha elaboración', 'Cantidad entrada', 'Cantidad salida', 'Saldo cantidades'];
+  const filas = [
+    enc,
+    ['AB-1', 'Tornillo', 'FC-1-10', '05/01/2026', 20, 0, 30],
+    ['AB-1', 'Tornillo', 'FV-2-100', '10/01/2026', 0, 5, 25],
+    ['AB-1', 'Tornillo', 'RM-1-50', '20/02/2026', 0, 7, 18],
+    ['AB-1', 'Tornillo', 'NC-1-3', '02/03/2026', 2, 0, 20],
+    ['AB-1', 'Tornillo', 'NT-1-9', '03/03/2026', 4, 4, 20],
+  ];
+  const archivo = [{ nombre: 'movimiento.xlsx', buffer: xlsx({ Sheet1: filas }) }];
+  const pregunta = leerExport(archivo);
+  const nc = pregunta.documentos.find((d) => d.prefijo === 'NC');
+  assert.equal(nc.devolucion, true, 'la nota crédito se sugiere como devolución');
+  assert.equal(nc.sugerido, false, 'y no como venta');
+  const r = leerExport(archivo, {}, { documentos: { ventas: ['FV', 'RM'], devoluciones: ['NC'] } });
+  assert.equal(r.ok, true, JSON.stringify(r.errores));
+  assert.deepEqual(r.ventas.map((v) => v.cantidad), [5, 7, -2], 'la devolución resta lo que entró');
+  assert.deepEqual(r.existencias.map((e) => e.existencias), [20]);
+  assert.ok(r.avisos.some((a) => /Se restaron de las ventas 2 unidades/.test(a)), r.avisos.join(' | '));
+  assert.deepEqual(Object.values(r.documentos), [{ ventas: ['FV', 'RM'], devoluciones: ['NC'] }], 'se recuerda');
+  const viejo = leerExport(archivo, {}, { documentos: ['FV', 'RM'] });
+  assert.deepEqual(viejo.ventas.map((v) => v.cantidad), [5, 7], 'una elección guardada antes (solo ventas) sigue sirviendo');
+  const firma = Object.keys(r.documentos)[0];
+  assert.equal(leerExport(archivo, {}, { documentosPorFirma: { [firma]: ['FV', 'RM'] } }).necesitaDocumentos, true, 'la recordada de antes se vuelve a preguntar si hay notas crédito');
+  assert.equal(leerExport(archivo, {}, { documentosPorFirma: { [firma]: { ventas: ['FV', 'RM'], devoluciones: ['NC'] } } }).ok, true, 'la nueva no');
+});
+
+test('devoluciones en un informe de ventas: con signo negativo o positivo, siempre restan', () => {
+  const filas = [
+    ['Código', 'Documento', 'Fecha', 'Cantidad'],
+    ['AB-1', 'FV 100', '10/01/2026', 5],
+    ['AB-1', 'NC 7', '12/01/2026', -1],
+    ['AB-1', 'NC 8', '15/01/2026', 2],
+    ['AB-2', 'FV 101', '11/01/2026', 3],
+  ];
+  const r = leerExport([{ nombre: 'ventas.xlsx', buffer: xlsx({ Ventas: filas, Existencias: [['Código', 'Existencias'], ['AB-1', 4], ['AB-2', 1]] }) }], {}, { documentos: { ventas: ['FV'], devoluciones: ['NC'] } });
+  assert.equal(r.ok, true, JSON.stringify(r.errores));
+  assert.deepEqual(r.ventas.map((v) => [v.codigo, v.cantidad]), [['AB-1', 5], ['AB-1', -1], ['AB-1', -2], ['AB-2', 3]]);
 });

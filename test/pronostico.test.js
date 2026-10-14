@@ -178,3 +178,15 @@ test('paquete: si siempre se vende de a varios, lo sugerido va en paquetes compl
   assert.equal(aLote(0, 10), 0);
   assert.equal(aLote(37, 1), 37);
 });
+
+test('una devolución en una semana sin ventas se descuenta de las semanas anteriores', () => {
+  const ventas = [
+    { codigo: 'A', dia: 20454, cantidad: 5 }, // semana 1
+    { codigo: 'A', dia: 20461, cantidad: 2 }, // semana 2
+    { codigo: 'A', dia: 20475, cantidad: -4 }, // semana 4: devolvieron 4
+    { codigo: 'A', dia: 20481, cantidad: 1 },
+  ];
+  const s = seriesSemanales(ventas).porProducto.A;
+  assert.ok(s.every((x) => x >= 0), 'ninguna semana negativa: ' + s.join(','));
+  assert.equal(s.reduce((a, b) => a + b, 0), 4, 'el total neto se conserva (5 + 2 - 4 + 1)');
+});

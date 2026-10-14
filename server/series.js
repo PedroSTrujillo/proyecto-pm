@@ -60,9 +60,26 @@ function seriesSemanales(ventas, { mensual = false, totales = false } = {}) {
 
   const out = {};
   for (const [k, s] of porProducto) {
+    descontarDevoluciones(s);
     if (s.some((x) => x !== 0)) out[k] = s.map((x) => Math.round(x * 100) / 100);
   }
   return { hasta: textoDia(hasta), semanas, porProducto: out };
+}
+
+// Una devolución resta de la semana en que se hizo; si esa semana queda negativa (devolvieron algo
+// vendido antes), lo que falta se descuenta de las semanas anteriores. El pronóstico no admite
+// semanas negativas. Lo que no alcanza a descontarse (una venta de antes del archivo) se pierde.
+function descontarDevoluciones(s) {
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] >= 0) continue;
+    let falta = -s[i];
+    s[i] = 0;
+    for (let j = i - 1; j >= 0 && falta > 0; j--) {
+      const quita = Math.min(s[j], falta);
+      s[j] -= quita;
+      falta -= quita;
+    }
+  }
 }
 
 // Primer día ("YYYY-MM-DD") de la semana i de una serie que termina en `hasta`.

@@ -280,6 +280,15 @@ rutas.post('/:id/importar-lista', subida.single('archivo'), async (req, res) => 
 
 // --- Paso 2: export de ventas y existencias -----------------------------------------------
 
+// Qué tipos de documento son ventas y cuáles devoluciones de clientes (se restan).
+function leerDocumentos(body) {
+  const lista = (x) => (Array.isArray(x) ? [...new Set(x.map((v) => String(v).slice(0, 30)))].slice(0, 50) : []);
+  const ventas = lista(body?.documentos);
+  const devoluciones = lista(body?.devoluciones).filter((d) => !ventas.includes(d));
+  if (!ventas.length) throw new ErrorUsuario('Marca al menos un tipo de documento que sea venta.');
+  return { ventas, devoluciones };
+}
+
 // Periodo de un informe que trae el total vendido sin fecha por venta: "YYYY-MM-DD".
 function leerPeriodo(body) {
   const desde = String(body?.desde || '').trim();
@@ -396,9 +405,7 @@ rutas.post('/:id/export/:exportId/documentos', async (req, res) => {
   if (p.terminado_en) throw new ErrorUsuario('Este pedido ya está terminado.', 409);
   const exp = await db.uno('SELECT id FROM exports WHERE id = $1 AND pedido_id = $2 AND usuario_id = $3', [Number(req.params.exportId), p.id, req.usuario.id]);
   if (!exp) throw new ErrorUsuario('No encontramos ese archivo. Vuelve a subirlo.', 404);
-  const lista = Array.isArray(req.body?.documentos) ? req.body.documentos.map((x) => String(x).slice(0, 30)).slice(0, 50) : [];
-  if (!lista.length) throw new ErrorUsuario('Marca al menos un tipo de documento que sea venta.');
-  await db.query('UPDATE exports SET documentos = $1::jsonb WHERE id = $2', [JSON.stringify(lista), exp.id]);
+  await db.query('UPDATE exports SET documentos = $1::jsonb WHERE id = $2', [JSON.stringify(leerDocumentos(req.body)), exp.id]);
   res.json(await procesarExport(req.usuario.id, p, exp.id, leerMapeoManual(req.body?.mapeo)));
 });
 
@@ -541,4 +548,4 @@ rutas.post('/:id/por-que', async (req, res) => {
   res.json({ pedido: await vistaPedido(actualizado) });
 });
 
-module.exports = { rutas, pasoDe, filasDelReporte, procesarExport, leerPeriodo, leerMapeoManual, subida, archivoSubido };
+module.exports = { rutas, pasoDe, filasDelReporte, procesarExport, leerPeriodo, leerDocumentos, leerMapeoManual, subida, archivoSubido };

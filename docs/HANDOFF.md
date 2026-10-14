@@ -27,6 +27,14 @@
 
 ---
 
+## 2026-10-13 (26) — Claude — las devoluciones de clientes se restan
+- **Rama:** `mejoras-modelo` (y `main`), en los dos repos.
+- **Estado:** en la pregunta de documentos cada tipo es "Venta", "Devolución" o "No cuenta" (NC, DV, DEV se sugieren como devolución). La devolución resta lo que entró (campo nuevo `entrada`, "Cantidad entrada") o el valor absoluto de la cantidad; se guarda `{ ventas, devoluciones }` en `exports.documentos` y en los mapeos (una lista vieja se lee como solo ventas). En las series semanales una semana negativa se descuenta de las anteriores (`descontarDevoluciones`, series.js). Aviso en el reporte con las unidades restadas. Con los archivos reales del probador: 363 unidades restadas (igual al total de "Cantidad entrada" de sus NC).
+- **Archivos tocados:** `server/lector.js`, `server/formatos.js`, `server/series.js`, `server/pedidos.js` (`leerDocumentos`), `server/inventario-rutas.js`, `components/app/subir.tsx`, `docs/modelo-rotacion.md` §3.5, pruebas.
+- **Verificación:** `npm test` → 97/97; en el navegador (local), un kardex inventado con FV, RM, NC, FC y NT: la pregunta sugiere bien cada uno y el reporte resta la devolución (5 + 7 − 2 = 10).
+- **Siguiente paso exacto:** que el probador vuelva a subir sus archivos (la elección de documentos que ya guardó se pregunta otra vez solo si no la tiene).
+- **Notas y bloqueos:** una elección recordada de antes (solo la lista de ventas) se vuelve a preguntar si el archivo trae NC u otro tipo de devolución; la de un archivo ya guardado se respeta para no cambiar reportes viejos.
+
 ## 2026-10-13 (25) — Claude — importación más robusta para cualquier programa
 - **Rama:** `mejoras-modelo` (y `main`), en los dos repos.
 - **Estado:**

@@ -31,7 +31,7 @@ type Resultado = {
   necesitaPeriodo?: boolean
   periodoSugerido?: { desde: string; hasta: string } | null
   necesitaDocumentos?: boolean
-  documentos?: { prefijo: string; filas: number; ejemplo: string; sugerido: boolean }[]
+  documentos?: { prefijo: string; filas: number; ejemplo: string; sugerido: boolean; devolucion?: boolean }[]
   resumen?: { productos: number; seAgotan: number; sobran: number }
 }
 
@@ -257,7 +257,7 @@ export function SubirArchivos({ base, usuario, alGuardarSistema, alTerminar, tex
       {error && <ErrorLista mensaje={error.mensaje} lista={error.lista} />}
 
       {resultado?.necesitaDocumentos && exportId && (
-        <PreguntaDocumentos documentos={resultado.documentos || []} alEnviar={(docs) => procesar(api<Resultado>('POST', `${base}/${exportId}/documentos`, { documentos: docs }))} />
+        <PreguntaDocumentos documentos={resultado.documentos || []} alEnviar={(ventas, devoluciones) => procesar(api<Resultado>('POST', `${base}/${exportId}/documentos`, { documentos: ventas, devoluciones }))} />
       )}
       {resultado?.necesitaPeriodo && exportId && (
         <PreguntaPeriodo sugerido={resultado.periodoSugerido} alEnviar={(desde, hasta) => procesar(api<Resultado>('POST', `${base}/${exportId}/periodo`, { desde, hasta }))} />
@@ -282,41 +282,65 @@ const QUE_ES: Record<string, string> = {
   NC: 'nota crédito: devolución de un cliente', ND: 'nota débito', DV: 'devolución', FC: 'factura de compra',
   DS: 'documento soporte de una compra', CC: 'comprobante contable: ajuste de costo', RC: 'recibo de caja',
   CE: 'comprobante de egreso', EA: 'entrada de almacén', SA: 'salida de almacén', TR: 'traslado entre bodegas',
-  AJ: 'ajuste de inventario', OC: 'orden de compra', '(vacío)': 'sin tipo de documento',
+  AJ: 'ajuste de inventario', OC: 'orden de compra', NT: 'traslado entre bodegas', '(vacío)': 'sin tipo de documento',
 }
 
-function PreguntaDocumentos({ documentos, alEnviar }: { documentos: NonNullable<Resultado['documentos']>; alEnviar: (d: string[]) => void }) {
-  const [elegidos, setElegidos] = useState<Set<string>>(new Set(documentos.filter((d) => d.sugerido).map((d) => d.prefijo)))
+type Uso = 'venta' | 'devolucion' | 'nada'
+const USOS: { valor: Uso; texto: string }[] = [
+  { valor: 'venta', texto: 'Venta' },
+  { valor: 'devolucion', texto: 'Devolución' },
+  { valor: 'nada', texto: 'No cuenta' },
+]
+
+// Cada tipo de documento es una venta, una devolución de un cliente (se resta) o no cuenta.
+function PreguntaDocumentos({ documentos, alEnviar }: { documentos: NonNullable<Resultado['documentos']>; alEnviar: (ventas: string[], devoluciones: string[]) => void }) {
+  const [usos, setUsos] = useState<Record<string, Uso>>(() =>
+    Object.fromEntries(documentos.map((d) => [d.prefijo, d.sugerido ? 'venta' : d.devolucion ? 'devolucion' : 'nada'])),
+  )
   const [falta, setFalta] = useState(false)
+  const con = (u: Uso) => Object.keys(usos).filter((k) => usos[k] === u)
   function enviar(e: FormEvent) {
     e.preventDefault()
-    if (!elegidos.size) return setFalta(true)
-    alEnviar([...elegidos])
+    if (!con('venta').length) return setFalta(true)
+    alEnviar(con('venta'), con('devolucion'))
   }
+  const orden = (d: NonNullable<Resultado['documentos']>[number]) => (d.sugerido ? 0 : d.devolucion ? 1 : 2)
   return (
     <form onSubmit={enviar} className="aparecer flex flex-col gap-3 rounded-2xl border border-[#cfe5e1] bg-secondary p-5">
-      <p><strong>Tu archivo trae varios tipos de documento.</strong> Marca los que son ventas a tus clientes (dejamos marcados los que suelen serlo). Lo preguntamos una sola vez.</p>
-      <ul className="flex flex-col gap-2">
-        {[...documentos].sort((a, b) => Number(b.sugerido) - Number(a.sugerido) || b.filas - a.filas).map((d) => (
-          <li key={d.prefijo}>
-            <label className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                className="size-5 accent-[var(--primary)]"
-                checked={elegidos.has(d.prefijo)}
-                onChange={(e) => setElegidos((s) => { const n = new Set(s); if (e.target.checked) n.add(d.prefijo); else n.delete(d.prefijo); return n })}
-              />
-              <span>
-                <strong>{d.prefijo}</strong>
-                {QUE_ES[d.prefijo] && <span className="text-[0.93rem]"> · suele ser {QUE_ES[d.prefijo]}</span>}
-                <span className="block text-sm text-muted-foreground">{plural(d.filas, 'fila', 'filas')}{d.ejemplo ? `, por ejemplo "${d.ejemplo}"` : ''}</span>
-              </span>
-            </label>
+      <p>
+        <strong>Tu archivo trae varios tipos de documento.</strong> Dinos cuáles son ventas a tus clientes y cuáles devoluciones
+        de clientes: las devoluciones se restan de lo vendido. Dejamos marcado lo que suele ser cada uno. Lo preguntamos una sola vez.
+      </p>
+      <ul className="flex flex-col divide-y divide-[#cfe5e1]">
+        {[...documentos].sort((a, b) => orden(a) - orden(b) || b.filas - a.filas).map((d) => (
+          <li key={d.prefijo} className="flex flex-col gap-2 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              <strong>{d.prefijo}</strong>
+              {QUE_ES[d.prefijo] && <span className="text-[0.93rem]"> · suele ser {QUE_ES[d.prefijo]}</span>}
+              <span className="block text-sm text-muted-foreground">{plural(d.filas, 'fila', 'filas')}{d.ejemplo ? `, por ejemplo "${d.ejemplo}"` : ''}</span>
+            </span>
+            <span role="radiogroup" aria-label={`Qué es ${d.prefijo}`} className="inline-flex shrink-0 self-start rounded-lg border border-border bg-card p-0.5 sm:self-auto">
+              {USOS.map((u) => (
+                <button
+                  key={u.valor}
+                  type="button"
+                  role="radio"
+                  aria-checked={usos[d.prefijo] === u.valor}
+                  onClick={() => { setUsos((x) => ({ ...x, [d.prefijo]: u.valor })); setFalta(false) }}
+                  className={cn(
+                    'presionable rounded-md px-3 py-1.5 text-sm font-semibold',
+                    usos[d.prefijo] === u.valor ? (u.valor === 'devolucion' ? 'bg-ambar-fondo text-ambar' : u.valor === 'venta' ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground') : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {u.texto}
+                </button>
+              ))}
+            </span>
           </li>
         ))}
       </ul>
-      {falta && <Aviso tono="error">Marca al menos uno.</Aviso>}
-      <Boton type="submit" variante="primario" className="self-start">Usar solo estos</Boton>
+      {falta && <Aviso tono="error">Marca al menos un tipo como venta.</Aviso>}
+      <Boton type="submit" variante="primario" className="self-start">Listo</Boton>
     </form>
   )
 }

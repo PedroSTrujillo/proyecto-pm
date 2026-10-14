@@ -77,6 +77,15 @@ const CAMPOS = {
   },
   // Opcional: el tipo de documento de cada fila. Sirve para los informes que mezclan compras,
   // ventas y ajustes (movimiento de inventario, kardex): el usuario marca cuáles son ventas.
+  // Lo que entró en un kardex. Solo se usa en las devoluciones de clientes: la mercancía devuelta
+  // entra, no sale, así que su cantidad está aquí y no en la de salidas.
+  entrada: {
+    nombre: 'cantidad que entró',
+    sinonimos: [
+      'cantidad entrada', 'cantidad entradas', 'cant entrada', 'cant entradas', 'entrada', 'entradas',
+      'unidades entrada', 'unidades entradas',
+    ],
+  },
   documento: {
     nombre: 'tipo de documento',
     sinonimos: [

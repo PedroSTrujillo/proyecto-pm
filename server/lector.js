@@ -350,7 +350,7 @@ function muestraColumna(filas, desde, col, max = 3000) {
 
 // costo, costoTotal y proveedor son opcionales: si vienen, el panel muestra el dinero en
 // inventario y agrupa el pedido por proveedor. Su falta nunca impide leer el archivo.
-const CAMPOS_EXPORT = ['codigo', 'nombre', 'fecha', 'cantidad', 'existencias', 'documento', 'costo', 'costoTotal', 'proveedor'];
+const CAMPOS_EXPORT = ['codigo', 'nombre', 'fecha', 'cantidad', 'existencias', 'entrada', 'documento', 'costo', 'costoTotal', 'proveedor'];
 
 // --- Informes "de impresora" y otros formatos difíciles -------------------------------
 
@@ -362,6 +362,16 @@ const RE_CODIGO_EN_NOMBRE = /\(([^()]{2,30})\)\s*$/; // «TORNILLO HEX 1/4 (AB-1
 // documento. No es una venta ni un tipo de documento que haya que preguntar.
 const esFilaDeSaldoSinMovimiento = (f, c) =>
   c.documento !== undefined && c.fecha !== undefined && prefijoDocumento(f[c.documento]) === '(vacío)' && (f[c.fecha] === null || f[c.fecha] === undefined || f[c.fecha] === '');
+
+// Devoluciones de clientes: se restan de las ventas (NC: nota crédito de venta).
+const RE_DOC_DEVOLUCION = /^(NC|NCV|NCE|DV|DEV|DEVOLUCION|DEVOLUCIONES)$/;
+
+// Lo que el usuario marcó: una lista (versión anterior: solo ventas) o { ventas, devoluciones }.
+function eleccionDocumentos(x) {
+  if (!x) return null;
+  if (Array.isArray(x)) return { ventas: new Set(x), devoluciones: new Set() };
+  return { ventas: new Set(x.ventas || []), devoluciones: new Set(x.devoluciones || []) };
+}
 
 const RE_DOC_VENTA = /^(FV|FE|FED|FVE|FAC|FACT|FACTURA|POS|VTA|VEN|VENTA|VENTAS|SALIDA|SALIDAS|RM|REM)$/;
 
@@ -450,6 +460,7 @@ function pareceDelCampo(campo, valores) {
   switch (campo) {
     case 'fecha': return frac(esFecha) >= 0.6;
     case 'cantidad':
+    case 'entrada':
     case 'existencias':
     case 'costo':
     case 'costoTotal': return frac((v) => esNumero(v) && !(v instanceof Date)) >= 0.8;
@@ -578,7 +589,7 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
     return { ok: false, errores: explicarFaltantes(analizadas, hojasVentas.length > 0, hojasExistencias.length > 0, varias), hojas: resumenHojas };
   }
   // Informes que mezclan compras, ventas y ajustes: el usuario marca cuáles son ventas.
-  const documentosElegidos = new Map(); // clave de hoja → Set de prefijos
+  const documentosElegidos = new Map(); // clave de hoja → { ventas: Set, devoluciones: Set }
   for (const h of hojasVentas) {
     const c = h.analisis.columnas;
     if (c.documento === undefined) continue;
@@ -594,17 +605,21 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
       conteo.set(p, e);
     }
     if (conteo.size < 2) continue;
-    const elegidos = opciones.documentos || (opciones.documentosPorFirma && opciones.documentosPorFirma[h.analisis.firma]);
+    // Una elección recordada de antes de las devoluciones (solo la lista de ventas) se vuelve a
+    // preguntar si el archivo trae algo que parece devolución; la de este mismo archivo se respeta.
+    let recordada = opciones.documentosPorFirma && opciones.documentosPorFirma[h.analisis.firma];
+    if (Array.isArray(recordada) && [...conteo.keys()].some((p) => RE_DOC_DEVOLUCION.test(p) && !recordada.includes(p))) recordada = null;
+    const elegidos = opciones.documentos || recordada;
     if (!elegidos) {
       return {
         ok: false,
         necesitaDocumentos: true,
-        documentos: [...conteo.values()].sort((a, b) => b.filas - a.filas).map((e) => ({ ...e, sugerido: RE_DOC_VENTA.test(e.prefijo) })),
-        errores: ['Tu archivo trae varios tipos de documento (por ejemplo, compras y ventas). Marca cuáles son ventas.'],
+        documentos: [...conteo.values()].sort((a, b) => b.filas - a.filas).map((e) => ({ ...e, sugerido: RE_DOC_VENTA.test(e.prefijo), devolucion: RE_DOC_DEVOLUCION.test(e.prefijo) })),
+        errores: ['Tu archivo trae varios tipos de documento (por ejemplo, compras y ventas). Marca cuáles son ventas y cuáles devoluciones de clientes.'],
         hojas: resumenHojas,
       };
     }
-    documentosElegidos.set(h.clave, new Set(elegidos));
+    documentosElegidos.set(h.clave, eleccionDocumentos(elegidos));
   }
 
   let periodo = null;
@@ -631,6 +646,7 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
   let todasMensuales = true;
   let filasOtrosDocumentos = 0;
   let fechasCompletadas = 0;
+  let unidadesDevueltas = 0;
   const existenciasDeVentas = new Map(); // si la misma tabla trae ventas y existencias
   // Costo y proveedor de cada producto, si el archivo los trae (gana la última fila con dato).
   const catalogo = new Map();
@@ -682,7 +698,9 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
         continue;
       }
       const docs = documentosElegidos.get(h.clave);
-      if (docs && !docs.has(prefijoDocumento(f[c.documento]))) {
+      const prefijo = docs ? prefijoDocumento(f[c.documento]) : null;
+      const esDevolucion = Boolean(docs && docs.devoluciones.has(prefijo));
+      if (docs && !docs.ventas.has(prefijo) && !esDevolucion) {
         // No es una venta, pero su saldo sí cuenta: en un kardex, el saldo de hoy es el del último
         // movimiento, sea una venta, una compra o un ajuste.
         filasOtrosDocumentos++;
@@ -695,10 +713,18 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
       filasDatos++;
       if (!codigo) { problemas.push({ tipo: 'sin_codigo', fila, donde }); continue; }
       anotarCatalogo(codigo, f, c, decimalCosto, c.existencias !== undefined ? V.leerNumero(f[c.existencias], decimalExist) : null);
+      const cantidadDe = (bruto) => {
+        const n = V.leerNumero(bruto, decimal);
+        if (n === null || !esDevolucion) return n;
+        const entro = c.entrada !== undefined ? V.leerNumero(f[c.entrada], decimal) : null;
+        const devuelto = Math.abs(entro || n || 0);
+        unidadesDevueltas += devuelto;
+        return -devuelto;
+      };
       if (periodo) {
         const bruto = f[c.cantidad];
         if (bruto === null || bruto === undefined) continue; // sin ventas en el periodo
-        const cantidad = V.leerNumero(bruto, decimal);
+        const cantidad = cantidadDe(bruto);
         if (cantidad === null) { problemas.push({ tipo: 'cantidad', fila, donde, valor: textoValor(bruto), columna: describirColumna(hoja, analisis, c.cantidad) }); continue; }
         if (cantidad !== 0) ventas.push({ codigo, nombre, dia: periodo.hasta, cantidad });
         todasMensuales = false;
@@ -708,7 +734,7 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
         for (const m of analisis.meses) {
           const bruto = f[m.col];
           if (bruto === null || bruto === undefined) continue;
-          const cantidad = V.leerNumero(bruto, decimal);
+          const cantidad = cantidadDe(bruto);
           if (cantidad === null) { problemas.push({ tipo: 'cantidad', fila, donde, valor: textoValor(bruto), columna: describirColumna(hoja, analisis, m.col) }); continue; }
           if (cantidad !== 0) ventas.push({ codigo, nombre, dia: m.dia, cantidad });
           if (!m.mensual) todasMensuales = false;
@@ -729,11 +755,11 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
       if (!fecha) { problemas.push({ tipo: 'fecha', fila, donde, valor: textoValor(brutoFecha), columna: describirColumna(hoja, analisis, c.fecha) }); continue; }
       ultimaFecha = fecha.dia;
       const brutoCant = f[c.cantidad];
-      if (brutoCant === null || brutoCant === undefined) { problemas.push({ tipo: 'sin_cantidad', fila, donde }); continue; }
-      const cantidad = V.leerNumero(brutoCant, decimal);
+      if ((brutoCant === null || brutoCant === undefined) && !(esDevolucion && c.entrada !== undefined)) { problemas.push({ tipo: 'sin_cantidad', fila, donde }); continue; }
+      const cantidad = cantidadDe(brutoCant ?? 0);
       if (cantidad === null) { problemas.push({ tipo: 'cantidad', fila, donde, valor: textoValor(brutoCant), columna: describirColumna(hoja, analisis, c.cantidad) }); continue; }
       if (!fecha.mensual) todasMensuales = false;
-      ventas.push({ codigo, nombre, dia: fecha.dia, cantidad });
+      if (cantidad !== 0) ventas.push({ codigo, nombre, dia: fecha.dia, cantidad });
       anotarSaldo(codigo, nombre, f, fecha.dia);
     }
   }
@@ -815,7 +841,13 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
       manual: h.analisis.manual,
     }));
 
-  const documentos = documentosElegidos.size ? Object.fromEntries(analizadas.filter((h) => documentosElegidos.has(h.clave)).map((h) => [h.analisis.firma, [...documentosElegidos.get(h.clave)]])) : null;
+  if (unidadesDevueltas) avisos.push(`Se restaron de las ventas ${(Math.round(unidadesDevueltas * 100) / 100).toLocaleString('es-CO')} unidades que devolvieron los clientes.`);
+  const documentos = documentosElegidos.size
+    ? Object.fromEntries(analizadas.filter((h) => documentosElegidos.has(h.clave)).map((h) => {
+      const d = documentosElegidos.get(h.clave);
+      return [h.analisis.firma, { ventas: [...d.ventas], devoluciones: [...d.devoluciones] }];
+    }))
+    : null;
   return { ok: true, ventas, existencias, mensual: todasMensuales, periodo, documentos, catalogo: Object.fromEntries(catalogo), hojasUsadas, avisos, hojas: resumenHojas };
 }
 
