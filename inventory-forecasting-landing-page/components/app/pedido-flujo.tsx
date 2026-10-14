@@ -679,7 +679,7 @@ function Paso4({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
       {ventana}
       <div>
         <h2 className="text-xl font-bold">Lo que de verdad vas a pedir</h2>
-        <p className="mt-1 text-muted-foreground">Arrancamos con una copia de tu lista inicial: por eso al comienzo "Vas a pedir" e "Ibas a pedir" son iguales. Cambia la columna "Vas a pedir", agrega o quita productos según lo que decidas, y en "Cambio" ves la diferencia. Puedes mirar el reporte aquí mismo mientras editas.</p>
+        <p className="mt-1 text-muted-foreground">SINESC no te sugiere cantidades: tú decides con lo que viste en el reporte. Arrancamos con una copia de tu lista inicial, por eso al comienzo "Vas a pedir" e "Ibas a pedir" son iguales. Cambia la columna "Vas a pedir", agrega o quita productos, y en "Cambio" ves la diferencia. Puedes mirar el reporte aquí mismo mientras editas.</p>
       </div>
       <Boton tamano="chico" className="self-start" aria-expanded={verReporte} onClick={() => setVerReporte((v) => !v)}>{verReporte ? 'Ocultar el reporte' : 'Mostrar el reporte'}</Boton>
       {verReporte && <div className="aparecer"><Reporte r={r} compacto /></div>}
