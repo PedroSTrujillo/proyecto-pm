@@ -27,6 +27,24 @@
 
 ---
 
+## 2026-10-14 (31) — Claude — la app revisada como cada probador: venta de una sola vez, proveedores en el paso 4, orden de compra
+- **Rama:** `main` y `mejoras-modelo`, en los dos repos.
+- **Estado:**
+  - **Venta de una sola vez** (`ventaUnica` en `server/inventario.js`, §7.4 del modelo): si todo lo vendido cae en 1 o 2 semanas seguidas, en un archivo de 26 semanas o más, y no se vendió en las últimas 4, no se pronostica y el sugerido es 0, con la explicación y la fecha. Con los archivos reales de refrigeración salía pedir 216 paneles (unos $250 M) por una venta de 390 en dos semanas de junio. `esNuevo` (`rotacion.js`) tampoco toma esa venta como producto nuevo (solo aplica a archivos que se suban desde ahora).
+  - **Paso 4:** columnas "Te alcanza hoy · Ibas a pedir · SINESC sugiere (con "Usar") · Tu cantidad final (verde, con lápiz) · Cambio · Con tu cantidad, dura". Si el archivo trae proveedores, se cambia ahí mismo cuánto tarda cada uno (queda en Datos). La importación de otro Excel quedó plegada debajo de la tabla.
+  - **Paso 3:** "Tu pedido frente al reporte" (cuántas líneas de su lista se agotan, sobran, están bien, y lo que se agota y no pidió).
+  - **Paso 5 terminado:** "Tu orden de compra" con PDF para aprobar, Excel por proveedor y mensaje para WhatsApp (usa proveedor y costo del archivo).
+  - **Panel:** tarjeta "Ventas que se te escapan" (productos en cero que se venden: unidades y plata a costo por semana); en cero dice "Ya está en cero" en vez de un porcentaje de riesgo.
+  - **Productos:** columnas "Venderás en 4 semanas" (con rango) y "Pedir"; la ficha de un producto en cero lo dice y la tabla ya no se corta con la ficha abierta.
+  - **Pedido de la semana:** ya no se corta la columna Valor; lo más vendido primero; "Mensaje para tu proveedor" cuando el archivo no trae proveedor.
+  - **Pedidos vacío:** guía de los 5 pasos. **Datos:** "Archivo subido el…" en vez de "Al día desde…".
+  - **Para el equipo:** en el paso 2 de una cuenta del equipo, "ensayar con un negocio de ejemplo" sube el archivo de la demo sin descargarlo; en "Resultados de la prueba", la guía de la llamada (antes, durante, las tres preguntas, después).
+- **Archivos tocados:** `server/inventario.js`, `server/rotacion.js`, `server/pedidos.js` (costo, ventaUnica y entregas en `/sugerido`); `components/app/{pedido-flujo,hoja,panel,productos,pedido-sugerido,pedidos,datos,subir,equipo,marco}.tsx`, `lib/tipos.ts`; `docs/modelo-rotacion.md`; pruebas en `test/pronostico.test.js` y `test/rotacion.test.js`.
+- **Base de datos:** sin cambios.
+- **Verificación:** `npm test` → 105/105; `tsc` sin errores. En el navegador (local): pedido completo de punta a punta con el negocio de ejemplo de refrigeración (Polar a 9 semanas: el sugerido del R-410A pasa de 23 a 183 y "con tu cantidad, dura 2,3 sem · no alcanza"), PDF y Excel de la orden descargados; panel, productos y pedido de la semana con los archivos reales del probador de refrigeración.
+- **Siguiente paso exacto:** las 5 pruebas grabadas. Antes de cada una, ensayar en una cuenta del equipo con "ensayar con un negocio de ejemplo".
+- **Notas y bloqueos:** la venta de una sola vez cambia lo que se sugiere y debe ir como fila en "Cambios" del Entregable (evidencia: archivo real de refrigeración).
+
 ## 2026-10-14 (30) — Claude — el sugerido explica por qué y para cuánto dura; veredicto el mismo día
 - **Rama:** `main` y `mejoras-modelo`, en los dos repos.
 - **Estado:**

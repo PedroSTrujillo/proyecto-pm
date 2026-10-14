@@ -4,7 +4,7 @@
 // qué columna es cuál, qué documentos son ventas y de qué periodo son unas ventas sin fecha.
 // Lo usan "Datos" y el paso 2 de un pedido.
 
-import { useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { FileSpreadsheet, Upload } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { api, prepararArchivo, textoErrores } from '@/lib/api'
@@ -184,6 +184,38 @@ export function FormularioColumnas({ hojas, campos, alEnviar }: { hojas: HojaMap
 /**
  * base: "/pedidos/12/export" o "/inventario/export". alTerminar recibe el resultado bueno.
  */
+// Solo el equipo: ensayar con el archivo de un negocio de ejemplo, sin tener que descargarlo.
+function EnsayoEquipo({ alSubir }: { alSubir: (f: File) => void }) {
+  const [negocios, setNegocios] = useState<{ id: string; empresa: string; sector: string }[]>([])
+  const [elegido, setElegido] = useState('')
+  const [trayendo, setTrayendo] = useState(false)
+  useEffect(() => {
+    api<{ negocios: { id: string; empresa: string; sector: string }[] }>('GET', '/equipo/ejemplos').then((r) => setNegocios(r.negocios)).catch(() => {})
+  }, [])
+  if (!negocios.length) return null
+  async function usar() {
+    if (!elegido) return
+    setTrayendo(true)
+    try {
+      const r = await fetch(`/api/equipo/ejemplos/negocios/${elegido}/archivo`)
+      const nombre = (r.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/)?.[1] || 'ejemplo.xlsx'
+      alSubir(new File([await r.blob()], nombre))
+    } finally {
+      setTrayendo(false)
+    }
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-border px-4 py-3 text-[0.92rem]">
+      <span className="font-semibold">Solo equipo · ensayar con un negocio de ejemplo:</span>
+      <select className={cn(claseEntrada, 'h-10 w-auto min-w-56')} value={elegido} onChange={(e) => setElegido(e.target.value)} aria-label="Negocio de ejemplo">
+        <option value="">Elige un negocio</option>
+        {negocios.map((n) => <option key={n.id} value={n.id}>{n.empresa} · {n.sector}</option>)}
+      </select>
+      <Boton tamano="chico" onClick={usar} disabled={!elegido || trayendo}>{trayendo ? 'Trayendo…' : 'Usar su archivo'}</Boton>
+    </div>
+  )
+}
+
 export function SubirArchivos({ base, usuario, alGuardarSistema, alTerminar, textoBoton }: { base: string; usuario: Usuario | null; alGuardarSistema?: (u: Usuario) => void; alTerminar: (r: Resultado) => void; textoBoton?: ReactNode }) {
   const [sistema, setSistema] = useState<string | null>(usuario?.sistema ?? null)
   const [estado, setEstado] = useState<'listo' | 'leyendo'>('listo')
@@ -191,6 +223,12 @@ export function SubirArchivos({ base, usuario, alGuardarSistema, alTerminar, tex
   const [error, setError] = useState<ReturnType<typeof textoErrores> | null>(null)
   const [encima, setEncima] = useState(false)
   const input = useRef<HTMLInputElement>(null)
+  const respuesta = useRef<HTMLDivElement>(null)
+  // Lo que responde el archivo (columnas, documentos, errores) queda debajo de la guía: se lleva
+  // a la vista para que no parezca que no pasó nada.
+  useEffect(() => {
+    if (resultado || error) respuesta.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [resultado, error])
 
   async function procesar(promesa: Promise<Resultado>) {
     setEstado('leyendo')
@@ -207,9 +245,9 @@ export function SubirArchivos({ base, usuario, alGuardarSistema, alTerminar, tex
     }
   }
 
-  function subir(archivos: FileList | null) {
+  function subir(archivos: FileList | File[] | null) {
     if (!archivos || !archivos.length) return
-    const lista = [...archivos].slice(0, 5)
+    const lista = [...archivos].slice(0, 24) // lo mismo que acepta el servidor
     if (input.current) input.current.value = ''
     procesar((async () => {
       const fd = new FormData()
@@ -254,7 +292,9 @@ export function SubirArchivos({ base, usuario, alGuardarSistema, alTerminar, tex
           ¿No puedes sacar esos informes? <a href="/plantillas/inventario.xlsx" download className="font-semibold text-primary hover:text-primary-hover">Descarga la plantilla</a>, llénala y súbela.
         </p>
       )}
+      {usuario?.rol === 'equipo' && <EnsayoEquipo alSubir={(f) => subir([f])} />}
 
+      <div ref={respuesta} className="scroll-mt-6" />
       {error && <ErrorLista mensaje={error.mensaje} lista={error.lista} />}
 
       {resultado?.necesitaDocumentos && exportId && (

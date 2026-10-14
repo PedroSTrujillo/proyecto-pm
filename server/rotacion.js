@@ -291,6 +291,10 @@ function ventasPorSemana(p, { desde, hasta, semanasHistorico, semanasRecientes }
 // cuando (y por eso tardó en aparecer) no se toma por nuevo ni se le infla el promedio.
 function esNuevo(p, desde, hasta) {
   if (p.primeraVenta === null) return false;
+  // Todo vendido en un par de semanas y nada en el último mes: es una venta puntual (un
+  // proyecto), no un producto que empezó a venderse. Promediarlo desde ahí lo inflaría.
+  const ultimaVenta = Math.max(...p.diasConVenta);
+  if (ultimaVenta - p.primeraVenta <= 13 && hasta - ultimaVenta >= 28) return false;
   const espera = p.primeraVenta - desde;
   const intervalo = (hasta - p.primeraVenta + 1) / p.diasConVenta.size;
   return espera >= SEMANAS_MINIMAS_PRODUCTO * 7 && espera > VECES_INTERVALO * intervalo;

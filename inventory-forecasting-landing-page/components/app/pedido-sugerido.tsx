@@ -28,6 +28,8 @@ export function PedidoSugerido({ encabezado = true }: { encabezado?: boolean }) 
   return <PedidoCon inv={inventario} encabezado={encabezado} />
 }
 
+const nombreProveedor = (p: string) => (p === 'Sin proveedor' ? 'tu proveedor' : p)
+
 function mensajeWhatsapp(proveedor: string, lineas: { p: Producto; cantidad: number }[], empresa?: string) {
   const items = lineas.map(({ p, cantidad }) => `• ${numero(cantidad)} × ${p.nombre} (${p.codigo})`).join('\n')
   return `Buenos días. ${empresa ? `Les escribo de ${empresa}. ` : ''}Por favor, nos envían:\n${items}\nQuedo atento a la fecha de entrega. Gracias.`
@@ -47,7 +49,7 @@ function PedidoCon({ inv, encabezado }: { inv: Inventario; encabezado: boolean }
     return [...set]
       .map((c) => porCodigo.get(c))
       .filter((p): p is Producto => Boolean(p))
-      .sort((a, b) => a.proveedor.localeCompare(b.proveedor, 'es') || (a.semanas ?? Infinity) - (b.semanas ?? Infinity))
+      .sort((a, b) => a.proveedor.localeCompare(b.proveedor, 'es') || (a.semanas ?? Infinity) - (b.semanas ?? Infinity) || b.ventasSemana - a.ventasSemana)
   }, [inv, pedido, porCodigo])
 
   const proveedores = [...new Set(filas.map((p) => p.proveedor))]
@@ -104,7 +106,7 @@ function PedidoCon({ inv, encabezado }: { inv: Inventario; encabezado: boolean }
     const texto = mensajeWhatsapp(delMensaje, lineasMensaje, inv.fuente.empresa)
     try {
       await navigator.clipboard.writeText(texto)
-      setAviso(`Copiado el mensaje para ${delMensaje}. Pégalo en WhatsApp.`)
+      setAviso(`Copiado el mensaje para ${nombreProveedor(delMensaje)}. Pégalo en WhatsApp.`)
     } catch {
       setAviso('Tu navegador no dejó copiar. Selecciona el mensaje de abajo y cópialo a mano.')
     }
@@ -128,8 +130,8 @@ function PedidoCon({ inv, encabezado }: { inv: Inventario; encabezado: boolean }
         </Titulo>
       )}
 
-      <div className="flex flex-wrap items-start gap-5">
-        <Tarjeta aria-labelledby="t-lista" className="no-imprimir min-w-0 flex-[999_1_600px] p-5">
+      <div className="flex flex-col gap-5 2xl:flex-row 2xl:items-start">
+        <Tarjeta aria-labelledby="t-lista" className="no-imprimir order-2 min-w-0 flex-1 p-5 2xl:order-1">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 id="t-lista" className="text-xl font-bold">Lo que vas a pedir</h2>
             {proveedores.length > 1 && (
@@ -149,7 +151,7 @@ function PedidoCon({ inv, encabezado }: { inv: Inventario; encabezado: boolean }
                   <th scope="col" className="border-b border-border px-2 py-2.5 font-semibold">Producto</th>
                   <th scope="col" className="border-b border-border px-2 py-2.5 text-right font-semibold">Te alcanza</th>
                   <th scope="col" className="border-b border-border px-2 py-2.5 text-right font-semibold">Sugerido</th>
-                  <th scope="col" className="border-b border-border px-2 py-2.5 text-center font-semibold">Tu cantidad</th>
+                  <th scope="col" className="border-b border-border px-2 py-2.5 text-center font-semibold"><span className="rounded-md bg-primary px-2 py-1 text-primary-foreground">Tu cantidad</span></th>
                   {conCostos && <th scope="col" className="border-b border-border px-2 py-2.5 text-right font-semibold">Valor</th>}
                 </tr>
               </thead>
@@ -162,7 +164,7 @@ function PedidoCon({ inv, encabezado }: { inv: Inventario; encabezado: boolean }
                       <td className="border-b border-[#f0f1ee] px-2 py-2.5">
                         <span className="block text-xs text-muted-foreground">{p.codigo} · {p.proveedor}</span>
                         <span className={cn('font-semibold', c > 0 && 'text-foreground')}>{p.nombre}</span>
-                        <span className="ml-2 align-middle"><ChipEstado estado={p.estado} /></span>
+                        <span className="mt-1 block"><ChipEstado estado={p.estado} /></span>
                       </td>
                       <td className="border-b border-[#f0f1ee] px-2 py-2.5 text-right whitespace-nowrap">
                         <strong className={cn('tabular-nums', ESTADOS[p.estado].numero)}>{semanas(p.semanas)}</strong>
@@ -226,7 +228,7 @@ function PedidoCon({ inv, encabezado }: { inv: Inventario; encabezado: boolean }
           </div>
         </Tarjeta>
 
-        <aside className="no-imprimir flex min-w-0 flex-[1_1_320px] flex-col gap-4">
+        <aside className="no-imprimir order-1 grid min-w-0 gap-4 md:grid-cols-2 2xl:sticky 2xl:top-6 2xl:order-2 2xl:w-[340px] 2xl:shrink-0 2xl:grid-cols-1">
           <Tarjeta aria-labelledby="t-resumen" className="flex flex-col gap-4 p-5">
             <h2 id="t-resumen" className="text-lg font-bold">Resumen</h2>
             <div className="grid grid-cols-2 gap-3">
@@ -236,7 +238,7 @@ function PedidoCon({ inv, encabezado }: { inv: Inventario; encabezado: boolean }
               </div>
               <div className="rounded-xl bg-muted p-3">
                 <span className="block text-[0.82rem] font-semibold text-muted-foreground">{conCostos ? 'Valor a costo' : 'Unidades'}</span>
-                <strong className="font-display text-[1.5rem] tabular-nums">{conCostos ? plata(total) : numero(unidades)}</strong>
+                <strong className="font-display text-[1.5rem] whitespace-nowrap tabular-nums">{conCostos ? plata(total) : numero(unidades)}</strong>
               </div>
             </div>
             <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1.5 text-[0.93rem]">
@@ -260,8 +262,8 @@ function PedidoCon({ inv, encabezado }: { inv: Inventario; encabezado: boolean }
           </Tarjeta>
           {lineasMensaje.length > 0 && (
             <Tarjeta aria-labelledby="t-mensaje" className="flex flex-col gap-2.5 p-5">
-              <h2 id="t-mensaje" className="text-base font-bold">Mensaje para {delMensaje}</h2>
-              <p className="rounded-xl border border-[#d5ede9] bg-[#f2faf8] px-3.5 py-3 text-[0.9rem] whitespace-pre-line">{mensajeWhatsapp(delMensaje, lineasMensaje, inv.fuente.empresa)}</p>
+              <h2 id="t-mensaje" className="text-base font-bold">Mensaje para {nombreProveedor(delMensaje)}</h2>
+              <p className="max-h-80 overflow-y-auto rounded-xl border border-[#d5ede9] bg-[#f2faf8] px-3.5 py-3 text-[0.9rem] whitespace-pre-line">{mensajeWhatsapp(delMensaje, lineasMensaje, inv.fuente.empresa)}</p>
             </Tarjeta>
           )}
         </aside>

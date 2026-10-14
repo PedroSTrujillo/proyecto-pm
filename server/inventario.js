@@ -114,6 +114,23 @@ function recortarPico(serie, hasta, pico) {
   return { recortada, semanasPico };
 }
 
+/**
+ * Una venta de una sola vez: todo lo vendido cae en 1 o 2 semanas seguidas de un archivo de 6
+ * meses o más, y en las últimas 4 semanas no se vendió. Casi siempre es un proyecto o un cliente
+ * puntual (o un producto que se vende una vez al año). Pronosticarlo como venta de todas las
+ * semanas haría sugerir repetir el proyecto entero, así que no se sugiere ni se pronostica.
+ */
+function ventaUnica(serie, hasta) {
+  if (!serie || serie.length < 26) return null;
+  const con = serie.map((v, i) => (v > 0 ? i : -1)).filter((i) => i >= 0);
+  if (!con.length || con.length > 2 || con[con.length - 1] - con[0] > 1) return null;
+  if (serie.length - 1 - con[con.length - 1] < 4) return null;
+  const [a, m, d] = hasta.split('-').map(Number);
+  const ultimo = Math.round(Date.UTC(a, m - 1, d) / MS_DIA);
+  const inicio = ultimo - (serie.length - con[0]) * 7 + 1;
+  return { vendido: redondear(suma(con.map((i) => serie[i])), 1), semanas: con.length, desde: new Date(inicio * MS_DIA).toISOString().slice(0, 10) };
+}
+
 // Los productos que hoy están bien y llegan al umbral de "se agota" en los próximos 3 meses (lo mismo que
 // ofrece el recordatorio de calendario, server/recordatorios.js).
 function proximosAvisos(filas, fecha, semanasAgota) {
@@ -204,6 +221,7 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
     const { recortada, semanasPico } = recortes.get(k);
     const crudo = porProducto[k] || null;
     const existencias = Math.max(f.existencias, 0);
+    const unica = completo ? ventaUnica(crudo, hasta) : null;
 
     const lote = P.loteDe(crudo);
     let riesgo = null;
@@ -212,7 +230,8 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
     let maximo = null;
     let pronostico = null;
     let detalleSugerido = null;
-    if (f.promedioSemanal > 0 && completo) {
+    if (unica) sugerido = 0;
+    if (f.promedioSemanal > 0 && completo && !unica) {
       const ventana = P.temporadaDeLaVentana(indice, hasta, semanasSerie, f.semanasProducto, f.semanasRecientes);
       const ajuste = P.ajustarProducto({
         tasa: f.promedioSemanal / ventana,
@@ -278,6 +297,7 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       riesgo,
       sugerido: completo ? sugerido : null,
       detalleSugerido,
+      ventaUnica: unica,
       lote,
       minimo: completo ? minimo : null,
       maximo: completo ? maximo : null,
@@ -384,4 +404,4 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
   };
 }
 
-module.exports = { construirInventario, leerAjustes, recortarPico, proveedorDe, SIN_PROVEEDOR, ENTREGA_POR_DEFECTO, CADA_CUANTO_POR_DEFECTO };
+module.exports = { construirInventario, leerAjustes, recortarPico, ventaUnica, proveedorDe, SIN_PROVEEDOR, ENTREGA_POR_DEFECTO, CADA_CUANTO_POR_DEFECTO };

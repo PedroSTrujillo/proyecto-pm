@@ -16,6 +16,8 @@ export type Producto = {
   semanas: number | null
   estado: Estado
   riesgo: number | null
+  // Todo lo vendido cayó en 1 o 2 semanas (un proyecto): no se sugiere ni se pronostica.
+  ventaUnica?: { vendido: number; semanas: number; desde: string } | null
   sugerido: number | null
   lote: number // paquete en que siempre se vende (1 si no hay)
   minimo: number | null

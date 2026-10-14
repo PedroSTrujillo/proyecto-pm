@@ -5,7 +5,7 @@
 
 import Link from 'next/link'
 import { useMemo, useState, type ReactNode } from 'react'
-import { ArrowRight, BellRing, CalendarDays, Sparkles, Truck, Wallet } from 'lucide-react'
+import { ArrowRight, BellRing, CalendarDays, Sparkles, TriangleAlert, Truck, Wallet } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { dia, duracion, fecha, mesAnio, numero, plata, plural, porcentaje, semanas, sumarDias, ventasSemana } from '@/lib/formato'
 import { nombrePrograma } from '@/lib/sistemas'
@@ -226,7 +226,12 @@ function FilaPrimero({ p, href }: { p: Producto; href: string }) {
         <span className="block text-xs text-muted-foreground">semanas</span>
       </td>
       <td className="min-w-44 border-b border-[#f0f1ee] px-2 py-3">
-        {p.riesgo !== null && <BarraRiesgo valor={p.riesgo} />}
+        {/* En cero ya se agotó: un porcentaje ahí confunde (sería la probabilidad de que lo pidan). */}
+        {p.existencias <= 0 && p.ventasSemana > 0 ? (
+          <span className="block text-sm font-bold text-rojo-texto">Ya está en cero</span>
+        ) : (
+          p.riesgo !== null && <BarraRiesgo valor={p.riesgo} />
+        )}
         <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <ChipEstado estado={p.estado} texto={p.estado === 'pide' ? `Pide ya: tarda ${duracion(p.entrega)}` : undefined} />
         </span>
@@ -235,8 +240,9 @@ function FilaPrimero({ p, href }: { p: Producto; href: string }) {
   )
 }
 
-function Tarjetita({ icono, titulo, tono, children, accion }: { icono: ReactNode; titulo: string; tono: 'ambar' | 'azul' | 'neutro' | 'verde'; children: ReactNode; accion?: ReactNode }) {
+function Tarjetita({ icono, titulo, tono, children, accion }: { icono: ReactNode; titulo: string; tono: 'rojo' | 'ambar' | 'azul' | 'neutro' | 'verde'; children: ReactNode; accion?: ReactNode }) {
   const t = {
+    rojo: 'border-rojo-borde bg-rojo-fondo text-[#450a0a] [&_.etq]:text-rojo-texto',
     ambar: 'border-ambar-borde bg-ambar-fondo text-[#431407] [&_.etq]:text-ambar-texto',
     azul: 'border-azul-borde bg-azul-fondo text-[#172b4d] [&_.etq]:text-azul-texto',
     verde: 'border-verde-borde bg-verde-fondo text-[#14532d] [&_.etq]:text-verde',
@@ -262,6 +268,21 @@ function AtenderHoy({ inv }: { inv: Inventario }) {
   const avisos = inv.resumen.avisos
   const rec = respuesta?.recordatorio
   const tarjetas: ReactNode[] = []
+
+  // Lo que ya está en cero y se vende: cada semana sin él es venta que se va a otro lado.
+  const enCero = inv.productos.filter((p) => p.existencias <= 0 && p.ventasSemana > 0 && !p.ventaUnica).sort((a, b) => b.ventasSemana * (b.costo ?? 1) - a.ventasSemana * (a.costo ?? 1))
+  if (enCero.length) {
+    const unidades = enCero.reduce((t, p) => t + p.ventasSemana, 0)
+    const conCosto = enCero.filter((p) => p.costo)
+    const valor = conCosto.reduce((t, p) => t + p.ventasSemana * (p.costo ?? 0), 0)
+    const hrefPedido = fuente.tipo === 'cuenta' ? '/pedidos/sugerido' : rutas.pedido
+    tarjetas.push(
+      <Tarjetita key="cero" icono={<TriangleAlert />} titulo="Ventas que se te escapan" tono="rojo" accion={<BotonEnlace href={hrefPedido} variante="primario" tamano="chico" className="self-start">Armar el pedido para reponerlos</BotonEnlace>}>
+        {plural(enCero.length, 'producto que vendes está', 'productos que vendes están')} en cero: dejas de vender unas <strong>{numero(Math.round(unidades))} unidades por semana</strong>
+        {valor > 0 ? <> (unos <strong>{plata(valor)}</strong> a costo{conCosto.length < enCero.length ? ', sin contar los que no traen costo' : ''})</> : ''}. El que más pesa: <strong>{enCero[0].nombre}</strong>, {ventasSemana(enCero[0].ventasSemana)} por semana.
+      </Tarjetita>,
+    )
+  }
 
   if (pide) {
     tarjetas.push(
@@ -333,7 +354,7 @@ function AtenderHoy({ inv }: { inv: Inventario }) {
   return (
     <section aria-labelledby="t-hoy" className="flex min-w-0 flex-[1_1_320px] flex-col gap-3.5">
       <h2 id="t-hoy" className="text-xl font-bold">Atender hoy</h2>
-      {tarjetas.length ? tarjetas.slice(0, 4) : <p className="text-muted-foreground">Nada urgente. Tu inventario está en orden.</p>}
+      {tarjetas.length ? tarjetas.slice(0, 5) : <p className="text-muted-foreground">Nada urgente. Tu inventario está en orden.</p>}
     </section>
   )
 }

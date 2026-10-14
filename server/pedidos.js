@@ -474,6 +474,8 @@ rutas.get('/:id/sugerido', async (req, res) => {
   const inv = construirInventario({ reporte: e.reporte, series: e.series, catalogo: e.catalogo || {}, ajustes, alcance: 'completo' });
   res.json({
     entrega: inv.ajustes.entregaPorDefecto,
+    // Los tiempos por proveedor que ya tiene (para cambiarlos sin borrar los demás).
+    entregas: inv.ajustes.entregas,
     cadaCuanto: inv.ajustes.cadaCuanto,
     nivelServicio: inv.ajustes.nivelServicio,
     // Fechas de inicio de cada semana de las ventas y del pronóstico (para la gráfica del detalle).
@@ -481,8 +483,8 @@ rutas.get('/:id/sugerido', async (req, res) => {
     semanasPronostico: inv.grafico ? inv.grafico.pronostico.map((s) => s.inicio) : [],
     productos: inv.productos.map((x) => ({
       codigo: x.codigo, nombre: x.nombre, sugerido: x.sugerido, detalle: x.detalleSugerido, semanas: x.semanas, estado: x.estado,
-      ventasSemana: x.ventasSemana, existencias: x.existencias, entrega: x.entrega, lote: x.lote, proveedor: x.proveedor,
-      serie: x.serie, pronostico: x.pronostico, semanasPico: x.semanasPico, pico: x.pico, explicacion: x.explicacion,
+      ventasSemana: x.ventasSemana, existencias: x.existencias, entrega: x.entrega, lote: x.lote, proveedor: x.proveedor, costo: x.costo,
+      serie: x.serie, pronostico: x.pronostico, semanasPico: x.semanasPico, pico: x.pico, ventaUnica: x.ventaUnica, explicacion: x.explicacion,
     })),
   });
 });

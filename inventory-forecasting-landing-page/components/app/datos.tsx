@@ -77,7 +77,7 @@ function UltimaCarga({ inv }: { inv: Inventario }) {
       <div className="flex items-start gap-3.5">
         <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl bg-verde-fondo text-verde"><Check className="size-5" /></span>
         <div>
-          <h2 id="t-ultima" className="text-lg font-bold">Al día desde el {fecha(f.fecha)}</h2>
+          <h2 id="t-ultima" className="text-lg font-bold">Archivo subido el {fecha(f.fecha)}</h2>
           <p className="text-[0.95rem] text-muted-foreground">
             {[nombrePrograma(f.programa), f.archivos?.length ? plural(f.archivos.length, 'archivo', 'archivos') : null, `${numero(inv.resumen.productos)} productos`, f.totales ? 'ventas totales del periodo' : `ventas del ${fecha(f.desde)} al ${fecha(f.hasta)}`].filter(Boolean).join(' · ')}
           </p>

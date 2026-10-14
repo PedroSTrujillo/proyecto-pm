@@ -15,6 +15,14 @@ import { Boton, BotonEnlace, Cargando, ErrorLista, Tarjeta, Titulo } from './ui'
 
 type Resumen = { id: number; proveedor: string; tipo: 'real' | 'simulado' | null; creadoEn: string; paso: number; lineasInicial: number; conteo: { total: number } | null; terminadoEn: string | null }
 
+const PASOS_GUIA: [string, string][] = [
+  ['Lo que ibas a pedir', 'Escríbelo o pégalo de tu Excel, antes de ver nada.'],
+  ['Sube tu informe', 'Ventas y existencias, tal como salen de tu programa contable.'],
+  ['Mira el reporte', 'Qué se te agota, qué te sobra y para cuántas semanas te alcanza cada producto.'],
+  ['Decide tu cantidad final', 'Con lo que sugiere SINESC al lado, línea por línea. Tú decides.'],
+  ['Cuéntanos por qué', 'En dos líneas. Y te llevas la orden de compra en PDF, Excel o WhatsApp.'],
+]
+
 const NOMBRES_PASOS = ['lo que ibas a pedir', 'ventas y existencias', 'el reporte', 'tu lista final', '¿por qué cambió?']
 
 export function Pedidos() {
@@ -85,7 +93,22 @@ export function Pedidos() {
       )}
 
       {pedidos.length === 0 ? (
-        <Tarjeta className="p-6 text-muted-foreground">Todavía no tienes pedidos. Empieza el primero con el botón de arriba.</Tarjeta>
+        <Tarjeta className="flex flex-col gap-5 p-5 sm:p-6">
+          <div>
+            <h2 className="text-lg font-bold">Así funciona un pedido</h2>
+            <p className="text-[0.95rem] text-muted-foreground">Cinco pasos. Lo que llevas se guarda solo: puedes salir y volver cuando quieras.</p>
+          </div>
+          <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            {PASOS_GUIA.map(([titulo, texto], i) => (
+              <li key={titulo} className="flex flex-col gap-1.5 rounded-xl border border-border p-3.5">
+                <span className="inline-flex size-7 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">{i + 1}</span>
+                <strong className="text-[0.95rem] leading-snug">{titulo}</strong>
+                <span className="text-[0.88rem] leading-snug text-muted-foreground">{texto}</span>
+              </li>
+            ))}
+          </ol>
+          <Boton variante="primario" className="self-start" onClick={nuevo} disabled={creando}>{creando ? "Creando…" : "Empezar mi primer pedido"} <ArrowRight /></Boton>
+        </Tarjeta>
       ) : (
         <Tarjeta className="overflow-hidden">
           <div className="overflow-x-auto">

@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 const P = require('../server/pronostico');
 const { seriesSemanales } = require('../server/series');
 const { calcularRotacion } = require('../server/rotacion');
-const { construirInventario, leerAjustes, recortarPico } = require('../server/inventario');
+const { construirInventario, leerAjustes, recortarPico, ventaUnica } = require('../server/inventario');
 const { inventarioDemo, sectores } = require('../server/demo');
 const { diaDe } = require('../server/valores');
 
@@ -204,4 +204,25 @@ test('una devolución en una semana sin ventas se descuenta de las semanas anter
   const s = seriesSemanales(ventas).porProducto.A;
   assert.ok(s.every((x) => x >= 0), 'ninguna semana negativa: ' + s.join(','));
   assert.equal(s.reduce((a, b) => a + b, 0), 4, 'el total neto se conserva (5 + 2 - 4 + 1)');
+});
+
+test('venta de una sola vez: no se toma como venta de todas las semanas', () => {
+  const serie = new Array(47).fill(0);
+  serie[36] = 295;
+  serie[37] = 95;
+  const v = ventaUnica(serie, '2026-08-31');
+  assert.equal(v.vendido, 390);
+  assert.equal(v.semanas, 2);
+  assert.match(v.desde, /^2026-06-/);
+  // Si se vendió hace menos de 4 semanas puede ser un producto que apenas empieza: no se marca.
+  const reciente = new Array(47).fill(0);
+  reciente[45] = 20;
+  assert.equal(ventaUnica(reciente, '2026-08-31'), null);
+  // Ventas en semanas separadas son de verdad recurrentes.
+  const separadas = new Array(47).fill(0);
+  separadas[10] = 5;
+  separadas[30] = 5;
+  assert.equal(ventaUnica(separadas, '2026-08-31'), null);
+  // Con menos de 6 meses de archivo no se sabe.
+  assert.equal(ventaUnica([0, 0, 9, 0, 0, 0, 0, 0], '2026-08-31'), null);
 });

@@ -52,7 +52,7 @@ Abre http://localhost:3000. La página, la demo, las cuentas y la aplicación sa
 
 | Comando | Qué hace |
 |---|---|
-| `npm test` | Corre las 103 pruebas automáticas: cálculo, pronóstico, comparación de listas, recordatorios, lector de archivos, demo y API. No necesitan la web. |
+| `npm test` | Corre las 105 pruebas automáticas: cálculo, pronóstico, comparación de listas, recordatorios, lector de archivos, demo y API. No necesitan la web. |
 | `npm run ejemplos` | Regenera en `ejemplos/` los archivos inventados (CSV estilo Siigo, Excel estilo SAP, ventas por mes, un catálogo de 3.000 productos y un informe de mínimos). |
 | `npm run texto` | Revisa los textos de la interfaz buscando frases de relleno. |
 | `npm run borrar-datos -- --todos` | Muestra qué cuentas de prueba se borrarían; con `--confirmar` las borra. `--email correo@empresa.co` borra una sola. Las del equipo no se tocan. |

@@ -65,6 +65,7 @@ export function Equipo() {
   return (
     <>
       <Titulo sub={`Calculado con los datos guardados el ${fechaHora(d.generadoEn)}.`} acciones={<Boton onClick={cargar}>Actualizar</Boton>}>Resultados de la prueba</Titulo>
+      <GuiaDeLaPrueba />
       <Aviso tono={tono} titulo={titulos[r.veredicto]}>
         {r.veredicto === 'en_curso' && <p className="font-semibold">Por ahora: {r.cumplen} de {r.usuarios} cambiaron {r.reglas.metaLineas} o más líneas y {r.noCambian} {r.noCambian === 1 ? 'cambió' : 'cambiaron'} 0 o 1{r.sinPedido ? `; ${r.sinPedido} aún no ${r.sinPedido === 1 ? 'guarda' : 'guardan'} su lista final` : ''}.</p>}
         <p>Meta: {r.reglas.metaUsuarios} de {r.usuariosEsperados} usuarios cambian {r.reglas.metaLineas} o más líneas de su pedido en {r.reglas.diasPrueba} días. Pivote: {r.reglas.pivoteUsuarios} o más no cambian ninguna línea o cambian solo una.</p>
@@ -92,6 +93,61 @@ export function Equipo() {
       {d.usuarios.map((u) => <Probador key={u.id} u={u} alCambiar={cargar} />)}
       <ErroresRecientes />
     </>
+  )
+}
+
+// Lo que hay que hacer en cada llamada de prueba, a mano para quien la dirige.
+function GuiaDeLaPrueba() {
+  const [copiado, setCopiado] = useState(false)
+  const enlace = typeof window === 'undefined' ? '' : `${window.location.origin}/crear-cuenta`
+  async function copiar() {
+    try {
+      await navigator.clipboard.writeText(enlace)
+      setCopiado(true)
+    } catch {
+      setCopiado(false)
+    }
+  }
+  return (
+    <details className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+      <summary className="cursor-pointer text-lg font-bold">Cómo hacer una prueba de usuario (la llamada)</summary>
+      <div className="mt-3 grid gap-4 md:grid-cols-2">
+        <div>
+          <strong>Antes</strong>
+          <ul className="mt-1 list-disc space-y-1 pl-5 text-[0.93rem]">
+            <li>Que tenga a mano el informe de ventas y existencias de su programa (en el paso 2 está la guía de cada uno) y el pedido que va a hacer.</li>
+            <li>Si no tiene pedido para estos días: que arme uno como si pidiera hoy (simulado) o use su último pedido real con las ventas hasta antes de ese día.</li>
+            <li>Mándale el enlace para crear su cuenta:{' '}
+              <button type="button" onClick={copiar} className="font-semibold text-primary hover:text-primary-hover">{copiado ? 'copiado' : enlace}</button>
+            </li>
+          </ul>
+          <strong className="mt-3 block">Durante (grabando, con su pantalla compartida)</strong>
+          <ol className="mt-1 list-decimal space-y-1 pl-5 text-[0.93rem]">
+            <li>Crea su cuenta y empieza un pedido.</li>
+            <li>Paso 1: escribe o pega lo que iba a pedir, antes de ver nada. Marca real o simulado.</li>
+            <li>Paso 2: sube su informe y marca qué documentos son ventas.</li>
+            <li>Paso 3: lee el reporte pensando en voz alta.</li>
+            <li>Paso 4: decide su cantidad final de cada producto (puede usar lo que sugiere SINESC o no).</li>
+            <li>Paso 5: cuenta por qué cambió lo que cambió.</li>
+          </ol>
+          <p className="mt-2 text-[0.88rem] text-muted-foreground">No le digan qué cambiar. Anoten cada vez que tuvieron que ayudarle.</p>
+        </div>
+        <div>
+          <strong>Al cerrar, tres preguntas</strong>
+          <ol className="mt-1 list-decimal space-y-1 pl-5 text-[0.93rem]">
+            <li>¿Qué número te hizo cambiar algo?</li>
+            <li>¿Qué no entendiste o qué te faltó?</li>
+            <li>¿Lo usarías la próxima vez que vayas a pedir? ¿Pagarías por esto?</li>
+          </ol>
+          <strong className="mt-3 block">Después</strong>
+          <ul className="mt-1 list-disc space-y-1 pl-5 text-[0.93rem]">
+            <li>Aquí abajo, en su tarjeta, marquen su "¿por qué?" como "el dato le sirvió" o "por probar la herramienta".</li>
+            <li>Su fila en Conversaciones con la fecha y el enlace a la grabación.</li>
+            <li>Para ensayar antes: en el paso 2 de un pedido de una cuenta del equipo aparece "ensayar con un negocio de ejemplo".</li>
+          </ul>
+        </div>
+      </div>
+    </details>
   )
 }
 

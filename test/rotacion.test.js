@@ -180,6 +180,15 @@ test('un producto que se vende de vez en cuando no se toma por nuevo aunque apar
   assert.equal(r.resumen.productosNuevos, 0);
 });
 
+test('una venta puntual (todo en dos semanas y nada después) no se toma por producto nuevo', () => {
+  // Vende 295 y 95 en las semanas 36 y 37 de 52, y nada más: un proyecto, no un producto que empezó.
+  const ventas = [...semanal('A', () => 1), ...semanal('K', (k) => (k === 36 ? 295 : k === 37 ? 95 : 0)).filter((v) => v.cantidad > 0)];
+  const r = calcularRotacion({ ventas, existencias: [] });
+  const k = r.filas.find((f) => f.codigo === 'K');
+  assert.equal(k.semanasProducto, 52);
+  assert.ok(!k.senales.includes('producto_nuevo'));
+});
+
 test('con totales de un periodo se usa el promedio simple sobre ese periodo, sin ajustes', () => {
   const periodo = { desde: d('2026-01-01'), hasta: d('2026-03-31') }; // 90 días
   const r = calcularRotacion({ ventas: [{ codigo: 'T', dia: periodo.hasta, cantidad: 90 }], existencias: [{ codigo: 'T', existencias: 14 }], periodo });

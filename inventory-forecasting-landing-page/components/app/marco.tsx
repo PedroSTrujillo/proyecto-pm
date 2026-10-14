@@ -120,8 +120,8 @@ export function Marco({ children }: { children: ReactNode }) {
   )
 
   return (
-    <div className="tema-app min-h-dvh bg-background lg:flex">
-      {/* Menú lateral (escritorio) */}
+    <div className="tema-app min-h-dvh bg-background lg:flex lg:bg-[linear-gradient(to_right,var(--card)_calc(16rem-1px),var(--border)_calc(16rem-1px),var(--border)_16rem,transparent_16rem)]">
+      {/* Menú lateral (escritorio). El fondo del contenedor sigue su franja hasta el final de una página larga. */}
       <aside className="no-imprimir hidden w-64 shrink-0 flex-col gap-7 border-r border-border bg-card px-4 py-6 lg:sticky lg:top-0 lg:flex lg:h-dvh">
         <Marca href={demo ? '/' : rutas.panel} />
         <Navegacion items={items} />

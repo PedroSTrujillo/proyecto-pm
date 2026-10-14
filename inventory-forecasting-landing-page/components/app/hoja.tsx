@@ -4,13 +4,26 @@
 // y pegar varias filas copiadas de Excel (Ctrl+V / Cmd+V). Misma lógica que public/js/hoja.js.
 
 import { forwardRef, useImperativeHandle, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react'
-import { X } from 'lucide-react'
+import { Pencil, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export type Linea = { codigo: string; nombre: string; cantidad: string }
 // alClic: la celda es un botón (por ejemplo, para abrir el detalle de un producto).
-export type Extra = { titulo: string; valor: (l: Linea) => { texto: string; clase?: string }; alClic?: (l: Linea) => void }
-export type HojaApi = { lineas: () => Linea[]; fijar: (l: { codigo: unknown; nombre?: unknown; cantidad: unknown }[]) => void; marcarErrores: (filas: number[]) => void }
+// accion: un botón pequeño al lado del valor (por ejemplo, "Usar" el sugerido en esa línea).
+export type Extra = {
+  titulo: string
+  // sub: una segunda línea más pequeña debajo del valor.
+  valor: (l: Linea) => { texto: string; clase?: string; sub?: string; claseSub?: string }
+  alClic?: (l: Linea) => void
+  accion?: (l: Linea, i: number) => { texto: string; titulo: string; alClic: () => void } | null
+}
+export type HojaApi = {
+  lineas: () => Linea[]
+  fijar: (l: { codigo: unknown; nombre?: unknown; cantidad: unknown }[]) => void
+  marcarErrores: (filas: number[]) => void
+  // Cambia la cantidad de una fila (para las acciones de una columna extra).
+  ponerCantidad: (i: number, cantidad: string) => void
+}
 
 const COLUMNAS: (keyof Linea)[] = ['codigo', 'nombre', 'cantidad']
 const VACIAS_AL_FINAL = 3
@@ -72,10 +85,22 @@ function separarFilas(datos: string) {
   return out.map((f) => f.map((c) => c.trim())).filter((f) => f.some((c) => c !== ''))
 }
 
-// tituloCantidad: el nombre de la columna que se edita (en la lista final, "Vas a pedir").
-type Props = { inicial: { codigo: unknown; nombre?: unknown; cantidad: unknown }[]; soloLectura?: boolean; extras?: Extra[]; alCambiar?: () => void; tituloCantidad?: string }
+// tituloCantidad: el nombre de la columna que se edita (en la lista final, "Tu cantidad final").
+// extrasAntes: columnas entre el nombre y la cantidad (en la lista final, el contexto y el sugerido
+// van antes de la decisión). destacarCantidad: la columna que se edita se resalta.
+// claseFila: una clase por fila (por ejemplo, las que cambiaron).
+type Props = {
+  inicial: { codigo: unknown; nombre?: unknown; cantidad: unknown }[]
+  soloLectura?: boolean
+  extras?: Extra[]
+  extrasAntes?: Extra[]
+  alCambiar?: () => void
+  tituloCantidad?: string
+  destacarCantidad?: boolean
+  claseFila?: (l: Linea) => string | undefined
+}
 
-export const Hoja = forwardRef<HojaApi, Props>(function Hoja({ inicial, soloLectura = false, extras = [], alCambiar, tituloCantidad = 'Cantidad' }, ref) {
+export const Hoja = forwardRef<HojaApi, Props>(function Hoja({ inicial, soloLectura = false, extras = [], extrasAntes = [], alCambiar, tituloCantidad = 'Cantidad', destacarCantidad = false, claseFila }, ref) {
   const desde = (ls: Props['inicial']) => ls.map((l) => ({ codigo: texto(l.codigo), nombre: texto(l.nombre), cantidad: texto(l.cantidad) }))
   const [filas, setFilas] = useState<Linea[]>(() => (soloLectura ? desde(inicial) : conVacias(desde(inicial))))
   const [errores, setErrores] = useState<Set<number>>(new Set())
@@ -93,6 +118,12 @@ export const Hoja = forwardRef<HojaApi, Props>(function Hoja({ inicial, soloLect
     },
     marcarErrores(fs) {
       setErrores(new Set(fs.map((f) => f - 1)))
+    },
+    ponerCantidad(i, cantidad) {
+      const sig = filas.slice()
+      if (!sig[i]) return
+      sig[i] = { ...sig[i], cantidad }
+      cambiar(sig)
     },
   }), [filas])
 
@@ -162,20 +193,43 @@ export const Hoja = forwardRef<HojaApi, Props>(function Hoja({ inicial, soloLect
   }
 
   const visibles = soloLectura ? filas.filter((f) => !vacia(f)) : filas
+  const destacada = destacarCantidad ? 'bg-primary/[0.07]' : ''
+  const celdaExtra = (x: Extra, f: Linea, i: number) => {
+    const v = x.valor(f)
+    const a = x.accion ? x.accion(f, i) : null
+    return (
+      <td key={x.titulo} className={cn('border-l border-border px-2.5 py-2 text-[0.9rem] whitespace-nowrap', v.clase)}>
+        <span className="inline-flex items-center gap-2">
+          <span className="leading-tight">
+            {x.alClic && v.texto ? <button type="button" onClick={() => x.alClic!(f)} className="underline decoration-dotted underline-offset-4 hover:decoration-solid">{v.texto}</button> : v.texto}
+            {v.sub && <span className={cn('block text-[0.76rem] font-normal', v.claseSub ?? 'text-muted-foreground')}>{v.sub}</span>}
+          </span>
+          {a && (
+            <button type="button" title={a.titulo} onClick={a.alClic} className="presionable rounded-md border border-primary/40 bg-card px-2 py-0.5 text-[0.78rem] font-semibold text-primary hover:bg-primary hover:text-primary-foreground">
+              {a.texto}
+            </button>
+          )}
+        </span>
+      </td>
+    )
+  }
   const productos = filas.filter((f) => f.codigo.trim()).length
   const celda = 'h-10 w-full bg-transparent px-2.5 outline-none focus:bg-card focus:ring-2 focus:ring-ring focus:ring-inset'
 
   return (
     <div className="flex flex-col gap-2">
       <div className="overflow-x-auto rounded-xl border border-border">
-        <table ref={tabla} className="w-full min-w-[560px] border-collapse text-[0.95rem]">
+        <table ref={tabla} className="w-full border-collapse text-[0.95rem]" style={{ minWidth: 520 + (extras.length + extrasAntes.length) * 80 }}>
           <thead className="bg-muted text-left text-[0.82rem] text-muted-foreground">
             <tr>
               <th className="w-10 px-2 py-2 text-center font-semibold">#</th>
-              <th className="w-40 px-2.5 py-2 font-semibold">Código</th>
-              <th className="px-2.5 py-2 font-semibold">Nombre <span className="font-normal">(opcional)</span></th>
-              <th className="w-28 px-2.5 py-2 font-semibold">{tituloCantidad}</th>
-              {extras.map((x) => <th key={x.titulo} className="px-2.5 py-2 font-semibold">{x.titulo}</th>)}
+              <th className={cn('px-2.5 py-2 font-semibold', extras.length + extrasAntes.length > 2 ? 'w-28' : 'w-40')}>Código</th>
+              <th className={cn('px-2.5 py-2 font-semibold', (extras.length > 0 || extrasAntes.length > 0) && 'min-w-48')}>Nombre <span className="font-normal">(opcional)</span></th>
+              {extrasAntes.map((x) => <th key={x.titulo} className="px-2.5 py-2 leading-tight font-semibold">{x.titulo}</th>)}
+              <th className={cn('w-28 px-2.5 py-2 font-semibold', destacarCantidad && 'w-36 bg-primary text-primary-foreground')}>
+                {destacarCantidad ? <span className="inline-flex items-center gap-1.5"><Pencil className="size-3.5" aria-hidden="true" />{tituloCantidad}</span> : tituloCantidad}
+              </th>
+              {extras.map((x) => <th key={x.titulo} className="px-2.5 py-2 leading-tight font-semibold">{x.titulo}</th>)}
               {!soloLectura && <th className="w-10" aria-label="Quitar" />}
             </tr>
           </thead>
@@ -183,17 +237,19 @@ export const Hoja = forwardRef<HojaApi, Props>(function Hoja({ inicial, soloLect
             {visibles.map((f, i) => {
               const invalida = f.cantidad !== '' && !pareceNumero(f.cantidad)
               return (
-                <tr key={i} data-i={i} className={cn('border-t border-border', errores.has(i) && 'bg-rojo-fondo')}>
+                <tr key={i} data-i={i} className={cn('border-t border-border', claseFila?.(f), errores.has(i) && 'bg-rojo-fondo')}>
                   <td className="px-2 text-center text-[0.8rem] text-muted-foreground tabular-nums">{i + 1}</td>
                   {soloLectura ? (
                     <>
                       <td className="px-2.5 py-2">{f.codigo}</td>
                       <td className="px-2.5 py-2">{f.nombre}</td>
-                      <td className="px-2.5 py-2 tabular-nums">{f.cantidad}</td>
+                      {extrasAntes.map((x) => celdaExtra(x, f, i))}
+                      <td className={cn('px-2.5 py-2 font-semibold tabular-nums', destacada)}>{f.cantidad}</td>
                     </>
                   ) : (
-                    COLUMNAS.map((c, col) => (
-                      <td key={c} className="border-l border-border p-0">
+                    COLUMNAS.flatMap((c, col) => [
+                      ...(c === 'cantidad' ? extrasAntes.map((x) => celdaExtra(x, f, i)) : []),
+                      <td key={c} className={cn('border-l border-border p-0', c === 'cantidad' && destacada)}>
                         <input
                           data-col={col}
                           value={f[c]}
@@ -201,7 +257,7 @@ export const Hoja = forwardRef<HojaApi, Props>(function Hoja({ inicial, soloLect
                           autoComplete="off"
                           spellCheck={false}
                           inputMode={c === 'cantidad' ? 'decimal' : undefined}
-                          className={cn(celda, c === 'cantidad' && 'tabular-nums', c === 'cantidad' && invalida && 'text-rojo-texto underline decoration-wavy')}
+                          className={cn(celda, c === 'cantidad' && 'tabular-nums', c === 'cantidad' && destacarCantidad && 'text-[1.02rem] font-bold', c === 'cantidad' && invalida && 'text-rojo-texto underline decoration-wavy')}
                           onChange={(e) => {
                             const sig = filas.slice()
                             sig[i] = { ...sig[i], [c]: e.target.value }
@@ -211,17 +267,10 @@ export const Hoja = forwardRef<HojaApi, Props>(function Hoja({ inicial, soloLect
                           onKeyDown={(e) => alTeclear(e, i, col)}
                           onPaste={(e) => alPegar(e, i, col)}
                         />
-                      </td>
-                    ))
+                      </td>,
+                    ])
                   )}
-                  {extras.map((x) => {
-                    const v = x.valor(f)
-                    return (
-                      <td key={x.titulo} className={cn('border-l border-border px-2.5 py-2 text-[0.9rem] whitespace-nowrap', v.clase)}>
-                        {x.alClic && v.texto ? <button type="button" onClick={() => x.alClic!(f)} className="underline decoration-dotted underline-offset-4 hover:decoration-solid">{v.texto}</button> : v.texto}
-                      </td>
-                    )
-                  })}
+                  {extras.map((x) => celdaExtra(x, f, i))}
                   {!soloLectura && (
                     <td className="border-l border-border p-0 text-center">
                       <button

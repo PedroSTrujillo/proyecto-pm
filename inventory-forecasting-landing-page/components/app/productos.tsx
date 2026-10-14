@@ -7,12 +7,13 @@ import { useEffect, useId, useMemo, useState } from 'react'
 import { Download, Search, X } from 'lucide-react'
 import { descargar } from '@/lib/descargar'
 import { cn } from '@/lib/utils'
-import { claveCodigo, duracion, mesAnio, numero, plata, porcentaje, semanas, ventasSemana } from '@/lib/formato'
+import { claveCodigo, duracion, fecha, mesAnio, numero, plata, porcentaje, semanas, ventasSemana } from '@/lib/formato'
 import type { Estado, Inventario, Producto } from '@/lib/tipos'
 import { useInventario } from './contexto'
 import { BarraRiesgo, GraficoVentas, LeyendaVentas, Sparkline } from './graficos'
 import { Boton, Cargando, ChipEstado, ESTADOS, ErrorLista, Pildoras, Tarjeta, Titulo, claseEntrada } from './ui'
 import { SinInventario } from './sin-inventario'
+import { VentaUnica } from './pedido-flujo'
 
 type Filtro = 'todos' | Estado
 type Orden = 'semanas' | 'riesgo' | 'valor' | 'ventas'
@@ -79,6 +80,10 @@ function ProductosCon({ inv }: { inv: Inventario }) {
   const lista = useMemo(() => ordenar(base.filter((p) => filtro === 'todos' || p.estado === filtro), orden), [base, filtro, orden])
   const cuenta = (e: Estado) => base.filter((p) => p.estado === e).length
   const producto = seleccionado ? inv.productos.find((p) => p.codigo === seleccionado) || null : null
+  // Pronóstico y cuánto pedir en la lista; con la ficha abierta, solo en pantallas grandes.
+  const pronostica = inv.alcance !== 'prueba' && inv.productos.some((p) => p.pronostico)
+  const claseExtra = producto ? 'hidden 2xl:table-cell' : 'hidden lg:table-cell'
+  const claseSerie = producto ? 'hidden md:table-cell xl:hidden 2xl:table-cell' : 'hidden md:table-cell'
 
   function abrir(codigo: string | null) {
     const sp = new URLSearchParams(params.toString())
@@ -134,14 +139,16 @@ function ProductosCon({ inv }: { inv: Inventario }) {
       <div className="flex items-start gap-5">
         <Tarjeta aria-label="Lista de productos" className="min-w-0 flex-1 px-3 py-1 sm:px-4">
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse sm:min-w-[620px]">
+            <table className={cn('w-full border-collapse', producto ? 'sm:min-w-[500px]' : 'sm:min-w-[620px]')}>
               <thead>
                 <tr className="text-left text-[0.82rem] text-muted-foreground">
                   <th scope="col" className="border-b border-border px-2 py-3 font-semibold">Producto</th>
-                  <th scope="col" className="hidden border-b border-border px-2 py-3 font-semibold md:table-cell">Últimas 16 semanas</th>
+                  <th scope="col" className={cn('border-b border-border px-2 py-3 font-semibold', claseSerie)}>Últimas 16 semanas</th>
                   <th scope="col" className="hidden border-b border-border px-2 py-3 text-right font-semibold sm:table-cell">Ventas/semana</th>
                   <th scope="col" className="hidden border-b border-border px-2 py-3 text-right font-semibold sm:table-cell">Tienes</th>
                   <th scope="col" className="border-b border-border px-2 py-3 text-right font-semibold">Te alcanza</th>
+                  {pronostica && <th scope="col" className={cn('border-b border-border px-2 py-3 text-right leading-tight font-semibold', claseExtra)}>Venderás en<br />4 semanas</th>}
+                  {inv.sugerencias && <th scope="col" className={cn('border-b border-border px-2 py-3 text-right font-semibold', claseExtra)}>Pedir</th>}
                 </tr>
               </thead>
               <tbody>
@@ -160,7 +167,7 @@ function ProductosCon({ inv }: { inv: Inventario }) {
                       <span className="font-semibold">{p.nombre}</span>
                       <span className="block text-[0.82rem] text-muted-foreground sm:hidden">Vende {ventasSemana(p.ventasSemana)} por semana · tienes {numero(p.existencias)}</span>
                     </td>
-                    <td className="hidden border-b border-[#f0f1ee] px-2 py-3 md:table-cell">
+                    <td className={cn('border-b border-[#f0f1ee] px-2 py-3', claseSerie)}>
                       {p.serie ? <Sparkline valores={p.serie.slice(-16)} color={p.estado === 'sobra' || p.estado === 'sin_ventas' ? '#6b8bb8' : undefined} /> : <span className="text-muted-foreground">—</span>}
                     </td>
                     <td className="hidden border-b border-[#f0f1ee] px-2 py-3 text-right font-semibold tabular-nums sm:table-cell">{ventasSemana(p.ventasSemana)}</td>
@@ -176,6 +183,23 @@ function ProductosCon({ inv }: { inv: Inventario }) {
                       )}
                       <span className="mt-0.5 block"><ChipEstado estado={p.estado} /></span>
                     </td>
+                    {pronostica && (
+                      <td className={cn('border-b border-[#f0f1ee] px-2 py-3 text-right tabular-nums', claseExtra)}>
+                        {p.pronostico ? (
+                          <>
+                            <span className="font-semibold">{numero(Math.round(p.pronostico.slice(0, 4).reduce((s, x) => s + x.media, 0)))}</span>
+                            <span className="block text-xs text-muted-foreground">entre {numero(Math.round(p.pronostico.slice(0, 4).reduce((s, x) => s + x.bajo, 0)))} y {numero(Math.round(p.pronostico.slice(0, 4).reduce((s, x) => s + x.alto, 0)))}</span>
+                          </>
+                        ) : <span className="text-muted-foreground">—</span>}
+                      </td>
+                    )}
+                    {inv.sugerencias && (
+                      <td className={cn('border-b border-[#f0f1ee] px-2 py-3 text-right', claseExtra)}>
+                        {p.sugerido ? (
+                          <span className="inline-flex min-w-11 justify-center rounded-lg bg-secondary px-2 py-1 font-display text-lg font-bold tabular-nums text-secondary-foreground">{numero(p.sugerido)}</span>
+                        ) : <span className="text-muted-foreground">0</span>}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -210,6 +234,8 @@ function ProductosCon({ inv }: { inv: Inventario }) {
 
 function consejo(p: Producto, inv: Inventario) {
   const u = inv.umbrales.seAgota
+  if (p.ventaUnica) return `Se vendió de una sola vez (${numero(p.ventaUnica.vendido)} en la semana del ${fecha(p.ventaUnica.desde)}) y nada más en el resto del archivo: parece un proyecto o un cliente puntual. Por eso no sugerimos pedirlo.`
+  if (p.existencias <= 0 && p.ventasSemana > 0) return `Ya se acabó, y se vende unas ${ventasSemana(p.ventasSemana)} por semana: cada semana sin él es venta que se va a otro lado. ${inv.sugerencias && p.sugerido ? `Va en el pedido de esta semana: te sugerimos ${numero(p.sugerido)}.` : 'Va en el pedido de esta semana.'}`
   if (p.estado === 'agota' && inv.alcance === 'prueba') return `Se acaba en menos de ${u} semanas si sigues vendiendo al mismo ritmo. Revísalo en tu pedido.`
   if (p.estado === 'agota' && inv.sugerencias && !p.sugerido) return `Se acaba en menos de ${u} semanas, pero alcanza para lo que tarda ${p.proveedor === 'Sin proveedor' ? 'tu proveedor' : p.proveedor} y hasta tu próximo pedido. Revísalo en ese pedido.`
   if (p.estado === 'agota') return `Se acaba en menos de ${u} semanas${p.entrega > 0 ? ` y ${p.proveedor === 'Sin proveedor' ? 'tu proveedor' : p.proveedor} tarda ${duracion(p.entrega)}` : ''}. Va en el pedido de esta semana.`
@@ -254,7 +280,13 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
             </>
           )}
         </div>
-        {p.riesgo !== null ? (
+        {p.existencias <= 0 && p.ventasSemana > 0 && !p.ventaUnica ? (
+          <div className="rounded-2xl border border-rojo-borde bg-rojo-fondo p-4">
+            <span className="block text-[0.82rem] font-semibold text-rojo-texto">Ya está en cero</span>
+            <strong className="font-display text-[1.8rem] leading-tight tabular-nums">{ventasSemana(p.ventasSemana)}</strong>
+            <span className="block text-[0.85rem] text-rojo-texto">por semana que no puedes vender</span>
+          </div>
+        ) : p.riesgo !== null ? (
           <div className="rounded-2xl border border-border p-4">
             <span className="block text-[0.82rem] font-semibold text-muted-foreground">Riesgo de agotarse en {semanas(horizonte)} semanas</span>
             <strong className="font-display text-[1.8rem] leading-tight tabular-nums">{`${Math.round(p.riesgo * 100)} %`}</strong>
@@ -347,7 +379,8 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
         </div>
       </details>
 
-      {inv.sugerencias && p.sugerido !== null && (
+      {inv.sugerencias && p.ventaUnica && <VentaUnica v={p.ventaUnica} existencias={p.existencias} />}
+      {inv.sugerencias && p.sugerido !== null && !p.ventaUnica && (
         <div className="flex flex-col gap-3 rounded-2xl border border-[#cfe5e1] bg-secondary p-4">
           <p className="text-[0.95rem] text-[#0b3f3b]">
             {p.sugerido > 0
