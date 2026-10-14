@@ -27,6 +27,13 @@
 
 ---
 
+## 2026-10-14 (28) — Claude — rama de Santiago integrada en main
+- **Rama:** `main` y `mejoras-modelo` en los dos repos, con `santiago` (umbral de "se agota" que elige cada cuenta) integrada.
+- **Estado:** la rama venía de antes de las entradas 21 a 27 y chocaba en `server/pedidos.js`, `server/rotacion.js`, dos archivos de pruebas, README y esta bitácora. Se conservó todo: `calcularRotacion` recibe `semanasAgota` (Santiago) y `hoy` (avisos de archivo viejo y meses sin ventas); las pruebas de los dos quedan; la entrada de Santiago queda como (20b). Se ajustó el texto del paso 2 cuando el usuario ya cambió el umbral ("Está en 4, también para tus próximos pedidos").
+- **Verificación:** `npm test` → 103/103; `tsc` sin errores; en el navegador (local): el paso 2 muestra el selector, subirlo a 4 lo guarda y el reporte dice "se agotan en menos de 4 semanas".
+- **Siguiente paso exacto:** declarar en el Entregable 3 que el umbral de "se agota" ahora lo puede elegir cada probador (fila 5 de "Filas que conviene agregar" en `docs/ENTREGABLE_Y_APP.md`) y decidir si los probadores que no usen 2 se leen aparte.
+- **Notas y bloqueos:** ninguno.
+
 ## 2026-10-14 (27) — Claude — la prueba completa como el probador, con sus archivos reales
 - **Rama:** `mejoras-modelo` (y `main`), en los dos repos.
 - **Estado:** se hizo el pedido de punta a punta en el navegador (local) como el probador de Siigo Nube, con sus dos archivos reales servidos solo en este equipo. Lo que confundía y se arregló:
@@ -111,6 +118,15 @@
 ## 2026-10-13 (20) — Claude — revisión por tipo de usuario y más casos de pedidos borrados
 - **Estado:** un pedido ya no se puede borrar después de guardar la lista final (antes sí: un probador podía borrar un resultado). Los borrados no cuentan en el veredicto ni en "cada cuánto pide". Prueba nueva que recorre visitante, probador nuevo, en prueba, después de la prueba y equipo.
 - **Verificación:** `npm test` → 88/88; en el navegador, borrar un pedido con archivo deja el Panel y Datos sin ese archivo.
+
+## 2026-10-14 (20b) — Santiago (con Claude) — umbral de "se agota" que elige cada cuenta
+- **Rama:** `santiago` (integrada en `main` el 2026-10-14, entrada 28).
+- **Estado:** el usuario elige el umbral (1 a 11 semanas; 2 si no elige) en el **paso 2 de cada pedido**, antes de subir el archivo, o en Datos (tarjeta "¿Cuándo te avisamos que algo se agota?"). Cada pedido guarda el suyo (`pedidos.semanas_agota`) y queda fijo al ver el reporte; con "Usar ese inventario" `conUmbral` vuelve a marcar el reporte guardado con el umbral del pedido. Aplica al panel y a productos (en vivo), al reporte del paso 3, a la coherencia y a los recordatorios. En Datos la tarjeta solo aparece si ya hay inventario; un probador nuevo lo elige en el paso 2. Aplica también a los probadores durante sus 14 días (decisión de Santiago): la vista del equipo muestra el umbral de cada probador y marca los reportes que no usaron 2.
+- **Archivos tocados:** `server/rotacion.js` (`estadoPorSemanas`, `conUmbral`, parámetro `semanasAgota`), `server/inventario.js` (`leerAjustes`), `server/pedidos.js` (`PUT /:id/semanas-agota`), `server/db.js`, `server/recordatorios.js`, `server/equipo.js`; `components/app/datos.tsx` (tarjeta), `pedido-flujo.tsx` (paso 2), `ui.tsx` (`Contador`), `panel.tsx`, `productos.tsx`, `equipo.tsx`, `contexto.tsx`, `lib/tipos.ts`; `public/js/app.js`; docs: modelo §3.4.1 y §5, README, `ENTREGABLE_Y_APP.md`, CLAUDE.md.
+- **Base de datos:** columna `pedidos.semanas_agota` (ALTER IF NOT EXISTS en `ESQUEMA`); el de Datos va en `usuarios.inventario` (JSONB). Hay que reiniciar el servidor para que se cree.
+- **Verificación:** `npm test` → 92/92 (5 nuevas); tipos sin errores; `npm run texto` igual que antes. No se miró en el navegador.
+- **Siguiente paso exacto:** reiniciar el servidor, crear un pedido nuevo, cambiar el umbral en el paso 2 y ver que el reporte lo use; después, agregar en el Excel del Entregable la fila 5 de "Filas que conviene agregar" de `docs/ENTREGABLE_Y_APP.md`.
+- **Notas y bloqueos:** si un probador cambia el umbral, su resultado no es comparable con los demás; decidir si se lee aparte.
 
 ## 2026-10-13 (19) — Claude — lo que reportó Jose Manuel al probar
 - **Rama:** `main` en el fork (`mio`) y en el repo del grupo.

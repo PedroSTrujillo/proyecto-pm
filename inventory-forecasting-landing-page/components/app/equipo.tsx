@@ -24,6 +24,7 @@ const TEXTO_EVENTO: Record<string, (e: any) => string> = {
   recordatorio_respondido: (e) => (e.detalle?.activo ? `Pidió recordatorios (${plural(e.detalle.productos, 'producto', 'productos')})` : 'Dijo que no quiere recordatorios'),
   recordatorio_enviado: () => 'Le llegó la invitación de calendario al correo',
   calendario_descargado: (e) => `Descargó los recordatorios del pedido #${e.pedidoId}`,
+  umbral_elegido: (e) => `En el pedido #${e.pedidoId} eligió ${e.detalle?.semanas} semanas para «se agota»`,
 }
 
 const CATEGORIAS: Record<string, { texto: string; clase: string }> = {
@@ -152,6 +153,7 @@ function Probador({ u, alCambiar }: { u: any; alCambiar: () => void }) {
         <span>Cuenta creada: {fecha(u.creadoEn)}</span>
         {u.evaluacion.inicio && <span>Sus 14 días: {fecha(u.evaluacion.inicio)} – {fecha(u.evaluacion.fin)}</span>}
         <span>Recordatorio: <strong>{textoRecordatorio(u.recordatorio)}</strong></span>
+        <span>Umbral de «se agota»: <strong className={cn(u.semanasAgota !== 2 && 'text-rojo-texto')}>{u.semanasAgota} semanas</strong>{u.semanasAgota === 2 ? ' (el de siempre)' : ' (lo cambió)'}</span>
         <span>Cada cuánto pide: <strong>{u.diasEntrePedidos === null ? 'aún no se sabe (un solo pedido)' : u.diasEntrePedidos < 1 ? 'aún no se sabe (sus pedidos son del mismo día)' : `cada ${numero(u.diasEntrePedidos, 1)} días`}</strong></span>
       </div>
       {u.inventario && (
@@ -185,6 +187,7 @@ function Probador({ u, alCambiar }: { u: any; alCambiar: () => void }) {
                     {p.borrado ? <span className="block text-xs font-semibold text-rojo-texto">Lo borró sin terminar</span> : p.paso < 6 && <span className="block text-xs text-muted-foreground">Va en el paso {p.paso} de 5</span>}
                     {p.finalGuardadaEn && p.dentroDePrueba === false && <span className="block text-xs text-muted-foreground">Fuera de sus 14 días</span>}
                     {u.evaluacion.mejor?.id === p.id && <span className="block text-xs font-semibold text-verde">Es el que cuenta</span>}
+                    {p.semanasAgota !== null && p.semanasAgota !== 2 && <span className="block text-xs font-semibold text-rojo-texto">Su reporte usó {p.semanasAgota} semanas para «se agota»</span>}
                   </td>
                   <td className="px-3 py-2">{p.tipo === 'real' ? 'Real' : p.tipo === 'simulado' ? 'Simulado' : '—'}</td>
                   <td className="px-3 py-2">{fechaHora(p.inicialGuardadaEn)}{p.inicialGuardadaEn && <span className="block text-xs text-muted-foreground">{plural(p.lineasInicial, 'línea', 'líneas')}</span>}</td>

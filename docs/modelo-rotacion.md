@@ -105,6 +105,17 @@ El documento fija el umbral de "se agota" (menos de 2 semanas), pero no dice cu�
 
 Un producto con más de 12 semanas de inventario rota menos de 52 ÷ 12 ≈ 4,3 veces al año, por debajo de lo normal incluso para los distribuidores que rotan más lento. Es una constante en el código (`SEMANAS_SOBRA`), no algo que el usuario tenga que configurar. Si el equipo quiere cambiarla después de la prueba, se cambia en una línea.
 
+### 3.4.1 El umbral de "se agota": 2 semanas, o el que elija el usuario
+
+El documento fija "se agota" en menos de 2 semanas. Desde el 2026-10-13 cada cuenta puede cambiarlo en el paso 2 de cada pedido, antes de subir el archivo, y en Datos ("¿Cuándo te avisamos que algo se agota?"), porque un importador con entregas largas necesita el aviso antes (vacío 8 de CLAUDE.md). Llamemos **U** a ese umbral:
+
+- Si el usuario no elige nada, U = 2 y todo da igual que antes.
+- U es un número entero de semanas entre 1 y 11, menor que el umbral de "sobra" (12), para que un producto no pueda salir con los dos estados. Se guarda en `usuarios.inventario.semanasAgota` y lo valida `leerAjustes` (`server/inventario.js`).
+- Sᵢ no cambia: solo cambia qué productos se marcan como "se agota" (Sᵢ < U).
+- **Reporte del paso 3:** cada pedido tiene su U (`pedidos.semanas_agota`). Se elige en el paso 2 (`PUT /api/pedidos/:id/semanas-agota`, que también lo deja como el de Datos) o, si no, es el de Datos, y **queda fijo al ver el reporte**. El reporte guardado en `exports` se calcula con el U de Datos al subir el archivo; si el pedido usa otro (por ejemplo, con "Usar ese inventario"), `conUmbral` (`server/rotacion.js`) vuelve a marcar los estados con las mismas semanas. La coherencia con el reporte (§4.3), el recordatorio y la vista del equipo usan el U del pedido. Los pedidos de antes no tienen U guardado y usan el de su reporte (2).
+- **Panel y productos:** usan el U de hoy, también con un archivo subido antes.
+- **Aplica también a los probadores durante sus 14 días** (decisión del equipo, 2026-10-13). Es un cambio de tratamiento: la vista del equipo muestra el U de cada probador y el de cada reporte, y tiene que quedar su fila en "4 · Cambios y Reflexión".
+
 ### 3.5 Casos borde
 
 | Caso | Qué hace el modelo |
@@ -192,13 +203,14 @@ La corrección del Entregable 2 (2026-10-07, fila de Stickiness en "Cambios") ca
 
 ```
 t₀                     = día en que se subió el export (las existencias son de ese día), en hora de Colombia
-fecha umbral(i)        = t₀ + ⌊7 · (Sᵢ − 2)⌋ días     para los productos con Sᵢ > 4
+fecha umbral(i)        = t₀ + ⌊7 · (Sᵢ − U)⌋ días     para los productos con Sᵢ > máx(4, U + 2)
 fecha recordatorio(i)  = fecha umbral(i) − 3 días
 ```
 
 - **Sin tareas programadas.** Un envío programado necesita un servidor siempre despierto o un cron externo, y en el plan gratis de Render el servidor se duerme. Por eso el recordatorio es un **archivo de calendario (.ics)**: el usuario lo descarga al decir que sí, lo abre, y es su Google Calendar, Outlook o celular el que avisa en la fecha, a las 8 a. m. Si se configura el correo (`BREVO_API_KEY`), la misma invitación le llega también al correo en ese momento; es un envío inmediato, no programado.
 - Supone que se sigue vendiendo al ritmo d̄ᵢ del reporte, así que cada recordatorio pide subir un export nuevo para confirmar. Redondea hacia abajo: es mejor avisar un día antes que un día tarde.
-- Solo se programan los productos que llegan a 2 semanas dentro de los próximos 3 meses (`SEMANAS_HORIZONTE`). Más allá, la estimación ya no vale y lo correcto es subir otro export.
+- U es el umbral de "se agota" con que se vio ese reporte (§3.4.1); sin cambiarlo, U = 2 y la fórmula es la de la corrección. Con un U alto, "buen nivel" sube a U + 2 para no programar avisos que ya pasaron.
+- Solo se programan los productos que llegan a U semanas dentro de los próximos 3 meses (`SEMANAS_HORIZONTE`). Más allá, la estimación ya no vale y lo correcto es subir otro export.
 - Un recordatorio junta los productos de los 7 días siguientes al primero, así que llega como máximo uno por semana.
 - La vista del equipo mide el stickiness: quién lo pidió, quién descargó el calendario, a quién ya le llegó la fecha de su primer recordatorio y quién volvió a entrar desde ese día. El recordatorio vive en el calendario del usuario, así que no se sabe si lo abrió; volver a entrar desde esa fecha es la señal.
 
@@ -246,8 +258,8 @@ Con 18 meses o más de ventas, se suma todo el catálogo (sin picos de proyectos
 | Dato | Cálculo |
 |---|---|
 | Rango de cada semana | Del 10 % al 90 % de X con h = 1 semana: 8 de cada 10 semanas caen ahí. |
-| Riesgo de agotarse | P(X > existencias) con h = máx(tiempo de entrega, 2 semanas): la probabilidad de quedarse sin él antes de reponerlo. |
-| "Pide ya" | No se agota en 2 semanas, pero Sᵢ < tiempo de entrega + 1. Si el usuario no ha dicho cuánto tarda su proveedor, se supone 1 semana y no hay "pide ya". |
+| Riesgo de agotarse | P(X > existencias) con h = máx(tiempo de entrega, U semanas): la probabilidad de quedarse sin él antes de reponerlo. |
+| "Pide ya" | No se agota en U semanas (§3.4.1), pero Sᵢ < tiempo de entrega + 1. Si el usuario no ha dicho cuánto tarda su proveedor, se supone 1 semana y no hay "pide ya". |
 | Cantidad sugerida | máx(0, ⌈cuantil 90 % de X con h = entrega + cada cuánto pide⌉ − existencias). Alcanza para la entrega y hasta el siguiente pedido en 9 de cada 10 casos. "Cada cuánto pide" es 4 semanas si el usuario no lo cambia. |
 | Paquete | Si en 12 semanas o más todas las ventas del producto son múltiplos de un mismo número (cajas de 10, bultos de 4), ese es el paquete, y la cantidad sugerida y el máximo se redondean hacia arriba a paquetes completos. Una sola semana que no sea múltiplo, o ventas con decimales (mensuales repartidas), y no hay paquete. |
 | Mínimo y máximo | Mínimo = ⌈cuantil 90 % de X con h = entrega⌉ (lo que se vende mientras llega un pedido); máximo = ⌈cuantil 90 % de X con h = entrega + cada cuánto pide⌉. Así, sugerido = máx(0, máximo − existencias). Se descargan en Excel para cargarlos en el programa contable, que casi siempre tiene esos dos campos. |

@@ -9,7 +9,7 @@
 // (costo y proveedor, si venían).
 
 const P = require('./pronostico');
-const { SEMANAS_SE_AGOTA, SEMANAS_SOBRA } = require('./rotacion');
+const { conUmbral, SEMANAS_SE_AGOTA, SEMANAS_SOBRA } = require('./rotacion');
 const { inicioDeSemana } = require('./series');
 const { claveCodigo, MS_DIA } = require('./valores');
 
@@ -31,7 +31,8 @@ function suma(v) {
   return v.reduce((s, x) => s + x, 0);
 }
 
-// Ajustes que el usuario guarda en "Datos": cuánto tarda cada proveedor y cada cuánto pide.
+// Ajustes que el usuario guarda en "Datos": cuánto tarda cada proveedor, cada cuánto pide y
+// con cuántas semanas un producto ya "se agota".
 function leerAjustes(a) {
   const ajustes = a && typeof a === 'object' ? a : {};
   const num = (v, def, min, max) => (Number.isFinite(Number(v)) && Number(v) >= min && Number(v) <= max ? Number(v) : def);
@@ -55,6 +56,8 @@ function leerAjustes(a) {
   return {
     entregaPorDefecto: num(ajustes.entregaPorDefecto, ENTREGA_POR_DEFECTO, 0, 52),
     cadaCuanto: num(ajustes.cadaCuanto, CADA_CUANTO_POR_DEFECTO, 1, 26),
+    // Entero y por debajo de "sobra" (12): si no, un producto podría salir con los dos estados.
+    semanasAgota: Number.isInteger(Number(ajustes.semanasAgota)) ? num(ajustes.semanasAgota, SEMANAS_SE_AGOTA, 1, SEMANAS_SOBRA - 1) : SEMANAS_SE_AGOTA,
     entregas,
     asignaciones,
     prefijos,
@@ -111,13 +114,13 @@ function recortarPico(serie, hasta, pico) {
   return { recortada, semanasPico };
 }
 
-// Los productos que hoy están bien y llegan a 2 semanas en los próximos 3 meses (lo mismo que
+// Los productos que hoy están bien y llegan al umbral de "se agota" en los próximos 3 meses (lo mismo que
 // ofrece el recordatorio de calendario, server/recordatorios.js).
-function proximosAvisos(filas, fecha) {
+function proximosAvisos(filas, fecha, semanasAgota) {
   if (!fecha) return null;
   const { planearAvisos, fechaBogota } = require('./recordatorios');
   const dia = /^\d{4}-\d{2}-\d{2}$/.test(String(fecha)) ? String(fecha) : fechaBogota(fecha);
-  const avisos = planearAvisos(filas, dia);
+  const avisos = planearAvisos(filas, dia, semanasAgota);
   return { productos: avisos.length, primero: avisos[0] || null };
 }
 
@@ -148,8 +151,11 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
   const semanasSerie = series ? series.semanas : 0;
   const porProducto = series ? series.porProducto : {};
 
+  // El panel usa el umbral de "se agota" que el usuario tiene hoy, aunque el archivo se haya
+  // subido con otro. El reporte guardado no cambia.
+  const filas = conUmbral(reporte, ajustes.semanasAgota).filas;
+
   // Las ventas de cada producto sin el pico de un proyecto.
-  const filas = reporte.filas;
   const recortes = new Map();
   for (const f of filas) {
     const k = claveCodigo(f.codigo);
@@ -213,9 +219,9 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
         serie: recortada ? recortada.slice(-Math.round(f.semanasProducto)) : null,
         referencia,
       });
-      // Riesgo de quedarse sin él antes de reponerlo: en 2 semanas (el umbral de "se agota")
+      // Riesgo de quedarse sin él antes de reponerlo: dentro del umbral de "se agota"
       // o, si el proveedor tarda más, antes de que llegue un pedido hecho hoy.
-      riesgo = redondear(P.predictiva(ajuste, futuro(Math.max(entrega, SEMANAS_SE_AGOTA))).probMayorQue(existencias), 3);
+      riesgo = redondear(P.predictiva(ajuste, futuro(Math.max(entrega, ajustes.semanasAgota))).probMayorQue(existencias), 3);
       const necesidad = P.predictiva(ajuste, futuro(entrega + ajustes.cadaCuanto)).cuantil(NIVEL_SERVICIO);
       // Se pide en paquetes completos si el producto siempre se vende de a varios.
       sugerido = P.aLote(Math.max(0, Math.ceil(necesidad - existencias)), lote);
@@ -328,7 +334,7 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       totales: reporte.periodo.totales,
       mensual: reporte.periodo.mensual,
     },
-    umbrales: { seAgota: SEMANAS_SE_AGOTA, sobra: SEMANAS_SOBRA },
+    umbrales: { seAgota: ajustes.semanasAgota, sobra: SEMANAS_SOBRA },
     ajustes: { ...ajustes, nivelServicio: NIVEL_SERVICIO },
     sugerencias: completo,
     alcance: completo ? 'completo' : 'prueba',
@@ -352,7 +358,7 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       picosRecortados: reporte.resumen.picosRecortados || 0,
       productosNuevos: reporte.resumen.productosNuevos || 0,
       acierto: series && completo ? P.medirAcierto(porProducto, hasta, semanasSerie, referencia) : null,
-      avisos: proximosAvisos(filas, fuente.fecha),
+      avisos: proximosAvisos(filas, fuente.fecha, ajustes.semanasAgota),
     },
     grafico,
     productos,

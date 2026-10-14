@@ -690,3 +690,70 @@ test('la lista de ejemplo de una plantilla vieja no se acepta como lista inicial
   XLSX.utils.book_append_sheet(propia, XLSX.utils.aoa_to_sheet([['Código', 'Cantidad a pedir'], ['CIN-0003', 10], ['ZZ-9', 4]]), 'Pedido');
   assert.equal((await subirLista(XLSX.write(propia, { type: 'buffer', bookType: 'xlsx' }))).ok, true, 'con un producto propio sí se acepta');
 });
+
+test('umbral de "se agota" elegido en Datos: lo usan los reportes nuevos y los ya vistos se quedan como estaban', async () => {
+  const gio = await nuevoUsuario('Gio', 'gio@prueba.co');
+  const primero = (await gio.post('/api/pedidos')).pedido.id;
+  await gio.post(`/api/pedidos/${primero}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
+  await gio.subir(`/api/pedidos/${primero}/export`, [['export.xlsx', (await plantillaExport())]]);
+  const antes = (await gio.get(`/api/pedidos/${primero}/reporte`)).reporte;
+  assert.equal(antes.umbrales.seAgota, 2, 'sin elegir nada, 2 semanas');
+
+  const r = await gio.put('/api/inventario/ajustes', { semanasAgota: 11 });
+  assert.equal(r.ajustes.semanasAgota, 11);
+  assert.equal((await gio.put('/api/inventario/ajustes', { cadaCuanto: 3 })).ajustes.semanasAgota, 11, 'cambiar otro ajuste no lo borra');
+  const inv = (await gio.get('/api/inventario')).inventario;
+  assert.equal(inv.umbrales.seAgota, 11);
+  assert.ok(inv.resumen.seAgotan >= antes.resumen.seAgotan);
+
+  const segundo = (await gio.post('/api/pedidos')).pedido.id;
+  await gio.post(`/api/pedidos/${segundo}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
+  await gio.subir(`/api/pedidos/${segundo}/export`, [['export.xlsx', (await plantillaExport())]]);
+  const despues = (await gio.get(`/api/pedidos/${segundo}/reporte`)).reporte;
+  assert.equal(despues.umbrales.seAgota, 11);
+  assert.ok(despues.resumen.seAgotan > antes.resumen.seAgotan, 'con 11 semanas se agotan más productos');
+  assert.equal((await gio.get(`/api/pedidos/${primero}/reporte`)).reporte.umbrales.seAgota, 2, 'el reporte anterior no cambia');
+  assert.equal((await gio.get(`/api/pedidos/${segundo}/recordatorio`)).plan.semanasAgota, 11);
+
+  const equipo = cliente();
+  await equipo.post('/api/cuenta/entrar', { email: 'equipo@prueba.co', clave: 'clave-segura' });
+  const suyo = (await equipo.get('/api/equipo/resultados')).usuarios.find((u) => u.email === 'gio@prueba.co');
+  assert.equal(suyo.semanasAgota, 11);
+  assert.deepEqual(suyo.pedidos.map((p) => p.semanasAgota), [2, 11]);
+});
+
+test('umbral de "se agota" en el paso 2: sirve también al usar el inventario guardado y queda fijo al ver el reporte', async () => {
+  const hel = await nuevoUsuario('Hel', 'hel@prueba.co');
+  const uno = (await hel.post('/api/pedidos')).pedido.id;
+  assert.equal((await hel.put(`/api/pedidos/${uno}/semanas-agota`, { semanas: 5 })).estado, 403, 'antes de la lista inicial no');
+  await hel.post(`/api/pedidos/${uno}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
+  assert.equal((await hel.get(`/api/pedidos/${uno}`)).pedido.semanasAgota, 2);
+  await hel.subir(`/api/pedidos/${uno}/export`, [['export.xlsx', (await plantillaExport())]]);
+  const con2 = (await hel.get(`/api/pedidos/${uno}/reporte`)).reporte;
+  assert.equal(con2.umbrales.seAgota, 2);
+  const tarde = await hel.put(`/api/pedidos/${uno}/semanas-agota`, { semanas: 5 });
+  assert.equal(tarde.estado, 409, 'después de ver el reporte ya no cambia');
+
+  const dos = (await hel.post('/api/pedidos')).pedido.id;
+  await hel.post(`/api/pedidos/${dos}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
+  assert.equal((await hel.put(`/api/pedidos/${dos}/semanas-agota`, { semanas: 0 })).estado, 400);
+  assert.equal((await hel.put(`/api/pedidos/${dos}/semanas-agota`, { semanas: 12 })).estado, 400);
+  const elegido = await hel.put(`/api/pedidos/${dos}/semanas-agota`, { semanas: 11 });
+  assert.equal(elegido.pedido.semanasAgota, 11);
+  assert.equal((await hel.post(`/api/pedidos/${dos}/export/usar-ultimo`)).ok, true);
+  const con11 = (await hel.get(`/api/pedidos/${dos}/reporte`)).reporte;
+  assert.equal(con11.umbrales.seAgota, 11, 'el archivo se subió con 2, pero este pedido usa 11');
+  assert.ok(con11.resumen.seAgotan > con2.resumen.seAgotan);
+  assert.equal((await hel.get(`/api/pedidos/${uno}/reporte`)).reporte.umbrales.seAgota, 2, 'el primer pedido no cambia');
+  assert.equal((await hel.get('/api/inventario')).inventario.umbrales.seAgota, 11, 'queda también como el de Datos');
+
+  // La coherencia del equipo usa las filas como las vio en ese pedido.
+  const final = INICIAL.map((l) => ({ ...l }));
+  final[0].cantidad = '999';
+  assert.equal((await hel.post(`/api/pedidos/${dos}/lista-final`, { lineas: final })).estado, 200);
+  const equipo = cliente();
+  await equipo.post('/api/cuenta/entrar', { email: 'equipo@prueba.co', clave: 'clave-segura' });
+  const suyo = (await equipo.get('/api/equipo/resultados')).usuarios.find((u) => u.email === 'hel@prueba.co');
+  assert.deepEqual(suyo.pedidos.map((p) => p.semanasAgota), [2, 11]);
+  assert.ok(suyo.actividad.some((e) => e.tipo === 'umbral_elegido' && e.detalle.semanas === 11));
+});

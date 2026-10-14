@@ -118,6 +118,21 @@ test('ajustes: solo se guardan tiempos razonables', () => {
   assert.deepEqual(a.entregas, { Bueno: 3 });
   assert.equal(a.cadaCuanto, 4, 'fuera de rango vuelve al valor por defecto');
   assert.equal(a.entregaPorDefecto, 2);
+  assert.equal(a.semanasAgota, 2, 'sin elegir umbral de "se agota", 2 semanas');
+  for (const malo of [0, 12, 2.5, 'x', null]) assert.equal(leerAjustes({ semanasAgota: malo }).semanasAgota, 2, `${malo} no es un umbral válido`);
+  assert.equal(leerAjustes({ semanasAgota: 6 }).semanasAgota, 6);
+});
+
+test('inventario: el umbral de "se agota" del usuario se aplica en el panel aunque el reporte sea de antes', () => {
+  const ventas = [];
+  for (let s = 0; s < 30; s++) ventas.push({ codigo: 'P', nombre: 'P', dia: diaDe(2025, 6, 2) + s * 7, cantidad: 10 });
+  const rotacion = calcularRotacion({ ventas, existencias: [{ codigo: 'P', existencias: 40 }] }); // 4 semanas
+  assert.equal(rotacion.filas[0].estado, 'normal');
+  const inv = construirInventario({ reporte: rotacion, series: null, catalogo: null, ajustes: { semanasAgota: 6 }, alcance: 'prueba' });
+  assert.equal(inv.productos[0].estado, 'agota');
+  assert.equal(inv.resumen.seAgotan, 1);
+  assert.equal(inv.umbrales.seAgota, 6);
+  assert.equal(rotacion.filas[0].estado, 'normal', 'el reporte guardado no cambia');
 });
 
 test('demo: los seis negocios se generan igual cada vez y tienen de todo un poco', () => {

@@ -15,7 +15,7 @@ const { requiereEquipo, crearEnlaceRestablecer, baseDe, registrarEvento, ErrorUs
 const { pasoDe, filasDelReporte } = require('./pedidos');
 const { compararListas, coherenciaConReporte } = require('./listas');
 const { fechaBogota } = require('./recordatorios');
-const { construirInventario } = require('./inventario');
+const { construirInventario, leerAjustes } = require('./inventario');
 
 const DIAS_PRUEBA = 14;
 const META_LINEAS = 5;
@@ -89,13 +89,13 @@ function resumirPrueba(usuarios) {
 // con los datos que ya están en la base (las dos listas y el reporte que vio el usuario).
 async function completarComparaciones() {
   const viejos = await db.query(
-    `SELECT id, export_id, lista_inicial, lista_final FROM pedidos
+    `SELECT id, export_id, semanas_agota, lista_inicial, lista_final FROM pedidos
       WHERE comparacion IS NOT NULL AND lista_final IS NOT NULL
         AND (comparacion->'coherencia' IS NULL OR comparacion->'magnitud' IS NULL)`,
   );
   for (const p of viejos) {
     const c = compararListas(p.lista_inicial, p.lista_final);
-    c.coherencia = coherenciaConReporte(c, await filasDelReporte(p.export_id));
+    c.coherencia = coherenciaConReporte(c, await filasDelReporte(p.export_id, p.semanas_agota));
     await db.query('UPDATE pedidos SET comparacion = $1::jsonb WHERE id = $2', [JSON.stringify(c), p.id]);
   }
 }
@@ -121,20 +121,21 @@ rutas.use(requiereEquipo);
 
 rutas.get('/resultados', async (_req, res) => {
   await completarComparaciones();
-  const usuarios = await db.query("SELECT id, nombre, email, sistema, creado_en FROM usuarios WHERE rol = 'usuario' ORDER BY creado_en");
+  const usuarios = await db.query("SELECT id, nombre, email, sistema, creado_en, inventario FROM usuarios WHERE rol = 'usuario' ORDER BY creado_en");
   const pedidos = await db.query(
     `SELECT p.id, p.usuario_id, p.proveedor, p.tipo, p.creado_en, p.inicial_guardada_en, p.export_id,
             p.reporte_visto_en, p.final_guardada_en, p.terminado_en, p.por_que, p.clasificacion, p.borrado_en,
             p.comparacion->'conteo' AS conteo, p.comparacion->'magnitud' AS magnitud,
             (p.comparacion->'coherencia') - 'detalle'::text AS coherencia, jsonb_array_length(p.lista_inicial) AS lineas_inicial,
-            CASE WHEN p.lista_final IS NULL THEN NULL ELSE jsonb_array_length(p.lista_final) END AS lineas_final
-       FROM pedidos p JOIN usuarios u ON u.id = p.usuario_id
+            CASE WHEN p.lista_final IS NULL THEN NULL ELSE jsonb_array_length(p.lista_final) END AS lineas_final,
+            COALESCE(p.semanas_agota, (x.reporte->'umbrales'->>'seAgota')::int) AS se_agota
+       FROM pedidos p JOIN usuarios u ON u.id = p.usuario_id LEFT JOIN exports x ON x.id = p.export_id
       WHERE u.rol = 'usuario' ORDER BY p.creado_en`,
   );
   const eventos = await db.query(
     `SELECT e.usuario_id, e.tipo, e.pedido_id, e.detalle, e.creado_en
        FROM eventos e JOIN usuarios u ON u.id = e.usuario_id
-      WHERE u.rol = 'usuario' AND e.tipo IN ('ingreso', 'archivo_subido', 'lista_inicial_guardada', 'reporte_visto', 'lista_final_guardada', 'pedido_terminado', 'recordatorio_respondido', 'recordatorio_enviado', 'calendario_descargado')
+      WHERE u.rol = 'usuario' AND e.tipo IN ('ingreso', 'archivo_subido', 'lista_inicial_guardada', 'reporte_visto', 'lista_final_guardada', 'pedido_terminado', 'recordatorio_respondido', 'recordatorio_enviado', 'calendario_descargado', 'umbral_elegido')
       ORDER BY e.creado_en`,
   );
   const recordatorios = await db.query('SELECT usuario_id, activo, respondido_en, primer_aviso FROM recordatorios');
@@ -181,6 +182,8 @@ rutas.get('/resultados', async (_req, res) => {
       porQue: p.por_que,
       clasificacion: p.clasificacion,
       borrado: Boolean(p.borrado_en),
+      // El umbral de "se agota" con el que vio su reporte (cambia el tratamiento si no es 2).
+      semanasAgota: p.se_agota === null || p.se_agota === undefined ? null : Number(p.se_agota),
     }));
     const evaluacion = evaluarUsuario(suyos);
     const actividad = eventos.filter((e) => e.usuario_id === u.id).map((e) => ({ tipo: e.tipo, pedidoId: e.pedido_id, detalle: e.detalle, en: e.creado_en }));
@@ -191,6 +194,7 @@ rutas.get('/resultados', async (_req, res) => {
       nombre: u.nombre,
       email: u.email,
       sistema: u.sistema,
+      semanasAgota: leerAjustes(u.inventario).semanasAgota,
       creadoEn: u.creado_en,
       ingresos: ingresos.length,
       ultimoIngreso: ingresos.length ? ingresos[ingresos.length - 1].en : null,

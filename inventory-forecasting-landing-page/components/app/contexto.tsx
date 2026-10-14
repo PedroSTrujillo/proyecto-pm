@@ -90,7 +90,7 @@ type EstadoInventario = {
   guardarAjustes: (a: Ajustes) => Promise<void>
 }
 
-export type Ajustes = Partial<{ entregas: Record<string, number>; entregaPorDefecto: number; cadaCuanto: number; asignaciones: Record<string, string>; prefijos: { prefijo: string; proveedor: string }[] }>
+export type Ajustes = Partial<{ entregas: Record<string, number>; entregaPorDefecto: number; cadaCuanto: number; semanasAgota: number; asignaciones: Record<string, string>; prefijos: { prefijo: string; proveedor: string }[] }>
 
 const InventarioCtx = createContext<EstadoInventario | null>(null)
 
@@ -183,7 +183,7 @@ export function InventarioProvider({ fuente, children }: { fuente: Fuente; child
       guardarAjustes: async (parcial) => {
         // Se manda lo que cambió junto con lo que ya había, para no borrar nada.
         const actuales = respuesta?.inventario?.ajustes
-        const a: Ajustes = { ...(actuales ? { entregas: actuales.entregas, entregaPorDefecto: actuales.entregaPorDefecto, cadaCuanto: actuales.cadaCuanto, asignaciones: actuales.asignaciones, prefijos: actuales.prefijos } : {}), ...parcial }
+        const a: Ajustes = { ...(actuales ? { entregas: actuales.entregas, entregaPorDefecto: actuales.entregaPorDefecto, cadaCuanto: actuales.cadaCuanto, semanasAgota: actuales.semanasAgota, asignaciones: actuales.asignaciones, prefijos: actuales.prefijos } : {}), ...parcial }
         if (fuente.tipo === 'demo') {
           try {
             window.localStorage.setItem(llaveAjustes, JSON.stringify(a))

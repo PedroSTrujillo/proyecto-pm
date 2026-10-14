@@ -10,7 +10,7 @@ import { nombrePrograma } from '@/lib/sistemas'
 import type { Inventario } from '@/lib/tipos'
 import { useInventario, useSesion } from './contexto'
 import { GuiaSistema, SelectorSistema, SubirArchivos } from './subir'
-import { Aviso, Boton, Cargando, ErrorLista, Tarjeta, Titulo, claseEntrada } from './ui'
+import { Aviso, Boton, Cargando, Contador, ErrorLista, Tarjeta, Titulo, claseEntrada } from './ui'
 import { SinInventario } from './sin-inventario'
 
 export function Datos() {
@@ -51,12 +51,17 @@ function DatosCon({ inv }: { inv: Inventario | null }) {
             </>
           )}
         </Tarjeta>
-        {inv && inv.alcance !== 'prueba' && <Proveedores inv={inv} />}
-        {inv && inv.alcance === 'prueba' && (
-          <Tarjeta className="flex flex-col gap-2 p-5 sm:p-6">
-            <h2 className="text-xl font-bold">Tus proveedores</h2>
-            <p className="text-[0.95rem] text-muted-foreground">Cuando termine tu prueba vas a poder decir cuánto tarda cada proveedor. Con eso te avisamos qué pedir antes de que sea tarde y cuánto pedir.</p>
-          </Tarjeta>
+        {inv && (
+          <div className="flex min-w-0 flex-col gap-5">
+            {inv.alcance !== 'prueba' && <Proveedores inv={inv} />}
+            {inv.alcance === 'prueba' && (
+              <Tarjeta className="flex flex-col gap-2 p-5 sm:p-6">
+                <h2 className="text-xl font-bold">Tus proveedores</h2>
+                <p className="text-[0.95rem] text-muted-foreground">Cuando termine tu prueba vas a poder decir cuánto tarda cada proveedor. Con eso te avisamos qué pedir antes de que sea tarde y cuánto pedir.</p>
+              </Tarjeta>
+            )}
+            <UmbralAgota inv={inv} />
+          </div>
         )}
       </div>
 
@@ -114,6 +119,47 @@ function SubirDemo({ inv }: { inv: Inventario | null }) {
         <a href="/crear-cuenta" className="presionable mt-1 inline-flex min-h-10 items-center rounded-xl border border-primary bg-primary px-4 font-semibold text-primary-foreground hover:bg-primary-hover">Crear mi cuenta</a>
       </div>
     </div>
+  )
+}
+
+// Con cuántas semanas un producto sale como "se agota". Lo usan el panel, la lista de productos
+// y el reporte de los archivos que suba de aquí en adelante; los reportes anteriores no cambian.
+function UmbralAgota({ inv }: { inv: Inventario }) {
+  const { guardarAjustes } = useInventario()
+  const [valor, setValor] = useState(inv.umbrales.seAgota)
+  const [guardando, setGuardando] = useState(false)
+  const [guardado, setGuardado] = useState<string | null>(null)
+
+  useEffect(() => setValor(inv.umbrales.seAgota), [inv])
+
+  async function guardar() {
+    setGuardando(true)
+    try {
+      await guardarAjustes({ semanasAgota: valor })
+      setGuardado('Listo: el panel ya usa este número.')
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  return (
+    <Tarjeta aria-labelledby="t-umbral" className="flex min-w-0 flex-col gap-4 p-5 sm:p-6">
+      <div>
+        <h2 id="t-umbral" className="text-xl font-bold">¿Cuándo te avisamos que algo se agota?</h2>
+        <p className="mt-1 text-[0.95rem] text-muted-foreground">Si a un producto le quedan menos semanas que esto, sale como «se agota». Si no lo cambias, son 2.</p>
+      </div>
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <strong className="block text-[0.95rem]">Avisar con menos de</strong>
+          <span className="text-[0.85rem] text-muted-foreground">Los pedidos que ya hiciste se quedan como los viste.</span>
+        </div>
+        <Contador valor={valor} etiqueta="semanas para avisar" onMover={(d) => { setGuardado(null); setValor((v) => Math.min(11, Math.max(1, v + d))) }} paso={1} />
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <Boton variante="primario" onClick={guardar} disabled={valor === inv.umbrales.seAgota || guardando}>{guardando ? 'Recalculando…' : 'Guardar y recalcular'}</Boton>
+        {guardado && <span className="aparecer text-[0.93rem] font-semibold text-verde">{guardado}</span>}
+      </div>
+    </Tarjeta>
   )
 }
 
@@ -287,19 +333,6 @@ function FilaTiempo({ nombre, detalle, valor, onMover }: { nombre: string; detal
       </div>
       <Contador valor={valor} etiqueta={`el tiempo de ${nombre}`} onMover={onMover} paso={0.5} />
     </li>
-  )
-}
-
-function Contador({ valor, etiqueta, onMover, paso }: { valor: number; etiqueta: string; onMover: (d: number) => void; paso: number }) {
-  return (
-    <span className="flex items-center gap-2">
-      <button type="button" aria-label={`Bajar ${etiqueta}`} onClick={() => onMover(-paso)} className="presionable inline-flex size-9 items-center justify-center rounded-lg border border-input bg-card hover:bg-muted"><Minus className="size-4" /></button>
-      <span className="w-20 text-center">
-        <strong className="text-[1.05rem] tabular-nums">{semanas(valor)}</strong>
-        <span className="block text-xs text-muted-foreground">{valor === 1 ? 'semana' : 'semanas'}</span>
-      </span>
-      <button type="button" aria-label={`Subir ${etiqueta}`} onClick={() => onMover(paso)} className="presionable inline-flex size-9 items-center justify-center rounded-lg border border-input bg-card hover:bg-muted"><Plus className="size-4" /></button>
-    </span>
   )
 }
 

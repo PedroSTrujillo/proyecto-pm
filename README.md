@@ -52,7 +52,7 @@ Abre http://localhost:3000. La página, la demo, las cuentas y la aplicación sa
 
 | Comando | Qué hace |
 |---|---|
-| `npm test` | Corre las 98 pruebas automáticas: cálculo, pronóstico, comparación de listas, recordatorios, lector de archivos, demo y API. No necesitan la web. |
+| `npm test` | Corre las 103 pruebas automáticas: cálculo, pronóstico, comparación de listas, recordatorios, lector de archivos, demo y API. No necesitan la web. |
 | `npm run ejemplos` | Regenera en `ejemplos/` los archivos inventados (CSV estilo Siigo, Excel estilo SAP, ventas por mes, un catálogo de 3.000 productos y un informe de mínimos). |
 | `npm run texto` | Revisa los textos de la interfaz buscando frases de relleno. |
 | `npm run borrar-datos -- --todos` | Muestra qué cuentas de prueba se borrarían; con `--confirmar` las borra. `--email correo@empresa.co` borra una sola. Las del equipo no se tocan. |
@@ -134,7 +134,8 @@ Probado con archivos reales: el "Movimiento detalle" de Helisa (26.000 filas) y 
 | Reconoce formatos distintos sin reorganizar columnas; errores con fila y columna | `server/lector.js` + `server/formatos.js` (ver "Qué archivos lee") |
 | Cada archivo subido queda guardado con su fecha | Tabla `archivos` (contenido y fecha) |
 | Cálculo de rotación, casos borde y devoluciones | `server/rotacion.js`, `docs/modelo-rotacion.md` §2–3 |
-| Reporte ordenado, menos de 2 semanas resaltado, lo que sobra visible, filtros, explicación con un producto del archivo | `components/app/reporte.tsx`; "Qué leímos de tu archivo" dice qué columnas y qué documentos se usaron |
+| Reporte ordenado, lo que se agota (menos del umbral; 2 semanas si no se elige) resaltado, lo que sobra visible, filtros, explicación con un producto del archivo | `components/app/reporte.tsx`; "Qué leímos de tu archivo" dice qué columnas y qué documentos se usaron |
+| Umbral de "se agota" que elige cada cuenta (2 semanas si no elige; agregado el 2026-10-13, ver §3.4.1 del modelo) | Paso 2 del pedido (`UmbralDelPedido` en `pedido-flujo.tsx`, `PUT /api/pedidos/:id/semanas-agota`, `pedidos.semanas_agota`, fijo al ver el reporte) y tarjeta en Datos (`datos.tsx`, `semanasAgota` en `leerAjustes`); `conUmbral` y `calcularRotacion` (`server/rotacion.js`), `planearAvisos` (`server/recordatorios.js`); la vista del equipo muestra el de cada probador y de cada pedido |
 | Lista final como copia de la inicial, con el reporte visible mientras se edita | Paso 4: "Vas a pedir", "Ibas a pedir", "Cambio" y "Semanas de inventario", y el botón "Mostrar el reporte" |
 | Comparación por código (agregadas, quitadas, cantidad cambiada, total) y "¿Por qué cambiaste lo que cambiaste?" | `compararListas` en `server/listas.js`, paso 5 |
 | Vista del equipo con el resumen (cuántos cambiaron 5 o más; cuántos 0 o 1) calculado de los datos | `server/equipo.js`, `components/app/equipo.tsx` |

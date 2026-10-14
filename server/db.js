@@ -108,6 +108,9 @@ const ESQUEMA = [
   // Pedido que el usuario borró sin terminarlo. No se elimina: su lista inicial sigue marcando
   // el comienzo de la prueba y el equipo lo ve como borrado. Para el usuario ya no existe.
   'ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS borrado_en TIMESTAMPTZ',
+  // Umbral de "se agota" de este pedido (lo elige en el paso 2; si no, el de Datos). Queda fijo
+  // al ver el reporte. NULL en los pedidos de antes: usan el del reporte guardado.
+  'ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS semanas_agota INTEGER',
   // Errores del servidor y de las pantallas (server/errores.js), para la vista del equipo.
   `CREATE TABLE IF NOT EXISTS errores (
     id SERIAL PRIMARY KEY,

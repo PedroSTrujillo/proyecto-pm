@@ -39,17 +39,20 @@ function fechaBogota(instante = new Date()) {
 }
 
 /**
- * Productos que llegan a 2 semanas dentro de los próximos 3 meses, con la fecha de cada
- * recordatorio, del primero al último. fechaReporte: "YYYY-MM-DD", el día en que se subió
- * el export (las existencias son de ese día).
+ * Productos que llegan al umbral de "se agota" (2 semanas si el usuario no eligió otro) dentro
+ * de los próximos 3 meses, con la fecha de cada recordatorio, del primero al último.
+ * fechaReporte: "YYYY-MM-DD", el día en que se subió el export (las existencias son de ese día).
  */
-function planearAvisos(filas, fechaReporte) {
+function planearAvisos(filas, fechaReporte, semanasAgota = SEMANAS_SE_AGOTA) {
   const dia0 = diaDeTexto(fechaReporte);
+  // Con un umbral alto, lo que tiene 4 semanas ya estaría por debajo: se sigue lo que tiene
+  // al menos 2 semanas más que el umbral.
+  const buenNivel = Math.max(SEMANAS_BUEN_NIVEL, semanasAgota + 2);
   return filas
-    .filter((f) => f.semanasInventario !== null && f.semanasInventario > SEMANAS_BUEN_NIVEL)
+    .filter((f) => f.semanasInventario !== null && f.semanasInventario > buenNivel)
     .map((f) => {
       // Hacia abajo: avisar un día antes es mejor que un día tarde.
-      const umbral = dia0 + Math.floor(7 * (f.semanasInventario - SEMANAS_SE_AGOTA));
+      const umbral = dia0 + Math.floor(7 * (f.semanasInventario - semanasAgota));
       return {
         codigo: String(f.codigo),
         nombre: f.nombre || '',
@@ -57,6 +60,7 @@ function planearAvisos(filas, fechaReporte) {
         dia: umbral,
         fechaUmbral: textoDia(umbral),
         fechaAviso: textoDia(umbral - DIAS_ANTES),
+        semanasAgota,
       };
     })
     .filter((a) => a.dia - dia0 <= SEMANAS_HORIZONTE * 7)
@@ -80,16 +84,21 @@ function diaLargo(texto) {
   return fmtDia.format(new Date(`${texto}T00:00:00Z`));
 }
 
+// Todos los avisos de un plan llevan el mismo umbral.
+function umbralDe(g) {
+  return g.productos[0].semanasAgota ?? SEMANAS_SE_AGOTA;
+}
+
 function tituloGrupo(g) {
   const n = g.productos.length;
   return n === 1
-    ? `Revisar inventario: ${g.productos[0].codigo} llega a ${SEMANAS_SE_AGOTA} semanas`
-    : `Revisar inventario: ${n} productos llegan a ${SEMANAS_SE_AGOTA} semanas`;
+    ? `Revisar inventario: ${g.productos[0].codigo} llega a ${umbralDe(g)} semanas`
+    : `Revisar inventario: ${n} productos llegan a ${umbralDe(g)} semanas`;
 }
 
 function textoGrupo(g, fechaReporte, url) {
   return [
-    `Según tu reporte del ${diaLargo(fechaReporte)}, ${g.productos.length === 1 ? 'este producto va' : 'estos productos van'} a quedar con menos de ${SEMANAS_SE_AGOTA} semanas de inventario:`,
+    `Según tu reporte del ${diaLargo(fechaReporte)}, ${g.productos.length === 1 ? 'este producto va' : 'estos productos van'} a quedar con menos de ${umbralDe(g)} semanas de inventario:`,
     '',
     ...g.productos.map((a) => `- ${a.codigo}${a.nombre ? ` (${a.nombre})` : ''}: hacia el ${diaLargo(a.fechaUmbral)}`),
     '',

@@ -16,7 +16,7 @@ import { useConfirmar } from './confirmar'
 import { Hoja, type Extra, type HojaApi } from './hoja'
 import { Reporte, estadoDeFila, type ReporteRotacion } from './reporte'
 import { FormularioColumnas, SubirArchivos, type HojaMapeo } from './subir'
-import { Aviso, Boton, BotonEnlace, Cargando, ErrorLista, Tarjeta, claseEntrada } from './ui'
+import { Aviso, Boton, BotonEnlace, Cargando, Contador, ErrorLista, Tarjeta, claseEntrada } from './ui'
 
 type LineaGuardada = { codigo: string; nombre?: string; cantidad: number | string }
 type Conteo = { agregadas: number; quitadas: number; cambiadas: number; total: number }
@@ -30,6 +30,7 @@ type Pedido = {
   terminado: boolean
   listaInicial: LineaGuardada[]
   inicialGuardadaEn: string | null
+  semanasAgota: number
   export: { id: number; subidoEn: string; archivos: { nombre: string }[] } | null
   reporteVistoEn: string | null
   listaFinal: LineaGuardada[] | null
@@ -136,7 +137,7 @@ export function PedidoFlujo({ id }: { id: number }) {
       </nav>
 
       {paso === 1 && <Paso1 pedido={pedido} ir={ir} />}
-      {paso === 2 && <Paso2 pedido={pedido} ir={ir} />}
+      {paso === 2 && <Paso2 pedido={pedido} ir={ir} alCambiar={setPedido} />}
       {paso === 3 && <Paso3 pedido={pedido} ir={ir} />}
       {paso === 4 && <Paso4 pedido={pedido} ir={ir} />}
       {paso === 5 && <Paso5 pedido={pedido} recargar={cargar} />}
@@ -363,7 +364,7 @@ function Paso1({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
 
 // --- Paso 2 -----------------------------------------------------------------------------------
 
-function Paso2({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
+function Paso2({ pedido, ir, alCambiar }: { pedido: Pedido; ir: (n: number) => void; alCambiar: (p: Pedido) => void }) {
   const { usuario, fijar } = useSesion()
   const { inventario, recargar } = useInventario()
   const [usando, setUsando] = useState(false)
@@ -413,6 +414,7 @@ function Paso2({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
           <Boton variante={dias > 7 ? 'secundario' : 'primario'} onClick={usarGuardado} disabled={usando}>{usando ? 'Un momento…' : 'Usar ese inventario'}</Boton>
         </div>
       )}
+      {!pedido.reporteVistoEn && <UmbralDelPedido pedido={pedido} alCambiar={alCambiar} />}
       {error && <ErrorLista mensaje={error.mensaje} lista={error.lista} />}
       <SubirArchivos
         base={`/pedidos/${pedido.id}/export`}
@@ -425,6 +427,48 @@ function Paso2({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
         }}
       />
     </Tarjeta>
+  )
+}
+
+// Con cuántas semanas este pedido marca "se agota". Se guarda al tocar − o + y queda fijo al ver
+// el reporte; también queda como el número de Datos para los pedidos siguientes.
+function UmbralDelPedido({ pedido, alCambiar }: { pedido: Pedido; alCambiar: (p: Pedido) => void }) {
+  const { recargar } = useInventario()
+  const [valor, setValor] = useState(pedido.semanasAgota)
+  const [error, setError] = useState<string | null>(null)
+  const ultimo = useRef(0)
+
+  async function mover(d: number) {
+    const nuevo = Math.min(11, Math.max(1, valor + d))
+    if (nuevo === valor) return
+    setValor(nuevo)
+    setError(null)
+    const vuelta = ++ultimo.current
+    try {
+      const r = await api<{ pedido: Pedido }>('PUT', `/pedidos/${pedido.id}/semanas-agota`, { semanas: nuevo })
+      if (vuelta === ultimo.current) {
+        alCambiar(r.pedido)
+        recargar()
+      }
+    } catch (e) {
+      if (vuelta === ultimo.current) {
+        setValor(pedido.semanasAgota)
+        setError(textoErrores(e).mensaje)
+      }
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-2xl border border-border p-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <strong className="block text-[0.97rem]">¿Con cuántas semanas quieres que te marquemos que algo se agota?</strong>
+          <span className="text-[0.88rem] text-muted-foreground">Si a un producto le quedan menos semanas que esto, sale como «se agota» en tu reporte. {pedido.semanasAgota === 2 ? 'Si no lo cambias, son 2.' : `Está en ${pedido.semanasAgota}, también para tus próximos pedidos (lo cambias aquí o en Datos).`}</span>
+        </div>
+        <Contador valor={valor} etiqueta="semanas para marcar que se agota" onMover={mover} paso={1} />
+      </div>
+      {error && <ErrorLista mensaje={error} />}
+    </div>
   )
 }
 
@@ -465,7 +509,7 @@ function Paso3({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
 
 type DatosRecordatorio = {
   email: string
-  plan: { fechaReporte: string; productos: number; primero: { codigo: string; nombre: string; fechaUmbral: string; fechaAviso: string } | null; semanasBuenNivel: number; diasAntes: number; correo: boolean }
+  plan: { fechaReporte: string; productos: number; primero: { codigo: string; nombre: string; fechaUmbral: string; fechaAviso: string } | null; semanasBuenNivel: number; semanasAgota?: number; diasAntes: number; correo: boolean }
   respuesta: { activo: boolean; pedidoId: number; fechaReporte: string; primerAviso: string } | null
   correo?: 'enviado' | 'fallo'
 }
@@ -515,7 +559,7 @@ function Recordatorio({ pedidoId }: { pedidoId: number }) {
     const p = plan.primero
     cuerpo = (
       <>
-        <p><strong>¿Te recordamos antes de que se agoten?</strong> {plural(plan.productos, 'producto que hoy tiene', 'productos que hoy tienen')} más de {plan.semanasBuenNivel} semanas {plan.productos === 1 ? 'baja' : 'bajan'} de 2 semanas en los próximos 3 meses, si sigues vendiendo al mismo ritmo. El primero es {p.codigo}{p.nombre ? ` (${p.nombre})` : ''}, hacia el {dia(p.fechaUmbral)}. Te dejamos un recordatorio en tu calendario {plan.diasAntes} días antes{plan.correo ? ` y te lo mandamos a ${d.email}` : ''}, como máximo uno por semana.</p>
+        <p><strong>¿Te recordamos antes de que se agoten?</strong> {plural(plan.productos, 'producto que hoy tiene', 'productos que hoy tienen')} más de {plan.semanasBuenNivel} semanas {plan.productos === 1 ? 'baja' : 'bajan'} de {plan.semanasAgota ?? 2} semanas en los próximos 3 meses, si sigues vendiendo al mismo ritmo. El primero es {p.codigo}{p.nombre ? ` (${p.nombre})` : ''}, hacia el {dia(p.fechaUmbral)}. Te dejamos un recordatorio en tu calendario {plan.diasAntes} días antes{plan.correo ? ` y te lo mandamos a ${d.email}` : ''}, como máximo uno por semana.</p>
         <div className="flex flex-wrap gap-2">{!respuesta && <Boton tamano="chico" onClick={() => responder(false)} disabled={enviando}>No, gracias</Boton>}<Boton tamano="chico" variante="primario" onClick={() => responder(true)} disabled={enviando}>Sí, recuérdamelo</Boton></div>
       </>
     )
