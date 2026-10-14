@@ -476,3 +476,9 @@ test('un informe que empieza con el año cortado ("01/OCT/202") toma el año de 
   assert.equal(r.ok, true, JSON.stringify(r.errores));
   assert.deepEqual(r.ventas.map((v) => textoDia(v.dia)), ['2025-10-01', '2025-10-02', '2025-10-03', '2026-01-04']);
 });
+
+test('lista con "CODIGO | ARTÍCULO | PEDIDO": artículo se toma como el nombre', () => {
+  const r = leerLista(xlsx({ Hoja1: [['CODIGO', 'ARTÍCULO', 'PEDIDO'], ['010121', 'LIJA DE PRUEBA N° 80', 100], ['P-814', 'RODAMIENTO DE PRUEBA *2', 150], ['012540', 'PEGANTE DE PRUEBA 3 GRS', 48]] }), 'pedido.xlsx');
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.lineas.map((l) => [l.codigo, l.nombre, l.cantidad]), [['010121', 'LIJA DE PRUEBA N° 80', 100], ['P-814', 'RODAMIENTO DE PRUEBA *2', 150], ['012540', 'PEGANTE DE PRUEBA 3 GRS', 48]]);
+});

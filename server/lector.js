@@ -268,6 +268,15 @@ function analizarHoja(hoja, campos, mapeo) {
     }
   }
   if (!manual && iEnc >= 0) columnas = realinearColumnas(hoja, iEnc, columnas, firma);
+  // "CODIGO | ARTÍCULO | PEDIDO": por su título, "Artículo" también parece de código, pero trae
+  // nombres. Si el código ya está en otra columna, una así se toma como el nombre.
+  if (!manual && iEnc >= 0 && campos.includes('nombre') && columnas.nombre === undefined && columnas.codigo !== undefined) {
+    const muestra = filasDeMuestra(hoja, iEnc + 1, firma);
+    const tomadas = new Set(Object.values(columnas));
+    const pareceNombre = (vs) => vs.length >= 2 && vs.filter((v) => typeof v === 'string' && /[a-záéíóúñ]{3}/i.test(v) && /\s/.test(v.trim())).length / vs.length >= 0.6;
+    const candidata = encabezados.findIndex((t, i) => !tomadas.has(i) && t && detectarColumnas([t], ['codigo']).codigo === 0 && pareceNombre(valoresDe(muestra, i)));
+    if (candidata >= 0) columnas = { ...columnas, nombre: candidata };
+  }
   const usadas = new Set(Object.values(columnas));
   const meses = campos.includes('fecha') && columnas.fecha === undefined ? columnasDeMes(brutos, usadas) : [];
   let codigoEnNombre = false;

@@ -60,7 +60,13 @@ function columnasPorEncabezado(fila: string[]) {
   if (codigo < 0) return null
   let cantidad = buscar(/pedir|pedido|comprar|solicitad/)
   if (cantidad < 0) cantidad = buscar(/^(cantidad|cant|unidades)\b/)
-  const nombre = buscar(/^(nombre|descripcion|producto|detalle|denominacion)/)
+  let nombre = buscar(/^(nombre|descripcion|producto|detalle|denominacion)/)
+  // "CODIGO | ARTÍCULO | PEDIDO": el código ya está; "Artículo" (o la única columna que queda) es el nombre.
+  if (nombre < 0) nombre = n.findIndex((t, i) => i !== codigo && i !== cantidad && /^(articulo|referencia|item|material)\b/.test(t))
+  if (nombre < 0) {
+    const resto = n.map((_, i) => i).filter((i) => i !== codigo && i !== cantidad)
+    if (resto.length === 1) nombre = resto[0]
+  }
   return { codigo, nombre, cantidad }
 }
 
