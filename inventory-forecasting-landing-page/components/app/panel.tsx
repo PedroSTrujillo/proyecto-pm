@@ -59,7 +59,7 @@ function PanelCon({ inv }: { inv: Inventario }) {
       {prueba && <AvisoPrueba />}
       {!demo && diasDesde(inv.fuente.hasta) > 30 && (
         <p className="rounded-2xl border border-ambar-borde bg-ambar-fondo px-5 py-4 text-[0.95rem] text-ambar-texto">
-          <strong>Tus ventas llegan hasta el {fecha(inv.fuente.hasta)}.</strong> Las existencias son las de ese día, no las de hoy. Para verlo al día, sube el informe hasta hoy en <a href={rutas.datos} className="font-semibold underline underline-offset-2">Datos</a>.
+          <strong>Tus ventas llegan hasta el {fecha(inv.fuente.hasta)}.</strong> Las existencias son de esa fecha. Para verlo al día, sube el informe actualizado en <a href={rutas.datos} className="font-semibold underline underline-offset-2">Datos</a>.
         </p>
       )}
 
@@ -70,7 +70,7 @@ function PanelCon({ inv }: { inv: Inventario }) {
           etiqueta="text-rojo-texto"
           valor={numero(r.seAgotan)}
           detalle={r.enCero && !prueba ? `${r.enCero} ya están en cero` : r.seAgotan ? 'Los tienes primero en la lista de abajo' : `Nada se agota en las próximas ${inv.umbrales.seAgota} semanas`}
-          ayuda={`Productos que, al ritmo de venta de tu archivo, no alcanzan a durar ${inv.umbrales.seAgota} semanas. Cambias ese número en Datos.`}
+          ayuda={`Productos que no alcanzan para ${inv.umbrales.seAgota} semanas al ritmo de venta actual. El umbral se cambia en Datos.`}
           href={`${rutas.productos}?filtro=agota`}
         />
         {prueba ? (
@@ -90,7 +90,7 @@ function PanelCon({ inv }: { inv: Inventario }) {
             etiqueta="text-ambar-texto"
             valor="¿?"
             detalle="Dinos cuánto tarda tu proveedor y te avisamos qué pedir antes de que sea tarde."
-            ayuda="Hoy suponemos que un pedido llega en una semana. Si tu proveedor tarda más (por ejemplo, si importa), cámbialo en Datos."
+            ayuda="Se asume una semana de entrega. Si tu proveedor tarda más, cámbialo en Datos."
             href={rutas.datos}
             textoEnlace="Decir cuánto tarda"
           />
@@ -101,7 +101,7 @@ function PanelCon({ inv }: { inv: Inventario }) {
             etiqueta="text-ambar-texto"
             valor={numero(r.pideYa)}
             detalle={pideTop ? `${pideTop.pideYa} de ${pideTop.nombre}: tarda ${duracion(pideTop.entrega)}` : 'Ninguno tarda más de lo que te queda'}
-            ayuda="Te alcanzan para más de 2 semanas, pero no para lo que tarda su proveedor en traerlos más una semana de margen. Si esperas al próximo pedido, llegan cuando ya se acabaron."
+            ayuda="Alcanzan para más de 2 semanas, pero no para la entrega del proveedor más una semana de margen."
             href={`${rutas.productos}?filtro=pide`}
           />
         )}
@@ -111,7 +111,7 @@ function PanelCon({ inv }: { inv: Inventario }) {
           etiqueta="text-azul-texto"
           valor={r.tieneCostos ? plata(r.dineroQuieto) : numero(r.sobran)}
           detalle={r.tieneCostos ? `en ${numero(r.sobran)} productos que sobran` : 'productos con más de 12 semanas. Si tu archivo trae el costo, aquí ves cuánta plata es.'}
-          ayuda="Lo que vale, a costo, el inventario que tienes por encima de 12 semanas de venta, más lo que no se vendió en todo el periodo."
+          ayuda="Valor a costo del inventario por encima de 12 semanas de venta, más lo que no se vendió en el periodo."
           href={`${rutas.productos}?filtro=sobra`}
         />
         <Cifra
@@ -120,7 +120,7 @@ function PanelCon({ inv }: { inv: Inventario }) {
           etiqueta="text-verde"
           valor={porcentaje(r.tendencia4, true)}
           detalle="frente a las 4 anteriores, sin contar proyectos"
-          ayuda="Unidades vendidas de todo el catálogo en las últimas 4 semanas de tu archivo, comparadas con las 4 de antes. Las ventas de proyectos no cuentan."
+          ayuda="Unidades vendidas en las últimas 4 semanas del archivo frente a las 4 anteriores, sin proyectos."
         />
       </section>
 
@@ -278,8 +278,8 @@ function AtenderHoy({ inv }: { inv: Inventario }) {
     const hrefPedido = fuente.tipo === 'cuenta' ? '/pedidos/sugerido' : rutas.pedido
     tarjetas.push(
       <Tarjetita key="cero" icono={<TriangleAlert />} titulo="Ventas que se te escapan" tono="rojo" accion={<BotonEnlace href={hrefPedido} variante="primario" tamano="chico" className="self-start">Armar el pedido para reponerlos</BotonEnlace>}>
-        {plural(enCero.length, 'producto que vendes está', 'productos que vendes están')} en cero: dejas de vender unas <strong>{numero(Math.round(unidades))} unidades por semana</strong>
-        {valor > 0 ? <> (unos <strong>{plata(valor)}</strong> a costo{conCosto.length < enCero.length ? ', sin contar los que no traen costo' : ''})</> : ''}. El que más pesa: <strong>{enCero[0].nombre}</strong>, {ventasSemana(enCero[0].ventasSemana)} por semana.
+        {plural(enCero.length, 'producto que se vende está', 'productos que se venden están')} en cero: unas <strong>{numero(Math.round(unidades))} unidades por semana</strong> sin vender
+        {valor > 0 ? <> ({plata(valor)} a costo)</> : ''}. El principal: <strong>{enCero[0].nombre}</strong> ({ventasSemana(enCero[0].ventasSemana)} por semana).
       </Tarjetita>,
     )
   }

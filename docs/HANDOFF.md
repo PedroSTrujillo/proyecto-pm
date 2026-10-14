@@ -36,7 +36,8 @@
   - **Anular un pedido** (`POST /api/pedidos/:id/anular` y `/reactivar`, columnas `pedidos.anulado_en` y `anulado_motivo`): queda a la vista con su motivo, no se edita (`pedidoActivo` responde 409) y no cuenta en el veredicto ni en "cada cuánto pide". Se puede anular en cualquier paso, también con la lista final guardada. El equipo también anula y reactiva desde "Resultados de la prueba" (`/api/equipo/pedidos/:id/anular`).
 - **Base de datos:** `pedidos.anulado_en` y `pedidos.anulado_motivo` (ALTER en ESQUEMA).
 - **Verificación:** `npm test` → 108/108; `tsc` sin errores; en el navegador (local): réplica de Helisa subida, pregunta de documentos con FCA/DFCA/DSE ya marcados, reporte.
-- **Siguiente paso exacto:** pasar la revisión de textos (cortos y claros) y actualizar los ejemplos de la landing a la app de hoy.
+- **Textos y landing (segundo commit):** textos de la app más cortos y directos (pedidos, panel, productos, pedido de la semana, paso 1, 4 y 5, Datos, cuenta). La landing muestra en el hero el paso 4 de hoy (`pedido-preview.tsx`: te alcanza, ibas a pedir, SINESC sugiere, tu cantidad final y la orden en PDF, Excel o WhatsApp); en celular cabe sin desplazar. Precio y preguntas frecuentes ya dicen que el sugerido está desde el primer día. Se quitó `report-preview.tsx`, que ya no se usaba.
+- **Siguiente paso exacto:** hacer las pruebas grabadas. Para un probador con Helisa: Movimiento detalle (de este mes del año pasado a hoy) + listado de inventario, los dos en el paso 2.
 - **Notas y bloqueos:** si alguien recarga la página en la pregunta de documentos, tiene que volver a subir el archivo (la pregunta no se guarda). Anular cambia el tratamiento de la prueba: va como fila en "Cambios" si un probador lo usa.
 
 ## 2026-10-14 (31) — Claude — la app revisada como cada probador: venta de una sola vez, proveedores en el paso 4, orden de compra

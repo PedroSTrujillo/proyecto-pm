@@ -6,12 +6,13 @@ import { SectionHeading } from './section-heading'
 
 const incluye = [
   'Reporte de rotación de cada producto',
+  'Cantidad sugerida de cada producto desde el primer día, con el tiempo de entrega de cada proveedor y la temporada',
+  'Orden de compra en PDF, Excel o WhatsApp',
   'Excel o CSV, en uno o en varios archivos',
   'Tu lista de antes y la de después, comparadas',
   'Pedidos reales o simulados',
   'Plantilla para quien lleva el inventario en Excel',
   'Recordatorio en tu calendario antes de que un producto se agote, si lo pides',
-  'Después de tus primeros 14 días: pedido sugerido por proveedor, con su tiempo de entrega y la temporada',
 ]
 
 const noHace = [

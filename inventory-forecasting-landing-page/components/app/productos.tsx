@@ -234,16 +234,16 @@ function ProductosCon({ inv }: { inv: Inventario }) {
 
 function consejo(p: Producto, inv: Inventario) {
   const u = inv.umbrales.seAgota
-  if (p.ventaUnica) return `Se vendió de una sola vez (${numero(p.ventaUnica.vendido)} en la semana del ${fecha(p.ventaUnica.desde)}) y nada más en el resto del archivo: parece un proyecto o un cliente puntual. Por eso no sugerimos pedirlo.`
-  if (p.existencias <= 0 && p.ventasSemana > 0) return `Ya se acabó, y se vende unas ${ventasSemana(p.ventasSemana)} por semana: cada semana sin él es venta que se va a otro lado. ${inv.sugerencias && p.sugerido ? `Va en el pedido de esta semana: te sugerimos ${numero(p.sugerido)}.` : 'Va en el pedido de esta semana.'}`
-  if (p.estado === 'agota' && inv.alcance === 'prueba') return `Se acaba en menos de ${u} semanas si sigues vendiendo al mismo ritmo. Revísalo en tu pedido.`
-  if (p.estado === 'agota' && inv.sugerencias && !p.sugerido) return `Se acaba en menos de ${u} semanas, pero alcanza para lo que tarda ${p.proveedor === 'Sin proveedor' ? 'tu proveedor' : p.proveedor} y hasta tu próximo pedido. Revísalo en ese pedido.`
-  if (p.estado === 'agota') return `Se acaba en menos de ${u} semanas${p.entrega > 0 ? ` y ${p.proveedor === 'Sin proveedor' ? 'tu proveedor' : p.proveedor} tarda ${duracion(p.entrega)}` : ''}. Va en el pedido de esta semana.`
-  if (p.estado === 'pide' && p.semanas !== null && p.semanas < p.entrega) return `Te queda para ${semanas(p.semanas)} semanas y el pedido tarda ${duracion(p.entrega)} en llegar: si no lo pides ya, te quedas sin él antes de que llegue.`
-  if (p.estado === 'pide') return `Te queda para ${semanas(p.semanas)} semanas y el pedido tarda ${duracion(p.entrega)} en llegar. Queda justo: si esperas al próximo pedido, llega cuando ya se acabó.`
-  if (p.estado === 'sobra') return `Tienes para ${semanas(p.semanas)} semanas. No lo pidas por ahora${p.ventasSemana < 1 ? '; se vende tan poco que vale la pena pensar si se sigue trayendo' : ''}.`
-  if (p.estado === 'sin_ventas') return 'No se vendió en todo el periodo del archivo. Si sigue así, es candidato a salir del catálogo o a una promoción.'
-  return `Está bien surtido. ${inv.sugerencias && p.sugerido ? 'Si haces pedido esta semana, ajústalo a lo sugerido.' : 'Revísalo en el próximo pedido.'}`
+  if (p.ventaUnica) return `Venta única: ${numero(p.ventaUnica.vendido)} en la semana del ${fecha(p.ventaUnica.desde)} y nada más. Parece un proyecto; no se sugiere pedirlo.`
+  if (p.existencias <= 0 && p.ventasSemana > 0) return `Agotado. Vende unas ${ventasSemana(p.ventasSemana)} por semana. ${inv.sugerencias && p.sugerido ? `Sugerido para este pedido: ${numero(p.sugerido)}.` : 'Inclúyelo en este pedido.'}`
+  if (p.estado === 'agota' && inv.alcance === 'prueba') return `Se agota en menos de ${u} semanas al ritmo actual. Revísalo en tu pedido.`
+  if (p.estado === 'agota' && inv.sugerencias && !p.sugerido) return `Se agota en menos de ${u} semanas, pero cubre la entrega de ${p.proveedor === 'Sin proveedor' ? 'tu proveedor' : p.proveedor} hasta el próximo pedido.`
+  if (p.estado === 'agota') return `Se agota en menos de ${u} semanas${p.entrega > 0 ? ` y ${p.proveedor === 'Sin proveedor' ? 'tu proveedor' : p.proveedor} tarda ${duracion(p.entrega)}` : ''}. Inclúyelo en este pedido.`
+  if (p.estado === 'pide' && p.semanas !== null && p.semanas < p.entrega) return `Alcanza para ${semanas(p.semanas)} semanas y el proveedor tarda ${duracion(p.entrega)}. Pídelo ya.`
+  if (p.estado === 'pide') return `Alcanza para ${semanas(p.semanas)} semanas y el proveedor tarda ${duracion(p.entrega)}. Si esperas al próximo pedido, llega tarde.`
+  if (p.estado === 'sobra') return `Alcanza para ${semanas(p.semanas)} semanas. No lo pidas por ahora${p.ventasSemana < 1 ? '; se vende muy poco: evalúa si se sigue trayendo' : ''}.`
+  if (p.estado === 'sin_ventas') return 'Sin ventas en el periodo del archivo. Candidato a promoción o a salir del catálogo.'
+  return `Bien surtido. ${inv.sugerencias && p.sugerido ? 'Si pides esta semana, usa lo sugerido.' : 'Revísalo en el próximo pedido.'}`
 }
 
 function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: () => void }) {
@@ -374,7 +374,7 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
             <p className="text-muted-foreground">Mínimo: lo que se vende mientras llega un pedido, en 9 de cada 10 casos ({numero(p.minimo)}). Cuando tengas eso o menos, pide hasta llegar al máximo ({numero(p.maximo)}), que cubre la entrega y {duracion(inv.ajustes.cadaCuanto)} más.</p>
           )}
           {p.riesgo !== null && (
-            <p className="text-muted-foreground">El riesgo y el rango salen de un modelo que mezcla lo que vende este producto con cómo varían sus ventas semana a semana{inv.temporada ? ' y la temporada de tu negocio' : ''}.</p>
+            <p className="text-muted-foreground">El riesgo y el rango salen de lo que vende este producto y de cuánto varían sus ventas cada semana{inv.temporada ? ' y la temporada de tu negocio' : ''}.</p>
           )}
         </div>
       </details>
@@ -384,7 +384,7 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
         <div className="flex flex-col gap-3 rounded-2xl border border-[#cfe5e1] bg-secondary p-4">
           <p className="text-[0.95rem] text-[#0b3f3b]">
             {p.sugerido > 0
-              ? <>Para cubrir {p.entrega === 1 ? "la semana" : p.entrega === 0.5 ? "la media semana" : `las ${semanas(p.entrega)} semanas`} que tarda en llegar y {duracion(inv.ajustes.cadaCuanto)} más hasta tu próximo pedido, te sugerimos pedir <strong>{numero(p.sugerido)}</strong>.{p.lote > 1 ? ` En tu archivo siempre se vende de a ${numero(p.lote)}, así que va en paquetes completos.` : ''}</>
+              ? <>Sugerido: <strong>{numero(p.sugerido)}</strong>. Cubre la entrega ({duracion(p.entrega)}) y {duracion(inv.ajustes.cadaCuanto)} más hasta el próximo pedido.{p.lote > 1 ? ` Va en paquetes de ${numero(p.lote)}, como se vende.` : ''}</>
               : <>Con lo que tienes cubres la entrega y {semanas(inv.ajustes.cadaCuanto)} semanas más: no hace falta pedir.</>}
           </p>
           {enPedido ? (
@@ -449,7 +449,7 @@ function CambiarProveedor({ p, inv }: { p: Producto; inv: Inventario }) {
         <input className={claseEntrada} list={listaId} value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre del proveedor" autoFocus />
         <datalist id={listaId}>{conocidos.map((c) => <option key={c} value={c} />)}</datalist>
       </label>
-      <p className="text-[0.82rem] text-muted-foreground">Su tiempo de entrega se cambia en Datos. Para asignar muchos productos a la vez, usa el comienzo del código en Datos.</p>
+      <p className="text-[0.82rem] text-muted-foreground">El tiempo de entrega y la asignación por comienzo de código se cambian en Datos.</p>
       <div className="flex flex-wrap gap-2">
         <Boton type="submit" tamano="chico" variante="primario" disabled={guardando || !nombre.trim()}>{guardando ? 'Guardando…' : 'Guardar'}</Boton>
         {p.origenProveedor === 'producto' && <Boton tamano="chico" onClick={() => guardar(null)} disabled={guardando}>Quitar</Boton>}

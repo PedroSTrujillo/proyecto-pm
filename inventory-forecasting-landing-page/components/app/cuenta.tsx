@@ -33,7 +33,7 @@ export function Cuenta() {
     try {
       await api('PUT', '/cuenta/clave', Object.fromEntries(new FormData(form)))
       form.reset()
-      setMsgClave({ ok: 'Listo, cambiaste tu contraseña. Si tenías la sesión abierta en otro computador, allá tendrás que entrar de nuevo.' })
+      setMsgClave({ ok: 'Contraseña actualizada. En otros equipos tendrás que volver a entrar.' })
     } catch (err) {
       setMsgClave({ error: textoErrores(err) })
     }

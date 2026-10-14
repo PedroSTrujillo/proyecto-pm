@@ -92,7 +92,7 @@ export function PedidoFlujo({ id }: { id: number }) {
   async function anular() {
     const motivo = await preguntarTexto(
       `¿Anular el Pedido ${pedido!.numero}?`,
-      'Queda guardado y a la vista, pero no se puede editar ni cuenta en tus resultados. Lo puedes reactivar cuando quieras.',
+      'Queda guardado, pero no se puede editar ni cuenta en tus resultados. Puedes reactivarlo después.',
       'Motivo (opcional)',
       'Sí, anular',
     )
@@ -372,7 +372,7 @@ function Paso1({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
       {ventana}
       <div>
         <h2 className="text-xl font-bold">Lo que ibas a pedir</h2>
-        <p className="mt-1 text-muted-foreground">Antes de ver el reporte, anota lo que ibas a pedir hoy, como lo harías normalmente. Al final comparamos esta lista con la que decidas después de ver la rotación.</p>
+        <p className="mt-1 text-muted-foreground">Anota lo que pedirías hoy, como lo haces siempre, antes de ver el reporte. Al final la comparamos con tu lista final.</p>
       </div>
       <div className="flex flex-wrap items-start gap-4">
         <label className="flex min-w-0 flex-[1_1_18rem] flex-col gap-1.5 font-semibold">
@@ -665,7 +665,7 @@ function Recordatorio({ pedidoId }: { pedidoId: number }) {
     const p = plan.primero
     cuerpo = (
       <>
-        <p><strong>¿Te recordamos antes de que se agoten?</strong> {plural(plan.productos, 'producto que hoy tiene', 'productos que hoy tienen')} más de {plan.semanasBuenNivel} semanas {plan.productos === 1 ? 'baja' : 'bajan'} de {plan.semanasAgota ?? 2} semanas en los próximos 3 meses, si sigues vendiendo al mismo ritmo. El primero es {p.codigo}{p.nombre ? ` (${p.nombre})` : ''}, hacia el {dia(p.fechaUmbral)}. Te dejamos un recordatorio en tu calendario {plan.diasAntes} días antes{plan.correo ? ` y te lo mandamos a ${d.email}` : ''}, como máximo uno por semana.</p>
+        <p><strong>¿Quieres un recordatorio?</strong> {plural(plan.productos, 'producto baja', 'productos bajan')} de {plan.semanasAgota ?? 2} semanas en los próximos 3 meses al ritmo actual; el primero, {p.codigo}{p.nombre ? ` (${p.nombre})` : ''}, hacia el {dia(p.fechaUmbral)}. Te avisamos en tu calendario {plan.diasAntes} días antes{plan.correo ? ` y por correo a ${d.email}` : ''}, máximo una vez por semana.</p>
         <div className="flex flex-wrap gap-2">{!respuesta && <Boton tamano="chico" onClick={() => responder(false)} disabled={enviando}>No, gracias</Boton>}<Boton tamano="chico" variante="primario" onClick={() => responder(true)} disabled={enviando}>Sí, recuérdamelo</Boton></div>
       </>
     )
@@ -747,7 +747,7 @@ function RecuadroSugerido({ sug, hoja, alCambiarLista, alCambiarAjustes }: { sug
     <div className="flex flex-col gap-3 rounded-2xl border border-[#cfe5e1] bg-secondary p-4 sm:p-5">
       <div>
         <strong className="text-[0.97rem]">Lo que sugiere SINESC</strong>
-        <p className="mt-0.5 text-[0.93rem] text-muted-foreground">Lo que te falta de cada producto para no quedarte sin él hasta que llegue tu siguiente pedido.</p>
+        <p className="mt-0.5 text-[0.93rem] text-muted-foreground">Lo que falta de cada producto para llegar al siguiente pedido sin agotarse.</p>
         <details className="mt-1 text-[0.9rem]">
           <summary className="cursor-pointer font-semibold text-primary">¿Cómo lo calcula?</summary>
           <p className="mt-1 text-muted-foreground">Con lo que vendes por semana (lo reciente pesa más y se tiene en cuenta la temporada), cuánto tarda tu proveedor y cada cuánto pides, para que no te falte en {Math.round(sug.nivelServicio * 10)} de cada 10 casos. Ya resta lo que tienes, y si un producto se vende siempre por paquetes, redondea al paquete. Lo que el reporte marca como que sobra no se sugiere.</p>
@@ -777,10 +777,10 @@ function RecuadroSugerido({ sug, hoja, alCambiarLista, alCambiarAjustes }: { sug
               </li>
             ))}
           </ul>
-          <p className="mt-1 text-xs text-muted-foreground">"Por defecto" es para los proveedores que no tienen su propio tiempo. Todo queda guardado también en Datos.</p>
+          <p className="mt-1 text-xs text-muted-foreground">"Por defecto" aplica a los proveedores sin tiempo propio. Se guarda también en Datos.</p>
         </details>
       ) : (
-        <p className="text-xs text-muted-foreground">Si en Datos le pusiste a un proveedor su propio tiempo de entrega, sus productos usan ese.</p>
+        <p className="text-xs text-muted-foreground">Los proveedores con tiempo propio en Datos usan ese.</p>
       )}
       <div className="flex flex-wrap gap-2">
         <Boton tamano="chico" onClick={usarSugeridas}>Usar las cantidades sugeridas en mi lista</Boton>
@@ -886,7 +886,7 @@ function DetalleSugerido({ p, sug, vasAPedir, ibasAPedir, alCerrar }: { p: Produ
               const dura = duraSemanas(p, p.sugerido)
               return dura !== null && p.sugerido > 0 && dura > d.semanasCubrir * 1.5 ? (
                 <p className="mt-2 text-[0.9rem] text-muted-foreground">
-                  ¿Por qué dura más de {semanas(d.semanasCubrir)} semanas? Este producto no se vende parejo: hay semanas sin ventas y otras con ventas grandes. Al ritmo normal te dura {textoDura(dura)}; lo de más es para que no te quedes sin él si llega una venta grande antes del siguiente pedido.
+                  Dura más de {semanas(d.semanasCubrir)} semanas porque sus ventas son irregulares: al ritmo normal alcanza para {textoDura(dura)}, y el margen cubre una venta grande antes del siguiente pedido.
                 </p>
               ) : null
             })()}
@@ -910,7 +910,7 @@ export function VentaUnica({ v, existencias }: { v: { vendido: number; semanas: 
   return (
     <div className="rounded-xl border border-ambar-borde bg-ambar-fondo p-3.5 text-[0.93rem]">
       <strong className="block text-ambar-texto">SINESC sugiere 0: se vendió de una sola vez</strong>
-      Todo lo que vendiste ({numero(v.vendido)}) salió {v.semanas === 1 ? 'en la semana' : 'en las dos semanas'} del {fecha(v.desde)}, y nada más en el resto del archivo. Parece un proyecto o un cliente puntual: sugerir pedirlo sería repetir esa venta. Tienes {numero(Math.max(existencias, 0))}. Si sabes que viene otro pedido así, pon tú la cantidad.
+      Las {numero(v.vendido)} unidades se vendieron {v.semanas === 1 ? 'en la semana' : 'en las dos semanas'} del {fecha(v.desde)} y no volvió a venderse. Parece un proyecto puntual. Tienes {numero(Math.max(existencias, 0))}; si esperas otro pedido igual, escribe tú la cantidad.
     </div>
   )
 }
@@ -1079,7 +1079,7 @@ function Paso4({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
       {ventana}
       <div>
         <h2 className="text-xl font-bold">Arma tu pedido de verdad</h2>
-        <p className="mt-1 text-muted-foreground">Arrancamos con una copia de lo que ibas a pedir. Tú decides con cuánto te quedas de cada producto.</p>
+        <p className="mt-1 text-muted-foreground">Parte de tu lista inicial. Tú decides la cantidad final de cada producto.</p>
       </div>
       <ol className="grid gap-3 sm:grid-cols-3">
         {[
@@ -1251,7 +1251,7 @@ function OrdenDeCompra({ pedido }: { pedido: Pedido }) {
           {plata > 0 && <> · {plata.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })} a costo</>}
         </span>
       </div>
-      <p className="text-[0.93rem] text-muted-foreground">Tu lista final, lista para mandar al proveedor o para que gerencia la apruebe.</p>
+      <p className="text-[0.93rem] text-muted-foreground">Tu lista final, lista para enviar al proveedor o para aprobación.</p>
       <div className="flex flex-wrap gap-2">
         <Boton tamano="chico" variante="primario" onClick={() => bajar('pdf')}>PDF para aprobar</Boton>
         <Boton tamano="chico" onClick={() => bajar('xlsx')}>Excel por proveedor</Boton>

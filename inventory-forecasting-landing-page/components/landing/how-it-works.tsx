@@ -17,8 +17,8 @@ const steps = [
   },
   {
     icon: BarChart3,
-    title: 'Mira y ajusta',
-    body: 'Ves qué se agota y qué sobra, y cambias tu pedido si el dato te convence.',
+    title: 'Decide y envía',
+    body: 'Ves qué se agota y qué sobra, y cuánto sugiere pedir SINESC. Tú decides la cantidad final y la envías en PDF, Excel o WhatsApp.',
   },
 ]
 

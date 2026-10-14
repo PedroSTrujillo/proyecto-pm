@@ -13,7 +13,7 @@ const PASOS = [
   ['Anota lo que ibas a pedir', 'antes de ver el reporte: escríbelo, pégalo desde Excel o sube tu archivo de pedido.'],
   ['Sube tus ventas y existencias', 'tal como salen de tu programa contable. Te decimos dónde sacarlas.'],
   ['Mira qué se agota y qué sobra', 'producto por producto, en semanas de inventario.'],
-  ['Ajusta tu pedido', 'con lo que de verdad vas a pedir.'],
+  ['Ajusta tu pedido', 'con lo que vas a pedir.'],
   ['Cuéntanos por qué', 'cambiaste lo que cambiaste.'],
 ]
 
@@ -39,7 +39,7 @@ export function SinInventario({ puedeSubir }: { puedeSubir: boolean }) {
     return (
       <Tarjeta className="flex max-w-2xl flex-col gap-4 p-7">
         <h1 className="text-2xl font-extrabold">Sube tu inventario</h1>
-        <p className="text-muted-foreground">Todavía no tenemos tus ventas y existencias. Súbelas una vez y quedan guardadas: el panel, los productos y el pedido salen de ahí.</p>
+        <p className="text-muted-foreground">Aún no hay ventas ni existencias. Súbelas una vez: el panel, los productos y el pedido salen de ahí.</p>
         <div className="flex flex-wrap items-center gap-3">
           <BotonEnlace href="/datos" variante="primario">Subir mis archivos</BotonEnlace>
           {usuario?.rol === 'equipo' && <Link href="/ejemplos" className="font-semibold text-primary hover:text-primary-hover">O carga un ejemplo</Link>}
@@ -69,7 +69,7 @@ export function SinInventario({ puedeSubir }: { puedeSubir: boolean }) {
         <Boton variante="primario" onClick={empezar} disabled={creando}>{creando ? 'Creando…' : 'Preparar mi primer pedido'}</Boton>
         <Link href="/demo" className="font-semibold text-primary hover:text-primary-hover">Antes, mira un ejemplo</Link>
       </div>
-      <p className="text-sm text-muted-foreground">¿Por qué primero lo que ibas a pedir? Porque así sabemos si el reporte te hizo cambiar algo. Es lo que estamos midiendo con tu ayuda.</p>
+      <p className="text-sm text-muted-foreground">Primero anotas lo que ibas a pedir: así medimos si el reporte cambia tu pedido.</p>
     </Tarjeta>
   )
 }

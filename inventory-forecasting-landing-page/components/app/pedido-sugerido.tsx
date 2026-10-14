@@ -125,7 +125,7 @@ function PedidoCon({ inv, encabezado }: { inv: Inventario; encabezado: boolean }
   return (
     <>
       {encabezado && (
-        <Titulo sub={`Lo sugerido cubre lo que tarda cada proveedor y ${duracion(inv.ajustes.cadaCuanto)} más, en 9 de cada 10 casos. Cámbialo como quieras.`}>
+        <Titulo sub={`Cubre la entrega de cada proveedor más ${duracion(inv.ajustes.cadaCuanto)}, en 9 de cada 10 casos. Ajusta lo que necesites.`}>
           Pedido de la semana
         </Titulo>
       )}
@@ -143,7 +143,7 @@ function PedidoCon({ inv, encabezado }: { inv: Inventario; encabezado: boolean }
               />
             )}
           </div>
-          <p className="mb-3 text-[0.95rem] text-muted-foreground">Ya pusimos lo que se agota y lo que hay que pedir ya. Los demás traen su cantidad sugerida por si quieres aprovechar el pedido: toca el número para usarla.</p>
+          <p className="mb-3 text-[0.95rem] text-muted-foreground">Incluye lo que se agota y lo que hay que pedir ya. Para sumar otro producto, toca su número sugerido.</p>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] border-collapse">
               <thead>

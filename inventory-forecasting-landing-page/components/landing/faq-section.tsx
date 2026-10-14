@@ -23,7 +23,7 @@ const faqs: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: '¿La herramienta me dice cuánto pedir?',
-    a: 'En tus primeros 14 días te muestra para cuántas semanas te alcanza cada producto y tú decides. Después se activa el pedido sugerido: cuánto pedir de cada producto para cubrir lo que tarda tu proveedor y hasta tu siguiente pedido. Puedes cambiar cualquier cantidad, y el pedido se lo sigues mandando tú al proveedor.',
+    a: 'Te sugiere una cantidad para cada producto, con el tiempo de entrega de tu proveedor y hasta tu siguiente pedido, y te muestra por qué. Tú decides la cantidad final y el pedido se lo sigues mandando tú al proveedor.',
   },
   {
     q: '¿Por qué tengo que anotar mi pedido antes de ver el reporte?',

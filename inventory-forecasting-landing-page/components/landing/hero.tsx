@@ -3,7 +3,7 @@ import { ArrowRight, Check } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
 import { URL_CREAR_CUENTA, URL_DEMO } from '@/lib/app'
 import { cn } from '@/lib/utils'
-import { ReportPreview } from './report-preview'
+import { PedidoPreview } from './pedido-preview'
 
 const reassurances = ['Siigo, Alegra, World Office, Helisa y otros', 'Lee tu Excel o CSV tal como sale', 'Unos 5 minutos por pedido']
 
@@ -23,8 +23,8 @@ export function Hero() {
             Mira qué se agota y qué sobra. <span className="text-primary">Tú decides cuánto pedir.</span>
           </h1>
           <p className="mt-6 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground">
-            Sube lo que exportas de tu programa contable y mira para cuántas semanas te alcanza cada producto:
-            arriba lo que se acaba primero, aparte lo que sobra. Lo ves antes de armar el pedido.
+            Sube lo que exportas de tu programa contable. Ves para cuántas semanas te alcanza cada producto, cuánto
+            sugiere pedir SINESC y por qué. Tú decides la cantidad final y te llevas la orden de compra.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <a href={URL_CREAR_CUENTA} className={cn(buttonVariants({ size: 'lg' }), 'h-11 px-5 text-base')}>
@@ -47,7 +47,7 @@ export function Hero() {
             ))}
           </ul>
         </div>
-        <ReportPreview />
+        <PedidoPreview />
       </div>
     </section>
   )

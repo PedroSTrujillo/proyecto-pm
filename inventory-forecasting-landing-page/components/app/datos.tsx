@@ -57,7 +57,7 @@ function DatosCon({ inv }: { inv: Inventario | null }) {
             {inv.alcance === 'prueba' && (
               <Tarjeta className="flex flex-col gap-2 p-5 sm:p-6">
                 <h2 className="text-xl font-bold">Tus proveedores</h2>
-                <p className="text-[0.95rem] text-muted-foreground">Cuando termine tu prueba vas a poder decir cuánto tarda cada proveedor. Con eso te avisamos qué pedir antes de que sea tarde y cuánto pedir.</p>
+                <p className="text-[0.95rem] text-muted-foreground">Al terminar tu prueba podrás indicar cuánto tarda cada proveedor para saber qué y cuánto pedir a tiempo.</p>
               </Tarjeta>
             )}
             <UmbralAgota inv={inv} />
@@ -115,7 +115,7 @@ function SubirDemo({ inv }: { inv: Inventario | null }) {
       <GuiaSistema id={sistema} />
       <div className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-input bg-muted p-6 text-center">
         <strong>En la demo no se sube nada</strong>
-        <span className="max-w-md text-[0.93rem] text-muted-foreground">Crea tu cuenta gratis y sube tus archivos tal como salen de tu programa: el panel queda con tus productos en un minuto.</span>
+        <span className="max-w-md text-[0.93rem] text-muted-foreground">Crea tu cuenta y sube los archivos de tu programa contable tal como salen.</span>
         <a href="/crear-cuenta" className="presionable mt-1 inline-flex min-h-10 items-center rounded-xl border border-primary bg-primary px-4 font-semibold text-primary-foreground hover:bg-primary-hover">Crear mi cuenta</a>
       </div>
     </div>

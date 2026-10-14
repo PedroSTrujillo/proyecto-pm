@@ -148,7 +148,7 @@ export function FormularioColumnas({ hojas, campos, alEnviar }: { hojas: HojaMap
     >
       <div>
         <h3 className="text-lg font-bold">Indícanos qué columna es cuál</h3>
-        <p className="text-[0.93rem] text-muted-foreground">Ya marcamos las que parecen correctas por su contenido: revísalas y confirma. Solo se hace una vez; la próxima vez este formato se lee solo.</p>
+        <p className="text-[0.93rem] text-muted-foreground">Marcamos las que parecen correctas. Revísalas y confirma; la próxima vez este formato se lee solo.</p>
       </div>
       {utiles.map((h) => (
         <fieldset key={h.clave} className="flex flex-col gap-3 rounded-xl border border-border p-4">
