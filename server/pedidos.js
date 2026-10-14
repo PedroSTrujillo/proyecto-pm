@@ -476,9 +476,13 @@ rutas.get('/:id/sugerido', async (req, res) => {
     entrega: inv.ajustes.entregaPorDefecto,
     cadaCuanto: inv.ajustes.cadaCuanto,
     nivelServicio: inv.ajustes.nivelServicio,
+    // Fechas de inicio de cada semana de las ventas y del pronóstico (para la gráfica del detalle).
+    semanas: inv.grafico ? inv.grafico.semanas.map((s) => s.inicio) : [],
+    semanasPronostico: inv.grafico ? inv.grafico.pronostico.map((s) => s.inicio) : [],
     productos: inv.productos.map((x) => ({
-      codigo: x.codigo, nombre: x.nombre, sugerido: x.sugerido, semanas: x.semanas, estado: x.estado,
+      codigo: x.codigo, nombre: x.nombre, sugerido: x.sugerido, detalle: x.detalleSugerido, semanas: x.semanas, estado: x.estado,
       ventasSemana: x.ventasSemana, existencias: x.existencias, entrega: x.entrega, lote: x.lote, proveedor: x.proveedor,
+      serie: x.serie, pronostico: x.pronostico, semanasPico: x.semanasPico, pico: x.pico, explicacion: x.explicacion,
     })),
   });
 });

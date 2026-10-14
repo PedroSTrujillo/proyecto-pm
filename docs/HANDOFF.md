@@ -27,6 +27,17 @@
 
 ---
 
+## 2026-10-14 (30) — Claude — el sugerido explica por qué y para cuánto dura; veredicto el mismo día
+- **Rama:** `main` y `mejoras-modelo`, en los dos repos.
+- **Estado:**
+  - Paso 4: la columna "Sugerido" dice la cantidad y para cuánto dura ("99 · dura 12 sem"); al hacer clic se abre el detalle con lo que sugiere, lo que va a pedir y lo que iba a pedir (cada uno con para cuánto le dura), el porqué paso a paso (venta por semana, semanas a cubrir, lo más probable y lo que alcanza 9 de cada 10 veces, lo que tiene), la gráfica de ventas con el pronóstico y sus últimas 8 semanas. Arriba de "Guardar", el resumen de cuántas líneas lleva cambiadas.
+  - Lo que sobra (más de 12 semanas) ya no trae sugerido (era contradictorio con el reporte); el detalle lo explica.
+  - `detalleSugerido` en cada producto de `construirInventario`; `/api/pedidos/:id/sugerido` trae además la serie, el pronóstico y las fechas.
+  - Veredicto: con los 5 probadores terminados y sin meta ni pivote, ahora dice "No se cumplió la meta" (`meta_no_cumplida`) en vez de quedarse "en curso". El veredicto sale el mismo día de las pruebas: no espera los 14 días.
+- **Verificación:** `npm test` → 103/103 (casos nuevos en "meta y pivote"); en el navegador (local) con los archivos reales del probador: detalle de la tubería flexible (sugiere 99, dura unas 12 semanas, explica por qué dura más de las 7 que cubre) y de la unión 7/8 (sobra, sugerido 0).
+- **Siguiente paso exacto:** hacer las 5 pruebas grabadas; en "Resultados de la prueba" sale el veredicto contra 3 de 5.
+- **Notas y bloqueos:** ninguno.
+
 ## 2026-10-14 (29) — Claude — la lista final sugiere cuánto pedir
 - **Rama:** `main` y `mejoras-modelo`, en los dos repos.
 - **Estado:** decisión del equipo: la app sugiere el stock con el modelo (§7) también en la prueba. `permisos` da `alcance: 'completo'` a todos desde el primer día (la ventana de 14 días sigue). Ruta nueva `GET /api/pedidos/:id/sugerido` (después de ver el reporte) con la cantidad sugerida de cada producto, usando el umbral del pedido y los tiempos de Datos. En el paso 4: columna "Sugerido" y recuadro "Lo que sugiere SINESC" con el tiempo de entrega y cada cuánto pide (se cambian ahí y guardan en Datos), "Usar las cantidades sugeridas en mi lista" y "Agregar lo que se agota y no está en mi lista". La lista final la sigue escribiendo el usuario.

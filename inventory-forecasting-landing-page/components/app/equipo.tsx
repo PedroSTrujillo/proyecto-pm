@@ -57,6 +57,7 @@ export function Equipo() {
   const titulos: Record<string, string> = {
     meta_cumplida: `Se cumplió la meta: ${r.cumplen} de ${r.usuarios} cambiaron ${r.reglas.metaLineas} o más líneas`,
     pivotar: `Toca pivotar: ${r.noCambian + (r.porProbar || 0)} de ${r.usuarios} cambiaron 0 o 1 líneas o cambiaron por probar la herramienta`,
+    meta_no_cumplida: `No se cumplió la meta: ${r.cumplen} de ${r.usuarios} cambiaron ${r.reglas.metaLineas} o más líneas (la meta era ${r.reglas.metaUsuarios}), sin llegar al pivote`,
     en_curso: 'Todavía no hay resultado',
   }
   const tono = r.veredicto === 'meta_cumplida' ? 'ok' : r.veredicto === 'pivotar' ? 'error' : 'info'

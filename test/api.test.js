@@ -11,7 +11,7 @@ const assert = require('node:assert/strict');
 const db = require('../server/db');
 const { crearApp } = require('../server/app');
 const { plantillaExport } = require('../server/plantillas');
-const { evaluarUsuario } = require('../server/equipo');
+const { evaluarUsuario, resumirPrueba } = require('../server/equipo');
 
 let servidor;
 let base;
@@ -171,6 +171,12 @@ test('meta y pivote', () => {
   assert.equal(evaluarUsuario([ped(3, t0 + dia)]).categoria, 'intermedio');
   assert.equal(evaluarUsuario([ped(9, t0 + 20 * dia)]).categoria, 'sin_pedido', 'fuera de los 14 días no cuenta');
   assert.equal(evaluarUsuario([ped(1, t0 + dia), ped(6, t0 + 5 * dia, 'simulado')]).mejor.total, 6);
+  // Con los 5 terminados el veredicto se da el mismo día, sin esperar los 14 días.
+  const u = (total) => ({ evaluacion: evaluarUsuario([ped(total, t0 + dia)]) });
+  assert.equal(resumirPrueba([u(6), u(5), u(7), u(2), u(0)]).veredicto, 'meta_cumplida');
+  assert.equal(resumirPrueba([u(0), u(1), u(1), u(8), u(9)]).veredicto, 'pivotar');
+  assert.equal(resumirPrueba([u(6), u(5), u(3), u(2), u(1)]).veredicto, 'meta_no_cumplida', 'ni meta ni pivote con los 5 terminados');
+  assert.equal(resumirPrueba([u(6), u(3)]).veredicto, 'en_curso', 'faltan probadores');
 });
 
 test('mapeo de columnas: se elige una vez y la próxima vez se lee solo', async () => {

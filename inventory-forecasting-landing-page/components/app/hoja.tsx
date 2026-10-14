@@ -8,7 +8,8 @@ import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export type Linea = { codigo: string; nombre: string; cantidad: string }
-export type Extra = { titulo: string; valor: (l: Linea) => { texto: string; clase?: string } }
+// alClic: la celda es un botón (por ejemplo, para abrir el detalle de un producto).
+export type Extra = { titulo: string; valor: (l: Linea) => { texto: string; clase?: string }; alClic?: (l: Linea) => void }
 export type HojaApi = { lineas: () => Linea[]; fijar: (l: { codigo: unknown; nombre?: unknown; cantidad: unknown }[]) => void; marcarErrores: (filas: number[]) => void }
 
 const COLUMNAS: (keyof Linea)[] = ['codigo', 'nombre', 'cantidad']
@@ -215,7 +216,11 @@ export const Hoja = forwardRef<HojaApi, Props>(function Hoja({ inicial, soloLect
                   )}
                   {extras.map((x) => {
                     const v = x.valor(f)
-                    return <td key={x.titulo} className={cn('border-l border-border px-2.5 py-2 text-[0.9rem] whitespace-nowrap', v.clase)}>{v.texto}</td>
+                    return (
+                      <td key={x.titulo} className={cn('border-l border-border px-2.5 py-2 text-[0.9rem] whitespace-nowrap', v.clase)}>
+                        {x.alClic && v.texto ? <button type="button" onClick={() => x.alClic!(f)} className="underline decoration-dotted underline-offset-4 hover:decoration-solid">{v.texto}</button> : v.texto}
+                      </td>
+                    )
                   })}
                   {!soloLectura && (
                     <td className="border-l border-border p-0 text-center">

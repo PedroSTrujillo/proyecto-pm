@@ -62,6 +62,8 @@ function resumirPrueba(usuarios) {
   let veredicto = 'en_curso';
   if (cumplen.length >= META_USUARIOS) veredicto = 'meta_cumplida';
   else if (noCambian.length + porProbar.length >= PIVOTE_USUARIOS) veredicto = 'pivotar';
+  // Ya terminaron los esperados y no se llegó ni a la meta ni al pivote: la meta no se cumplió.
+  else if (usuarios.filter((u) => u.evaluacion.mejor).length >= USUARIOS_ESPERADOS) veredicto = 'meta_no_cumplida';
   return {
     usuarios: usuarios.length,
     usuariosEsperados: USUARIOS_ESPERADOS,

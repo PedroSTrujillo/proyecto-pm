@@ -10,7 +10,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, CalendarDays, Check, FileUp, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { api, prepararArchivo, textoErrores } from '@/lib/api'
-import { claveCodigo, dia, fecha, fechaHora, numero, plural, semanas } from '@/lib/formato'
+import { claveCodigo, dia, fecha, fechaHora, mesAnio, numero, plural, semanas, ventasSemana } from '@/lib/formato'
+import { GraficoVentas } from './graficos'
 import { useInventario, useSesion } from './contexto'
 import { useConfirmar } from './confirmar'
 import { Hoja, type Extra, type HojaApi } from './hoja'
@@ -575,8 +576,19 @@ function Recordatorio({ pedidoId }: { pedidoId: number }) {
 
 // --- Paso 4 -----------------------------------------------------------------------------------
 
-type ProductoSugerido = { codigo: string; nombre: string; sugerido: number | null; semanas: number | null; estado: string; ventasSemana: number; existencias: number; entrega: number; lote: number | null; proveedor: string }
-type Sugerido = { entrega: number; cadaCuanto: number; nivelServicio: number; productos: ProductoSugerido[] }
+type ProductoSugerido = {
+  codigo: string; nombre: string; sugerido: number | null; semanas: number | null; estado: string
+  ventasSemana: number; existencias: number; entrega: number; lote: number | null; proveedor: string
+  detalle: { semanasCubrir: number; media: number; alto: number; ventaSemana: number } | null
+  serie: number[] | null; pronostico: { media: number; bajo: number; alto: number }[] | null; semanasPico: number[]
+  pico: { mes: string; vendido: number; contado: number } | null
+}
+type Sugerido = { entrega: number; cadaCuanto: number; nivelServicio: number; semanas: string[]; semanasPronostico: string[]; productos: ProductoSugerido[] }
+
+// Para cuántas semanas alcanza tener "existencias + cantidad" al ritmo que se espera vender.
+const duraSemanas = (p: ProductoSugerido, cantidad: number) =>
+  p.detalle && p.detalle.ventaSemana > 0 ? (Math.max(p.existencias, 0) + Math.max(cantidad, 0)) / p.detalle.ventaSemana : null
+const textoDura = (s: number | null) => (s === null ? '' : s >= 26 ? 'más de 6 meses' : `${semanas(s)} semanas (unos ${Math.round(s * 7)} días)`)
 
 // Lo que sugiere el modelo para este pedido: se puede ajustar el tiempo de entrega y cada cuánto
 // pide, llevar las cantidades sugeridas a la lista o agregar lo que se agota y no está en ella.
@@ -655,6 +667,88 @@ function RecuadroSugerido({ sug, hoja, alCambiarLista, alCambiarAjustes }: { sug
   )
 }
 
+// Lo que lleva cambiado frente a la lista inicial: es lo que mide la prueba.
+function ResumenCambios({ hoja, inicial, version }: { hoja: React.RefObject<HojaApi | null>; inicial: Pedido['listaInicial']; version: unknown }) {
+  void version // se vuelve a calcular cada vez que cambia la hoja
+  const cant = (v: unknown) => Number(String(v ?? '').trim().replace(',', '.'))
+  const ahora = new Map((hoja.current?.lineas() || []).filter((l) => l.codigo && cant(l.cantidad) > 0).map((l) => [claveCodigo(l.codigo), cant(l.cantidad)]))
+  const antes = new Map(inicial.map((l) => [claveCodigo(l.codigo), cant(l.cantidad)]))
+  let agregadas = 0
+  let quitadas = 0
+  let distintas = 0
+  for (const [k, v] of ahora) if (!antes.has(k)) agregadas++; else if (Math.abs(antes.get(k)! - v) > 1e-9) distintas++
+  for (const k of antes.keys()) if (!ahora.has(k)) quitadas++
+  const total = agregadas + quitadas + distintas
+  return (
+    <p className="rounded-xl bg-muted px-4 py-3 text-[0.95rem]">
+      {total === 0
+        ? 'Por ahora tu lista final es igual a la inicial.'
+        : <>Frente a lo que ibas a pedir llevas <strong>{plural(total, 'línea cambiada', 'líneas cambiadas')}</strong>: {plural(agregadas, 'agregada', 'agregadas')}, {plural(quitadas, 'quitada', 'quitadas')} y {plural(distintas, 'con otra cantidad', 'con otra cantidad')}.</>}
+    </p>
+  )
+}
+
+// El detalle de un producto: por qué se sugiere esa cantidad, para cuánto dura y sus ventas.
+function DetalleSugerido({ p, sug, vasAPedir, ibasAPedir, alCerrar }: { p: ProductoSugerido; sug: Sugerido; vasAPedir: number; ibasAPedir: number | null; alCerrar: () => void }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => { ref.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }, [p.codigo])
+  const d = p.detalle
+  const historia = (p.serie ?? []).map((v, i) => ({ inicio: sug.semanas[sug.semanas.length - (p.serie?.length ?? 0) + i] ?? '', valor: v }))
+  const pronostico = (p.pronostico ?? []).map((x, i) => ({ ...x, inicio: sug.semanasPronostico[i] ?? '' }))
+  const ultimas = (p.serie ?? []).slice(-8)
+  return (
+    <div ref={ref} className="aparecer flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 sm:p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <span className="text-[0.82rem] text-muted-foreground">{p.codigo}{p.proveedor !== 'Sin proveedor' ? ` · ${p.proveedor}` : ''}</span>
+          <h3 className="text-lg leading-snug font-bold">{p.nombre}</h3>
+        </div>
+        <Boton tamano="chico" variante="fantasma" onClick={alCerrar}>Cerrar</Boton>
+      </div>
+      {p.sugerido === null || !d ? (
+        <p>No se vendió en el periodo de tu archivo, así que no hay cómo sugerir una cantidad. Tienes {numero(p.existencias)}.</p>
+      ) : (
+        <>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl bg-secondary p-3"><span className="block text-[0.82rem] font-semibold">SINESC sugiere</span><strong className="font-display text-2xl tabular-nums text-primary">{numero(p.sugerido)}</strong><span className="block text-[0.85rem]">con lo que tienes, dura {textoDura(duraSemanas(p, p.sugerido))}</span></div>
+            <div className="rounded-xl border border-border p-3"><span className="block text-[0.82rem] font-semibold text-muted-foreground">Vas a pedir</span><strong className="font-display text-2xl tabular-nums">{numero(vasAPedir)}</strong><span className="block text-[0.85rem]">dura {textoDura(duraSemanas(p, vasAPedir))}</span></div>
+            <div className="rounded-xl border border-border p-3"><span className="block text-[0.82rem] font-semibold text-muted-foreground">Ibas a pedir</span><strong className="font-display text-2xl tabular-nums">{ibasAPedir === null ? '—' : numero(ibasAPedir)}</strong><span className="block text-[0.85rem]">{ibasAPedir === null ? 'no estaba en tu lista' : `dura ${textoDura(duraSemanas(p, ibasAPedir))}`}</span></div>
+          </div>
+          <div>
+            <strong className="text-[0.95rem]">Por qué {numero(p.sugerido)}</strong>
+            <ol className="mt-1 list-decimal space-y-1 pl-5 text-[0.93rem]">
+              <li>Vendes unas <strong>{ventasSemana(d.ventaSemana)}</strong> por semana de aquí en adelante (lo de los últimos meses pesa más y se tiene en cuenta la temporada).</li>
+              <li>Tu proveedor tarda {semanas(p.entrega)} {p.entrega === 1 ? 'semana' : 'semanas'} y pides cada {semanas(sug.cadaCuanto)}: este pedido tiene que cubrir <strong>{semanas(d.semanasCubrir)} semanas</strong>.</li>
+              {p.estado !== 'sobra' && <li>En esas semanas lo más probable es vender <strong>{numero(Math.round(d.media))}</strong>. Para no quedarte corto en {Math.round(sug.nivelServicio * 10)} de cada 10 casos hay que contar con <strong>{numero(Math.ceil(d.alto))}</strong>.</li>}
+              {p.estado === 'sobra' ? (
+                <li>Tienes {numero(Math.max(p.existencias, 0))}, que te alcanzan para {textoDura(duraSemanas(p, 0))}: más de las {semanas(d.semanasCubrir)} que cubre este pedido. No hace falta pedirlo; el reporte lo marca como que sobra.</li>
+              ) : (
+              <li>Tienes {numero(Math.max(p.existencias, 0))}: te faltan {numero(p.lote && p.lote > 1 ? Math.max(0, Math.ceil(d.alto - Math.max(p.existencias, 0))) : p.sugerido)}{p.lote && p.lote > 1 ? `, que redondeado a paquetes de ${p.lote} da ${numero(p.sugerido)}` : ''}.</li>
+              )}
+            </ol>
+            {(() => {
+              const dura = duraSemanas(p, p.sugerido)
+              return dura !== null && p.sugerido > 0 && dura > d.semanasCubrir * 1.5 ? (
+                <p className="mt-2 text-[0.9rem] text-muted-foreground">
+                  ¿Por qué dura más de {semanas(d.semanasCubrir)} semanas? Este producto no se vende parejo: hay semanas sin ventas y otras con ventas grandes. Al ritmo normal te dura {textoDura(dura)}; lo de más es para que no te quedes sin él si llega una venta grande antes del siguiente pedido.
+                </p>
+              ) : null
+            })()}
+          </div>
+        </>
+      )}
+      {historia.length > 4 && (
+        <div className="flex flex-col gap-2">
+          <strong className="text-[0.95rem]">Sus ventas por semana y lo que viene</strong>
+          <GraficoVentas historia={historia} pronostico={pronostico} marcas={p.semanasPico} alto={180} descripcion={`Ventas semanales de ${p.nombre} y pronóstico`} />
+          {ultimas.length > 0 && <p className="text-[0.88rem] text-muted-foreground">Últimas {ultimas.length} semanas de tu archivo: {ultimas.map((x) => numero(x)).join(', ')}.</p>}
+          {p.pico && <p className="text-[0.88rem] text-ambar-texto">En {mesAnio(p.pico.mes)} vendió {numero(p.pico.vendido)}, mucho más de lo normal (un proyecto o un cliente puntual). Para el promedio se contaron {numero(p.pico.contado)}.</p>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function useSugerido(pedidoId: number) {
   const [sug, setSug] = useState<Sugerido | null>(null)
   const cargar = useCallback(() => {
@@ -675,6 +769,7 @@ function Paso4({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
   // Los códigos que hay en la hoja ahora, para mostrar lo que se quitó de la lista inicial.
   const [actuales, setActuales] = useState<Set<string> | null>(null)
   const { sug, cargar: cargarSugerido } = useSugerido(pedido.id)
+  const [detalle, setDetalle] = useState<{ codigo: string; cantidad: number } | null>(null)
   const cambio = () => {
     auto.cambio()
     setActuales(new Set((hoja.current?.lineas() || []).map((l) => claveCodigo(l.codigo))))
@@ -704,9 +799,11 @@ function Paso4({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
         const x = sugPorCodigo.get(claveCodigo(l.codigo))
         if (!x) return { texto: '—', clase: 'text-muted-foreground' }
         if (x.sugerido === null) return { texto: 'sin ventas', clase: 'text-azul' }
-        if (x.sugerido === 0) return { texto: '0, te alcanza', clase: 'text-muted-foreground' }
-        return { texto: numero(x.sugerido), clase: 'tabular-nums font-semibold text-primary' }
+        if (x.sugerido === 0) return { texto: '0 · te alcanza', clase: 'text-muted-foreground' }
+        const d = duraSemanas(x, x.sugerido)
+        return { texto: `${numero(x.sugerido)}${d !== null ? ` · dura ${d >= 26 ? '+6 meses' : `${semanas(d)} sem`}` : ''}`, clase: 'tabular-nums font-semibold text-primary' }
       },
+      alClic: (l) => setDetalle({ codigo: claveCodigo(l.codigo), cantidad: cantidad(l.cantidad) }),
     },
     {
       // La diferencia entre lo que va a pedir ahora y lo que iba a pedir: es lo que mide la prueba.
@@ -788,6 +885,10 @@ function Paso4({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
       {sug && <RecuadroSugerido sug={sug} hoja={hoja} alCambiarLista={cambio} alCambiarAjustes={cargarSugerido} />}
       <ImportarLista pedidoId={pedido.id} para="final" hoja={hoja} alImportar={cambio} />
       <Hoja ref={hoja} inicial={conNombres(pedido.listaFinal || pedido.listaInicial)} extras={extras} alCambiar={cambio} tituloCantidad="Vas a pedir" />
+      {detalle && sug && sugPorCodigo.get(detalle.codigo) && (
+        <DetalleSugerido p={sugPorCodigo.get(detalle.codigo)!} sug={sug} vasAPedir={detalle.cantidad} ibasAPedir={inicial.has(detalle.codigo) ? cantidad(inicial.get(detalle.codigo)!.cantidad) : null} alCerrar={() => setDetalle(null)} />
+      )}
+      <ResumenCambios hoja={hoja} inicial={pedido.listaInicial} version={actuales} />
       {quitados.length > 0 && (
         <p className="text-[0.93rem]">
           <strong>Quitaste {plural(quitados.length, 'producto', 'productos')} de tu lista inicial:</strong>{' '}

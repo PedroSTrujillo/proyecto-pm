@@ -211,6 +211,7 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
     let minimo = null;
     let maximo = null;
     let pronostico = null;
+    let detalleSugerido = null;
     if (f.promedioSemanal > 0 && completo) {
       const ventana = P.temporadaDeLaVentana(indice, hasta, semanasSerie, f.semanasProducto, f.semanasRecientes);
       const ajuste = P.ajustarProducto({
@@ -225,6 +226,20 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       const necesidad = P.predictiva(ajuste, futuro(entrega + ajustes.cadaCuanto)).cuantil(NIVEL_SERVICIO);
       // Se pide en paquetes completos si el producto siempre se vende de a varios.
       sugerido = P.aLote(Math.max(0, Math.ceil(necesidad - existencias)), lote);
+      // Lo que el reporte marca como "sobra" (más de 12 semanas) no se sugiere pedir, aunque el
+      // margen para ventas de golpe diera algo: sería contradecir el reporte que el usuario acaba de ver.
+      if (f.sobra) sugerido = 0;
+      // Por qué esa cantidad: las semanas que hay que cubrir (lo que tarda el proveedor más lo que
+      // falta para el siguiente pedido), lo más probable que se venda en ellas y lo que alcanza en
+      // 9 de cada 10 casos. ventaSemana (con temporada) dice para cuánto alcanza cualquier cantidad.
+      const cubrir = entrega + ajustes.cadaCuanto;
+      const media = P.predictiva(ajuste, futuro(cubrir)).media;
+      detalleSugerido = {
+        semanasCubrir: cubrir,
+        media: redondear(media, 1),
+        alto: redondear(necesidad, 1),
+        ventaSemana: redondear(media / Math.max(cubrir, 0.5), 2),
+      };
       // Mínimo y máximo, como los llevan muchos programas contables: cuando quedan "mínimo" o
       // menos, se pide hasta llegar al máximo. El mínimo cubre la entrega en 9 de cada 10 casos.
       minimo = Math.ceil(P.predictiva(ajuste, futuro(Math.max(entrega, 0.5))).cuantil(NIVEL_SERVICIO));
@@ -262,6 +277,7 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       estado,
       riesgo,
       sugerido: completo ? sugerido : null,
+      detalleSugerido,
       lote,
       minimo: completo ? minimo : null,
       maximo: completo ? maximo : null,
