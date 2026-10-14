@@ -4,7 +4,9 @@
 
 import Link from 'next/link'
 import type { ComponentProps, ReactNode } from 'react'
+import { Minus, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { semanas } from '@/lib/formato'
 import type { Estado } from '@/lib/tipos'
 
 type Variante = 'primario' | 'secundario' | 'fantasma' | 'peligro'
@@ -56,7 +58,7 @@ export function Titulo({ children, sub, acciones, etiqueta }: { children: ReactN
 }
 
 export const ESTADOS: Record<Estado, { texto: string; chip: string; numero: string; barra: string; descripcion: string }> = {
-  agota: { texto: 'Se agota', chip: 'bg-rojo-fondo text-rojo-texto', numero: 'text-rojo', barra: 'bg-rojo', descripcion: 'Te alcanza para menos de 2 semanas.' },
+  agota: { texto: 'Se agota', chip: 'bg-rojo-fondo text-rojo-texto', numero: 'text-rojo', barra: 'bg-rojo', descripcion: 'Te alcanza para menos de las semanas que elegiste para avisarte (2 si no lo cambiaste).' },
   pide: { texto: 'Pide ya', chip: 'bg-ambar-fondo text-ambar-texto', numero: 'text-ambar', barra: 'bg-ambar', descripcion: 'No te alcanza para lo que tarda en llegar un pedido, más una semana de margen.' },
   normal: { texto: 'Normal', chip: 'bg-muted text-foreground/80', numero: 'text-foreground', barra: 'bg-primary', descripcion: 'Bien surtido.' },
   sobra: { texto: 'Sobra', chip: 'bg-azul-fondo text-azul-texto', numero: 'text-azul', barra: 'bg-azul', descripcion: 'Tienes para más de 12 semanas.' },
@@ -171,3 +173,17 @@ export function Campo({ etiqueta, nota, children, className }: { etiqueta: React
 
 export const claseEntrada =
   'min-h-11 w-full rounded-xl border border-input bg-card px-3.5 text-base font-normal text-foreground placeholder:text-muted-foreground/80 focus:border-primary focus:outline-3 focus:outline-ring disabled:bg-muted'
+
+// Número de semanas con botones − y +.
+export function Contador({ valor, etiqueta, onMover, paso }: { valor: number; etiqueta: string; onMover: (d: number) => void; paso: number }) {
+  return (
+    <span className="flex items-center gap-2">
+      <button type="button" aria-label={`Bajar ${etiqueta}`} onClick={() => onMover(-paso)} className="presionable inline-flex size-9 items-center justify-center rounded-lg border border-input bg-card hover:bg-muted"><Minus className="size-4" /></button>
+      <span className="w-20 text-center">
+        <strong className="text-[1.05rem] tabular-nums">{semanas(valor)}</strong>
+        <span className="block text-xs text-muted-foreground">{valor === 1 ? 'semana' : 'semanas'}</span>
+      </span>
+      <button type="button" aria-label={`Subir ${etiqueta}`} onClick={() => onMover(paso)} className="presionable inline-flex size-9 items-center justify-center rounded-lg border border-input bg-card hover:bg-muted"><Plus className="size-4" /></button>
+    </span>
+  )
+}

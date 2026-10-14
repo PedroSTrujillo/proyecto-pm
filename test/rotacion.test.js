@@ -190,3 +190,16 @@ test('con totales de un periodo se usa el promedio simple sobre ese periodo, sin
   assert.ok(Math.abs(t.semanasInventario - 2) < 1e-9);
   assert.deepEqual(t.senales, [], 'sin fechas no hay picos ni productos nuevos');
 });
+
+test('umbral de "se agota" elegido por el usuario: cambia el estado y queda guardado en el reporte', () => {
+  const ventas = [{ codigo: 'P', dia: d('2026-01-01'), cantidad: 50 }, { codigo: 'P', dia: d('2026-03-11'), cantidad: 50 }];
+  const existencias = [{ codigo: 'P', existencias: 30 }]; // 3 semanas
+  const normal = calcularRotacion({ ventas, existencias });
+  assert.equal(normal.filas[0].estado, 'normal');
+  assert.equal(normal.umbrales.seAgota, 2, 'sin elegir nada sigue en 2');
+  const con4 = calcularRotacion({ ventas, existencias, semanasAgota: 4 });
+  assert.equal(con4.filas[0].semanasInventario, 3, 'las semanas no cambian');
+  assert.equal(con4.filas[0].estado, 'se_agota');
+  assert.equal(con4.resumen.seAgotan, 1);
+  assert.equal(con4.umbrales.seAgota, 4);
+});

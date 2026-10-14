@@ -757,7 +757,7 @@ async function pintarRecordatorio(caja, pedido) {
         <div class="acciones">${plan.productos ? html`<button type="button" class="boton chico primario" data-activo="true">Usar este reporte</button>` : ''}<button type="button" class="boton chico" data-activo="false">Ya no lo quiero</button></div>`;
     } else if (plan.productos) {
       contenido = html`<p><strong>¿Te recordamos antes de que se agoten?</strong>
-        ${plural(plan.productos, 'producto que hoy tiene', 'productos que hoy tienen')} más de ${plan.semanasBuenNivel} semanas de inventario ${plan.productos === 1 ? 'baja' : 'bajan'} de 2 semanas en los próximos 3 meses, si sigues vendiendo al mismo ritmo. El primero es ${p.codigo}${p.nombre ? ` (${p.nombre})` : ''}, hacia el ${dia(p.fechaUmbral)}.
+        ${plural(plan.productos, 'producto que hoy tiene', 'productos que hoy tienen')} más de ${plan.semanasBuenNivel} semanas de inventario ${plan.productos === 1 ? 'baja' : 'bajan'} de ${plan.semanasAgota ?? 2} semanas en los próximos 3 meses, si sigues vendiendo al mismo ritmo. El primero es ${p.codigo}${p.nombre ? ` (${p.nombre})` : ''}, hacia el ${dia(p.fechaUmbral)}.
         Te dejamos un recordatorio en tu calendario ${plan.diasAntes} días antes${plan.correo ? ` y te lo mandamos a ${email}` : ''}, como máximo uno por semana.</p>
         <div class="acciones">${respuesta ? '' : html`<button type="button" class="boton chico" data-activo="false">No, gracias</button>`}<button type="button" class="boton chico primario" data-activo="true">Sí, recuérdamelo</button></div>`;
     } else {

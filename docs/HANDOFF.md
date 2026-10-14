@@ -27,6 +27,15 @@
 
 ---
 
+## 2026-10-13 (20) — Claude (con Santiago) — umbral de "se agota" que elige cada cuenta
+- **Rama:** `santiago`, solo en local (sin commit).
+- **Estado:** el usuario elige el umbral (1 a 11 semanas; 2 si no elige) en el **paso 2 de cada pedido**, antes de subir el archivo, o en Datos (tarjeta "¿Cuándo te avisamos que algo se agota?"). Cada pedido guarda el suyo (`pedidos.semanas_agota`) y queda fijo al ver el reporte; con "Usar ese inventario" `conUmbral` vuelve a marcar el reporte guardado con el umbral del pedido. Aplica al panel y a productos (en vivo), al reporte del paso 3, a la coherencia y a los recordatorios. En Datos la tarjeta solo aparece si ya hay inventario; un probador nuevo lo elige en el paso 2. Aplica también a los probadores durante sus 14 días (decisión de Santiago): la vista del equipo muestra el umbral de cada probador y marca los reportes que no usaron 2.
+- **Archivos tocados:** `server/rotacion.js` (`estadoPorSemanas`, `conUmbral`, parámetro `semanasAgota`), `server/inventario.js` (`leerAjustes`), `server/pedidos.js` (`PUT /:id/semanas-agota`), `server/db.js`, `server/recordatorios.js`, `server/equipo.js`; `components/app/datos.tsx` (tarjeta), `pedido-flujo.tsx` (paso 2), `ui.tsx` (`Contador`), `panel.tsx`, `productos.tsx`, `equipo.tsx`, `contexto.tsx`, `lib/tipos.ts`; `public/js/app.js`; docs: modelo §3.4.1 y §5, README, `ENTREGABLE_Y_APP.md`, CLAUDE.md.
+- **Base de datos:** columna `pedidos.semanas_agota` (ALTER IF NOT EXISTS en `ESQUEMA`); el de Datos va en `usuarios.inventario` (JSONB). Hay que reiniciar el servidor para que se cree.
+- **Verificación:** `npm test` → 92/92 (5 nuevas); tipos sin errores; `npm run texto` igual que antes. No se miró en el navegador.
+- **Siguiente paso exacto:** reiniciar el servidor, crear un pedido nuevo, cambiar el umbral en el paso 2 y ver que el reporte lo use; después, agregar en el Excel del Entregable la fila 5 de "Filas que conviene agregar" de `docs/ENTREGABLE_Y_APP.md`.
+- **Notas y bloqueos:** si un probador cambia el umbral, su resultado no es comparable con los demás; decidir si se lee aparte.
+
 ## 2026-10-13 (19) — Claude — lo que reportó Jose Manuel al probar
 - **Rama:** `main` en el fork (`mio`) y en el repo del grupo.
 - **Estado:** el archivo de un pedido borrado ya no aparece en Panel ni en Datos (`db.EXPORT_VIGENTE`), salvo que otro pedido vivo lo use; la pantalla se actualiza al borrar. Confirmado que una lista con el mismo código en varias filas se suma al guardar y se avisa (`revisarLista`).

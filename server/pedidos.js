@@ -13,11 +13,12 @@ const zlib = require('zlib');
 const db = require('./db');
 const { requiereUsuario, registrarEvento, ErrorUsuario } = require('./cuentas');
 const { leerExport, leerLista } = require('./lector');
-const { calcularRotacion } = require('./rotacion');
+const { calcularRotacion, conUmbral, SEMANAS_SE_AGOTA } = require('./rotacion');
 const { seriesSemanales } = require('./series');
 const { revisarLista, compararListas, coherenciaConReporte } = require('./listas');
 const recordatorios = require('./recordatorios');
 const { correoConfigurado } = require('./correo');
+const { leerAjustes } = require('./inventario');
 
 const MAX_LINEAS = 5000;
 const subida = multer({
@@ -66,7 +67,13 @@ async function pedidoDe(req, cliente = null) {
   return p;
 }
 
-async function exportDe(p) {
+// El umbral de "se agota" del pedido: el que quedó fijo al ver el reporte o, antes, el que tiene
+// elegido el usuario.
+async function umbralDelPedido(p) {
+  return p.semanas_agota || semanasAgotaDe(p.usuario_id);
+}
+
+async function exportDe(p, semanasAgota) {
   if (!p.export_id) return null;
   const e = await db.uno('SELECT id, subido_en, estado, reporte FROM exports WHERE id = $1', [p.export_id]);
   if (!e) return null;
@@ -75,7 +82,7 @@ async function exportDe(p) {
     id: e.id,
     subidoEn: e.subido_en,
     archivos: archivos.map((a) => ({ nombre: a.nombre, tamano: a.tamano, subidoEn: a.subido_en })),
-    resumen: e.reporte ? e.reporte.resumen : null,
+    resumen: e.reporte ? conUmbral(e.reporte, semanasAgota).resumen : null,
   };
 }
 
@@ -89,6 +96,7 @@ async function vistaPedido(p) {
     "SELECT nombre, tamano, subido_en FROM archivos WHERE pedido_id = $1 AND tipo = 'export' ORDER BY id DESC",
     [p.id],
   );
+  const semanasAgota = await umbralDelPedido(p);
   return {
     id: p.id,
     proveedor: p.proveedor,
@@ -99,7 +107,8 @@ async function vistaPedido(p) {
     terminado: paso === 6,
     listaInicial: p.lista_inicial,
     inicialGuardadaEn: p.inicial_guardada_en,
-    export: await exportDe(p),
+    semanasAgota,
+    export: await exportDe(p, semanasAgota),
     archivosSubidos: archivosSubidos.map((a) => ({ nombre: a.nombre, tamano: a.tamano, subidoEn: a.subido_en })),
     reporteVistoEn: p.reporte_visto_en,
     listaFinal: p.reporte_visto_en ? listaFinal : null,
@@ -140,6 +149,12 @@ function errorLista(revision) {
 async function mapeosDe(usuarioId) {
   const u = await db.uno('SELECT mapeos FROM usuarios WHERE id = $1', [usuarioId]);
   return (u && u.mapeos) || {};
+}
+
+// El umbral de "se agota" que el usuario eligió en Datos (2 si no eligió).
+async function semanasAgotaDe(usuarioId) {
+  const u = await db.uno('SELECT inventario FROM usuarios WHERE id = $1', [usuarioId]);
+  return leerAjustes(u && u.inventario).semanasAgota;
 }
 
 // Recuerda las columnas que el usuario eligió, para que la próxima vez su archivo se lea solo.
@@ -311,7 +326,7 @@ async function procesarExport(usuarioId, pedido, exportId, manual) {
   }
   // Los documentos que marcó como ventas se recuerdan: la próxima vez su informe se lee solo.
   if (lectura.documentos) for (const [firma, lista] of Object.entries(lectura.documentos)) await recordarMapeo(usuarioId, 'documentos', firma, lista);
-  const rotacion = calcularRotacion({ ventas: lectura.ventas, existencias: lectura.existencias, mensual: lectura.mensual, periodo: lectura.periodo });
+  const rotacion = calcularRotacion({ ventas: lectura.ventas, existencias: lectura.existencias, mensual: lectura.mensual, periodo: lectura.periodo, semanasAgota: await semanasAgotaDe(usuarioId) });
   const reporte = {
     ...rotacion,
     avisos: [...lectura.avisos, ...rotacion.avisos],
@@ -416,22 +431,47 @@ rutas.get('/:id/reporte', async (req, res) => {
   if (!p.export_id) throw new ErrorUsuario('Primero sube tu export de ventas y existencias.', 409);
   const e = await db.uno("SELECT id, subido_en, reporte FROM exports WHERE id = $1 AND estado = 'ok'", [p.export_id]);
   if (!e) throw new ErrorUsuario('Primero sube tu export de ventas y existencias.', 409);
+  let semanasAgota = p.semanas_agota;
   if (!p.reporte_visto_en) {
-    const r = await db.uno('UPDATE pedidos SET reporte_visto_en = now() WHERE id = $1 AND reporte_visto_en IS NULL RETURNING id', [p.id]);
-    if (r) await registrarEvento(req.usuario.id, 'reporte_visto', { pedidoId: p.id });
+    // Al verlo, el umbral queda fijo para este pedido.
+    const r = await db.uno(
+      'UPDATE pedidos SET reporte_visto_en = now(), semanas_agota = COALESCE(semanas_agota, $2) WHERE id = $1 AND reporte_visto_en IS NULL RETURNING semanas_agota',
+      [p.id, await umbralDelPedido(p)],
+    );
+    if (r) {
+      semanasAgota = r.semanas_agota;
+      await registrarEvento(req.usuario.id, 'reporte_visto', { pedidoId: p.id });
+    }
   }
   const archivos = await db.query('SELECT nombre FROM archivos WHERE export_id = $1 ORDER BY id', [e.id]);
-  res.json({ reporte: { ...e.reporte, subidoEn: e.subido_en, archivos: archivos.map((a) => a.nombre) } });
+  res.json({ reporte: { ...conUmbral(e.reporte, semanasAgota), subidoEn: e.subido_en, archivos: archivos.map((a) => a.nombre) } });
+});
+
+// Paso 2: con cuántas semanas este pedido marca "se agota". También queda como el de Datos.
+rutas.put('/:id/semanas-agota', async (req, res) => {
+  const p = await pedidoDe(req);
+  exigirInicialGuardada(p);
+  if (p.reporte_visto_en) throw new ErrorUsuario(`Ya viste el reporte de este pedido con ${p.semanas_agota || SEMANAS_SE_AGOTA} semanas. El cambio aplica desde tu próximo pedido; hazlo en Datos.`, 409);
+  const semanas = Number(req.body?.semanas);
+  if (!Number.isInteger(semanas) || semanas < 1 || semanas > 11) throw new ErrorUsuario('Elige un número de semanas entre 1 y 11.');
+  const u = await db.uno('SELECT inventario FROM usuarios WHERE id = $1', [req.usuario.id]);
+  const ajustes = leerAjustes({ ...(u && u.inventario), semanasAgota: semanas });
+  await db.query('UPDATE usuarios SET inventario = $1::jsonb WHERE id = $2', [JSON.stringify(ajustes), req.usuario.id]);
+  const actualizado = await db.uno('UPDATE pedidos SET semanas_agota = $1 WHERE id = $2 RETURNING *', [semanas, p.id]);
+  await registrarEvento(req.usuario.id, 'umbral_elegido', { pedidoId: p.id, detalle: { semanas } });
+  res.json({ pedido: await vistaPedido(actualizado) });
 });
 
 // --- Recordatorio por correo (se ofrece al ver el reporte) ---------------------------------
 
 async function planDelPedido(p) {
   if (!p.reporte_visto_en || !p.export_id) throw new ErrorUsuario('Primero mira el reporte de rotación.', 409);
-  const e = await db.uno("SELECT subido_en, reporte->'filas' AS filas FROM exports WHERE id = $1 AND estado = 'ok'", [p.export_id]);
+  const e = await db.uno("SELECT subido_en, reporte->'filas' AS filas, reporte->'umbrales' AS umbrales FROM exports WHERE id = $1 AND estado = 'ok'", [p.export_id]);
   if (!e) throw new ErrorUsuario('Primero sube tu export de ventas y existencias.', 409);
   const fechaReporte = recordatorios.fechaBogota(e.subido_en);
-  return { fechaReporte, avisos: recordatorios.planearAvisos(e.filas || [], fechaReporte) };
+  // El umbral con el que se vio ese reporte (los pedidos y reportes viejos no lo traen: 2 semanas).
+  const semanasAgota = p.semanas_agota || (e.umbrales && e.umbrales.seAgota) || SEMANAS_SE_AGOTA;
+  return { fechaReporte, semanasAgota, avisos: recordatorios.planearAvisos(e.filas || [], fechaReporte, semanasAgota) };
 }
 
 async function vistaRecordatorio(req, p, extra = {}) {
@@ -444,7 +484,8 @@ async function vistaRecordatorio(req, p, extra = {}) {
       productos: plan.avisos.length,
       recordatorios: recordatorios.agruparPorSemana(plan.avisos).length,
       primero: primero && { codigo: primero.codigo, nombre: primero.nombre, fechaUmbral: primero.fechaUmbral, fechaAviso: primero.fechaAviso },
-      semanasBuenNivel: recordatorios.SEMANAS_BUEN_NIVEL,
+      semanasBuenNivel: Math.max(recordatorios.SEMANAS_BUEN_NIVEL, plan.semanasAgota + 2),
+      semanasAgota: plan.semanasAgota,
       semanasHorizonte: recordatorios.SEMANAS_HORIZONTE,
       diasAntes: recordatorios.DIAS_ANTES,
       correo: correoConfigurado(),
@@ -462,7 +503,7 @@ rutas.post('/:id/recordatorio', async (req, res) => {
   const p = await pedidoDe(req);
   if (typeof req.body?.activo !== 'boolean') throw new ErrorUsuario('Elige si quieres recibir los avisos.');
   const plan = await planDelPedido(p);
-  if (req.body.activo && !plan.avisos.length) throw new ErrorUsuario(`Ningún producto de este reporte llega a 2 semanas de inventario en los próximos ${recordatorios.SEMANAS_HORIZONTE} semanas, así que no hay nada que recordar.`);
+  if (req.body.activo && !plan.avisos.length) throw new ErrorUsuario(`Ningún producto de este reporte llega a ${plan.semanasAgota} semanas de inventario en los próximos ${recordatorios.SEMANAS_HORIZONTE} semanas, así que no hay nada que recordar.`);
   const envio = await recordatorios.responder({ usuario: req.usuario, pedidoId: p.id, activo: req.body.activo, avisos: plan.avisos, fechaReporte: plan.fechaReporte });
   res.json(await vistaRecordatorio(req, p, envio));
 });
@@ -480,10 +521,12 @@ rutas.get('/:id/recordatorio.ics', async (req, res) => {
 
 // --- Paso 4: lista final --------------------------------------------------------------------
 
-async function filasDelReporte(exportId) {
+// Las filas del reporte tal como las vio el usuario en ese pedido (con su umbral de "se agota").
+async function filasDelReporte(exportId, semanasAgota = null) {
   if (!exportId) return [];
-  const e = await db.uno("SELECT reporte->'filas' AS filas FROM exports WHERE id = $1", [exportId]);
-  return (e && e.filas) || [];
+  const e = await db.uno("SELECT reporte->'filas' AS filas, reporte->'umbrales' AS umbrales FROM exports WHERE id = $1", [exportId]);
+  if (!e || !e.filas) return [];
+  return conUmbral({ filas: e.filas, umbrales: e.umbrales }, semanasAgota).filas;
 }
 
 function exigirListaFinalEditable(p) {
@@ -506,7 +549,7 @@ rutas.post('/:id/lista-final', async (req, res) => {
   if (revision.errores.length) throw errorLista(revision);
   if (req.body?.revisar) return res.json({ lineas: revision.lineas.length, avisos: revision.avisos });
   const comparacion = compararListas(p.lista_inicial, revision.lineas);
-  comparacion.coherencia = coherenciaConReporte(comparacion, await filasDelReporte(p.export_id));
+  comparacion.coherencia = coherenciaConReporte(comparacion, await filasDelReporte(p.export_id, p.semanas_agota));
   const actualizado = await db.uno(
     `UPDATE pedidos SET lista_final = $1::jsonb, comparacion = $2::jsonb, final_guardada_en = now()
       WHERE id = $3 AND terminado_en IS NULL RETURNING *`,

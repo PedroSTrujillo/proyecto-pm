@@ -62,7 +62,7 @@ export type Inventario = {
     mensual: boolean
   }
   umbrales: { seAgota: number; sobra: number }
-  ajustes: { entregaPorDefecto: number; cadaCuanto: number; entregas: Record<string, number>; asignaciones: Record<string, string>; prefijos: { prefijo: string; proveedor: string }[]; nivelServicio: number }
+  ajustes: { entregaPorDefecto: number; cadaCuanto: number; semanasAgota: number; entregas: Record<string, number>; asignaciones: Record<string, string>; prefijos: { prefijo: string; proveedor: string }[]; nivelServicio: number }
   sugerencias: boolean
   alcance: 'completo' | 'prueba'
   temporada: number[] | null

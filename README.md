@@ -111,6 +111,7 @@ Con una cuenta del equipo, la página **Ejemplos** del menú deja descargar o ca
 | Cada archivo subido queda guardado con su fecha | Tabla `archivos` (contenido y fecha) |
 | Cálculo de rotación y casos borde | `server/rotacion.js`, `docs/modelo-rotacion.md` |
 | Reporte ordenado, menos de 2 semanas resaltado, lo que sobra visible, filtros, explicación con un ejemplo de su archivo | `components/app/reporte.tsx` |
+| Umbral de "se agota" que elige cada cuenta (2 semanas si no elige; agregado el 2026-10-13, ver §3.4.1 del modelo) | Paso 2 del pedido (`UmbralDelPedido` en `pedido-flujo.tsx`, `PUT /api/pedidos/:id/semanas-agota`, `pedidos.semanas_agota`, fijo al ver el reporte) y tarjeta en Datos (`datos.tsx`, `semanasAgota` en `leerAjustes`); `conUmbral` y `calcularRotacion` (`server/rotacion.js`), `planearAvisos` (`server/recordatorios.js`); la vista del equipo muestra el de cada probador y de cada pedido |
 | Lista final como copia de la inicial y reporte visible mientras se edita | Paso 4: botón "Mostrar el reporte" y columnas "Ibas a pedir" y "Semanas de inventario" |
 | Comparación por código (agregadas, quitadas, cantidad cambiada, total) y "¿Por qué cambiaste lo que cambiaste?" | `compararListas` en `server/listas.js`, paso 5 |
 | Vista del equipo con resumen (cuántos cambiaron 5 o más; cuántos 0 o 1) calculado de los datos | `server/equipo.js`, `components/app/equipo.tsx` |

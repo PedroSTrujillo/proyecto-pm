@@ -42,3 +42,14 @@ test('el archivo de calendario trae un evento por semana, a las 8 a. m. de Colom
 test('la fecha es la de Colombia, no la del servidor', () => {
   assert.equal(fechaBogota('2026-10-02T03:00:00Z'), '2026-10-01'); // 10 p. m. del 1 de octubre en Bogotá
 });
+
+test('con otro umbral de "se agota" el recordatorio llega antes y lo dice', () => {
+  const plan = planearAvisos(filas, '2026-10-01', 4);
+  // Solo lo que tiene más de 4 + 2 semanas; SEIS está justo en 6 y no entra.
+  assert.deepEqual(plan.map((a) => [a.codigo, a.fechaUmbral]), []);
+  const otras = [{ codigo: 'OCHO', nombre: 'Ocho semanas', semanasInventario: 8 }];
+  const [a] = planearAvisos(otras, '2026-10-01', 4);
+  assert.equal(a.fechaUmbral, '2026-10-29', '7 · (8 − 4) = 28 días');
+  const ics = calendarioIcs({ avisos: [a], fechaReporte: '2026-10-01', url: 'https://x', idBase: '1-1' });
+  assert.match(ics, /llega a 4 semanas/);
+});

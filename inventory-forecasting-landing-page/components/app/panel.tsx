@@ -59,12 +59,12 @@ function PanelCon({ inv }: { inv: Inventario }) {
 
       <section aria-label="Resumen" className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <Cifra
-          titulo="Se agotan en 2 semanas"
+          titulo={`Se agotan en ${inv.umbrales.seAgota} semanas`}
           tono="text-rojo"
           etiqueta="text-rojo-texto"
           valor={numero(r.seAgotan)}
-          detalle={r.enCero && !prueba ? `${r.enCero} ya están en cero` : r.seAgotan ? 'Los tienes primero en la lista de abajo' : 'Nada se agota en las próximas 2 semanas'}
-          ayuda="Productos que, al ritmo de venta de tu archivo, no alcanzan a durar dos semanas."
+          detalle={r.enCero && !prueba ? `${r.enCero} ya están en cero` : r.seAgotan ? 'Los tienes primero en la lista de abajo' : `Nada se agota en las próximas ${inv.umbrales.seAgota} semanas`}
+          ayuda={`Productos que, al ritmo de venta de tu archivo, no alcanzan a durar ${inv.umbrales.seAgota} semanas. Cambias ese número en Datos.`}
           href={`${rutas.productos}?filtro=agota`}
         />
         {prueba ? (
@@ -298,7 +298,7 @@ function AtenderHoy({ inv }: { inv: Inventario }) {
         tono="neutro"
         accion={fuente.tipo === 'cuenta' ? <Link href={rutas.pedido} className="text-[0.92rem] font-semibold text-primary hover:text-primary-hover">Pide el recordatorio al ver el reporte de tu pedido</Link> : undefined}
       >
-        {plural(avisos.productos, 'producto que hoy está bien llega', 'productos que hoy están bien llegan')} a 2 semanas en los próximos 3 meses. El primero, <strong>{avisos.primero.nombre}</strong>, hacia el {dia(avisos.primero.fechaUmbral)}.
+        {plural(avisos.productos, 'producto que hoy está bien llega', 'productos que hoy están bien llegan')} a {inv.umbrales.seAgota} semanas en los próximos 3 meses. El primero, <strong>{avisos.primero.nombre}</strong>, hacia el {dia(avisos.primero.fechaUmbral)}.
         {fuente.tipo === 'demo' ? ' Con tu cuenta te lo dejamos en el calendario, 3 días antes.' : ''}
       </Tarjetita>,
     )

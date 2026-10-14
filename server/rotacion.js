@@ -16,7 +16,7 @@
 
 const { claveCodigo, finDeMes, textoDia, MS_DIA } = require('./valores');
 
-const SEMANAS_SE_AGOTA = 2; // menos de esto: se resalta como "se agota"
+const SEMANAS_SE_AGOTA = 2; // menos de esto: "se agota", si el usuario no eligió otro umbral en Datos
 const SEMANAS_SOBRA = 12; // más de esto (unos 3 meses): "sobra"
 const SEMANAS_HISTORICO_MINIMO = 26;
 const SEMANAS_HISTORICO_MAXIMO = 110;
@@ -34,8 +34,10 @@ const VECES_OTRO_MES = 2; // ...si además vende más del doble que cualquier ot
  * periodo: { desde, hasta } (días) si las ventas son totales de un periodo, sin fecha por venta.
  *   Sin fechas no se sabe qué es reciente, qué mes fue un pico ni cuándo empezó un producto,
  *   así que se usa el promedio simple Q ÷ T.
+ * semanasAgota: el umbral de "se agota" que eligió el usuario (2 si no eligió). Queda guardado
+ *   en el reporte, así que cada pedido conserva el umbral con el que se vio.
  */
-function calcularRotacion({ ventas, existencias, mensual = false, periodo: totales = null }) {
+function calcularRotacion({ ventas, existencias, mensual = false, periodo: totales = null, semanasAgota = SEMANAS_SE_AGOTA }) {
   if (!ventas.length) throw new Error('No hay ventas para calcular.');
 
   let desde = Infinity;
@@ -112,9 +114,7 @@ function calcularRotacion({ ventas, existencias, mensual = false, periodo: total
       estado = 'sin_ventas';
     } else {
       semanasInventario = Math.max(existenciasActuales, 0) / promedioSemanal;
-      if (semanasInventario < SEMANAS_SE_AGOTA) estado = 'se_agota';
-      else if (semanasInventario > SEMANAS_SOBRA) estado = 'sobra';
-      else estado = 'normal';
+      estado = estadoPorSemanas(semanasInventario, semanasAgota);
     }
     const sobra = estado === 'sobra' || (estado === 'sin_ventas' && existenciasActuales > 0);
 
@@ -191,9 +191,31 @@ function calcularRotacion({ ventas, existencias, mensual = false, periodo: total
     periodo,
     ejemplo: elegirEjemplo(filas, semanasHistorico),
     avisos,
-    umbrales: { seAgota: SEMANAS_SE_AGOTA, sobra: SEMANAS_SOBRA },
+    umbrales: { seAgota: semanasAgota, sobra: SEMANAS_SOBRA },
     ajustes: { semanasRecientes: SEMANAS_RECIENTES, semanasMinimasProducto: SEMANAS_MINIMAS_PRODUCTO, vecesLoNormal: VECES_LO_NORMAL, vecesOtroMes: VECES_OTRO_MES, mesesMinimosPico: MESES_MINIMOS_PICO },
   };
+}
+
+function estadoPorSemanas(semanas, semanasAgota = SEMANAS_SE_AGOTA) {
+  if (semanas < semanasAgota) return 'se_agota';
+  if (semanas > SEMANAS_SOBRA) return 'sobra';
+  return 'normal';
+}
+
+// El mismo reporte con otro umbral de "se agota": las semanas no cambian, solo qué se marca.
+// Sirve para un pedido que usa un archivo ya subido con otro umbral ("usar ese inventario").
+function conUmbral(reporte, semanasAgota) {
+  if (!reporte || !reporte.filas || !semanasAgota) return reporte;
+  const umbrales = reporte.umbrales || { seAgota: SEMANAS_SE_AGOTA, sobra: SEMANAS_SOBRA };
+  if (umbrales.seAgota === semanasAgota) return reporte;
+  const filas = reporte.filas.map((f) => {
+    if (f.semanasInventario === null) return f;
+    const estado = estadoPorSemanas(f.semanasInventario, semanasAgota);
+    return { ...f, estado, sobra: estado === 'sobra' };
+  });
+  const cuenta = (fn) => filas.reduce((n, f) => n + (fn(f) ? 1 : 0), 0);
+  const resumen = reporte.resumen && { ...reporte.resumen, seAgotan: cuenta((f) => f.estado === 'se_agota'), sobran: cuenta((f) => f.sobra) };
+  return { ...reporte, filas, resumen, umbrales: { ...umbrales, seAgota: semanasAgota } };
 }
 
 function promedioSimple(vendido, semanas) {
@@ -309,4 +331,4 @@ function plural(n, uno, varios) {
   return n === 1 ? `1 ${uno}` : `${n} ${varios}`;
 }
 
-module.exports = { calcularRotacion, SEMANAS_SE_AGOTA, SEMANAS_SOBRA };
+module.exports = { calcularRotacion, conUmbral, estadoPorSemanas, SEMANAS_SE_AGOTA, SEMANAS_SOBRA };
