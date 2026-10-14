@@ -1,32 +1,24 @@
-import { BarChart3, ClipboardList, Clock, FileSpreadsheet, MessageCircle, SlidersHorizontal } from 'lucide-react'
+import { BarChart3, ClipboardList, Clock, FileSpreadsheet } from 'lucide-react'
+import { CtaEnLinea } from './cta-en-linea'
 import { SectionHeading } from './section-heading'
 
-// Los mismos 5 pasos de la aplicación, con los mismos nombres.
+// Tres pasos (comentario de los monitores: con cinco había demasiada fricción). En la aplicación
+// el tercero se reparte en ver el reporte, ajustar la lista y contar por qué.
 const steps = [
   {
     icon: ClipboardList,
     title: 'Anota lo que ibas a pedir',
-    body: 'Antes de ver el reporte, escribe tu pedido como lo harías hoy. Puedes pegar filas desde Excel o importar tu archivo de pedido.',
+    body: 'Escribe tu pedido como lo harías hoy, o pégalo desde Excel.',
   },
   {
     icon: FileSpreadsheet,
-    title: 'Sube tus ventas y existencias',
-    body: 'El último año de ventas y lo que tienes hoy, tal como sale de Siigo, Alegra, World Office, Helisa u otro programa. Si llevas el inventario en Excel, usas nuestra plantilla.',
+    title: 'Sube tu archivo',
+    body: 'Las ventas del último año y lo que tienes hoy, tal como salen de tu programa contable.',
   },
   {
     icon: BarChart3,
-    title: 'Mira la rotación',
-    body: 'Cada producto con sus semanas de inventario. Lo que se agota en menos de dos semanas sale en rojo; lo que sobra, en azul.',
-  },
-  {
-    icon: SlidersHorizontal,
-    title: 'Ajusta tu lista',
-    body: 'Arrancas con una copia de tu lista y la cambias con el reporte al lado, hasta que quede lo que vas a pedir.',
-  },
-  {
-    icon: MessageCircle,
-    title: 'Cuéntanos por qué',
-    body: 'Ves qué agregaste, qué quitaste y qué cantidades cambiaste, y nos cuentas por qué. Si no cambiaste nada, también nos sirve saberlo.',
+    title: 'Mira y ajusta',
+    body: 'Ves qué se agota y qué sobra, y cambias tu pedido si el dato te convence.',
   },
 ]
 
@@ -40,7 +32,7 @@ export function HowItWorks() {
           title="Empieza por el pedido que ya ibas a hacer."
           description="No cambias tu forma de trabajar. Anotas tu pedido como siempre, miras la rotación y decides si algo cambia."
         />
-        <ol className="mt-14 grid gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-3">
+        <ol className="mt-14 grid gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
           {steps.map((step, index) => (
             <li key={step.title} className="flex flex-col gap-4 bg-card p-6">
               <div className="flex items-center justify-between">
@@ -70,6 +62,7 @@ export function HowItWorks() {
             </div>
           </li>
         </ol>
+        <CtaEnLinea className="mt-10" texto="Tu próximo pedido es un buen momento para probarlo." />
       </div>
     </section>
   )

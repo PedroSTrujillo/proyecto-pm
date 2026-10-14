@@ -27,6 +27,17 @@
 
 ---
 
+## 2026-10-13 (23) — Claude — comentarios de los monitores a la landing y "es del equipo"
+- **Rama:** `mejoras-modelo` (y `main`), en los dos repos.
+- **Estado:**
+  - Landing, por los comentarios de los monitores (13-oct): el plan pasó de 5 a 3 pasos (`how-it-works.tsx`); "Crear mi cuenta" se repite después del plan y después de la comparación de listas (`cta-en-linea.tsx`); "Para quién es" quedó justo debajo de "El problema" (`app/page.tsx`, sugerencia del monitor).
+  - Resultados de la prueba: botón "Es del equipo, no un probador" (`POST /api/equipo/usuarios/:id/equipo`, columna `usuarios.es_equipo`). El inicio de sesión lo respeta aunque el correo no esté en `TEAM_EMAILS`.
+  - PostHog en producción: carga por `/ingest`. La clave puesta en Vercel empieza por `phx_` (clave personal, secreta) y no por `phc_` (la del proyecto): PostHog responde 401 y hay que cambiarla y revocar la personal.
+- **Base de datos:** `usuarios.es_equipo` (ALTER en ESQUEMA).
+- **Verificación:** `npm test` → 91/91. Landing medida en el navegador a 1280 y 375 px: 3 pasos en una fila, 5 botones de crear cuenta, sin desborde.
+- **Siguiente paso exacto:** marcar a Jose Manuel con el botón nuevo en Resultados; pedirle a Nicolás que borre su Pedido 1 (o borrarlo en Neon); cambiar la clave de PostHog.
+- **Notas y bloqueos:** ninguno.
+
 ## 2026-10-13 (22) — Claude — PostHog opcional
 - **Rama:** `mejoras-modelo` (y `main`), en los dos repos.
 - **Estado:** PostHog listo pero apagado hasta que se ponga `NEXT_PUBLIC_POSTHOG_KEY` en Vercel y se vuelva a desplegar. Sin la clave carga el paquete y no manda nada (revisado en local: ninguna petición a `/ingest`).
