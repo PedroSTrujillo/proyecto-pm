@@ -68,6 +68,13 @@ async function pedidoDe(req, cliente = null) {
   return p;
 }
 
+// Lo mismo, para cambiarlo: un pedido anulado se puede ver pero no editar.
+async function pedidoActivo(req, cliente = null) {
+  const p = await pedidoDe(req, cliente);
+  if (p.anulado_en) throw new ErrorUsuario('Este pedido está anulado. Reactívalo para seguir.', 409);
+  return p;
+}
+
 // El umbral de "se agota" del pedido: el que quedó fijo al ver el reporte o, antes, el que tiene
 // elegido el usuario.
 async function umbralDelPedido(p) {
@@ -118,6 +125,7 @@ async function vistaPedido(p) {
     // "¿por qué cambió?" le diría al usuario qué respuesta esperamos.
     comparacion: p.comparacion ? { ...p.comparacion, coherencia: undefined } : null,
     porQue: p.por_que,
+    anulado: p.anulado_en ? { en: p.anulado_en, motivo: p.anulado_motivo || '' } : null,
     terminadoEn: p.terminado_en,
   };
 }
@@ -181,7 +189,7 @@ function leerMapeoManual(valor) {
 rutas.get('/', async (req, res) => {
   const filas = await db.query(
     `SELECT id, proveedor, tipo, creado_en, inicial_guardada_en, export_id, reporte_visto_en,
-            final_guardada_en, terminado_en, comparacion->'conteo' AS conteo,
+            final_guardada_en, terminado_en, anulado_en, anulado_motivo, comparacion->'conteo' AS conteo,
             jsonb_array_length(lista_inicial) AS lineas_inicial
        FROM pedidos WHERE usuario_id = $1 AND borrado_en IS NULL ORDER BY creado_en DESC`,
     [req.usuario.id],
@@ -196,6 +204,7 @@ rutas.get('/', async (req, res) => {
       lineasInicial: p.lineas_inicial,
       conteo: p.conteo,
       terminadoEn: p.terminado_en,
+      anulado: p.anulado_en ? { en: p.anulado_en, motivo: p.anulado_motivo || '' } : null,
     })),
   });
 });
@@ -209,6 +218,25 @@ rutas.delete('/:id', async (req, res) => {
   await db.query('UPDATE pedidos SET borrado_en = now() WHERE id = $1', [p.id]);
   await registrarEvento(req.usuario.id, 'pedido_borrado', { pedidoId: p.id });
   res.json({ ok: true });
+});
+
+// Anular: el pedido no se hizo o se empezó por error, pero queda a la vista con su motivo.
+// No cuenta en los resultados de la prueba y se puede reactivar.
+rutas.post('/:id/anular', async (req, res) => {
+  const p = await pedidoDe(req);
+  if (p.anulado_en) throw new ErrorUsuario('Este pedido ya está anulado.', 409);
+  const motivo = String(req.body?.motivo || '').trim().slice(0, 300);
+  await db.query('UPDATE pedidos SET anulado_en = now(), anulado_motivo = $2 WHERE id = $1', [p.id, motivo || null]);
+  await registrarEvento(req.usuario.id, 'pedido_anulado', { pedidoId: p.id, detalle: { motivo } });
+  res.json({ pedido: await vistaPedido(await pedidoDe(req)) });
+});
+
+rutas.post('/:id/reactivar', async (req, res) => {
+  const p = await pedidoDe(req);
+  if (!p.anulado_en) throw new ErrorUsuario('Este pedido no está anulado.', 409);
+  await db.query('UPDATE pedidos SET anulado_en = NULL, anulado_motivo = NULL WHERE id = $1', [p.id]);
+  await registrarEvento(req.usuario.id, 'pedido_reactivado', { pedidoId: p.id });
+  res.json({ pedido: await vistaPedido(await pedidoDe(req)) });
 });
 
 rutas.post('/', async (req, res) => {
@@ -227,7 +255,7 @@ rutas.get('/:id', async (req, res) => {
 // --- Paso 1: lista inicial --------------------------------------------------------------
 
 rutas.put('/:id/lista-inicial', async (req, res) => {
-  const p = await pedidoDe(req);
+  const p = await pedidoActivo(req);
   if (p.inicial_guardada_en) throw new ErrorUsuario('La lista inicial ya está guardada y no se puede cambiar.', 409);
   const lineas = borrador(lineasDelCuerpo(req.body));
   await db.query(
@@ -238,7 +266,7 @@ rutas.put('/:id/lista-inicial', async (req, res) => {
 });
 
 rutas.post('/:id/lista-inicial', async (req, res) => {
-  const p = await pedidoDe(req);
+  const p = await pedidoActivo(req);
   if (p.inicial_guardada_en) throw new ErrorUsuario('La lista inicial ya está guardada y no se puede cambiar.', 409);
   const tipo = tipoValido(req.body?.tipo);
   if (!tipo) throw new ErrorUsuario('Marca si el pedido es real o simulado.');
@@ -259,7 +287,7 @@ rutas.post('/:id/lista-inicial', async (req, res) => {
 
 // Importar la lista desde el Excel o CSV con el que el usuario arma su pedido.
 rutas.post('/:id/importar-lista', subida.single('archivo'), async (req, res) => {
-  const p = await pedidoDe(req);
+  const p = await pedidoActivo(req);
   const para = req.body?.para === 'final' ? 'final' : 'inicial';
   if (para === 'inicial' && p.inicial_guardada_en) throw new ErrorUsuario('La lista inicial ya está guardada y no se puede cambiar.', 409);
   if (para === 'final' && (!p.reporte_visto_en || p.terminado_en)) throw new ErrorUsuario('Ahora no se puede cambiar la lista final.', 409);
@@ -368,7 +396,7 @@ function exigirInicialGuardada(p) {
 }
 
 rutas.post('/:id/export', subida.array('archivos', 24), async (req, res) => {
-  const p = await pedidoDe(req);
+  const p = await pedidoActivo(req);
   exigirInicialGuardada(p);
   if (p.terminado_en) throw new ErrorUsuario('Este pedido ya está terminado.', 409);
   if (!req.files || !req.files.length) throw new ErrorUsuario('Elige el archivo de ventas y existencias.');
@@ -391,7 +419,7 @@ rutas.post('/:id/export', subida.array('archivos', 24), async (req, res) => {
 // Usar el inventario que ya subió (desde "Datos" o en otro pedido) en vez de subirlo otra vez.
 // Igual que subirlo: solo después de guardar la lista inicial.
 rutas.post('/:id/export/usar-ultimo', async (req, res) => {
-  const p = await pedidoDe(req);
+  const p = await pedidoActivo(req);
   exigirInicialGuardada(p);
   if (p.terminado_en) throw new ErrorUsuario('Este pedido ya está terminado.', 409);
   const e = await db.uno(`SELECT id, reporte->'resumen' AS resumen, reporte->'periodo' AS periodo FROM exports WHERE usuario_id = $1 AND estado = 'ok' AND ${db.EXPORT_VIGENTE} ORDER BY subido_en DESC, id DESC LIMIT 1`, [req.usuario.id]);
@@ -403,7 +431,7 @@ rutas.post('/:id/export/usar-ultimo', async (req, res) => {
 
 // Cuando no reconocemos una columna, el usuario la elige y se vuelve a leer el mismo archivo.
 rutas.post('/:id/export/:exportId/columnas', async (req, res) => {
-  const p = await pedidoDe(req);
+  const p = await pedidoActivo(req);
   exigirInicialGuardada(p);
   if (p.terminado_en) throw new ErrorUsuario('Este pedido ya está terminado.', 409);
   const exp = await db.uno('SELECT id FROM exports WHERE id = $1 AND pedido_id = $2 AND usuario_id = $3', [Number(req.params.exportId), p.id, req.usuario.id]);
@@ -415,7 +443,7 @@ rutas.post('/:id/export/:exportId/columnas', async (req, res) => {
 
 // El informe mezcla compras, ventas y ajustes: el usuario marca qué documentos son ventas.
 rutas.post('/:id/export/:exportId/documentos', async (req, res) => {
-  const p = await pedidoDe(req);
+  const p = await pedidoActivo(req);
   exigirInicialGuardada(p);
   if (p.terminado_en) throw new ErrorUsuario('Este pedido ya está terminado.', 409);
   const exp = await db.uno('SELECT id FROM exports WHERE id = $1 AND pedido_id = $2 AND usuario_id = $3', [Number(req.params.exportId), p.id, req.usuario.id]);
@@ -426,7 +454,7 @@ rutas.post('/:id/export/:exportId/documentos', async (req, res) => {
 
 // El archivo trae el total vendido sin fecha por venta: el usuario dice de qué periodo es.
 rutas.post('/:id/export/:exportId/periodo', async (req, res) => {
-  const p = await pedidoDe(req);
+  const p = await pedidoActivo(req);
   exigirInicialGuardada(p);
   if (p.terminado_en) throw new ErrorUsuario('Este pedido ya está terminado.', 409);
   const exp = await db.uno('SELECT id FROM exports WHERE id = $1 AND pedido_id = $2 AND usuario_id = $3', [Number(req.params.exportId), p.id, req.usuario.id]);
@@ -446,7 +474,7 @@ rutas.get('/:id/reporte', async (req, res) => {
   const e = await db.uno("SELECT id, subido_en, reporte FROM exports WHERE id = $1 AND estado = 'ok'", [p.export_id]);
   if (!e) throw new ErrorUsuario('Primero sube tu export de ventas y existencias.', 409);
   let semanasAgota = p.semanas_agota;
-  if (!p.reporte_visto_en) {
+  if (!p.reporte_visto_en && !p.anulado_en) {
     // Al verlo, el umbral queda fijo para este pedido.
     const r = await db.uno(
       'UPDATE pedidos SET reporte_visto_en = now(), semanas_agota = COALESCE(semanas_agota, $2) WHERE id = $1 AND reporte_visto_en IS NULL RETURNING semanas_agota',
@@ -491,7 +519,7 @@ rutas.get('/:id/sugerido', async (req, res) => {
 
 // Paso 2: con cuántas semanas este pedido marca "se agota". También queda como el de Datos.
 rutas.put('/:id/semanas-agota', async (req, res) => {
-  const p = await pedidoDe(req);
+  const p = await pedidoActivo(req);
   exigirInicialGuardada(p);
   if (p.reporte_visto_en) throw new ErrorUsuario(`Ya viste el reporte de este pedido con ${p.semanas_agota || SEMANAS_SE_AGOTA} semanas. El cambio aplica desde tu próximo pedido; hazlo en Datos.`, 409);
   const semanas = Number(req.body?.semanas);
@@ -542,7 +570,7 @@ rutas.get('/:id/recordatorio', async (req, res) => {
 });
 
 rutas.post('/:id/recordatorio', async (req, res) => {
-  const p = await pedidoDe(req);
+  const p = await pedidoActivo(req);
   if (typeof req.body?.activo !== 'boolean') throw new ErrorUsuario('Elige si quieres recibir los avisos.');
   const plan = await planDelPedido(p);
   if (req.body.activo && !plan.avisos.length) throw new ErrorUsuario(`Ningún producto de este reporte llega a ${plan.semanasAgota} semanas de inventario en los próximos ${recordatorios.SEMANAS_HORIZONTE} semanas, así que no hay nada que recordar.`);
@@ -578,14 +606,14 @@ function exigirListaFinalEditable(p) {
 }
 
 rutas.put('/:id/lista-final', async (req, res) => {
-  const p = await pedidoDe(req);
+  const p = await pedidoActivo(req);
   exigirListaFinalEditable(p);
   await db.query('UPDATE pedidos SET lista_final = $1::jsonb WHERE id = $2', [JSON.stringify(borrador(lineasDelCuerpo(req.body))), p.id]);
   res.json({ ok: true });
 });
 
 rutas.post('/:id/lista-final', async (req, res) => {
-  const p = await pedidoDe(req);
+  const p = await pedidoActivo(req);
   exigirListaFinalEditable(p);
   const revision = revisarLista(lineasDelCuerpo(req.body));
   if (revision.errores.length) throw errorLista(revision);
@@ -605,7 +633,7 @@ rutas.post('/:id/lista-final', async (req, res) => {
 // --- Paso 5: ¿por qué cambió? ------------------------------------------------------------------
 
 rutas.post('/:id/por-que', async (req, res) => {
-  const p = await pedidoDe(req);
+  const p = await pedidoActivo(req);
   if (!p.final_guardada_en) throw new ErrorUsuario('Primero guarda tu lista final.', 409);
   if (p.terminado_en) throw new ErrorUsuario('Este pedido ya está terminado.', 409);
   const respuesta = String(req.body?.respuesta || '').trim().slice(0, 5000);

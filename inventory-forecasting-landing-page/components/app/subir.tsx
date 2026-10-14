@@ -337,13 +337,16 @@ function ColumnasLeidas({ hojas, alCambiar }: { hojas: HojaMapeo[]; alCambiar: (
   const nombreDe = (i: number | null | undefined) => {
     if (i === null || i === undefined) return null
     const e = hoja.encabezados.find((x) => x.indice === i)
-    return e ? `"${e.texto}" (columna ${e.letra})` : null
+    if (!e) return null
+    // En los informes de impresora (Helisa) el título queda corrido: se muestra el más cercano.
+    const titulo = e.texto || hoja.encabezados.filter((x) => x.texto && Math.abs(x.indice - i) <= 4).sort((a, b) => Math.abs(a.indice - i) - Math.abs(b.indice - i))[0]?.texto
+    return titulo ? `"${titulo}" (columna ${e.letra})` : `columna ${e.letra}`
   }
   const filas = LEIDAS.map((l) => ({ ...l, columna: nombreDe(hoja.columnas[l.campo]) })).filter((l) => l.columna)
   const salidas = nombreDe(hoja.columnas.cantidad)
   return (
     <div className="aparecer flex flex-col gap-3 rounded-2xl border border-border bg-card p-5">
-      <p><strong>Así leímos tu archivo</strong>{hojas.length > 1 ? ` (${hojas.length} hojas o archivos, con las mismas columnas)` : ''}:</p>
+      <p><strong>Así leímos tu archivo</strong>{hojas.length > 1 ? ' (la hoja de ventas)' : ''}:</p>
       <dl className="grid gap-x-6 gap-y-1 text-[0.95rem] sm:grid-cols-[auto_1fr]">
         {filas.map((l) => (
           <div key={l.campo} className="contents">
@@ -376,7 +379,8 @@ const QUE_ES: Record<string, string> = {
   NC: 'nota crédito: devolución de un cliente', ND: 'nota débito', DV: 'devolución', FC: 'factura de compra',
   DS: 'documento soporte de una compra', CC: 'comprobante contable: ajuste de costo', RC: 'recibo de caja',
   CE: 'comprobante de egreso', EA: 'entrada de almacén', SA: 'salida de almacén', TR: 'traslado entre bodegas',
-  AJ: 'ajuste de inventario', OC: 'orden de compra', NT: 'traslado entre bodegas', '(vacío)': 'sin tipo de documento',
+  AJ: 'ajuste de inventario', OC: 'orden de compra', NT: 'traslado entre bodegas',
+  FCA: 'factura de venta (Helisa)', DFCA: 'devolución de una factura', EMC: 'entrada de mercancía (compra)', DSE: 'documento soporte de una compra', '(vacío)': 'sin tipo de documento',
 }
 
 type Uso = 'venta' | 'devolucion' | 'nada'

@@ -5,21 +5,31 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Boton } from './ui'
 
-type Pregunta = { titulo: string; cuerpo: ReactNode; si: string; peligro: boolean; resolver: (v: boolean) => void }
+type Pregunta = { titulo: string; cuerpo: ReactNode; si: string; peligro: boolean; campo?: string; resolver: (v: boolean, texto?: string) => void }
 
 export function useConfirmar() {
   const [p, setP] = useState<Pregunta | null>(null)
   const boton = useRef<HTMLButtonElement>(null)
+  const [texto, setTexto] = useState('')
 
   const preguntar = useCallback(
     // peligro: el botón de confirmar va en rojo (por ejemplo, para borrar).
     (titulo: string, cuerpo: ReactNode, si = 'Sí, guardar', peligro = false) => new Promise<boolean>((resolver) => setP({ titulo, cuerpo, si, peligro, resolver })),
     [],
   )
+  // Igual, pero pide un texto (por ejemplo, el motivo). Devuelve el texto, o null si cancela.
+  const preguntarTexto = useCallback(
+    (titulo: string, cuerpo: ReactNode, campo: string, si: string) =>
+      new Promise<string | null>((resolver) => {
+        setTexto('')
+        setP({ titulo, cuerpo, si, peligro: true, campo, resolver: (v, t) => resolver(v ? (t ?? '').trim() : null) })
+      }),
+    [],
+  )
 
   useEffect(() => {
     if (!p) return
-    boton.current?.focus()
+    if (!p.campo) boton.current?.focus()
     const esc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { p.resolver(false); setP(null) }
     }
@@ -28,7 +38,7 @@ export function useConfirmar() {
   }, [p])
 
   const cerrar = (v: boolean) => {
-    p?.resolver(v)
+    p?.resolver(v, texto)
     setP(null)
   }
 
@@ -38,6 +48,12 @@ export function useConfirmar() {
       <div className="aparecer relative flex w-full max-w-lg flex-col gap-4 rounded-2xl bg-card p-6 shadow-2xl">
         <h2 id="confirmar-titulo" className="text-xl font-bold">{p.titulo}</h2>
         <div className="text-[0.97rem] text-foreground/85">{p.cuerpo}</div>
+        {p.campo && (
+          <label className="flex flex-col gap-1.5 text-sm font-semibold">
+            {p.campo}
+            <input autoFocus className="h-11 rounded-xl border border-input bg-card px-3.5 text-[0.97rem] font-normal focus:border-primary focus:outline-3 focus:outline-ring" value={texto} maxLength={300} onChange={(e) => setTexto(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') cerrar(true) }} />
+          </label>
+        )}
         <div className="flex flex-wrap justify-end gap-2.5">
           <Boton onClick={() => cerrar(false)}>{p.peligro ? 'No, dejarlo' : 'Revisar otra vez'}</Boton>
           <Boton ref={boton} variante={p.peligro ? 'peligro' : 'primario'} onClick={() => cerrar(true)}>{p.si}</Boton>
@@ -46,5 +62,5 @@ export function useConfirmar() {
     </div>
   ) : null
 
-  return { ventana, preguntar }
+  return { ventana, preguntar, preguntarTexto }
 }

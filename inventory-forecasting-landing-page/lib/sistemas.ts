@@ -108,23 +108,18 @@ export const SISTEMAS: Sistema[] = [
   {
     id: 'helisa',
     nombre: 'Helisa',
-    // Sin guía pública: los nombres salen de exports reales (Movimiento detalle y listado de inventario).
-    unInforme: [
-      'En Inventarios, saca el listado de inventario de todos los productos, con la columna de salidas del periodo.',
-      'Periodo: los últimos 12 meses.',
-      'Expórtalo a Excel y súbelo tal como sale, con títulos y totales.',
-    ],
-    unInformeNota: 'Trae, por producto, lo que salió en el periodo y el saldo de hoy. El periodo lo tomamos del título del informe.',
+    // Sin guía pública: los nombres salen de exports reales (Movimiento detalle y listado de
+    // inventario), y el Movimiento detalle se probó con uno real de 35.000 filas (2026-10-14).
     ventas: [
-      'En Inventarios, saca el informe "Movimiento detalle" del último año.',
-      'Expórtalo a Excel y súbelo tal como sale, con títulos y totales.',
+      'En Inventarios, saca el informe "Movimiento detalle". Meses: desde este mes del año pasado hasta hoy.',
+      'Expórtalo a Excel y súbelo tal como sale, con títulos y totales. Al subirlo te preguntamos qué documentos son ventas (FCA suele serlo).',
     ],
     existencias: [
-      'Saca el listado de inventario con el saldo de cada producto a hoy.',
-      'Expórtalo a Excel.',
+      'Saca el listado de inventario con la existencia de cada producto a hoy, de todas las bodegas.',
+      'Expórtalo a Excel y súbelo junto con el Movimiento detalle.',
     ],
     fuentes: [],
-    aviso: 'Los nombres de los informes pueden variar un poco según cómo esté configurado tu Helisa.',
+    aviso: 'Los nombres de los informes pueden variar un poco según cómo esté configurado tu Helisa. Un listado de inventario con la columna de salidas del periodo también sirve, solo.',
   },
   {
     id: 'sap-b1',

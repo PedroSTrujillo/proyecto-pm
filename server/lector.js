@@ -175,7 +175,11 @@ function esMarcado(buf) {
 
 function esLibroBinario(buf) {
   const h = buf.subarray(0, 4).toString('hex');
-  return h === '504b0304' || h === 'd0cf11e0'; // zip (xlsx/ods) u OLE (xls)
+  if (h === '504b0304' || h === 'd0cf11e0') return true; // zip (xlsx/ods) u OLE (xls)
+  // Un .xls "suelto" (BIFF sin el contenedor OLE), como los que guarda Helisa: empieza con el
+  // registro BOF (09 08 en Excel 97, 09 04/02/00 en los más viejos) y un largo de 4 a 16 bytes.
+  const largo = buf.length >= 4 ? buf.readUInt16LE(2) : 0;
+  return buf[0] === 0x09 && [0x08, 0x04, 0x02, 0x00].includes(buf[1]) && largo >= 4 && largo <= 16;
 }
 
 // --- Encabezados y columnas -----------------------------------------------------
@@ -364,7 +368,8 @@ const esFilaDeSaldoSinMovimiento = (f, c) =>
   c.documento !== undefined && c.fecha !== undefined && prefijoDocumento(f[c.documento]) === '(vacío)' && (f[c.fecha] === null || f[c.fecha] === undefined || f[c.fecha] === '');
 
 // Devoluciones de clientes: se restan de las ventas (NC: nota crédito de venta).
-const RE_DOC_DEVOLUCION = /^(NC|NCV|NCE|DV|DEV|DEVOLUCION|DEVOLUCIONES)$/;
+// DFCA, DFV…: devolución de una factura (así las nombra Helisa).
+const RE_DOC_DEVOLUCION = /^(NC|NCV|NCE|DV|DEV|DEVOLUCION|DEVOLUCIONES|DFCA|DFV|DFE|DFED)$/;
 
 // Lo que el usuario marcó: una lista (versión anterior: solo ventas) o { ventas, devoluciones }.
 function eleccionDocumentos(x) {
@@ -373,7 +378,8 @@ function eleccionDocumentos(x) {
   return { ventas: new Set(x.ventas || []), devoluciones: new Set(x.devoluciones || []) };
 }
 
-const RE_DOC_VENTA = /^(FV|FE|FED|FVE|FAC|FACT|FACTURA|POS|VTA|VEN|VENTA|VENTAS|SALIDA|SALIDAS|RM|REM)$/;
+// FCA: la factura de venta en el Movimiento detalle de Helisa.
+const RE_DOC_VENTA = /^(FV|FE|FED|FVE|FCA|FAC|FACT|FACTURA|POS|VTA|VEN|VENTA|VENTAS|SALIDA|SALIDAS|RM|REM)$/;
 
 function celdasLlenas(f) {
   return f.filter((c) => c !== null && c !== undefined && String(c).trim() !== '').length;
@@ -420,12 +426,25 @@ function prefijoDocumento(v) {
 /**
  * Algunos programas exportan la fecha con el año cortado por el ancho de la columna
  * ("01/MAR/202"). Como esos informes van en orden de fecha, el año se completa con el de la
- * última fecha completa de la misma columna (o el siguiente, si el mes ya dio la vuelta).
+ * última fecha completa de la misma columna (o el siguiente, si el mes ya dio la vuelta). Si el
+ * informe empieza con fechas cortadas, se usa la primera completa que viene después (`siguiente`):
+ * el año es el de esa fecha o el anterior.
  */
-function fechaConAnioCortado(v, ultimo, orden) {
-  if (typeof v !== 'string' || !ultimo) return null;
-  const m = /^(\s*\d{1,2}[/.-][A-Za-z]{3,}[/.-]|\s*\d{1,2}[/.-]\d{1,2}[/.-])(\d{1,3})\s*$/.exec(v);
+const RE_ANIO_CORTADO = /^(\s*\d{1,2}[/.-][A-Za-z]{3,}[/.-]|\s*\d{1,2}[/.-]\d{1,2}[/.-])(\d{1,3})\s*$/;
+function fechaConAnioCortado(v, ultimo, orden, siguiente = null) {
+  if (typeof v !== 'string') return null;
+  const m = RE_ANIO_CORTADO.exec(v);
   if (!m) return null;
+  if (!ultimo) {
+    if (!siguiente) return null;
+    const anioSig = new Date(siguiente * V.MS_DIA).getUTCFullYear();
+    for (const candidato of [anioSig, anioSig - 1]) {
+      if (!String(candidato).startsWith(m[2])) continue;
+      const fecha = V.leerFecha(m[1] + candidato, orden);
+      if (fecha && fecha.dia <= siguiente && fecha.dia >= siguiente - 366) return fecha;
+    }
+    return null;
+  }
   const anio = new Date(ultimo * V.MS_DIA).getUTCFullYear();
   for (const candidato of [anio, anio + 1]) {
     if (!String(candidato).startsWith(m[2])) continue;
@@ -456,7 +475,7 @@ function pareceDelCampo(campo, valores) {
   if (!valores.length) return false;
   const frac = (fn) => valores.filter(fn).length / valores.length;
   const esNumero = (v) => typeof v === 'number' || V.leerNumero(String(v), V.inferirDecimal([String(v)])) !== null;
-  const esFecha = (v) => v instanceof Date || V.leerFecha(v) !== null;
+  const esFecha = (v) => v instanceof Date || V.leerFecha(v) !== null || (typeof v === 'string' && RE_ANIO_CORTADO.test(v));
   switch (campo) {
     case 'fecha': return frac(esFecha) >= 0.6;
     case 'cantidad':
@@ -693,6 +712,15 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
     const orden = c.fecha !== undefined ? V.inferirOrdenFecha(muestraColumna(hoja.filas, desde, c.fecha)) : 'dm';
     const decimalExist = c.existencias !== undefined ? V.inferirDecimal(muestraColumna(hoja.filas, desde, c.existencias)) : 'coma';
     let ultimaFecha = null;
+    // Para un informe que empieza con el año cortado: la primera fecha completa de la columna.
+    let primeraCompleta = null;
+    if (c.fecha !== undefined) {
+      for (let i = desde; i < hoja.filas.length && primeraCompleta === null; i++) {
+        const v = hoja.filas[i] && hoja.filas[i][c.fecha];
+        const fecha = v !== null && v !== undefined ? V.leerFecha(v, orden) : null;
+        if (fecha) primeraCompleta = fecha.dia;
+      }
+    }
     const decimalCosto = V.inferirDecimal(muestraColumna(hoja.filas, desde, c.costo ?? c.costoTotal));
     // Si la misma tabla trae el saldo, se queda el de la fila más reciente de cada producto.
     const anotarSaldo = (codigo, nombre, f, dia) => {
@@ -721,7 +749,7 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
         // movimiento, sea una venta, una compra o un ajuste.
         filasOtrosDocumentos++;
         if (codigo && c.fecha !== undefined) {
-          const fechaOtro = V.leerFecha(f[c.fecha], orden) || fechaConAnioCortado(f[c.fecha], ultimaFecha, orden);
+          const fechaOtro = V.leerFecha(f[c.fecha], orden) || fechaConAnioCortado(f[c.fecha], ultimaFecha, orden, primeraCompleta);
           if (fechaOtro) anotarSaldo(codigo, nombre, f, fechaOtro.dia);
         }
         continue;
@@ -765,7 +793,7 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
       if (brutoFecha === null || brutoFecha === undefined) { problemas.push({ tipo: 'sin_fecha', fila, donde }); continue; }
       let fecha = V.leerFecha(brutoFecha, orden);
       if (!fecha) {
-        fecha = fechaConAnioCortado(brutoFecha, ultimaFecha, orden);
+        fecha = fechaConAnioCortado(brutoFecha, ultimaFecha, orden, primeraCompleta);
         if (fecha) fechasCompletadas++;
       }
       if (!fecha) { problemas.push({ tipo: 'fecha', fila, donde, valor: textoValor(brutoFecha), columna: describirColumna(hoja, analisis, c.fecha) }); continue; }

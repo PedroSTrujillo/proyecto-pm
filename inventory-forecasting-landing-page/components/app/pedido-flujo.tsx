@@ -7,7 +7,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, CalendarDays, Check, FileUp, Trash2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Ban, CalendarDays, Check, FileUp, RotateCcw, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { api, prepararArchivo, textoErrores } from '@/lib/api'
 import { descargar } from '@/lib/descargar'
@@ -46,6 +46,7 @@ type Pedido = {
   } | null
   porQue: string | null
   terminadoEn: string | null
+  anulado: { en: string; motivo: string } | null
 }
 
 const PASOS = ['Lo que ibas a pedir', 'Ventas y existencias', 'El reporte', 'Tu lista final', '¿Por qué cambió?']
@@ -54,7 +55,7 @@ export function PedidoFlujo({ id }: { id: number }) {
   const [pedido, setPedido] = useState<Pedido | null>(null)
   const [error, setError] = useState<string | null>(null)
   const params = useSearchParams()!
-  const { ventana: ventanaBorrar, preguntar: preguntarBorrar } = useConfirmar()
+  const { ventana: ventanaBorrar, preguntar: preguntarBorrar, preguntarTexto } = useConfirmar()
   const { recargar } = useInventario()
   const router = useRouter()
   const ruta = usePathname()!
@@ -88,6 +89,28 @@ export function PedidoFlujo({ id }: { id: number }) {
     }
   }
 
+  async function anular() {
+    const motivo = await preguntarTexto(
+      `¿Anular el Pedido ${pedido!.numero}?`,
+      'Queda guardado y a la vista, pero no se puede editar ni cuenta en tus resultados. Lo puedes reactivar cuando quieras.',
+      'Motivo (opcional)',
+      'Sí, anular',
+    )
+    if (motivo === null) return
+    try {
+      setPedido((await api<{ pedido: Pedido }>('POST', `/pedidos/${id}/anular`, { motivo })).pedido)
+    } catch (e) {
+      setError(textoErrores(e).mensaje)
+    }
+  }
+  async function reactivar() {
+    try {
+      setPedido((await api<{ pedido: Pedido }>('POST', `/pedidos/${id}/reactivar`)).pedido)
+    } catch (e) {
+      setError(textoErrores(e).mensaje)
+    }
+  }
+
   const ir = async (n: number) => {
     await cargar()
     router.push(`${ruta}?paso=${n}`, { scroll: true })
@@ -99,14 +122,30 @@ export function PedidoFlujo({ id }: { id: number }) {
       <header className="flex flex-wrap items-center gap-3">
         <h1 className="text-[1.9rem] font-extrabold">Pedido {pedido.numero}{pedido.proveedor ? ` · ${pedido.proveedor}` : ''}</h1>
         {pedido.tipo && <span className={cn('rounded-full px-2.5 py-0.5 text-xs font-bold', pedido.tipo === 'real' ? 'bg-verde-fondo text-verde' : 'bg-muted text-foreground/70')}>{pedido.tipo === 'real' ? 'Pedido real' : 'Pedido simulado'}</span>}
-        {pedido.terminado && <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-bold text-secondary-foreground">Terminado</span>}
-        {pedido.paso < 5 && (
-          <Boton tamano="chico" variante="fantasma" className="ml-auto text-muted-foreground hover:text-rojo-texto" onClick={borrar}>
-            <Trash2 /> Borrar pedido
-          </Boton>
+        {pedido.terminado && !pedido.anulado && <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-bold text-secondary-foreground">Terminado</span>}
+        {pedido.anulado && <span className="rounded-full bg-rojo-fondo px-2.5 py-0.5 text-xs font-bold text-rojo-texto">Anulado</span>}
+        {!pedido.anulado && (
+          <span className="ml-auto flex gap-1">
+            <Boton tamano="chico" variante="fantasma" className="text-muted-foreground hover:text-rojo-texto" onClick={anular} title="Queda guardado, pero no cuenta">
+              <Ban /> Anular
+            </Boton>
+            {pedido.paso < 5 && (
+              <Boton tamano="chico" variante="fantasma" className="text-muted-foreground hover:text-rojo-texto" onClick={borrar}>
+                <Trash2 /> Borrar
+              </Boton>
+            )}
+          </span>
         )}
       </header>
       {ventanaBorrar}
+      {pedido.anulado && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rojo-borde bg-rojo-fondo px-4 py-3">
+          <p className="text-[0.95rem]">
+            <strong>Anulado el {fechaHora(pedido.anulado.en)}.</strong> {pedido.anulado.motivo ? `Motivo: ${pedido.anulado.motivo}. ` : ''}No cuenta en tus resultados y no se puede editar.
+          </p>
+          <Boton tamano="chico" onClick={reactivar}><RotateCcw /> Reactivar</Boton>
+        </div>
+      )}
 
       <nav aria-label="Pasos del pedido" className="-mx-1 overflow-x-auto px-1">
         <ol className="flex min-w-max gap-1.5 rounded-full border border-border bg-card p-1.5">
@@ -138,11 +177,14 @@ export function PedidoFlujo({ id }: { id: number }) {
         </ol>
       </nav>
 
-      {paso === 1 && <Paso1 pedido={pedido} ir={ir} />}
-      {paso === 2 && <Paso2 pedido={pedido} ir={ir} alCambiar={setPedido} />}
-      {paso === 3 && <Paso3 pedido={pedido} ir={ir} />}
-      {paso === 4 && <Paso4 pedido={pedido} ir={ir} />}
-      {paso === 5 && <Paso5 pedido={pedido} recargar={cargar} />}
+      {/* Anulado: se ve como quedó, sin poder tocarlo. */}
+      <div inert={Boolean(pedido.anulado)} className={cn('flex flex-col gap-7', pedido.anulado && 'opacity-60')}>
+        {paso === 1 && <Paso1 pedido={pedido} ir={ir} />}
+        {paso === 2 && <Paso2 pedido={pedido} ir={ir} alCambiar={setPedido} />}
+        {paso === 3 && <Paso3 pedido={pedido} ir={ir} />}
+        {paso === 4 && <Paso4 pedido={pedido} ir={ir} />}
+        {paso === 5 && <Paso5 pedido={pedido} recargar={cargar} />}
+      </div>
     </>
   )
 }

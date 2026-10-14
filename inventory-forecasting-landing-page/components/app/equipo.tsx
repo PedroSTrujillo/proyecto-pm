@@ -24,6 +24,8 @@ const TEXTO_EVENTO: Record<string, (e: any) => string> = {
   recordatorio_respondido: (e) => (e.detalle?.activo ? `Pidió recordatorios (${plural(e.detalle.productos, 'producto', 'productos')})` : 'Dijo que no quiere recordatorios'),
   recordatorio_enviado: () => 'Le llegó la invitación de calendario al correo',
   calendario_descargado: (e) => `Descargó los recordatorios del pedido #${e.pedidoId}`,
+  pedido_anulado: (e) => `Anuló el pedido #${e.pedidoId}${e.detalle?.motivo ? ` (${e.detalle.motivo})` : ''}`,
+  pedido_reactivado: (e) => `Reactivó el pedido #${e.pedidoId}`,
   umbral_elegido: (e) => `En el pedido #${e.pedidoId} eligió ${e.detalle?.semanas} semanas para «se agota»`,
 }
 
@@ -241,7 +243,8 @@ function Probador({ u, alCambiar }: { u: any; alCambiar: () => void }) {
                 <tr key={p.id} className="border-t border-border align-top">
                   <td className="px-3 py-2">
                     #{p.id}{p.proveedor ? ` · ${p.proveedor}` : ''}
-                    {p.borrado ? <span className="block text-xs font-semibold text-rojo-texto">Lo borró sin terminar</span> : p.paso < 6 && <span className="block text-xs text-muted-foreground">Va en el paso {p.paso} de 5</span>}
+                    {p.borrado ? <span className="block text-xs font-semibold text-rojo-texto">Lo borró sin terminar</span> : p.anulado ? <span className="block text-xs font-semibold text-rojo-texto">Anulado{p.anulado.motivo ? `: ${p.anulado.motivo}` : ''} · no cuenta</span> : p.paso < 6 && <span className="block text-xs text-muted-foreground">Va en el paso {p.paso} de 5</span>}
+                    {!p.borrado && <AnularPedido pedidoId={p.id} anulado={Boolean(p.anulado)} alCambiar={alCambiar} />}
                     {p.finalGuardadaEn && p.dentroDePrueba === false && <span className="block text-xs text-muted-foreground">Fuera de sus 14 días</span>}
                     {u.evaluacion.mejor?.id === p.id && <span className="block text-xs font-semibold text-verde">Es el que cuenta</span>}
                     {p.semanasAgota !== null && p.semanasAgota !== 2 && <span className="block text-xs font-semibold text-rojo-texto">Su reporte usó {p.semanasAgota} semanas para «se agota»</span>}
@@ -276,6 +279,27 @@ function Probador({ u, alCambiar }: { u: any; alCambiar: () => void }) {
         </details>
       )}
     </Tarjeta>
+  )
+}
+
+// Un pedido que no es de verdad (por ejemplo, uno de ensayo) se anula: queda a la vista y no cuenta.
+function AnularPedido({ pedidoId, anulado, alCambiar }: { pedidoId: number; anulado: boolean; alCambiar: () => void }) {
+  const { ventana, preguntarTexto } = useConfirmar()
+  async function cambiar() {
+    if (anulado) {
+      await api('POST', `/equipo/pedidos/${pedidoId}/reactivar`)
+    } else {
+      const motivo = await preguntarTexto(`¿Anular el pedido #${pedidoId}?`, 'Sigue a la vista del probador y del equipo, pero no cuenta en el veredicto. Se puede reactivar.', 'Motivo', 'Sí, anular')
+      if (motivo === null) return
+      await api('POST', `/equipo/pedidos/${pedidoId}/anular`, { motivo })
+    }
+    alCambiar()
+  }
+  return (
+    <>
+      {ventana}
+      <button type="button" onClick={cambiar} className="mt-1 text-xs font-semibold text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">{anulado ? 'Reactivar' : 'Anular'}</button>
+    </>
   )
 }
 

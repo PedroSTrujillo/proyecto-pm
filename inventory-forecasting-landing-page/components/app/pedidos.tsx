@@ -5,7 +5,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { ArrowRight, Sparkles, Trash2 } from 'lucide-react'
+import { ArrowRight, Ban, RotateCcw, Sparkles, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { api, textoErrores } from '@/lib/api'
 import { fecha, numero } from '@/lib/formato'
@@ -13,7 +13,7 @@ import { useInventario } from './contexto'
 import { useConfirmar } from './confirmar'
 import { Boton, BotonEnlace, Cargando, ErrorLista, Tarjeta, Titulo } from './ui'
 
-type Resumen = { id: number; proveedor: string; tipo: 'real' | 'simulado' | null; creadoEn: string; paso: number; lineasInicial: number; conteo: { total: number } | null; terminadoEn: string | null }
+type Resumen = { id: number; proveedor: string; tipo: 'real' | 'simulado' | null; creadoEn: string; paso: number; lineasInicial: number; conteo: { total: number } | null; terminadoEn: string | null; anulado: { en: string; motivo: string } | null }
 
 const PASOS_GUIA: [string, string][] = [
   ['Lo que ibas a pedir', 'Escríbelo o pégalo de tu Excel, antes de ver nada.'],
@@ -31,7 +31,7 @@ export function Pedidos() {
   const [creando, setCreando] = useState(false)
   const router = useRouter()
   const { respuesta, inventario, recargar } = useInventario()
-  const { ventana, preguntar } = useConfirmar()
+  const { ventana, preguntar, preguntarTexto } = useConfirmar()
 
   useEffect(() => {
     api<{ pedidos: Resumen[] }>('GET', '/pedidos').then((r) => setPedidos(r.pedidos)).catch((e) => setError(textoErrores(e)))
@@ -58,6 +58,24 @@ export function Pedidos() {
       await api('DELETE', `/pedidos/${id}`)
       setPedidos((x) => (x ? x.filter((p) => p.id !== id) : x))
       recargar() // si el archivo era de ese pedido, el panel y Datos ya no lo usan
+    } catch (e) {
+      setError(textoErrores(e))
+    }
+  }
+  async function anular(id: number, n: number | undefined) {
+    const motivo = await preguntarTexto(`¿Anular el Pedido ${n}?`, 'Queda guardado y a la vista, pero no se puede editar ni cuenta en tus resultados. Lo puedes reactivar cuando quieras.', 'Motivo (opcional)', 'Sí, anular')
+    if (motivo === null) return
+    try {
+      const { pedido } = await api<{ pedido: { anulado: Resumen['anulado'] } }>('POST', `/pedidos/${id}/anular`, { motivo })
+      setPedidos((x) => (x ? x.map((p) => (p.id === id ? { ...p, anulado: pedido.anulado } : p)) : x))
+    } catch (e) {
+      setError(textoErrores(e))
+    }
+  }
+  async function reactivar(id: number) {
+    try {
+      await api('POST', `/pedidos/${id}/reactivar`)
+      setPedidos((x) => (x ? x.map((p) => (p.id === id ? { ...p, anulado: null } : p)) : x))
     } catch (e) {
       setError(textoErrores(e))
     }
@@ -130,12 +148,23 @@ export function Pedidos() {
                     <td className="px-4 py-3">{fecha(p.creadoEn)}</td>
                     <td className="px-4 py-3">{p.tipo === 'real' ? 'Real' : p.tipo === 'simulado' ? 'Simulado' : '—'}</td>
                     <td className="px-4 py-3">
-                      {p.paso === 6 ? <span className="rounded-full bg-verde-fondo px-2.5 py-0.5 text-xs font-bold text-verde">Terminado</span> : <span className="text-[0.93rem]">Paso {p.paso} de 5: {NOMBRES_PASOS[p.paso - 1]}</span>}
+                      {p.anulado ? (
+                        <span title={p.anulado.motivo || undefined} className="rounded-full bg-rojo-fondo px-2.5 py-0.5 text-xs font-bold text-rojo-texto">Anulado</span>
+                      ) : p.paso === 6 ? <span className="rounded-full bg-verde-fondo px-2.5 py-0.5 text-xs font-bold text-verde">Terminado</span> : <span className="text-[0.93rem]">Paso {p.paso} de 5: {NOMBRES_PASOS[p.paso - 1]}</span>}
                     </td>
                     <td className={cn('px-4 py-3 text-right tabular-nums', p.conteo && 'font-semibold')}>{p.conteo ? numero(p.conteo.total) : '—'}</td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">
-                      <Link href={`/pedidos/${p.id}`} className="font-semibold text-primary hover:text-primary-hover">{p.paso === 6 ? 'Ver' : 'Continuar'}</Link>
-                      {p.paso < 5 && (
+                      <Link href={`/pedidos/${p.id}`} className="font-semibold text-primary hover:text-primary-hover">{p.paso === 6 || p.anulado ? 'Ver' : 'Continuar'}</Link>
+                      {p.anulado ? (
+                        <button type="button" onClick={() => reactivar(p.id)} aria-label={`Reactivar el Pedido ${numeros.get(p.id)}`} title="Reactivar" className="presionable ml-2 inline-flex size-8 items-center justify-center rounded-lg align-middle text-muted-foreground hover:bg-muted hover:text-foreground">
+                          <RotateCcw className="size-4" />
+                        </button>
+                      ) : (
+                        <button type="button" onClick={() => anular(p.id, numeros.get(p.id))} aria-label={`Anular el Pedido ${numeros.get(p.id)}`} title="Anular: queda guardado, pero no cuenta" className="presionable ml-2 inline-flex size-8 items-center justify-center rounded-lg align-middle text-muted-foreground hover:bg-rojo-fondo hover:text-rojo-texto">
+                          <Ban className="size-4" />
+                        </button>
+                      )}
+                      {p.paso < 5 && !p.anulado && (
                         <button type="button" onClick={() => borrar(p.id, numeros.get(p.id))} aria-label={`Borrar el Pedido ${numeros.get(p.id)}`} title="Borrar este pedido" className="presionable ml-2 inline-flex size-8 items-center justify-center rounded-lg align-middle text-muted-foreground hover:bg-rojo-fondo hover:text-rojo-texto">
                           <Trash2 className="size-4" />
                         </button>

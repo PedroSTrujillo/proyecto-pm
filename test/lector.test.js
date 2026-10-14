@@ -436,3 +436,43 @@ test('varios archivos: la pregunta de documentos cuenta todos y pregunta los tip
   const ok = leerExport(archivos, {}, { documentos: { ventas: ['FV', 'RM'], devoluciones: [] } });
   assert.deepEqual(ok.ventas.map((v) => v.cantidad), [2, 3, 4], 'la elección se aplica a los dos archivos');
 });
+
+test('un .xls "suelto" (BIFF sin contenedor, como los de Helisa) se abre como Excel y no como texto', () => {
+  // Movimiento detalle inventado con la forma del de Helisa: títulos arriba, código entre
+  // paréntesis al final del nombre, facturas FCA y una devolución DFCA.
+  const filas = [
+    [null, null, null, 'FERRETERÍA DE PRUEBA LTDA.'],
+    [null, null, null, 'Movimiento detalle'],
+    ['FECHA', 'DOCUMENTO', 'BODEGA', 'CONCEPTO', 'CANTIDAD', 'VALOR NETO'],
+    ['05/ENE/2026', 'FCA 00000101', 'A 2026', 'TORNILLO HEX 1/4 (T-14)', 10, 5000],
+    ['12/ENE/2026', 'FCA 00000102', 'A 2026', 'TUERCA 1/4 (TU-14)', 20, 2000],
+    ['19/ENE/2026', 'DFCA00000101', 'A 2026', 'TORNILLO HEX 1/4 (T-14)', 2, 1000],
+  ];
+  const libro = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(libro, XLSX.utils.aoa_to_sheet(filas), 'Sheet1');
+  const ole = XLSX.write(libro, { type: 'buffer', bookType: 'biff8' });
+  const suelto = Buffer.from(XLSX.CFB.find(XLSX.CFB.read(ole, { type: 'buffer' }), 'Workbook').content);
+  assert.equal(suelto.subarray(0, 2).toString('hex'), '0908');
+  const r = leerExport([{ nombre: 'MOVIMIENTO DETALLE.xls', buffer: suelto }, csv('Código;Existencias\nT-14;8\nTU-14;30', 'saldos.csv')]);
+  assert.equal(r.ok, false);
+  assert.equal(r.necesitaDocumentos, true);
+  const fca = r.documentos.find((d) => d.prefijo === 'FCA');
+  const dfca = r.documentos.find((d) => d.prefijo === 'DFCA');
+  assert.ok(fca.sugerido, 'FCA se sugiere como venta');
+  assert.ok(dfca.devolucion, 'DFCA se sugiere como devolución');
+});
+
+test('un informe que empieza con el año cortado ("01/OCT/202") toma el año de la primera fecha completa', () => {
+  const r = leerExport([
+    csv([
+      'FECHA;DOCUMENTO;CONCEPTO;CANTIDAD',
+      '01/OCT/202;FCA 1;TORNILLO (T-1);5',
+      '02/OCT/202;FCA 2;TORNILLO (T-1);3',
+      '03/OCT/2025;FCA 3;TORNILLO (T-1);2',
+      '04/ENE/2026;FCA 4;TORNILLO (T-1);4',
+    ].join('\n'), 'movimiento.csv'),
+    csv('Código;Existencias\nT-1;10', 'saldos.csv'),
+  ]);
+  assert.equal(r.ok, true, JSON.stringify(r.errores));
+  assert.deepEqual(r.ventas.map((v) => textoDia(v.dia)), ['2025-10-01', '2025-10-02', '2025-10-03', '2026-01-04']);
+});

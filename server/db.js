@@ -108,6 +108,10 @@ const ESQUEMA = [
   // Pedido que el usuario borró sin terminarlo. No se elimina: su lista inicial sigue marcando
   // el comienzo de la prueba y el equipo lo ve como borrado. Para el usuario ya no existe.
   'ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS borrado_en TIMESTAMPTZ',
+  // Pedido anulado: sigue a la vista (del usuario y del equipo), con su motivo, pero no cuenta en
+  // los resultados ni se puede editar. Se puede reactivar.
+  'ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS anulado_en TIMESTAMPTZ',
+  'ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS anulado_motivo TEXT',
   // Umbral de "se agota" de este pedido (lo elige en el paso 2; si no, el de Datos). Queda fijo
   // al ver el reporte. NULL en los pedidos de antes: usan el del reporte guardado.
   'ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS semanas_agota INTEGER',

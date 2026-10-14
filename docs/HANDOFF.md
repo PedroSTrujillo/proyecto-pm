@@ -27,6 +27,18 @@
 
 ---
 
+## 2026-10-14 (32) — Claude — Helisa se importa de verdad; anular un pedido sin borrarlo
+- **Rama:** `main` y `mejoras-modelo`, en los dos repos.
+- **Estado:**
+  - **Helisa:** sus .xls son BIFF "sueltos" (sin el contenedor OLE; empiezan con 09 08) y `esLibroBinario` los tomaba por texto: ningún informe de Helisa se leía. Ahora se abren como Excel. Además, si el informe empieza con el año cortado ("01/OCT/202"), el año sale de la primera fecha completa (`fechaConAnioCortado` con `siguiente`), y FCA se sugiere como venta y DFCA como devolución. Probado con un Movimiento detalle real (35.000 filas) y con una réplica de 12 meses, de punta a punta en la app.
+  - La guía de Helisa en el paso 2 muestra primero los dos informes probados (Movimiento detalle + listado de inventario).
+  - "Así leímos tu archivo" muestra el título más cercano cuando el de la columna está corrido (Helisa).
+  - **Anular un pedido** (`POST /api/pedidos/:id/anular` y `/reactivar`, columnas `pedidos.anulado_en` y `anulado_motivo`): queda a la vista con su motivo, no se edita (`pedidoActivo` responde 409) y no cuenta en el veredicto ni en "cada cuánto pide". Se puede anular en cualquier paso, también con la lista final guardada. El equipo también anula y reactiva desde "Resultados de la prueba" (`/api/equipo/pedidos/:id/anular`).
+- **Base de datos:** `pedidos.anulado_en` y `pedidos.anulado_motivo` (ALTER en ESQUEMA).
+- **Verificación:** `npm test` → 108/108; `tsc` sin errores; en el navegador (local): réplica de Helisa subida, pregunta de documentos con FCA/DFCA/DSE ya marcados, reporte.
+- **Siguiente paso exacto:** pasar la revisión de textos (cortos y claros) y actualizar los ejemplos de la landing a la app de hoy.
+- **Notas y bloqueos:** si alguien recarga la página en la pregunta de documentos, tiene que volver a subir el archivo (la pregunta no se guarda). Anular cambia el tratamiento de la prueba: va como fila en "Cambios" si un probador lo usa.
+
 ## 2026-10-14 (31) — Claude — la app revisada como cada probador: venta de una sola vez, proveedores en el paso 4, orden de compra
 - **Rama:** `main` y `mejoras-modelo`, en los dos repos.
 - **Estado:**

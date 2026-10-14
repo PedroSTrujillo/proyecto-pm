@@ -34,7 +34,7 @@ function evaluarUsuario(pedidos) {
   const fin = inicio + DIAS_PRUEBA * 86400000;
   let mejor = null;
   for (const p of pedidos) {
-    if (p.borrado || !p.finalGuardadaEn || !p.conteo) continue;
+    if (p.borrado || p.anulado || !p.finalGuardadaEn || !p.conteo) continue;
     const t = new Date(p.finalGuardadaEn).getTime();
     p.dentroDePrueba = t <= fin;
     if (!p.dentroDePrueba) continue;
@@ -127,6 +127,7 @@ rutas.get('/resultados', async (_req, res) => {
   const pedidos = await db.query(
     `SELECT p.id, p.usuario_id, p.proveedor, p.tipo, p.creado_en, p.inicial_guardada_en, p.export_id,
             p.reporte_visto_en, p.final_guardada_en, p.terminado_en, p.por_que, p.clasificacion, p.borrado_en,
+            p.anulado_en, p.anulado_motivo,
             p.comparacion->'conteo' AS conteo, p.comparacion->'magnitud' AS magnitud,
             (p.comparacion->'coherencia') - 'detalle'::text AS coherencia, jsonb_array_length(p.lista_inicial) AS lineas_inicial,
             CASE WHEN p.lista_final IS NULL THEN NULL ELSE jsonb_array_length(p.lista_final) END AS lineas_final,
@@ -160,7 +161,7 @@ rutas.get('/resultados', async (_req, res) => {
     return { fecha: e.subido_en, productos: r.productos, seAgotan: r.seAgotan, enCero: r.enCero, sobran: r.sobran, tieneCostos: r.tieneCostos, valorInventario: r.valorInventario, dineroQuieto: r.dineroQuieto };
   };
   const diasEntre = (suyos) => {
-    const t = suyos.filter((p) => p.inicialGuardadaEn && !p.borrado).map((p) => new Date(p.inicialGuardadaEn).getTime()).sort((a, b) => a - b);
+    const t = suyos.filter((p) => p.inicialGuardadaEn && !p.borrado && !p.anulado).map((p) => new Date(p.inicialGuardadaEn).getTime()).sort((a, b) => a - b);
     if (t.length < 2) return null;
     return Math.round(((t[t.length - 1] - t[0]) / (t.length - 1) / 86400000) * 10) / 10;
   };
@@ -184,6 +185,7 @@ rutas.get('/resultados', async (_req, res) => {
       porQue: p.por_que,
       clasificacion: p.clasificacion,
       borrado: Boolean(p.borrado_en),
+      anulado: p.anulado_en ? { en: p.anulado_en, motivo: p.anulado_motivo || '' } : null,
       // El umbral de "se agota" con el que vio su reporte (cambia el tratamiento si no es 2).
       semanasAgota: p.se_agota === null || p.se_agota === undefined ? null : Number(p.se_agota),
     }));
@@ -224,6 +226,23 @@ rutas.post('/pedidos/:id/clasificacion', async (req, res) => {
   if (!p) throw new ErrorUsuario('Ese pedido no existe o todavía no tiene respuesta.', 404);
   await registrarEvento(req.usuario.id, 'por_que_clasificado', { pedidoId: p.id, detalle: { valor } });
   res.json({ ok: true, valor });
+});
+
+// El equipo anula un pedido de un probador (por ejemplo, uno de prueba que no es un pedido de
+// verdad) sin borrarlo: sigue a la vista con su motivo y deja de contar en el veredicto.
+rutas.post('/pedidos/:id/anular', async (req, res) => {
+  const motivo = String(req.body?.motivo || '').trim().slice(0, 300);
+  const p = await db.uno('UPDATE pedidos SET anulado_en = now(), anulado_motivo = $2 WHERE id = $1 AND anulado_en IS NULL AND borrado_en IS NULL RETURNING id', [Number(req.params.id), motivo || null]);
+  if (!p) throw new ErrorUsuario('Ese pedido no existe o ya está anulado.', 404);
+  await registrarEvento(req.usuario.id, 'pedido_anulado', { pedidoId: p.id, detalle: { motivo, porEquipo: true } });
+  res.json({ ok: true });
+});
+
+rutas.post('/pedidos/:id/reactivar', async (req, res) => {
+  const p = await db.uno('UPDATE pedidos SET anulado_en = NULL, anulado_motivo = NULL WHERE id = $1 AND anulado_en IS NOT NULL RETURNING id', [Number(req.params.id)]);
+  if (!p) throw new ErrorUsuario('Ese pedido no existe o no está anulado.', 404);
+  await registrarEvento(req.usuario.id, 'pedido_reactivado', { pedidoId: p.id, detalle: { porEquipo: true } });
+  res.json({ ok: true });
 });
 
 // Alguien del grupo que creó su cuenta con un correo que no está en TEAM_EMAILS: queda como equipo

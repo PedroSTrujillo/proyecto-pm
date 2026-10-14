@@ -771,3 +771,43 @@ test('umbral de "se agota" en el paso 2: sirve también al usar el inventario gu
   assert.deepEqual(suyo.pedidos.map((p) => p.semanasAgota), [2, 11]);
   assert.ok(suyo.actividad.some((e) => e.tipo === 'umbral_elegido' && e.detalle.semanas === 11));
 });
+
+test('anular un pedido: sigue a la vista con su motivo, no se edita, no cuenta en el veredicto y se reactiva', async () => {
+  const ana = await nuevoUsuario('Ana Anula', 'ana.anular@prueba.co');
+  const { pedido: p } = await ana.post('/api/pedidos');
+  await ana.post(`/api/pedidos/${p.id}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
+  await ana.subir(`/api/pedidos/${p.id}/export`, [['e.xlsx', await plantillaExport()]]);
+  await ana.get(`/api/pedidos/${p.id}/reporte`);
+  await ana.post(`/api/pedidos/${p.id}/lista-final`, { lineas: INICIAL.slice(0, 1) });
+
+  // Con la lista final guardada no se borra, pero sí se anula.
+  const r = await ana.post(`/api/pedidos/${p.id}/anular`, { motivo: 'Al final no se hizo este pedido.' });
+  assert.equal(r.pedido.anulado.motivo, 'Al final no se hizo este pedido.');
+  assert.equal((await ana.post(`/api/pedidos/${p.id}/anular`)).estado, 409, 'ya estaba anulado');
+  const { pedidos } = await ana.get('/api/pedidos');
+  assert.ok(pedidos.find((x) => x.id === p.id).anulado, 'sigue en su lista, marcado');
+  assert.equal((await ana.post(`/api/pedidos/${p.id}/por-que`, { respuesta: 'x' })).estado, 409, 'anulado no se edita');
+  assert.equal((await ana.get(`/api/pedidos/${p.id}`)).pedido.paso, 5, 'se puede ver');
+
+  // Nadie más lo anula; el equipo lo ve anulado y no cuenta para el veredicto.
+  const otra = await nuevoUsuario('Otra Anula', 'otra.anular@prueba.co');
+  assert.equal((await otra.post(`/api/pedidos/${p.id}/reactivar`)).estado, 404);
+  const eq = cliente();
+  const ya = await eq.post('/api/cuenta/entrar', { email: 'equipo@prueba.co', clave: 'clave-segura' });
+  if (ya.estado !== 200) await eq.post('/api/cuenta/crear', { nombre: 'Equipo', email: 'equipo@prueba.co', clave: 'clave-segura' });
+  let suyo = (await eq.get('/api/equipo/resultados')).usuarios.find((u) => u.email === 'ana.anular@prueba.co');
+  assert.equal(suyo.pedidos[0].anulado.motivo, 'Al final no se hizo este pedido.');
+  assert.equal(suyo.evaluacion.mejor, null);
+
+  // Reactivado vuelve a contar y se puede terminar.
+  assert.ok((await ana.post(`/api/pedidos/${p.id}/reactivar`)).pedido);
+  suyo = (await eq.get('/api/equipo/resultados')).usuarios.find((u) => u.email === 'ana.anular@prueba.co');
+  assert.equal(suyo.evaluacion.mejor.id, p.id);
+  assert.equal((await ana.post(`/api/pedidos/${p.id}/por-que`, { respuesta: 'Quité lo que sobraba.' })).estado, 200);
+
+  // El equipo también puede anular y reactivar el pedido de un probador.
+  assert.equal((await eq.post(`/api/equipo/pedidos/${p.id}/anular`, { motivo: 'Pedido de ensayo' })).ok, true);
+  assert.equal((await ana.get(`/api/pedidos/${p.id}`)).pedido.anulado.motivo, 'Pedido de ensayo');
+  assert.equal((await eq.post(`/api/equipo/pedidos/${p.id}/reactivar`)).ok, true);
+  assert.equal((await ana.post(`/api/equipo/pedidos/${p.id}/anular`)).estado, 403, 'un probador no usa la ruta del equipo');
+});
