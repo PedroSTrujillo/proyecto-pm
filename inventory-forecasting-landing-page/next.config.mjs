@@ -32,6 +32,7 @@ const nextConfig = {
       { source: '/plantillas/:ruta*', destination: '/api/plantillas/:ruta*' },
       { source: '/salud', destination: '/api/salud' },
       { source: '/ingest/static/:ruta*', destination: `https://${posthog}-assets.i.posthog.com/static/:ruta*` },
+      { source: '/ingest/array/:ruta*', destination: `https://${posthog}-assets.i.posthog.com/array/:ruta*` },
       { source: '/ingest/:ruta*', destination: `https://${posthog}.i.posthog.com/:ruta*` },
     ]
   },

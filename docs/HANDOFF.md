@@ -30,10 +30,10 @@
 ## 2026-10-13 (22) — Claude — PostHog opcional
 - **Rama:** `mejoras-modelo` (y `main`), en los dos repos.
 - **Estado:** PostHog listo pero apagado hasta que se ponga `NEXT_PUBLIC_POSTHOG_KEY` en Vercel y se vuelva a desplegar. Sin la clave carga el paquete y no manda nada (revisado en local: ninguna petición a `/ingest`).
-- **Archivos tocados:** `instrumentation-client.ts` (nuevo), `next.config.mjs` (rewrites `/ingest`), `components/app/contexto.tsx` (identify y reset), `package.json` (`posthog-js` 1.434.13), README, PUBLICAR, CLAUDE.md.
-- **Verificación:** `tsc --noEmit` sin errores; `next build` con una clave de mentira compila.
+- **Archivos tocados:** `instrumentation-client.ts` (nuevo: el cargador oficial de PostHog, sin paquete de npm), `next.config.mjs` (rewrites `/ingest`), `components/app/contexto.tsx` (identify y reset), README, PUBLICAR, CLAUDE.md.
+- **Verificación:** `tsc --noEmit` sin errores. En local con una clave de mentira: `/ingest/static/array.js` responde 200, PostHog queda cargado y sus peticiones llegan (401 por la clave falsa).
 - **Siguiente paso exacto:** crear el proyecto en PostHog, poner la clave en Vercel y hacer *Redeploy*; abrir sinesc.vercel.app y ver que llegan eventos en PostHog → Activity.
-- **Notas y bloqueos:** en local `npm install` de la web se cuelga; el paquete se copió a mano a `node_modules`. En Vercel se instala solo.
+- **Notas y bloqueos:** un primer intento con el paquete `posthog-js` hizo fallar el despliegue en Vercel (instalación con pnpm); por eso se cambió al cargador sin paquete.
 
 ## 2026-10-13 (21) — Claude — plantillas sin llenar no se cuelan en la prueba
 - **Rama:** `mejoras-modelo` (y `main`), en los dos repos.

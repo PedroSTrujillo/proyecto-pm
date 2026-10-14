@@ -5,7 +5,6 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import posthog from 'posthog-js'
 import { api } from '@/lib/api'
 import type { Inventario, RespuestaInventario, Usuario } from '@/lib/tipos'
 
@@ -46,10 +45,12 @@ export function SesionProvider({ children, exigir = false }: { children: ReactNo
   }, [exigir, cargando, usuario, router, ruta])
 
   // Las sesiones de PostHog quedan atadas al número de cuenta y al rol, sin el correo ni el nombre.
+  // window.posthog solo existe si PostHog está activo (instrumentation-client.ts).
   useEffect(() => {
-    if (!posthog.__loaded) return
-    if (usuario) posthog.identify(`u${usuario.id}`, { rol: usuario.rol })
-    else if (!cargando) posthog.reset()
+    const ph = (window as unknown as { posthog?: { identify: (id: string, p: object) => void; reset: () => void } }).posthog
+    if (!ph) return
+    if (usuario) ph.identify(`u${usuario.id}`, { rol: usuario.rol })
+    else if (!cargando) ph.reset()
   }, [usuario, cargando])
 
   useEffect(() => {
