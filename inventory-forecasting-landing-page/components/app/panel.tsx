@@ -35,7 +35,8 @@ function PanelCon({ inv }: { inv: Inventario }) {
   const pideTop = inv.proveedores.filter((p) => p.pideYa > 0).sort((a, b) => b.pideYa - a.pideYa || b.entrega - a.entrega)[0]
   const sub = [
     inv.fuente.programa ? `Archivo de ${nombrePrograma(inv.fuente.programa)}` : 'Tu último archivo',
-    `del ${fecha(inv.fuente.fecha)}`,
+    // La fecha que importa es hasta dónde llegan las ventas, no el día en que se subió el archivo.
+    inv.fuente.hasta ? `ventas hasta el ${fecha(inv.fuente.hasta)}` : `del ${fecha(inv.fuente.fecha)}`,
     `${numero(r.productos)} productos`,
     inv.proveedores.length > 1 ? `${inv.proveedores.length} proveedores` : null,
   ].filter(Boolean).join(' · ')
@@ -56,6 +57,11 @@ function PanelCon({ inv }: { inv: Inventario }) {
       </Titulo>
 
       {prueba && <AvisoPrueba />}
+      {!demo && diasDesde(inv.fuente.hasta) > 30 && (
+        <p className="rounded-2xl border border-ambar-borde bg-ambar-fondo px-5 py-4 text-[0.95rem] text-ambar-texto">
+          <strong>Tus ventas llegan hasta el {fecha(inv.fuente.hasta)}.</strong> Las existencias son las de ese día, no las de hoy. Para verlo al día, sube el informe hasta hoy en <a href={rutas.datos} className="font-semibold underline underline-offset-2">Datos</a>.
+        </p>
+      )}
 
       <section aria-label="Resumen" className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <Cifra
@@ -109,12 +115,12 @@ function PanelCon({ inv }: { inv: Inventario }) {
           href={`${rutas.productos}?filtro=sobra`}
         />
         <Cifra
-          titulo="Ventas últimas 4 semanas"
+          titulo="Ventas: últimas 4 semanas del archivo"
           tono={r.tendencia4 !== null && r.tendencia4 < 0 ? 'text-foreground' : 'text-verde'}
           etiqueta="text-verde"
           valor={porcentaje(r.tendencia4, true)}
           detalle="frente a las 4 anteriores, sin contar proyectos"
-          ayuda="Unidades vendidas de todo el catálogo en las últimas 4 semanas comparadas con las 4 de antes. Las ventas de proyectos no cuentan."
+          ayuda="Unidades vendidas de todo el catálogo en las últimas 4 semanas de tu archivo, comparadas con las 4 de antes. Las ventas de proyectos no cuentan."
         />
       </section>
 
@@ -392,6 +398,12 @@ function Ventas({ inv }: { inv: Inventario }) {
 }
 
 // Durante la prueba, el probador ve lo que declara el plan de prueba: el reporte de semanas.
+// Días entre una fecha "YYYY-MM-DD" y hoy.
+function diasDesde(v: string | null | undefined) {
+  if (!v) return 0
+  return Math.floor((Date.now() - Date.parse(`${v}T12:00:00Z`)) / 86_400_000)
+}
+
 function AvisoPrueba() {
   const { respuesta } = useInventario()
   return (

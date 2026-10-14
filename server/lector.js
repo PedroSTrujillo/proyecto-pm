@@ -590,9 +590,18 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
   }
   // Informes que mezclan compras, ventas y ajustes: el usuario marca cuáles son ventas.
   const documentosElegidos = new Map(); // clave de hoja → { ventas: Set, devoluciones: Set }
-  for (const h of hojasVentas) {
+  // Se cuentan los tipos de todas las hojas y archivos juntos: si se suben varios archivos (por
+  // ejemplo, un trimestre cada uno), un tipo que solo trae el segundo también se pregunta.
+  const conDocumento = hojasVentas.filter((h) => h.analisis.columnas.documento !== undefined);
+  const conteos = new Map(); // clave de hoja → Map(prefijo → { prefijo, filas, ejemplo })
+  const sumar = (destino, e) => {
+    const x = destino.get(e.prefijo) || { prefijo: e.prefijo, filas: 0, ejemplo: e.ejemplo };
+    x.filas += e.filas;
+    destino.set(e.prefijo, x);
+  };
+  const total = new Map();
+  for (const h of conDocumento) {
     const c = h.analisis.columnas;
-    if (c.documento === undefined) continue;
     const conteo = new Map();
     for (let i = h.analisis.iEnc + 1; i < h.hoja.filas.length; i++) {
       const fila = h.hoja.filas[i];
@@ -600,26 +609,33 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
       const { codigo } = codigoYNombre(fila, h.analisis);
       if (esFilaQueSeSalta(fila, codigo) || esFilaDeSaldoSinMovimiento(fila, c)) continue;
       const p = prefijoDocumento(fila[c.documento]);
-      const e = conteo.get(p) || { prefijo: p, filas: 0, ejemplo: String(fila[c.documento] ?? '').trim().slice(0, 30) };
-      e.filas++;
-      conteo.set(p, e);
+      sumar(conteo, { prefijo: p, filas: 1, ejemplo: String(fila[c.documento] ?? '').trim().slice(0, 30) });
     }
-    if (conteo.size < 2) continue;
-    // Una elección recordada de antes de las devoluciones (solo la lista de ventas) se vuelve a
-    // preguntar si el archivo trae algo que parece devolución; la de este mismo archivo se respeta.
-    let recordada = opciones.documentosPorFirma && opciones.documentosPorFirma[h.analisis.firma];
-    if (Array.isArray(recordada) && [...conteo.keys()].some((p) => RE_DOC_DEVOLUCION.test(p) && !recordada.includes(p))) recordada = null;
-    const elegidos = opciones.documentos || recordada;
-    if (!elegidos) {
+    conteos.set(h.clave, conteo);
+    for (const e of conteo.values()) sumar(total, e);
+  }
+  if (total.size >= 2) {
+    const sinElegir = [];
+    for (const h of conDocumento) {
+      // Una elección recordada de antes de las devoluciones (solo la lista de ventas) se vuelve a
+      // preguntar si el archivo trae algo que parece devolución; la de este mismo archivo se respeta.
+      let recordada = opciones.documentosPorFirma && opciones.documentosPorFirma[h.analisis.firma];
+      if (Array.isArray(recordada) && [...total.keys()].some((p) => RE_DOC_DEVOLUCION.test(p) && !recordada.includes(p))) recordada = null;
+      const elegidos = opciones.documentos || recordada;
+      if (elegidos) documentosElegidos.set(h.clave, eleccionDocumentos(elegidos));
+      else sinElegir.push(h);
+    }
+    if (sinElegir.length) {
+      const pregunta = new Map();
+      for (const h of sinElegir) for (const e of conteos.get(h.clave).values()) sumar(pregunta, e);
       return {
         ok: false,
         necesitaDocumentos: true,
-        documentos: [...conteo.values()].sort((a, b) => b.filas - a.filas).map((e) => ({ ...e, sugerido: RE_DOC_VENTA.test(e.prefijo), devolucion: RE_DOC_DEVOLUCION.test(e.prefijo) })),
+        documentos: [...pregunta.values()].sort((a, b) => b.filas - a.filas).map((e) => ({ ...e, sugerido: RE_DOC_VENTA.test(e.prefijo), devolucion: RE_DOC_DEVOLUCION.test(e.prefijo) })),
         errores: ['Tu archivo trae varios tipos de documento (por ejemplo, compras y ventas). Marca cuáles son ventas y cuáles devoluciones de clientes.'],
         hojas: resumenHojas,
       };
     }
-    documentosElegidos.set(h.clave, eleccionDocumentos(elegidos));
   }
 
   let periodo = null;
@@ -822,9 +838,9 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
   if (problemas.length) {
     avisos.push(`${problemas.length === 1 ? 'Una fila no se tuvo' : `${problemas.length} filas no se tuvieron`} en cuenta:`, ...resumirProblemas(problemas));
   }
-  if (filasTotal) avisos.push(filasTotal === 1 ? 'Se ignoró una fila de totales o títulos.' : `Se ignoraron ${filasTotal} filas de totales o títulos.`);
+  if (filasTotal) avisos.push(filasTotal === 1 ? 'Se ignoró una fila de totales o títulos.' : `Se ignoraron ${filasTotal.toLocaleString('es-CO')} filas de totales o títulos.`);
   if (fechasCompletadas) avisos.push(`${fechasCompletadas} ${fechasCompletadas === 1 ? 'fecha venía' : 'fechas venían'} con el año cortado (por ejemplo, "01/MAR/202"): se completó con el año de las filas vecinas.`);
-  if (filasOtrosDocumentos) avisos.push(`Se dejaron por fuera ${filasOtrosDocumentos} ${filasOtrosDocumentos === 1 ? 'fila' : 'filas'} de documentos que no son ventas.`);
+  if (filasOtrosDocumentos) avisos.push(filasOtrosDocumentos === 1 ? 'Se dejó por fuera una fila de un documento que no es venta.' : `Se dejaron por fuera ${filasOtrosDocumentos.toLocaleString('es-CO')} filas de documentos que no son ventas.`);
   if (analizadas.some((h) => h.analisis.codigoEnNombre && (hojasVentas.includes(h) || hojasExistencias.includes(h)))) avisos.push('El código de cada producto se tomó de los paréntesis al final de su nombre.');
   if (existenciasEnBlanco) avisos.push(`${existenciasEnBlanco} ${existenciasEnBlanco === 1 ? 'producto tiene' : 'productos tienen'} la casilla de existencias vacía: se tomaron como 0.`);
 
@@ -841,6 +857,18 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
       manual: h.analisis.manual,
     }));
 
+  // Qué documentos se tomaron como ventas y cuáles como devoluciones, también cuando la elección
+  // venía recordada de otra vez (si no, el usuario no sabe qué se leyó).
+  if (documentosElegidos.size) {
+    const ventasUsadas = new Set();
+    const devolucionesUsadas = new Set();
+    for (const d of documentosElegidos.values()) {
+      d.ventas.forEach((p) => ventasUsadas.add(p));
+      d.devoluciones.forEach((p) => devolucionesUsadas.add(p));
+    }
+    const lista = (s) => { const a = [...s]; return a.length > 1 ? `${a.slice(0, -1).join(', ')} y ${a[a.length - 1]}` : a[0]; };
+    avisos.push(`Se contaron como ventas los documentos ${lista(ventasUsadas)}${devolucionesUsadas.size ? `, y como devoluciones de clientes los ${lista(devolucionesUsadas)}` : ''}. Los demás tipos no se tomaron como venta.`);
+  }
   if (unidadesDevueltas) avisos.push(`Se restaron de las ventas ${(Math.round(unidadesDevueltas * 100) / 100).toLocaleString('es-CO')} unidades que devolvieron los clientes.`);
   const documentos = documentosElegidos.size
     ? Object.fromEntries(analizadas.filter((h) => documentosElegidos.has(h.clave)).map((h) => {

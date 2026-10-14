@@ -32,7 +32,7 @@ npm install
 npm install --no-package-lock --prefix inventory-forecasting-landing-page   # la web (Next.js); pnpm se colgaba en Windows
 TEAM_EMAILS=tu-correo@ejemplo.com npm run dev    # http://localhost:3000: API + Next.js en modo desarrollo; PGlite en data/pglite/
 npm run build && NODE_ENV=production npm start  # en producción con un servidor propio (en Vercel: docs/PUBLICAR.md)
-npm test                                         # node --test test/*.test.js (97 pruebas; no necesitan la web)
+npm test                                         # node --test test/*.test.js (98 pruebas; no necesitan la web)
 node --test test/rotacion.test.js                # un solo archivo
 node --test --test-name-pattern="M = 5" test/listas.test.js   # una prueba por nombre
 npm run ejemplos                                 # regenera los exports inventados de ejemplos/
@@ -46,7 +46,7 @@ No hay linter ni formateador. La API no se compila; la web sí (`npm run build`)
 
 **Backend** (`server/`, CommonJS con `'use strict'`): Express 5. Usa PostgreSQL con `pg` si existe `DATABASE_URL`; si no, usa PGlite embebido. `db.js` expone la misma interfaz para los dos (`query`, `uno`, `tx`). El esquema es una lista de `CREATE TABLE IF NOT EXISTS` que se corre al arrancar. **No hay migraciones**: para cambiar una columna existente hay que agregar un `ALTER TABLE … IF NOT EXISTS` a `ESQUEMA`, porque la base de Neon ya tiene las tablas creadas.
 
-**En Vercel** la API corre dentro del proyecto de Next como la función `inventory-forecasting-landing-page/pages/api/[[...ruta]].js`, que importa `server/app.js`; `next.config.mjs` deja express, multer, pg y xlsx sin empaquetar (`serverExternalPackages`) y reescribe `/plantillas` y `/salud` a `/api/…`, y `vercel.json` instala también las dependencias de la raíz. El código de `server/` va empaquetado: no confíen en `__dirname` para leer archivos (ver `DIR` en `ejemplos.js`). Los archivos de más de 1 MB llegan comprimidos con gzip (`.gz`) por el límite de 4,5 MB de Vercel y `archivoSubido` (`pedidos.js`) los descomprime. Por la carpeta `pages/`, los hooks de navegación de Next devuelven tipos que admiten `null`: en `components/app/` se usan con `!`.
+**En Vercel** la API corre dentro del proyecto de Next como la función `inventory-forecasting-landing-page/pages/api/[[...ruta]].js`, que importa `server/app.js`; `next.config.mjs` deja express, multer, pg y xlsx sin empaquetar (`serverExternalPackages`) y reescribe `/plantillas` y `/salud` a `/api/…`, y `vercel.json` instala también las dependencias de la raíz. El código de `server/` va empaquetado: no confíen en `__dirname` para leer archivos (ver `DIR` en `ejemplos.js`). Los archivos de más de 300 KB llegan comprimidos con gzip (`.gz`) por el límite de 4,5 MB de Vercel y `archivoSubido` (`pedidos.js`) los descomprime. Por la carpeta `pages/`, los hooks de navegación de Next devuelven tipos que admiten `null`: en `components/app/` se usan con `!`.
 
 **En local, un solo servidor** (`server/index.js`): Express atiende `/api`, `/plantillas` y `/salud`; todo lo demás lo atiende Next.js (`inventory-forecasting-landing-page/`, cargado con `require.resolve('next', { paths: [WEB] })`). Si Next no está instalado o, en producción, no está compilado, se sirve la versión anterior de `public/` (las pruebas automáticas usan esa: `crearApp()` sin `web`). La CSP estricta (`default-src 'self'`) se aplica a la API; las páginas de Next llevan una que permite sus scripts en línea.
 

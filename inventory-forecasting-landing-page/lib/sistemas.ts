@@ -11,6 +11,9 @@ export type Sistema = {
   // Un solo informe que trae lo vendido en un periodo y el saldo de hoy (el camino más corto).
   unInforme?: string[]
   unInformeNota?: string
+  // Título de la otra opción (dos informes). Por defecto dice que con dos se ve cada semana, que
+  // solo es cierto cuando el informe único no trae fechas (Siigo Pyme, Helisa).
+  dosInformesTitulo?: string
   ventas?: string[] | null
   existencias?: string[] | null
   ventasNota?: string
@@ -41,7 +44,8 @@ export const SISTEMAS: Sistema[] = [
       'Fecha de elaboración: del último año hasta hoy. Tipo: Producto.',
       'Clic en "Exportar datos". Si lo sacas por partes (por ejemplo, por trimestres), sube todos los archivos juntos.',
     ],
-    unInformeNota: 'Trae cada factura y remisión con la cantidad que salió, y el saldo de cada producto. Al subirlo te preguntamos qué documentos son ventas.',
+    unInformeNota: 'Trae cada factura y remisión con su fecha y la cantidad que salió, y el saldo de cada producto. Al subirlo te preguntamos qué documentos son ventas.',
+    dosInformesTitulo: 'Otra forma: las ventas y los saldos en dos informes',
     ventas: [
       'Reportes › Productos y servicios › Saldos y movimientos › Movimiento de productos.',
       'Fecha de elaboración: el último año. Tipo: Producto.',

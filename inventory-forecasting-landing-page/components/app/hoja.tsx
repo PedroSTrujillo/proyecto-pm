@@ -71,9 +71,10 @@ function separarFilas(datos: string) {
   return out.map((f) => f.map((c) => c.trim())).filter((f) => f.some((c) => c !== ''))
 }
 
-type Props = { inicial: { codigo: unknown; nombre?: unknown; cantidad: unknown }[]; soloLectura?: boolean; extras?: Extra[]; alCambiar?: () => void }
+// tituloCantidad: el nombre de la columna que se edita (en la lista final, "Vas a pedir").
+type Props = { inicial: { codigo: unknown; nombre?: unknown; cantidad: unknown }[]; soloLectura?: boolean; extras?: Extra[]; alCambiar?: () => void; tituloCantidad?: string }
 
-export const Hoja = forwardRef<HojaApi, Props>(function Hoja({ inicial, soloLectura = false, extras = [], alCambiar }, ref) {
+export const Hoja = forwardRef<HojaApi, Props>(function Hoja({ inicial, soloLectura = false, extras = [], alCambiar, tituloCantidad = 'Cantidad' }, ref) {
   const desde = (ls: Props['inicial']) => ls.map((l) => ({ codigo: texto(l.codigo), nombre: texto(l.nombre), cantidad: texto(l.cantidad) }))
   const [filas, setFilas] = useState<Linea[]>(() => (soloLectura ? desde(inicial) : conVacias(desde(inicial))))
   const [errores, setErrores] = useState<Set<number>>(new Set())
@@ -172,7 +173,7 @@ export const Hoja = forwardRef<HojaApi, Props>(function Hoja({ inicial, soloLect
               <th className="w-10 px-2 py-2 text-center font-semibold">#</th>
               <th className="w-40 px-2.5 py-2 font-semibold">Código</th>
               <th className="px-2.5 py-2 font-semibold">Nombre <span className="font-normal">(opcional)</span></th>
-              <th className="w-28 px-2.5 py-2 font-semibold">Cantidad</th>
+              <th className="w-28 px-2.5 py-2 font-semibold">{tituloCantidad}</th>
               {extras.map((x) => <th key={x.titulo} className="px-2.5 py-2 font-semibold">{x.titulo}</th>)}
               {!soloLectura && <th className="w-10" aria-label="Quitar" />}
             </tr>
@@ -195,7 +196,7 @@ export const Hoja = forwardRef<HojaApi, Props>(function Hoja({ inicial, soloLect
                         <input
                           data-col={col}
                           value={f[c]}
-                          aria-label={`${c === 'codigo' ? 'Código' : c === 'nombre' ? 'Nombre' : 'Cantidad'}, fila ${i + 1}`}
+                          aria-label={`${c === 'codigo' ? 'Código' : c === 'nombre' ? 'Nombre' : tituloCantidad}, fila ${i + 1}`}
                           autoComplete="off"
                           spellCheck={false}
                           inputMode={c === 'cantidad' ? 'decimal' : undefined}

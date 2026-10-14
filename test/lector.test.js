@@ -423,3 +423,16 @@ test('devoluciones en un informe de ventas: con signo negativo o positivo, siemp
   assert.equal(r.ok, true, JSON.stringify(r.errores));
   assert.deepEqual(r.ventas.map((v) => [v.codigo, v.cantidad]), [['AB-1', 5], ['AB-1', -1], ['AB-1', -2], ['AB-2', 3]]);
 });
+
+test('varios archivos: la pregunta de documentos cuenta todos y pregunta los tipos que solo trae el segundo', () => {
+  const enc = ['Código producto', 'Comprobante', 'Fecha elaboración', 'Cantidad entrada', 'Cantidad salida', 'Saldo cantidades'];
+  const uno = xlsx({ Sheet1: [enc, ['AB-1', 'FV-1', '05/01/2026', 0, 2, 8], ['AB-1', 'FC-1', '06/01/2026', 5, 0, 13]] });
+  const dos = xlsx({ Sheet1: [enc, ['AB-1', 'FV-2', '05/02/2026', 0, 3, 10], ['AB-1', 'RM-9', '06/02/2026', 0, 4, 6], ['AB-1', 'NT-3', '07/02/2026', 1, 1, 6]] });
+  const archivos = [{ nombre: 'oct-dic.xlsx', buffer: uno }, { nombre: 'ene-ago.xlsx', buffer: dos }];
+  const r = leerExport(archivos);
+  assert.equal(r.necesitaDocumentos, true);
+  const por = Object.fromEntries(r.documentos.map((d) => [d.prefijo, d.filas]));
+  assert.deepEqual(por, { FV: 2, FC: 1, RM: 1, NT: 1 }, 'cuenta las filas de los dos archivos');
+  const ok = leerExport(archivos, {}, { documentos: { ventas: ['FV', 'RM'], devoluciones: [] } });
+  assert.deepEqual(ok.ventas.map((v) => v.cantidad), [2, 3, 4], 'la elección se aplica a los dos archivos');
+});

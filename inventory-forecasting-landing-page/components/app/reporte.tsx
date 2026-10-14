@@ -38,6 +38,16 @@ export type ReporteRotacion = {
   subidoEn?: string
 }
 
+// Avisos que cambian cómo se leen las semanas (archivo viejo, meses sin ventas): van a la vista.
+const AVISO_IMPORTANTE = /^(Tus ventas llegan hasta|No hay ninguna venta entre)/
+
+// Los campos del lector, como se los mostramos al usuario.
+const NOMBRE_CAMPO: Record<string, string> = {
+  codigo: 'código', nombre: 'nombre', fecha: 'fecha', cantidad: 'unidades vendidas', existencias: 'existencias',
+  entrada: 'unidades que entraron', documento: 'tipo de documento', costo: 'costo unitario', costoTotal: 'valor del inventario',
+  proveedor: 'proveedor',
+}
+
 export function estadoDeFila(f: FilaReporte): Estado {
   if (f.estado === 'se_agota') return 'agota'
   if (f.estado === 'sin_ventas') return 'sin_ventas'
@@ -74,8 +84,16 @@ export function Reporte({ r, compacto = false }: { r: ReporteRotacion; compacto?
   const e = r.ejemplo
   const conAjustes = Boolean(r.ajustes) && !r.periodo.totales
 
+  const importantes = (r.avisos || []).filter((a) => AVISO_IMPORTANTE.test(a))
+  // Varias hojas o archivos con las mismas columnas se describen una sola vez.
+  const usadas = [...new Map((r.hojasUsadas || []).map((h) => [`${h.uso}|${h.porMes}|${JSON.stringify(h.columnas)}`, h])).values()]
+  const repetidas = (r.hojasUsadas || []).length - usadas.length
+
   return (
     <div className="flex flex-col gap-4">
+      {importantes.map((a) => (
+        <p key={a} className="rounded-xl border border-ambar-borde bg-ambar-fondo px-4 py-3 text-[0.95rem] text-ambar-texto">{a}</p>
+      ))}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-3">
         <div className="rounded-2xl border border-border bg-card p-4"><strong className="font-display text-[1.8rem] tabular-nums">{numero(r.resumen.productos)}</strong><span className="block text-sm text-muted-foreground">productos</span></div>
         <div className="rounded-2xl border border-rojo-borde bg-rojo-fondo p-4"><strong className="font-display text-[1.8rem] text-rojo tabular-nums">{numero(r.resumen.seAgotan)}</strong><span className="block text-sm text-rojo-texto">se agotan en menos de {u.seAgota} semanas</span></div>
@@ -97,10 +115,10 @@ export function Reporte({ r, compacto = false }: { r: ReporteRotacion; compacto?
           <summary className="cursor-pointer font-semibold">Qué leímos de tu archivo{r.avisos?.length ? ' (hay notas para revisar)' : ''}</summary>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-[0.93rem]">
             <li>{plural(r.resumen.filasVenta, 'fila de ventas', 'filas de ventas')} y {plural(r.resumen.productos, 'producto', 'productos')}{r.archivos?.length ? ` (${r.archivos.join(', ')})` : ''}.</li>
-            {(r.hojasUsadas || []).map((h, i) => (
-              <li key={i}>{h.uso === 'ventas' ? 'Ventas' : h.uso === 'existencias' ? 'Existencias' : 'Ventas y existencias'}{h.hoja ? ` — hoja "${h.hoja}"` : ''}{h.porMes ? ' (una columna por mes)' : ''}: {Object.entries(h.columnas).map(([k, v]) => `${k} en ${v}`).join('; ')}.</li>
+            {usadas.map((h, i) => (
+              <li key={i}>{h.uso === 'ventas' ? 'Ventas' : h.uso === 'existencias' ? 'Existencias' : 'Ventas y existencias'}{repetidas ? ' (igual en todos los archivos)' : h.hoja ? ` — hoja "${h.hoja}"` : ''}{h.porMes ? ' (una columna por mes)' : ''}: {Object.entries(h.columnas).map(([k, v]) => `${NOMBRE_CAMPO[k] || k} en ${v}`).join('; ')}.</li>
             ))}
-            {(r.avisos || []).map((a, i) => <li key={`a${i}`}>{a}</li>)}
+            {(r.avisos || []).filter((a) => !AVISO_IMPORTANTE.test(a)).map((a, i) => <li key={`a${i}`}>{a}</li>)}
           </ul>
         </details>
       ) : null}

@@ -41,6 +41,7 @@ export const CAMPOS_EXPORT = [
   { campo: 'fecha', nombre: 'Fecha de la venta' },
   { campo: 'cantidad', nombre: 'Cantidad vendida' },
   { campo: 'existencias', nombre: 'Existencias' },
+  { campo: 'entrada', nombre: 'Cantidad que entró (opcional, para devoluciones)' },
   { campo: 'documento', nombre: 'Tipo de documento (opcional)' },
   { campo: 'costo', nombre: 'Costo unitario (opcional)' },
   { campo: 'proveedor', nombre: 'Proveedor (opcional)' },
@@ -88,7 +89,7 @@ export function GuiaSistema({ id }: { id: string | null }) {
           </div>
           {(s.ventas || s.existencias) && (
             <details className="group rounded-2xl border border-border p-3">
-              <summary className="cursor-pointer text-[0.93rem] font-semibold">Con dos informes también ves la venta de cada semana y la temporada</summary>
+              <summary className="cursor-pointer text-[0.93rem] font-semibold">{s.dosInformesTitulo || 'Con dos informes también ves la venta de cada semana y la temporada'}</summary>
               <div className="mt-3">{dosInformes}</div>
             </details>
           )}
@@ -257,7 +258,10 @@ export function SubirArchivos({ base, usuario, alGuardarSistema, alTerminar, tex
       {error && <ErrorLista mensaje={error.mensaje} lista={error.lista} />}
 
       {resultado?.necesitaDocumentos && exportId && (
-        <PreguntaDocumentos documentos={resultado.documentos || []} alEnviar={(ventas, devoluciones) => procesar(api<Resultado>('POST', `${base}/${exportId}/documentos`, { documentos: ventas, devoluciones }))} />
+        <>
+          <ColumnasLeidas hojas={resultado.hojas || []} alCambiar={(mapeo) => procesar(api<Resultado>('POST', `${base}/${exportId}/columnas`, { mapeo }))} />
+          <PreguntaDocumentos documentos={resultado.documentos || []} alEnviar={(ventas, devoluciones) => procesar(api<Resultado>('POST', `${base}/${exportId}/documentos`, { documentos: ventas, devoluciones }))} />
+        </>
       )}
       {resultado?.necesitaPeriodo && exportId && (
         <PreguntaPeriodo sugerido={resultado.periodoSugerido} alEnviar={(desde, hasta) => procesar(api<Resultado>('POST', `${base}/${exportId}/periodo`, { desde, hasta }))} />
@@ -269,6 +273,56 @@ export function SubirArchivos({ base, usuario, alGuardarSistema, alTerminar, tex
             <FormularioColumnas hojas={resultado.hojas} campos={CAMPOS_EXPORT} alEnviar={(mapeo) => procesar(api<Resultado>('POST', `${base}/${exportId}/columnas`, { mapeo }))} />
           )}
         </>
+      )}
+    </div>
+  )
+}
+
+// Antes de preguntar por los documentos, se muestra qué columna se tomó para cada cosa: en un
+// kardex la de unidades vendidas es la de salidas, que también trae traslados y ajustes; por eso
+// se pregunta qué documentos son ventas. Si una columna no es la que se cree, se elige a mano.
+const LEIDAS: { campo: string; nombre: string }[] = [
+  { campo: 'codigo', nombre: 'Código' },
+  { campo: 'fecha', nombre: 'Fecha' },
+  { campo: 'cantidad', nombre: 'Unidades vendidas' },
+  { campo: 'existencias', nombre: 'Existencias' },
+  { campo: 'entrada', nombre: 'Unidades que entraron' },
+  { campo: 'documento', nombre: 'Tipo de documento' },
+]
+
+function ColumnasLeidas({ hojas, alCambiar }: { hojas: HojaMapeo[]; alCambiar: (mapeo: Record<string, Record<string, number | null>>) => void }) {
+  const [elegir, setElegir] = useState(false)
+  const hoja = hojas.find((h) => h.columnas.documento !== null && h.columnas.documento !== undefined) || hojas[0]
+  if (!hoja) return null
+  const nombreDe = (i: number | null | undefined) => {
+    if (i === null || i === undefined) return null
+    const e = hoja.encabezados.find((x) => x.indice === i)
+    return e ? `"${e.texto}" (columna ${e.letra})` : null
+  }
+  const filas = LEIDAS.map((l) => ({ ...l, columna: nombreDe(hoja.columnas[l.campo]) })).filter((l) => l.columna)
+  const salidas = nombreDe(hoja.columnas.cantidad)
+  return (
+    <div className="aparecer flex flex-col gap-3 rounded-2xl border border-border bg-card p-5">
+      <p><strong>Así leímos tu archivo</strong>{hojas.length > 1 ? ` (${hojas.length} hojas o archivos, con las mismas columnas)` : ''}:</p>
+      <dl className="grid gap-x-6 gap-y-1 text-[0.95rem] sm:grid-cols-[auto_1fr]">
+        {filas.map((l) => (
+          <div key={l.campo} className="contents">
+            <dt className="text-muted-foreground">{l.nombre}</dt>
+            <dd className="font-semibold">{l.columna}</dd>
+          </div>
+        ))}
+      </dl>
+      {salidas && (
+        <p className="text-[0.93rem] text-muted-foreground">
+          La columna {salidas} trae todo lo que salió de tu bodega: ventas, pero también traslados y ajustes. Por eso abajo te preguntamos qué documentos son ventas.
+        </p>
+      )}
+      {!elegir ? (
+        <button type="button" onClick={() => setElegir(true)} className="self-start text-[0.93rem] font-semibold text-primary hover:text-primary-hover">
+          ¿Alguna columna no es esa? Elígelas a mano
+        </button>
+      ) : (
+        <FormularioColumnas hojas={hojas} campos={CAMPOS_EXPORT} alEnviar={alCambiar} />
       )}
     </div>
   )

@@ -28,7 +28,8 @@ export const SISTEMAS = [
       'Fecha de elaboración: del último año hasta hoy. Tipo: Producto.',
       'Clic en "Exportar datos". Si lo sacas por partes (por ejemplo, por trimestres), sube todos los archivos juntos.',
     ],
-    unInformeNota: 'Trae cada factura y remisión con la cantidad que salió, y el saldo de cada producto. Al subirlo te preguntamos qué documentos son ventas.',
+    unInformeNota: 'Trae cada factura y remisión con su fecha y la cantidad que salió, y el saldo de cada producto. Al subirlo te preguntamos qué documentos son ventas.',
+    dosInformesTitulo: 'Otra forma: las ventas y los saldos en dos informes',
     ventas: [
       'Reportes › Productos y servicios › Saldos y movimientos › Movimiento de productos.',
       'Fecha de elaboración: el último año. Tipo: Producto.',

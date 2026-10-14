@@ -539,19 +539,42 @@ function Paso4({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
   const [guardando, setGuardando] = useState(false)
   const { ventana, preguntar } = useConfirmar()
   const auto = useAutoguardado(() => api('PUT', `/pedidos/${pedido.id}/lista-final`, { lineas: hoja.current?.lineas() || [] }))
+  // Los códigos que hay en la hoja ahora, para mostrar lo que se quitó de la lista inicial.
+  const [actuales, setActuales] = useState<Set<string> | null>(null)
+  const cambio = () => {
+    auto.cambio()
+    setActuales(new Set((hoja.current?.lineas() || []).map((l) => claveCodigo(l.codigo))))
+  }
 
   if (errorReporte) return <ErrorLista mensaje={errorReporte} />
   if (!r) return <Cargando texto="Cargando…" />
 
   const porCodigo = new Map(r.filas.map((f) => [claveCodigo(f.codigo), f]))
   const inicial = new Map(pedido.listaInicial.map((l) => [claveCodigo(l.codigo), l]))
+  const cantidad = (v: unknown) => Number(String(v ?? '').trim().replace(',', '.'))
   const extras: Extra[] = [
     {
       titulo: 'Ibas a pedir',
       valor: (l) => {
         if (!l.codigo) return { texto: '' }
         const x = inicial.get(claveCodigo(l.codigo))
-        return { texto: x ? numero(Number(String(x.cantidad).replace(',', '.'))) : 'nuevo', clase: x ? 'tabular-nums' : 'text-primary font-semibold' }
+        if (!x) return { texto: '—', clase: 'text-muted-foreground' }
+        return { texto: numero(cantidad(x.cantidad)), clase: 'tabular-nums text-muted-foreground' }
+      },
+    },
+    {
+      // La diferencia entre lo que va a pedir ahora y lo que iba a pedir: es lo que mide la prueba.
+      titulo: 'Cambio',
+      valor: (l) => {
+        if (!l.codigo) return { texto: '' }
+        const x = inicial.get(claveCodigo(l.codigo))
+        if (!x) return { texto: 'agregado', clase: 'font-semibold text-verde' }
+        const antes = cantidad(x.cantidad)
+        const ahora = cantidad(l.cantidad)
+        if (!Number.isFinite(ahora) || !Number.isFinite(antes)) return { texto: '' }
+        const d = ahora - antes
+        if (Math.abs(d) < 1e-9) return { texto: 'igual', clase: 'text-muted-foreground' }
+        return { texto: `${d > 0 ? '+' : '−'}${numero(Math.abs(d))}`, clase: 'tabular-nums font-semibold text-ambar-texto' }
       },
     },
     {
@@ -567,12 +590,17 @@ function Paso4({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
     },
   ]
 
+  // Los productos que escribió sin nombre lo toman del archivo, para reconocerlos al editar.
+  const conNombres = (ls: Pedido['listaInicial']) => ls.map((l) => ({ ...l, nombre: l.nombre || porCodigo.get(claveCodigo(l.codigo))?.nombre || '' }))
+  const enHoja = actuales ?? new Set((pedido.listaFinal || pedido.listaInicial).map((l) => claveCodigo(l.codigo)))
+  const quitados = pedido.listaInicial.filter((l) => !enHoja.has(claveCodigo(l.codigo)))
+
   if (pedido.terminado) {
     return (
       <Tarjeta className="flex flex-col gap-4 p-5 sm:p-6">
         <h2 className="text-xl font-bold">Lo que de verdad vas a pedir</h2>
         <p className="text-muted-foreground">La guardaste el {fechaHora(pedido.finalGuardadaEn)}.</p>
-        <Hoja inicial={pedido.listaFinal || []} soloLectura extras={extras} />
+        <Hoja inicial={pedido.listaFinal || []} soloLectura extras={extras} tituloCantidad="Vas a pedir" />
       </Tarjeta>
     )
   }
@@ -607,12 +635,18 @@ function Paso4({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
       {ventana}
       <div>
         <h2 className="text-xl font-bold">Lo que de verdad vas a pedir</h2>
-        <p className="mt-1 text-muted-foreground">Arrancamos con una copia de tu lista inicial. Agrega, quita o cambia cantidades según lo que decidas. Puedes mirar el reporte aquí mismo mientras editas.</p>
+        <p className="mt-1 text-muted-foreground">Arrancamos con una copia de tu lista inicial: por eso al comienzo "Vas a pedir" e "Ibas a pedir" son iguales. Cambia la columna "Vas a pedir", agrega o quita productos según lo que decidas, y en "Cambio" ves la diferencia. Puedes mirar el reporte aquí mismo mientras editas.</p>
       </div>
       <Boton tamano="chico" className="self-start" aria-expanded={verReporte} onClick={() => setVerReporte((v) => !v)}>{verReporte ? 'Ocultar el reporte' : 'Mostrar el reporte'}</Boton>
       {verReporte && <div className="aparecer"><Reporte r={r} compacto /></div>}
-      <ImportarLista pedidoId={pedido.id} para="final" hoja={hoja} alImportar={auto.cambio} />
-      <Hoja ref={hoja} inicial={pedido.listaFinal || pedido.listaInicial} extras={extras} alCambiar={auto.cambio} />
+      <ImportarLista pedidoId={pedido.id} para="final" hoja={hoja} alImportar={cambio} />
+      <Hoja ref={hoja} inicial={conNombres(pedido.listaFinal || pedido.listaInicial)} extras={extras} alCambiar={cambio} tituloCantidad="Vas a pedir" />
+      {quitados.length > 0 && (
+        <p className="text-[0.93rem]">
+          <strong>Quitaste {plural(quitados.length, 'producto', 'productos')} de tu lista inicial:</strong>{' '}
+          {quitados.map((l) => { const n = l.nombre || porCodigo.get(claveCodigo(l.codigo))?.nombre; return `${l.codigo}${n ? ` ${n}` : ''} (ibas a pedir ${numero(cantidad(l.cantidad))})` }).join(', ')}.
+        </p>
+      )}
       {error && <ErrorLista mensaje={error.mensaje} lista={error.lista} />}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="text-sm text-muted-foreground" aria-live="polite">{auto.estado}</span>
@@ -631,7 +665,13 @@ function Paso5({ pedido, recargar }: { pedido: Pedido; recargar: () => Promise<v
   const [error, setError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
   const router = useRouter()
-  const nombre = (x: { nombre?: string }) => (x.nombre ? ` · ${x.nombre}` : '')
+  // Si el producto se escribió sin nombre, se toma el del archivo.
+  const { r } = useReporte(pedido.id)
+  const delArchivo = new Map((r?.filas || []).map((f) => [claveCodigo(f.codigo), f.nombre]))
+  const nombre = (x: { codigo: string; nombre?: string }) => {
+    const t = x.nombre || delArchivo.get(claveCodigo(x.codigo))
+    return t ? ` · ${t}` : ''
+  }
 
   async function terminar() {
     setEnviando(true)

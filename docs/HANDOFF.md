@@ -27,6 +27,21 @@
 
 ---
 
+## 2026-10-14 (27) — Claude — la prueba completa como el probador, con sus archivos reales
+- **Rama:** `mejoras-modelo` (y `main`), en los dos repos.
+- **Estado:** se hizo el pedido de punta a punta en el navegador (local) como el probador de Siigo Nube, con sus dos archivos reales servidos solo en este equipo. Lo que confundía y se arregló:
+  - **Pregunta de documentos:** contaba solo el primer archivo (decía RM 275 cuando eran 1.398, y el tipo NT del segundo archivo no aparecía). Ahora cuenta y pregunta por todas las hojas y archivos juntos.
+  - **Antes de esa pregunta,** "Así leímos tu archivo" dice qué columna se tomó para cada cosa (unidades vendidas = "Cantidad salida", existencias = "Saldo cantidades"…), por qué se pregunta por los documentos y deja elegir las columnas a mano.
+  - **Paso 4:** columnas "Vas a pedir", "Ibas a pedir" y "Cambio" (+15, igual, agregado); el texto explica por qué al comienzo son iguales; lo que se quitó se lista debajo; los productos escritos sin nombre toman el del archivo (también en el paso 5).
+  - **Reporte:** los avisos de archivo viejo o de meses sin ventas van arriba, a la vista; "Qué leímos" no repite la misma línea por cada archivo y nombra los campos en español; también dice qué documentos se contaron como venta y cuáles como devolución.
+  - **Panel:** dice hasta cuándo llegan las ventas (no el día en que se subió) y avisa si es de hace más de 30 días; "Ventas: últimas 4 semanas del archivo".
+  - **Guía de Siigo Nube:** la otra opción ya no dice que con dos informes se ve cada semana (el informe único ya trae fechas).
+  - **README** reescrito completo.
+- **Archivos tocados:** `server/lector.js`, `components/app/{subir,pedido-flujo,hoja,reporte,panel}.tsx`, `lib/sistemas.ts` y `public/js/sistemas.js`, `README.md`, pruebas.
+- **Verificación:** `npm test` → 98/98; `tsc` sin errores; el flujo completo en el navegador con los archivos reales: 784 productos, 1.645 filas de venta, 363 unidades devueltas restadas, 5 líneas cambiadas en el paso 5.
+- **Siguiente paso exacto:** que el probador vuelva a subir sus archivos en producción (la pregunta de documentos le vuelve a salir con los conteos de los dos archivos) y que saque el informe hasta hoy.
+- **Notas y bloqueos:** para probar con archivos reales en el navegador integrado hace falta servirlos desde el mismo origen (un proxy local); los archivos nunca van al repo.
+
 ## 2026-10-13 (26) — Claude — las devoluciones de clientes se restan
 - **Rama:** `mejoras-modelo` (y `main`), en los dos repos.
 - **Estado:** en la pregunta de documentos cada tipo es "Venta", "Devolución" o "No cuenta" (NC, DV, DEV se sugieren como devolución). La devolución resta lo que entró (campo nuevo `entrada`, "Cantidad entrada") o el valor absoluto de la cantidad; se guarda `{ ventas, devoluciones }` en `exports.documentos` y en los mapeos (una lista vieja se lee como solo ventas). En las series semanales una semana negativa se descuenta de las anteriores (`descontarDevoluciones`, series.js). Aviso en el reporte con las unidades restadas. Con los archivos reales del probador: 363 unidades restadas (igual al total de "Cantidad entrada" de sus NC).
