@@ -220,6 +220,15 @@ rutas.post('/pedidos/:id/clasificacion', async (req, res) => {
   res.json({ ok: true, valor });
 });
 
+// Alguien del grupo que creó su cuenta con un correo que no está en TEAM_EMAILS: queda como equipo
+// para siempre (es_equipo) y deja de contar como probador. Sus datos no se borran.
+rutas.post('/usuarios/:id/equipo', async (req, res) => {
+  const u = await db.uno("UPDATE usuarios SET es_equipo = true, rol = 'equipo' WHERE id = $1 RETURNING id", [Number(req.params.id)]);
+  if (!u) throw new ErrorUsuario('Ese usuario no existe.', 404);
+  await registrarEvento(req.usuario.id, 'marcado_equipo', { detalle: { usuario: u.id } });
+  res.json({ ok: true });
+});
+
 // Sin correo configurado, el equipo genera el enlace y se lo manda al probador (por ejemplo, por WhatsApp).
 rutas.post('/usuarios/:id/restablecer', async (req, res) => {
   const u = await db.uno('SELECT id FROM usuarios WHERE id = $1', [Number(req.params.id)]);

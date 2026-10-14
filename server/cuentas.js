@@ -167,9 +167,9 @@ rutas.post('/crear', async (req, res) => {
 rutas.post('/entrar', async (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
   const clave = String(req.body?.clave || '');
-  const u = await db.uno('SELECT id, email, nombre, rol, sistema, clave_hash FROM usuarios WHERE email = $1', [email]);
+  const u = await db.uno('SELECT id, email, nombre, rol, sistema, clave_hash, es_equipo FROM usuarios WHERE email = $1', [email]);
   if (!u || !verificarClave(clave, u.clave_hash)) throw new ErrorUsuario('El correo o la contraseña no coinciden.', 401);
-  const rol = esEmailDeEquipo(email) ? 'equipo' : u.rol === 'equipo' && !process.env.TEAM_EMAILS ? 'equipo' : 'usuario';
+  const rol = esEmailDeEquipo(email) || u.es_equipo ? 'equipo' : u.rol === 'equipo' && !process.env.TEAM_EMAILS ? 'equipo' : 'usuario';
   if (rol !== u.rol) await db.query('UPDATE usuarios SET rol = $1 WHERE id = $2', [rol, u.id]);
   u.rol = rol;
   await registrarEvento(u.id, 'ingreso', { detalle: { como: 'inicio_sesion' } });

@@ -9,6 +9,7 @@ import { dia, fecha, fechaHora, numero, plata, plural } from '@/lib/formato'
 import { sistemaPorId } from '@/lib/sistemas'
 import { cn } from '@/lib/utils'
 import { Aviso, Boton, Cargando, ErrorLista, Tarjeta, Titulo } from './ui'
+import { useConfirmar } from './confirmar'
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Datos = { resumen: any; usuarios: any[]; generadoEn: string }
@@ -86,7 +87,7 @@ export function Equipo() {
         {r.usuarios !== r.usuariosEsperados ? ` Hoy hay ${r.usuarios} cuentas de prueba; la meta está pensada para ${r.usuariosEsperados}.` : ''}
       </p>
       {!d.usuarios.length && <Aviso>Todavía no hay usuarios de prueba registrados.</Aviso>}
-      {d.usuarios.map((u) => <Probador key={u.id} u={u} />)}
+      {d.usuarios.map((u) => <Probador key={u.id} u={u} alCambiar={cargar} />)}
       <ErroresRecientes />
     </>
   )
@@ -101,7 +102,8 @@ function Cifra({ valor, texto, clase }: { valor: string; texto: string; clase?: 
   )
 }
 
-function Probador({ u }: { u: any }) {
+function Probador({ u, alCambiar }: { u: any; alCambiar: () => void }) {
+  const { ventana, preguntar } = useConfirmar()
   const [enlace, setEnlace] = useState<{ enlace: string; horas: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const cat = CATEGORIAS[u.evaluacion.categoria]
@@ -114,15 +116,27 @@ function Probador({ u }: { u: any }) {
       setError(textoErrores(e).mensaje)
     }
   }
+  async function esDelEquipo() {
+    const si = await preguntar(`¿${u.nombre} es del equipo?`, 'Deja de contar como probador y ve "Resultados de la prueba" y "Ejemplos" la próxima vez que entre. Sus datos no se borran.', 'Sí, es del equipo')
+    if (!si) return
+    try {
+      await api('POST', `/equipo/usuarios/${u.id}/equipo`)
+      alCambiar()
+    } catch (e) {
+      setError(textoErrores(e).mensaje)
+    }
+  }
   return (
     <Tarjeta className="flex flex-col gap-4 p-5">
+      {ventana}
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-bold">{u.nombre} <span className="text-[0.9rem] font-normal text-muted-foreground">{u.email}</span></h2>
         <span className={cn('rounded-full px-2.5 py-0.5 text-xs font-bold', cat.clase)}>{cat.texto}</span>
       </header>
       <p className="text-sm text-muted-foreground">
         Programa contable: <strong className="text-foreground">{u.sistema ? (sistemaPorId(u.sistema) || { nombre: u.sistema }).nombre : 'no lo ha dicho'}</strong> ·{' '}
-        <button type="button" onClick={generar} className="font-semibold text-primary hover:text-primary-hover">Enlace para que cambie su contraseña</button>
+        <button type="button" onClick={generar} className="font-semibold text-primary hover:text-primary-hover">Enlace para que cambie su contraseña</button> ·{' '}
+        <button type="button" onClick={esDelEquipo} className="font-semibold text-muted-foreground hover:text-foreground">Es del equipo, no un probador</button>
       </p>
       {enlace && (
         <Aviso>

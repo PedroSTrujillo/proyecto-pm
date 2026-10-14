@@ -92,6 +92,8 @@ const ESQUEMA = [
   'ALTER TABLE exports ADD COLUMN IF NOT EXISTS catalogo JSONB',
   // Tiempos de entrega por proveedor y cada cuánto pide (server/inventario.js, leerAjustes).
   "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS inventario JSONB NOT NULL DEFAULT '{}'::jsonb",
+  // Del equipo aunque su correo no esté en TEAM_EMAILS: lo marca el equipo desde Resultados.
+  'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS es_equipo BOOLEAN NOT NULL DEFAULT false',
   // Enlaces para restablecer la contraseña: se guarda el hash del token, nunca el token.
   `CREATE TABLE IF NOT EXISTS restablecimientos (
     token_hash TEXT PRIMARY KEY,

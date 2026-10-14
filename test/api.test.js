@@ -653,6 +653,22 @@ test('cada tipo de usuario ve lo que le toca: visitante, probador nuevo, en prue
   assert.ok(!r.usuarios.some((u) => u.email === 'equipo@prueba.co'));
 });
 
+test('el equipo marca a un compañero como del equipo y deja de contar como probador', async () => {
+  const jose = await nuevoUsuario('Jose', 'jose@otro.co');
+  const equipo = cliente();
+  await equipo.post('/api/cuenta/entrar', { email: 'equipo@prueba.co', clave: 'clave-segura' });
+  const antes = await equipo.get('/api/equipo/resultados');
+  const fila = antes.usuarios.find((u) => u.email === 'jose@otro.co');
+  assert.ok(fila, 'empieza contando como probador');
+  assert.equal((await jose.post(`/api/equipo/usuarios/${fila.id}/equipo`)).estado, 403, 'un probador no puede');
+  assert.equal((await equipo.post(`/api/equipo/usuarios/${fila.id}/equipo`)).ok, true);
+  const despues = await equipo.get('/api/equipo/resultados');
+  assert.ok(!despues.usuarios.some((u) => u.email === 'jose@otro.co'), 'ya no cuenta');
+  const otra = cliente();
+  await otra.post('/api/cuenta/entrar', { email: 'jose@otro.co', clave: 'clave-segura' });
+  assert.equal((await otra.get('/api/cuenta/yo')).usuario.rol, 'equipo', 'al volver a entrar sigue siendo del equipo aunque no esté en TEAM_EMAILS');
+});
+
 test('la lista de ejemplo de una plantilla vieja no se acepta como lista inicial', async () => {
   const XLSX = require('xlsx');
   const { PRODUCTOS_EJEMPLO } = require('../server/plantillas');
