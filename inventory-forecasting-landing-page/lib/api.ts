@@ -37,11 +37,11 @@ export async function api<T = unknown>(metodo: string, ruta: string, cuerpo?: un
   return datos as T
 }
 
-// Vercel no deja pasar peticiones de más de 4,5 MB. Los archivos de más de 1 MB se comprimen
+// Vercel no deja pasar peticiones de más de 4,5 MB. Los archivos de más de 300 KB se comprimen
 // con gzip antes de subirlos (un .xls o un .csv baja 5 a 10 veces); el servidor los descomprime
 // (server/pedidos.js, archivoSubido). Si el navegador no sabe comprimir, va tal cual.
 export async function prepararArchivo(archivo: File): Promise<File> {
-  if (archivo.size < 1_000_000 || typeof CompressionStream === 'undefined') return archivo
+  if (archivo.size < 300_000 || typeof CompressionStream === 'undefined') return archivo
   try {
     const comprimido = await new Response(archivo.stream().pipeThrough(new CompressionStream('gzip'))).blob()
     if (comprimido.size >= archivo.size) return archivo

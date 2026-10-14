@@ -35,7 +35,30 @@ const VECES_OTRO_MES = 2; // ...si además vende más del doble que cualquier ot
  *   Sin fechas no se sabe qué es reciente, qué mes fue un pico ni cuándo empezó un producto,
  *   así que se usa el promedio simple Q ÷ T.
  */
-function calcularRotacion({ ventas, existencias, mensual = false, periodo: totales = null }) {
+// Avisos sobre el periodo que no cambian el cálculo pero sí cómo se lee: un archivo que llega
+// hasta hace semanas (las existencias son de ese día) y un hueco sin ninguna venta en la mitad
+// (casi siempre falta un archivo; el promedio sale más bajo).
+const DIAS_ARCHIVO_VIEJO = 30;
+const DIAS_HUECO = 45;
+const DIAS_HUECO_MENSUAL = 62;
+const MESES_TEXTO = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const fechaTexto = (dia) => { const d = new Date(dia * MS_DIA); return `${d.getUTCDate()} de ${MESES_TEXTO[d.getUTCMonth()]} de ${d.getUTCFullYear()}`; };
+
+function avisosDelPeriodo(ventas, hasta, mensual, hoy) {
+  const avisos = [];
+  if (hoy !== undefined && hoy - hasta > DIAS_ARCHIVO_VIEJO) {
+    avisos.push(`Tus ventas llegan hasta el ${fechaTexto(hasta)}, hace ${Math.round((hoy - hasta) / 7)} semanas. Las existencias son las de ese día: si desde entonces vendiste o te llegó mercancía, saca el informe hasta hoy.`);
+  }
+  const dias = [...new Set(ventas.filter((v) => v.cantidad > 0).map((v) => v.dia))].sort((a, b) => a - b);
+  let hueco = null;
+  for (let i = 1; i < dias.length; i++) if (!hueco || dias[i] - dias[i - 1] > hueco.dias) hueco = { desde: dias[i - 1], hasta: dias[i], dias: dias[i] - dias[i - 1] };
+  if (hueco && hueco.dias > (mensual ? DIAS_HUECO_MENSUAL : DIAS_HUECO)) {
+    avisos.push(`No hay ninguna venta entre el ${fechaTexto(hueco.desde + 1)} y el ${fechaTexto(hueco.hasta - 1)}. Si te falta el archivo de esas fechas, súbelo junto con los demás: sin él, el promedio de venta sale más bajo.`);
+  }
+  return avisos;
+}
+
+function calcularRotacion({ ventas, existencias, mensual = false, periodo: totales = null, hoy }) {
   if (!ventas.length) throw new Error('No hay ventas para calcular.');
 
   let desde = Infinity;
@@ -177,6 +200,7 @@ function calcularRotacion({ ventas, existencias, mensual = false, periodo: total
   } else if (semanasHistorico > SEMANAS_HISTORICO_MAXIMO) {
     avisos.push(`Tu archivo trae ventas de ${Math.round(semanasHistorico)} semanas (más de dos años). Se usaron todas.`);
   }
+  if (!totales) avisos.push(...avisosDelPeriodo(ventas, hasta, mensual, hoy));
   if (resumen.noEnVentas) avisos.push(`${plural(resumen.noEnVentas, 'producto tiene', 'productos tienen')} existencias pero no aparece${resumen.noEnVentas === 1 ? '' : 'n'} en las ventas. Se muestra${resumen.noEnVentas === 1 ? '' : 'n'} como "sin ventas en el periodo".`);
   if (resumen.noEnExistencias) avisos.push(`${plural(resumen.noEnExistencias, 'producto aparece', 'productos aparecen')} en las ventas pero no en las existencias. Se tomaron con 0 existencias.`);
   if (variasBodegas) avisos.push(`${plural(variasBodegas, 'producto aparece', 'productos aparecen')} en varias filas de existencias (por ejemplo, varias bodegas). Se sumaron.`);

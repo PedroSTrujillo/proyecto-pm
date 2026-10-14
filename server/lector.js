@@ -10,7 +10,8 @@ const { CAMPOS, camposDeEncabezado, normalizarEncabezado } = require('./formatos
 const V = require('./valores');
 
 const EXT_TEXTO = new Set(['csv', 'txt', 'tsv', 'prn']);
-const EXT_EXCEL = new Set(['xlsx', 'xlsm', 'xls', 'xlsb', 'ods']);
+// xml, htm y html: varios programas guardan el informe como XML de Excel 2003 o como página web.
+const EXT_EXCEL = new Set(['xlsx', 'xlsm', 'xls', 'xlsb', 'ods', 'xml', 'htm', 'html']);
 const EXT_IMAGEN = new Set(['jpg', 'jpeg', 'png', 'gif', 'heic', 'heif', 'webp', 'bmp', 'tif', 'tiff', 'pdf']);
 const MAX_PROBLEMAS_MOSTRADOS = 8;
 // Si más del 20 % de las filas (y más de 10) no se pueden leer, lo más probable es
@@ -112,7 +113,9 @@ function abrirArchivo(buffer, nombreArchivo) {
   }
   if (!buffer.length) throw new ErrorArchivo(`"${nombreArchivo}" está vacío.`);
 
-  if (EXT_TEXTO.has(ext) || (!EXT_EXCEL.has(ext) && !esLibroBinario(buffer))) {
+  // Un texto plano va por el lector propio aunque se llame .xls (hay programas que guardan así un
+  // texto separado por tabuladores): el de Excel leería "05/01/2026" como 1 de mayo.
+  if (EXT_TEXTO.has(ext) || (!esLibroBinario(buffer) && !esMarcado(buffer))) {
     const filas = parsearCSV(decodificarTexto(buffer));
     return [{ archivo: nombreArchivo, hoja: null, filas, primeraFila: 1 }];
   }
@@ -161,6 +164,13 @@ function ajustarRango(ws) {
   actual.e.r = Math.max(actual.e.r, ultimaFila);
   actual.e.c = Math.max(actual.e.c, ultimaColumna);
   ws['!ref'] = XLSX.utils.encode_range(actual);
+}
+
+// HTML o XML (un "Excel" que en realidad es una página web o un XML de Excel 2003).
+function esMarcado(buf) {
+  const inicio = buf.subarray(0, 1024);
+  const texto = inicio[0] === 0xff && inicio[1] === 0xfe ? new TextDecoder('utf-16le').decode(inicio.subarray(2)) : inicio.toString('latin1');
+  return /^(\xef\xbb\xbf)?\s*</.test(texto); // con o sin la marca de UTF-8 al comienzo
 }
 
 function esLibroBinario(buf) {

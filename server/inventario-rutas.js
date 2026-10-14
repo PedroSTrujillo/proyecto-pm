@@ -174,7 +174,7 @@ async function guardarExport(usuarioId, archivos, { periodo = null, desde = 'dat
   return procesarExport(usuarioId, null, exp.id, null);
 }
 
-rutas.post('/export', subida.array('archivos', 5), async (req, res) => {
+rutas.post('/export', subida.array('archivos', 24), async (req, res) => {
   await exigirPuedeSubir(req);
   if (!req.files || !req.files.length) throw new ErrorUsuario('Elige el archivo de ventas y existencias.');
   const archivos = req.files.map(archivoSubido);

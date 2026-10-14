@@ -246,7 +246,7 @@ export function SubirArchivos({ base, usuario, alGuardarSistema, alTerminar, tex
         <Upload className="size-8 text-primary" />
         <strong className="text-[1.05rem]">{estado === 'leyendo' ? 'Leyendo tu archivo y calculando…' : textoBoton || 'Arrastra aquí tus archivos o haz clic para buscarlos'}</strong>
         <span className="text-[0.92rem] text-muted-foreground">Excel o CSV, uno o varios, tal como salen del programa. Nosotros encontramos las columnas.</span>
-        <input ref={input} type="file" multiple accept=".xlsx,.xls,.xlsm,.xlsb,.ods,.csv,.txt" className="sr-only" onChange={(e) => subir(e.target.files)} />
+        <input ref={input} type="file" multiple accept=".xlsx,.xls,.xlsm,.xlsb,.ods,.csv,.txt,.tsv,.prn,.xml,.htm,.html" className="sr-only" onChange={(e) => subir(e.target.files)} />
       </label>
       {sistema !== 'excel' && (
         <p className="text-[0.92rem] text-muted-foreground">
@@ -274,6 +274,17 @@ export function SubirArchivos({ base, usuario, alGuardarSistema, alTerminar, tex
   )
 }
 
+// Lo que suele querer decir cada prefijo en los programas contables de Colombia. Cada empresa
+// puede usarlos distinto: por eso se muestra como "suele ser" y el usuario decide.
+const QUE_ES: Record<string, string> = {
+  FV: 'factura de venta', FE: 'factura electrónica de venta', FED: 'factura electrónica de venta', FVE: 'factura electrónica de venta',
+  POS: 'venta en caja', RM: 'remisión: salida de mercancía a un cliente', REM: 'remisión: salida de mercancía a un cliente',
+  NC: 'nota crédito: devolución de un cliente', ND: 'nota débito', DV: 'devolución', FC: 'factura de compra',
+  DS: 'documento soporte de una compra', CC: 'comprobante contable: ajuste de costo', RC: 'recibo de caja',
+  CE: 'comprobante de egreso', EA: 'entrada de almacén', SA: 'salida de almacén', TR: 'traslado entre bodegas',
+  AJ: 'ajuste de inventario', OC: 'orden de compra', '(vacío)': 'sin tipo de documento',
+}
+
 function PreguntaDocumentos({ documentos, alEnviar }: { documentos: NonNullable<Resultado['documentos']>; alEnviar: (d: string[]) => void }) {
   const [elegidos, setElegidos] = useState<Set<string>>(new Set(documentos.filter((d) => d.sugerido).map((d) => d.prefijo)))
   const [falta, setFalta] = useState(false)
@@ -284,9 +295,9 @@ function PreguntaDocumentos({ documentos, alEnviar }: { documentos: NonNullable<
   }
   return (
     <form onSubmit={enviar} className="aparecer flex flex-col gap-3 rounded-2xl border border-[#cfe5e1] bg-secondary p-5">
-      <p><strong>Tu archivo trae varios tipos de documento.</strong> Marca los que son ventas. Lo preguntamos una sola vez.</p>
+      <p><strong>Tu archivo trae varios tipos de documento.</strong> Marca los que son ventas a tus clientes (dejamos marcados los que suelen serlo). Lo preguntamos una sola vez.</p>
       <ul className="flex flex-col gap-2">
-        {documentos.map((d) => (
+        {[...documentos].sort((a, b) => Number(b.sugerido) - Number(a.sugerido) || b.filas - a.filas).map((d) => (
           <li key={d.prefijo}>
             <label className="flex items-center gap-3">
               <input
@@ -295,8 +306,11 @@ function PreguntaDocumentos({ documentos, alEnviar }: { documentos: NonNullable<
                 checked={elegidos.has(d.prefijo)}
                 onChange={(e) => setElegidos((s) => { const n = new Set(s); if (e.target.checked) n.add(d.prefijo); else n.delete(d.prefijo); return n })}
               />
-              <strong>{d.prefijo}</strong>
-              <span className="text-sm text-muted-foreground">{plural(d.filas, 'fila', 'filas')}{d.ejemplo ? `, por ejemplo "${d.ejemplo}"` : ''}</span>
+              <span>
+                <strong>{d.prefijo}</strong>
+                {QUE_ES[d.prefijo] && <span className="text-[0.93rem]"> · suele ser {QUE_ES[d.prefijo]}</span>}
+                <span className="block text-sm text-muted-foreground">{plural(d.filas, 'fila', 'filas')}{d.ejemplo ? `, por ejemplo "${d.ejemplo}"` : ''}</span>
+              </span>
             </label>
           </li>
         ))}

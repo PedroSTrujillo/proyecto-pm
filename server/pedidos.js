@@ -23,7 +23,7 @@ const { correoConfigurado } = require('./correo');
 const MAX_LINEAS = 5000;
 const subida = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 40 * 1024 * 1024, files: 5 },
+  limits: { fileSize: 40 * 1024 * 1024, files: 24 },
 });
 
 // Un archivo subido: nombre en UTF-8 y contenido. En Vercel una petición no puede pasar de 4,5 MB,
@@ -318,7 +318,7 @@ async function procesarExport(usuarioId, pedido, exportId, manual) {
   }
   // Los documentos que marcó como ventas se recuerdan: la próxima vez su informe se lee solo.
   if (lectura.documentos) for (const [firma, lista] of Object.entries(lectura.documentos)) await recordarMapeo(usuarioId, 'documentos', firma, lista);
-  const rotacion = calcularRotacion({ ventas: lectura.ventas, existencias: lectura.existencias, mensual: lectura.mensual, periodo: lectura.periodo });
+  const rotacion = calcularRotacion({ ventas: lectura.ventas, existencias: lectura.existencias, mensual: lectura.mensual, periodo: lectura.periodo, hoy: Math.floor(Date.now() / 86400000) });
   const reporte = {
     ...rotacion,
     avisos: [...lectura.avisos, ...rotacion.avisos],
@@ -343,7 +343,7 @@ function exigirInicialGuardada(p) {
   }
 }
 
-rutas.post('/:id/export', subida.array('archivos', 5), async (req, res) => {
+rutas.post('/:id/export', subida.array('archivos', 24), async (req, res) => {
   const p = await pedidoDe(req);
   exigirInicialGuardada(p);
   if (p.terminado_en) throw new ErrorUsuario('Este pedido ya está terminado.', 409);

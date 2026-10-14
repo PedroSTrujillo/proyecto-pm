@@ -32,7 +32,7 @@ npm install
 npm install --no-package-lock --prefix inventory-forecasting-landing-page   # la web (Next.js); pnpm se colgaba en Windows
 TEAM_EMAILS=tu-correo@ejemplo.com npm run dev    # http://localhost:3000: API + Next.js en modo desarrollo; PGlite en data/pglite/
 npm run build && NODE_ENV=production npm start  # en producción con un servidor propio (en Vercel: docs/PUBLICAR.md)
-npm test                                         # node --test test/*.test.js (93 pruebas; no necesitan la web)
+npm test                                         # node --test test/*.test.js (94 pruebas; no necesitan la web)
 node --test test/rotacion.test.js                # un solo archivo
 node --test --test-name-pattern="M = 5" test/listas.test.js   # una prueba por nombre
 npm run ejemplos                                 # regenera los exports inventados de ejemplos/
@@ -88,7 +88,7 @@ Consecuencias que no se ven leyendo un solo archivo:
 
 **Cuentas:** `/api/cuenta/datos` (nombre y programa contable), `/clave` (cambiar), `/olvide` y `/restablecer` (enlace de un solo uso, 24 horas, tabla `restablecimientos` con el hash del token). Sin correo configurado, el enlace lo genera el equipo desde "Resultados de la prueba".
 
-**Lector de archivos** (`lector.js` + `formatos.js`): busca la fila de encabezados y reconoce las columnas por sinónimos normalizados (minúsculas, sin tildes, sin palabras vacías). Acepta CSV con `;` o `,` en UTF-8 o ANSI, varias hojas o archivos, columnas por mes, y fechas y números en formato colombiano. Si falta un campo, devuelve las hojas con columnas de muestra para que el usuario elija la columna desde la pantalla, y el mapeo se recuerda por firma de encabezados en `usuarios.mapeos`. **Para adaptar un formato nuevo se agregan sinónimos en `formatos.js`, sin tocar `lector.js`.** Rechaza imágenes y PDFs a propósito.
+**Lector de archivos** (`lector.js` + `formatos.js`): busca la fila de encabezados y reconoce las columnas por sinónimos normalizados (minúsculas, sin tildes, sin palabras vacías). Acepta CSV con `;` o `,` en UTF-8 o ANSI (y cualquier texto plano aunque se llame .xls: va por el lector propio, que lee día/mes), Excel 2003 en XML y "Excel" que en realidad es HTML, varias hojas o archivos, columnas por mes, y fechas y números en formato colombiano. Si falta un campo, devuelve las hojas con columnas de muestra para que el usuario elija la columna desde la pantalla, y el mapeo se recuerda por firma de encabezados en `usuarios.mapeos`. **Para adaptar un formato nuevo se agregan sinónimos en `formatos.js`, sin tocar `lector.js`.** Rechaza imágenes y PDFs a propósito.
 
 ## Lineamientos
 

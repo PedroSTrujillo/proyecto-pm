@@ -190,3 +190,18 @@ test('con totales de un periodo se usa el promedio simple sobre ese periodo, sin
   assert.ok(Math.abs(t.semanasInventario - 2) < 1e-9);
   assert.deepEqual(t.senales, [], 'sin fechas no hay picos ni productos nuevos');
 });
+
+test('avisa si el archivo llega hasta hace semanas y si falta un pedazo del periodo', () => {
+  // Ventas cada semana de octubre a diciembre de 2025 y de marzo a agosto de 2026: faltan enero y febrero.
+  const ventas = [];
+  for (let d = diaDe(2025, 10, 1); d <= diaDe(2026, 8, 31); d += 7) {
+    if (d > diaDe(2025, 12, 31) && d < diaDe(2026, 3, 1)) continue;
+    ventas.push({ codigo: 'A', nombre: 'Uno', dia: d, cantidad: 2 });
+  }
+  const existencias = [{ codigo: 'A', nombre: 'Uno', existencias: 10 }];
+  const r = calcularRotacion({ ventas, existencias, hoy: diaDe(2026, 10, 13) });
+  assert.ok(r.avisos.some((a) => /llegan hasta el \d+ de agosto de 2026, hace \d+ semanas/.test(a)), r.avisos.join(' | '));
+  assert.ok(r.avisos.some((a) => /No hay ninguna venta entre el \d+ de (diciembre de 2025|enero de 2026) y el \d+ de (febrero|marzo) de 2026/.test(a)), r.avisos.join(' | '));
+  const sinHoy = calcularRotacion({ ventas, existencias });
+  assert.ok(!sinHoy.avisos.some((a) => a.includes('llegan hasta')), 'sin la fecha de hoy (la demo) no se avisa');
+});

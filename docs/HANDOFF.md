@@ -27,6 +27,20 @@
 
 ---
 
+## 2026-10-13 (25) — Claude — importación más robusta para cualquier programa
+- **Rama:** `mejoras-modelo` (y `main`), en los dos repos.
+- **Estado:**
+  - Los dos archivos reales de Siigo Nube del probador pasan por la API de punta a punta (subir juntos → marcar FV y RM → reporte con 784 productos).
+  - Formatos probados con la misma tabla: xlsx, xls, ods, CSV, TXT, TSV con extensión .xls (antes leía 05/01 como 1 de mayo), HTML con extensión .xls o .htm, XML de Excel 2003 (.xml o .xls), con y sin marca UTF-8. Todos dan las mismas ventas y existencias.
+  - Hasta 24 archivos por subida (antes 5: no alcanzaba para quien exporta mes por mes); los de más de 300 KB se comprimen en el navegador.
+  - Avisos nuevos en el reporte (`avisosDelPeriodo`, rotacion.js): el archivo llega hasta hace más de 30 días (las existencias son de ese día) y un hueco de más de 45 días sin ninguna venta (falta un archivo). Solo los reportes de pedidos pasan `hoy`; la demo no.
+  - "¿Qué documentos son ventas?": cada prefijo dice lo que suele ser (FV, RM, NC, FC, CC…) y los sugeridos van primero.
+  - Guía de Siigo Nube: el Movimiento de productos solo basta (`unInforme`).
+- **Archivos tocados:** `server/lector.js`, `server/rotacion.js`, `server/pedidos.js`, `server/inventario-rutas.js`, `server/app.js`, `components/app/subir.tsx`, `components/app/pedido-flujo.tsx`, `lib/api.ts`, `lib/sistemas.ts` y `public/js/sistemas.js`, pruebas.
+- **Verificación:** `npm test` → 94/94; en el navegador (local), un kardex inventado con la forma de Siigo: la pregunta de documentos con sus significados y el reporte.
+- **Siguiente paso exacto:** pedirle a cada probador su export real antes de la prueba y pasarlo por `flujo-api.js` (o subirlo con una cuenta del equipo).
+- **Notas y bloqueos:** las notas crédito (devoluciones) no se restan de las ventas.
+
 ## 2026-10-13 (24) — Claude — "Movimiento de productos" de Siigo Nube
 - **Rama:** `mejoras-modelo` (y `main`), en los dos repos.
 - **Estado:** un export real de Siigo Nube ("Movimiento de productos", kardex de la A a la N) salía con "solo una columna": el archivo declara la hoja como A1:A3935. Ahora:

@@ -21,6 +21,14 @@ export const SISTEMAS = [
   {
     id: 'siigo-nube',
     nombre: 'Siigo Nube',
+    // El Movimiento de productos trae, por producto, las salidas y el saldo: basta con él (probado
+    // con un export real de 2026-10). El saldo es el de la fecha final del informe.
+    unInforme: [
+      'Reportes › Productos y servicios › Saldos y movimientos › Movimiento de productos.',
+      'Fecha de elaboración: del último año hasta hoy. Tipo: Producto.',
+      'Clic en "Exportar datos". Si lo sacas por partes (por ejemplo, por trimestres), sube todos los archivos juntos.',
+    ],
+    unInformeNota: 'Trae cada factura y remisión con la cantidad que salió, y el saldo de cada producto. Al subirlo te preguntamos qué documentos son ventas.',
     ventas: [
       'Reportes › Productos y servicios › Saldos y movimientos › Movimiento de productos.',
       'Fecha de elaboración: el último año. Tipo: Producto.',

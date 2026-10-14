@@ -99,7 +99,7 @@ function crearApp({ web = null, dev = false } = {}) {
       const mensaje = err.code === 'LIMIT_FILE_SIZE'
         ? 'El archivo es muy grande (máximo 40 MB). Si es un Excel, prueba guardarlo como CSV.'
         : err.code === 'LIMIT_FILE_COUNT' || err.code === 'LIMIT_UNEXPECTED_FILE'
-          ? 'Sube como máximo 5 archivos a la vez.'
+          ? 'Sube como máximo 24 archivos a la vez (por ejemplo, dos años mes por mes).'
           : 'No pudimos recibir el archivo. Intenta de nuevo.';
       return res.status(400).json({ error: mensaje });
     }

@@ -237,7 +237,7 @@ function ImportarLista({ pedidoId, para, hoja, alImportar }: { pedidoId: number;
             ref={input}
             type="file"
             className="sr-only"
-            accept=".xlsx,.xls,.xlsm,.ods,.csv,.txt"
+            accept=".xlsx,.xls,.xlsm,.xlsb,.ods,.csv,.txt,.tsv,.prn,.xml,.htm,.html"
             onChange={(e) => {
               const f = e.target.files?.[0]
               if (!f) return
