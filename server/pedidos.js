@@ -19,7 +19,7 @@ const { seriesSemanales } = require('./series');
 const { revisarLista, compararListas, coherenciaConReporte } = require('./listas');
 const recordatorios = require('./recordatorios');
 const { correoConfigurado } = require('./correo');
-const { leerAjustes } = require('./inventario');
+const { leerAjustes, construirInventario } = require('./inventario');
 
 const MAX_LINEAS = 5000;
 const subida = multer({
@@ -459,6 +459,28 @@ rutas.get('/:id/reporte', async (req, res) => {
   }
   const archivos = await db.query('SELECT nombre FROM archivos WHERE export_id = $1 ORDER BY id', [e.id]);
   res.json({ reporte: { ...conUmbral(e.reporte, semanasAgota), subidoEn: e.subido_en, archivos: archivos.map((a) => a.nombre) } });
+});
+
+// Paso 4: la cantidad sugerida de cada producto (el modelo de §7: pronóstico, tiempo de entrega,
+// cada cuánto pide, paquetes y 9 de cada 10 veces sin quedarse corto), con los tiempos que el
+// usuario tiene en Datos. Es una ayuda: la lista final la escribe el usuario y eso es lo que se mide.
+rutas.get('/:id/sugerido', async (req, res) => {
+  const p = await pedidoDe(req);
+  if (!p.reporte_visto_en || !p.export_id) throw new ErrorUsuario('Primero mira el reporte de rotación.', 409);
+  const e = await db.uno("SELECT reporte, series, catalogo FROM exports WHERE id = $1 AND estado = 'ok'", [p.export_id]);
+  if (!e) throw new ErrorUsuario('Primero sube tu export de ventas y existencias.', 409);
+  const u = await db.uno('SELECT inventario FROM usuarios WHERE id = $1', [req.usuario.id]);
+  const ajustes = { ...((u && u.inventario) || {}), semanasAgota: p.semanas_agota || (e.reporte.umbrales && e.reporte.umbrales.seAgota) || SEMANAS_SE_AGOTA };
+  const inv = construirInventario({ reporte: e.reporte, series: e.series, catalogo: e.catalogo || {}, ajustes, alcance: 'completo' });
+  res.json({
+    entrega: inv.ajustes.entregaPorDefecto,
+    cadaCuanto: inv.ajustes.cadaCuanto,
+    nivelServicio: inv.ajustes.nivelServicio,
+    productos: inv.productos.map((x) => ({
+      codigo: x.codigo, nombre: x.nombre, sugerido: x.sugerido, semanas: x.semanas, estado: x.estado,
+      ventasSemana: x.ventasSemana, existencias: x.existencias, entrega: x.entrega, lote: x.lote, proveedor: x.proveedor,
+    })),
+  });
 });
 
 // Paso 2: con cuántas semanas este pedido marca "se agota". También queda como el de Datos.

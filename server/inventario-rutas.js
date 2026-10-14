@@ -58,18 +58,19 @@ async function inicioDePrueba(usuarioId) {
   return r && r.inicio ? new Date(r.inicio) : null;
 }
 
-// Qué puede ver y hacer el usuario según dónde va en la prueba. Durante sus 14 días un probador
-// ve solo el alcance declarado en el plan de prueba (el reporte de semanas); después, todo.
+// Qué puede ver y hacer el usuario: el inventario aparece después de su primera lista inicial.
 async function permisos(usuario) {
   if (usuario.rol === 'equipo') return { puedeSubir: true, sugerencias: true, alcance: 'completo', finPrueba: null };
   const inicio = await inicioDePrueba(usuario.id);
   const fin = inicio ? new Date(inicio.getTime() + DIAS_PRUEBA * 86400000) : null;
   const terminada = Boolean(fin && Date.now() > fin.getTime());
+  // Desde el 2026-10-14 (decisión del equipo) el probador ve todo desde el primer día: el reporte,
+  // el pronóstico y la cantidad sugerida. La ventana de 14 días de la prueba no cambia.
   return {
     puedeSubir: Boolean(inicio),
-    sugerencias: terminada,
-    alcance: terminada ? 'completo' : 'prueba',
-    finPrueba: fin,
+    sugerencias: true,
+    alcance: 'completo',
+    finPrueba: terminada ? null : fin,
   };
 }
 

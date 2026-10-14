@@ -575,6 +575,95 @@ function Recordatorio({ pedidoId }: { pedidoId: number }) {
 
 // --- Paso 4 -----------------------------------------------------------------------------------
 
+type ProductoSugerido = { codigo: string; nombre: string; sugerido: number | null; semanas: number | null; estado: string; ventasSemana: number; existencias: number; entrega: number; lote: number | null; proveedor: string }
+type Sugerido = { entrega: number; cadaCuanto: number; nivelServicio: number; productos: ProductoSugerido[] }
+
+// Lo que sugiere el modelo para este pedido: se puede ajustar el tiempo de entrega y cada cuánto
+// pide, llevar las cantidades sugeridas a la lista o agregar lo que se agota y no está en ella.
+function RecuadroSugerido({ sug, hoja, alCambiarLista, alCambiarAjustes }: { sug: Sugerido; hoja: React.RefObject<HojaApi | null>; alCambiarLista: () => void; alCambiarAjustes: () => void }) {
+  const [guardando, setGuardando] = useState(false)
+  const [hecho, setHecho] = useState<string | null>(null)
+  const enLista = new Set((hoja.current?.lineas() || []).map((l) => claveCodigo(l.codigo)))
+  const faltan = sug.productos.filter((p) => (p.estado === 'agota' || p.estado === 'pide') && (p.sugerido || 0) > 0 && !enLista.has(claveCodigo(p.codigo)))
+  const porCodigo = new Map(sug.productos.map((p) => [claveCodigo(p.codigo), p]))
+
+  async function ajustar(campo: 'entregaPorDefecto' | 'cadaCuanto', valor: number) {
+    setGuardando(true)
+    try {
+      await api('PUT', '/inventario/ajustes', { [campo]: valor })
+      alCambiarAjustes()
+    } finally {
+      setGuardando(false)
+    }
+  }
+  function usarSugeridas() {
+    const lineas = hoja.current?.lineas() || []
+    let n = 0
+    const nuevas = lineas.map((l) => {
+      const x = porCodigo.get(claveCodigo(l.codigo))
+      if (!l.codigo || !x || x.sugerido === null || String(x.sugerido) === l.cantidad) return l
+      n++
+      return { ...l, nombre: l.nombre || x.nombre, cantidad: String(x.sugerido) }
+    })
+    hoja.current?.fijar(nuevas)
+    alCambiarLista()
+    setHecho(n ? `Se pusieron las cantidades sugeridas en ${plural(n, 'producto', 'productos')}. Revísalas antes de guardar.` : 'Tu lista ya tiene las cantidades sugeridas.')
+  }
+  function agregarFaltantes() {
+    const lineas = (hoja.current?.lineas() || []).filter((l) => l.codigo || l.nombre || l.cantidad)
+    hoja.current?.fijar([...lineas, ...faltan.map((p) => ({ codigo: p.codigo, nombre: p.nombre, cantidad: String(p.sugerido) }))])
+    alCambiarLista()
+    setHecho(`Se agregaron ${plural(faltan.length, 'producto', 'productos')} con su cantidad sugerida. Quita los que no vayas a pedir.`)
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-2xl border border-[#cfe5e1] bg-secondary p-4 sm:p-5">
+      <div>
+        <strong className="text-[0.97rem]">Lo que sugiere SINESC</strong>
+        <p className="mt-1 text-[0.93rem] text-muted-foreground">
+          Para cada producto, lo que te falta para no quedarte sin él hasta que llegue tu siguiente pedido: lo que vendes por semana (lo reciente pesa más y se tiene en cuenta la temporada), cuánto tarda tu proveedor y cada cuánto pides, en {Math.round(sug.nivelServicio * 10)} de cada 10 casos. Ya resta lo que tienes, y si un producto se vende siempre por paquetes, redondea al paquete.
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-x-8 gap-y-3">
+        <div className="flex items-center gap-3 text-[0.93rem]">
+          <span>Tu proveedor tarda</span>
+          <Contador valor={sug.entrega} etiqueta="el tiempo de entrega" paso={1} onMover={(d) => !guardando && ajustar('entregaPorDefecto', Math.max(0, Math.min(26, sug.entrega + d)))} />
+        </div>
+        <div className="flex items-center gap-3 text-[0.93rem]">
+          <span>Pides cada</span>
+          <Contador valor={sug.cadaCuanto} etiqueta="cada cuánto pides" paso={1} onMover={(d) => !guardando && ajustar('cadaCuanto', Math.max(1, Math.min(26, sug.cadaCuanto + d)))} />
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">Si en Datos le pusiste a un proveedor su propio tiempo de entrega, sus productos usan ese.</p>
+      <div className="flex flex-wrap gap-2">
+        <Boton tamano="chico" onClick={usarSugeridas}>Usar las cantidades sugeridas en mi lista</Boton>
+        {faltan.length > 0 && (
+          <Boton tamano="chico" onClick={agregarFaltantes}>Agregar lo que se agota y no está en mi lista ({faltan.length})</Boton>
+        )}
+      </div>
+      {faltan.length > 0 && (
+        <details className="text-[0.9rem]">
+          <summary className="cursor-pointer text-muted-foreground">Ver cuáles se agotan y no están en tu lista</summary>
+          <ul className="mt-2 list-disc space-y-0.5 pl-5">
+            {faltan.slice(0, 40).map((p) => <li key={p.codigo}>{p.codigo} · {p.nombre}: te alcanza para {semanas(p.semanas ?? 0)} semanas; sugerido {numero(p.sugerido ?? 0)}</li>)}
+          </ul>
+          {faltan.length > 40 && <p className="mt-1 text-muted-foreground">Y {faltan.length - 40} más.</p>}
+        </details>
+      )}
+      {hecho && <p className="text-[0.93rem] font-semibold text-primary" aria-live="polite">{hecho}</p>}
+    </div>
+  )
+}
+
+function useSugerido(pedidoId: number) {
+  const [sug, setSug] = useState<Sugerido | null>(null)
+  const cargar = useCallback(() => {
+    api<Sugerido>('GET', `/pedidos/${pedidoId}/sugerido`).then(setSug).catch(() => setSug(null))
+  }, [pedidoId])
+  useEffect(cargar, [cargar])
+  return { sug, cargar }
+}
+
 function Paso4({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
   const { r, error: errorReporte } = useReporte(pedido.id)
   const hoja = useRef<HojaApi>(null)
@@ -585,6 +674,7 @@ function Paso4({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
   const auto = useAutoguardado(() => api('PUT', `/pedidos/${pedido.id}/lista-final`, { lineas: hoja.current?.lineas() || [] }))
   // Los códigos que hay en la hoja ahora, para mostrar lo que se quitó de la lista inicial.
   const [actuales, setActuales] = useState<Set<string> | null>(null)
+  const { sug, cargar: cargarSugerido } = useSugerido(pedido.id)
   const cambio = () => {
     auto.cambio()
     setActuales(new Set((hoja.current?.lineas() || []).map((l) => claveCodigo(l.codigo))))
@@ -596,6 +686,7 @@ function Paso4({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
   const porCodigo = new Map(r.filas.map((f) => [claveCodigo(f.codigo), f]))
   const inicial = new Map(pedido.listaInicial.map((l) => [claveCodigo(l.codigo), l]))
   const cantidad = (v: unknown) => Number(String(v ?? '').trim().replace(',', '.'))
+  const sugPorCodigo = new Map((sug?.productos || []).map((x) => [claveCodigo(x.codigo), x]))
   const extras: Extra[] = [
     {
       titulo: 'Ibas a pedir',
@@ -604,6 +695,17 @@ function Paso4({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
         const x = inicial.get(claveCodigo(l.codigo))
         if (!x) return { texto: '—', clase: 'text-muted-foreground' }
         return { texto: numero(cantidad(x.cantidad)), clase: 'tabular-nums text-muted-foreground' }
+      },
+    },
+    {
+      titulo: 'Sugerido',
+      valor: (l) => {
+        if (!l.codigo || !sug) return { texto: '' }
+        const x = sugPorCodigo.get(claveCodigo(l.codigo))
+        if (!x) return { texto: '—', clase: 'text-muted-foreground' }
+        if (x.sugerido === null) return { texto: 'sin ventas', clase: 'text-azul' }
+        if (x.sugerido === 0) return { texto: '0, te alcanza', clase: 'text-muted-foreground' }
+        return { texto: numero(x.sugerido), clase: 'tabular-nums font-semibold text-primary' }
       },
     },
     {
@@ -679,10 +781,11 @@ function Paso4({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
       {ventana}
       <div>
         <h2 className="text-xl font-bold">Lo que de verdad vas a pedir</h2>
-        <p className="mt-1 text-muted-foreground">SINESC no te sugiere cantidades: tú decides con lo que viste en el reporte. Arrancamos con una copia de tu lista inicial, por eso al comienzo "Vas a pedir" e "Ibas a pedir" son iguales. Cambia la columna "Vas a pedir", agrega o quita productos, y en "Cambio" ves la diferencia. Puedes mirar el reporte aquí mismo mientras editas.</p>
+        <p className="mt-1 text-muted-foreground">Arrancamos con una copia de tu lista inicial, por eso al comienzo "Vas a pedir" e "Ibas a pedir" son iguales. Al lado ves lo que SINESC te sugiere pedir de cada producto. Tú decides: cambia "Vas a pedir", agrega o quita productos, y en "Cambio" ves la diferencia.</p>
       </div>
       <Boton tamano="chico" className="self-start" aria-expanded={verReporte} onClick={() => setVerReporte((v) => !v)}>{verReporte ? 'Ocultar el reporte' : 'Mostrar el reporte'}</Boton>
       {verReporte && <div className="aparecer"><Reporte r={r} compacto /></div>}
+      {sug && <RecuadroSugerido sug={sug} hoja={hoja} alCambiarLista={cambio} alCambiarAjustes={cargarSugerido} />}
       <ImportarLista pedidoId={pedido.id} para="final" hoja={hoja} alImportar={cambio} />
       <Hoja ref={hoja} inicial={conNombres(pedido.listaFinal || pedido.listaInicial)} extras={extras} alCambiar={cambio} tituloCantidad="Vas a pedir" />
       {quitados.length > 0 && (

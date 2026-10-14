@@ -20,7 +20,7 @@ Para medirlo, cada pedido es un flujo de 5 pasos y sus reglas las hace cumplir e
 4. **Tu lista final:** arranca como copia de la inicial y la cambia con el reporte al lado. La columna "Cambio" muestra la diferencia.
 5. **¿Por qué cambió?:** texto libre. Con eso el pedido queda terminado.
 
-La app compara las dos listas por código y cuenta las líneas agregadas, quitadas y con otra cantidad. El veredicto de la prueba sale de la base de datos, en "Resultados de la prueba". Durante sus 14 días, un probador ve solo el reporte de semanas que declara el plan de prueba: sin pronóstico, sin tiempo de entrega y sin cantidad sugerida. Después de la prueba, y para el equipo, la app además tiene:
+La app compara las dos listas por código y cuenta las líneas agregadas, quitadas y con otra cantidad. El veredicto de la prueba sale de la base de datos, en "Resultados de la prueba". En la lista final (paso 4), al lado de cada producto, SINESC muestra la cantidad que sugiere pedir el modelo, con el tiempo de entrega y cada cuánto pide el usuario (los puede cambiar ahí mismo). El usuario decide: puede llevar las sugeridas a su lista, agregar lo que se agota o dejar lo suyo. Desde el 2026-10-14 los probadores ven todo desde el primer día:
 - un panel con lo que hay que atender;
 - la ficha de cada producto con su pronóstico;
 - el riesgo de agotarse antes de que llegue un pedido;
@@ -151,7 +151,7 @@ Probado con archivos reales: el "Movimiento detalle" de Helisa (26.000 filas) y 
 | Proveedores, mínimos y máximos | Proveedor por producto o por comienzo de código (`usuarios.inventario`); mínimos y máximos en la ficha y en Excel (`/api/exportar/minimos.xlsx`) |
 | Demo sin cuenta | `server/demo.js` (el mismo cálculo que un archivo real), `/demo` |
 
-**Cambio de alcance (2026-10-11):** el producto ya sugiere cuánto pedir y ajusta por temporada y por el tiempo de entrega de cada proveedor (§7 del modelo). Para no contaminar la métrica, durante sus 14 días un probador ve solo el reporte de semanas y no ve su inventario antes de guardar su primera lista inicial. Este cambio necesita su fila en "4 · Cambios y Reflexión" del Entregable. Sigue sin conectarse al software contable.
+**Cambio de alcance (2026-10-11 y 2026-10-14):** el producto sugiere cuánto pedir y ajusta por temporada y por el tiempo de entrega de cada proveedor (§7 del modelo). Desde el 2026-10-14 el probador lo ve desde el primer día, también en la lista final. Sigue sin ver su inventario antes de guardar su primera lista inicial, y la lista final la escribe él. Este cambio va en la columna "Si cambió" de la Solución en el Entregable 3. Sigue sin conectarse al software contable.
 
 ## Estructura
 

@@ -322,10 +322,10 @@ test('demo sin cuenta: lista de negocios y el inventario de ejemplo, con tiempos
   assert.equal((await c.get('/api/demo/no-existe')).estado, 404);
 });
 
-test('inventario guardado: no se ve antes de la lista inicial, sin sugerido en la prueba y se reusa en otro pedido', async () => {
+test('inventario guardado: no se ve antes de la lista inicial, con sugerido desde el primer día y se reusa en otro pedido', async () => {
   const beto = await nuevoUsuario('Beto', 'beto.inventario@prueba.co');
   const antes = await beto.get('/api/inventario');
-  assert.deepEqual([antes.inventario, antes.puedeSubir, antes.sugerencias], [null, false, false]);
+  assert.deepEqual([antes.inventario, antes.puedeSubir], [null, false]);
   assert.equal((await beto.subir('/api/inventario/export', [['e.xlsx', (await plantillaExport())]])).estado, 403, 'sin lista inicial no puede ver su inventario');
 
   const { pedido } = await beto.post('/api/pedidos');
@@ -334,8 +334,8 @@ test('inventario guardado: no se ve antes de la lista inicial, sin sugerido en l
 
   const inv = await beto.get('/api/inventario');
   assert.equal(inv.puedeSubir, true);
-  assert.equal(inv.sugerencias, false, 'durante sus 14 días no ve cantidad sugerida');
-  assert.ok(inv.inventario.productos.every((p) => p.sugerido === null));
+  assert.equal(inv.sugerencias, true, 'desde el 2026-10-14 el probador ve la cantidad sugerida desde el primer día');
+  assert.ok(inv.inventario.productos.some((p) => p.sugerido > 0));
   assert.equal(inv.inventario.resumen.tieneCostos, false, 'la plantilla de export no trae costos: el dinero quieto se cuenta en productos');
 
   const guardados = await beto.put('/api/inventario/ajustes', { entregaPorDefecto: 3, cadaCuanto: 2 });
@@ -400,22 +400,30 @@ test('ajustes del inventario: guardar una parte no borra lo demás; Excel de mí
   assert.deepEqual(filas.find((f) => f[0] === 'A1'), ['A1', 'Uno', 'P', 3, 5, 12, 2.5]);
 });
 
-test('alcance del plan de prueba: un probador en sus 14 días ve solo el reporte de semanas', async () => {
+test('un probador ve todo desde el primer día y el paso 4 trae la cantidad sugerida de cada producto', async () => {
   const pepa = await nuevoUsuario('Pepa', 'pepa.alcance@prueba.co');
   const { pedido } = await pepa.post('/api/pedidos');
   await pepa.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
   await pepa.subir(`/api/pedidos/${pedido.id}/export`, [['e.xlsx', (await plantillaExport())]]);
+  assert.equal((await pepa.get(`/api/pedidos/${pedido.id}/sugerido`)).estado, 409, 'antes de ver el reporte no hay sugerido');
   const r = await pepa.get('/api/inventario');
-  assert.equal(r.alcance, 'prueba');
+  assert.equal(r.alcance, 'completo');
+  assert.ok(r.finPrueba, 'la ventana de 14 días sigue contando');
   const inv = r.inventario;
-  assert.equal(inv.alcance, 'prueba');
-  assert.ok(inv.productos.every((p) => p.riesgo === null && p.pronostico === null && p.sugerido === null && p.minimo === null), 'sin pronóstico, riesgo ni sugerido');
-  assert.ok(inv.productos.every((p) => p.estado !== 'pide'), 'sin tiempo de entrega no hay "pide ya"');
-  assert.equal(inv.temporada, null);
-  assert.deepEqual(inv.grafico ? inv.grafico.pronostico : [], []);
+  assert.ok(inv.productos.some((p) => p.sugerido > 0 && p.pronostico), 'con pronóstico y sugerido');
   // Las semanas son las mismas del reporte que mide la prueba.
   const { reporte } = await pepa.get(`/api/pedidos/${pedido.id}/reporte`);
   for (const f of reporte.filas) assert.equal(inv.productos.find((p) => p.codigo === f.codigo).semanas, f.semanasInventario);
+  const sug = await pepa.get(`/api/pedidos/${pedido.id}/sugerido`);
+  assert.equal(sug.estado, 200);
+  assert.ok(sug.entrega >= 0 && sug.cadaCuanto >= 1);
+  assert.equal(sug.productos.length, reporte.filas.length);
+  assert.ok(sug.productos.some((p) => p.sugerido > 0), 'algún producto trae cantidad sugerida');
+  // Con más tiempo de entrega se sugiere más.
+  const antes = sug.productos.reduce((t, p) => t + (p.sugerido || 0), 0);
+  await pepa.put('/api/inventario/ajustes', { entregaPorDefecto: 6 });
+  const mas = await pepa.get(`/api/pedidos/${pedido.id}/sugerido`);
+  assert.ok(mas.productos.reduce((t, p) => t + (p.sugerido || 0), 0) > antes);
 });
 
 test('clasificar el "¿por qué?": cambiar por probar la herramienta cuenta para el pivote', async () => {
@@ -627,13 +635,13 @@ test('cada tipo de usuario ve lo que le toca: visitante, probador nuevo, en prue
   assert.equal((await tito.get('/api/equipo/resultados')).estado, 403);
   assert.equal((await tito.get('/api/equipo/ejemplos')).estado, 403);
 
-  // En prueba: solo semanas, sin sugerido.
+  // En prueba: ya ve todo (desde el 2026-10-14).
   const { pedido } = await tito.post('/api/pedidos');
   await tito.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
   await tito.subir(`/api/pedidos/${pedido.id}/export`, [['e.xlsx', await plantillaExport()]]);
   const enPrueba = await tito.get('/api/inventario');
-  assert.equal(enPrueba.alcance, 'prueba');
-  assert.equal(enPrueba.sugerencias, false);
+  assert.equal(enPrueba.alcance, 'completo');
+  assert.equal(enPrueba.sugerencias, true);
 
   // Después de sus 14 días: ve todo, con pronóstico y sugerido.
   await db.query("UPDATE pedidos SET inicial_guardada_en = now() - interval '15 days' WHERE id = $1", [pedido.id]);

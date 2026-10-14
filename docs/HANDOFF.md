@@ -27,6 +27,14 @@
 
 ---
 
+## 2026-10-14 (29) — Claude — la lista final sugiere cuánto pedir
+- **Rama:** `main` y `mejoras-modelo`, en los dos repos.
+- **Estado:** decisión del equipo: la app sugiere el stock con el modelo (§7) también en la prueba. `permisos` da `alcance: 'completo'` a todos desde el primer día (la ventana de 14 días sigue). Ruta nueva `GET /api/pedidos/:id/sugerido` (después de ver el reporte) con la cantidad sugerida de cada producto, usando el umbral del pedido y los tiempos de Datos. En el paso 4: columna "Sugerido" y recuadro "Lo que sugiere SINESC" con el tiempo de entrega y cada cuánto pide (se cambian ahí y guardan en Datos), "Usar las cantidades sugeridas en mi lista" y "Agregar lo que se agota y no está en mi lista". La lista final la sigue escribiendo el usuario.
+- **Archivos tocados:** `server/pedidos.js`, `server/inventario-rutas.js`, `components/app/pedido-flujo.tsx`, pruebas de API, CLAUDE.md, README, ENTREGABLE_Y_APP.
+- **Verificación:** `npm test` → 103/103; en el navegador (local) con los archivos reales del probador: sugeridos coherentes (en cero → 26; 4 semanas → 14; sobra → 0); subir el tiempo de entrega a 3 sube los sugeridos; el botón lleva las sugeridas a la lista y "Cambio" lo muestra.
+- **Siguiente paso exacto:** en el Entregable 3, escribir en "Si cambió" de la Solución que la lista final muestra el sugerido desde el 2026-10-14, y por qué.
+- **Notas y bloqueos:** con "Usar las cantidades sugeridas" un probador puede cambiar muchas líneas de un clic; por eso pesa más que nunca marcar cada "¿por qué?" (dato contra probar la herramienta).
+
 ## 2026-10-14 (28) — Claude — rama de Santiago integrada en main
 - **Rama:** `main` y `mejoras-modelo` en los dos repos, con `santiago` (umbral de "se agota" que elige cada cuenta) integrada.
 - **Estado:** la rama venía de antes de las entradas 21 a 27 y chocaba en `server/pedidos.js`, `server/rotacion.js`, dos archivos de pruebas, README y esta bitácora. Se conservó todo: `calcularRotacion` recibe `semanasAgota` (Santiago) y `hoy` (avisos de archivo viejo y meses sin ventas); las pruebas de los dos quedan; la entrada de Santiago queda como (20b). Se ajustó el texto del paso 2 cuando el usuario ya cambió el umbral ("Está en 4, también para tus próximos pedidos").
