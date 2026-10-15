@@ -109,7 +109,11 @@ const MAX_CALCULADOS = 40;
 rutas.get('/', async (req, res) => {
   const per = await permisos(req.usuario);
   const cab = await db.uno(`SELECT id FROM exports WHERE usuario_id = $1 AND estado = 'ok' AND ${db.EXPORT_VIGENTE} ORDER BY subido_en DESC, id DESC LIMIT 1`, [req.usuario.id]);
-  if (!cab) return res.json({ inventario: null, ...per });
+  if (!cab) {
+    // Sin archivo todavía: igual van sus ajustes (proveedores y tiempos), para el paso 1 del pedido.
+    const u = await db.uno('SELECT inventario FROM usuarios WHERE id = $1', [req.usuario.id]);
+    return res.json({ inventario: null, ajustes: leerAjustes(u && u.inventario), ...per });
+  }
   const u = await db.uno('SELECT inventario, sistema, nombre FROM usuarios WHERE id = $1', [req.usuario.id]);
   const llave = JSON.stringify([cab.id, per.alcance, u.inventario, u.sistema, u.nombre]);
   let inventario = calculados.get(llave);

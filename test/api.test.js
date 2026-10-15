@@ -811,3 +811,17 @@ test('anular un pedido: sigue a la vista con su motivo, no se edita, no cuenta e
   assert.equal((await eq.post(`/api/equipo/pedidos/${p.id}/reactivar`)).ok, true);
   assert.equal((await ana.post(`/api/equipo/pedidos/${p.id}/anular`)).estado, 403, 'un probador no usa la ruta del equipo');
 });
+
+test('el proveedor de la lista queda atado a cada producto, como en Datos', async () => {
+  const pia = await nuevoUsuario('Pia Proveedor', 'pia.proveedor@prueba.co');
+  const { pedido: p } = await pia.post('/api/pedidos');
+  const lineas = INICIAL.map((l, i) => ({ ...l, proveedor: i < 2 ? 'Tornillería Central' : '' }));
+  const r = await pia.post(`/api/pedidos/${p.id}/lista-inicial`, { lineas, tipo: 'real' });
+  assert.equal(r.pedido.listaInicial[0].proveedor, 'Tornillería Central');
+  assert.equal(r.pedido.listaInicial[2].proveedor, undefined);
+  await pia.subir(`/api/pedidos/${p.id}/export`, [['e.xlsx', await plantillaExport()]]);
+  const inv = await pia.get('/api/inventario');
+  const tor = inv.inventario.productos.find((x) => x.codigo === 'TOR-0610');
+  assert.equal(tor.proveedor, 'Tornillería Central');
+  assert.equal(tor.origenProveedor, 'producto');
+});

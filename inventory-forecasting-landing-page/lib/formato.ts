@@ -23,6 +23,23 @@ export function semanas(n: number | null | undefined) {
   return formato(0, n >= 10 ? 0 : 1).format(n)
 }
 
+// Para cuánto alcanza un inventario. Menos de una semana se dice en días: "0 semanas" no dice nada.
+export function alcancePartes(n: number | null | undefined): { valor: string; unidad: string } {
+  if (n === null || n === undefined) return { valor: '—', unidad: '' }
+  if (n < 1) {
+    const d = n <= 0 ? 0 : Math.max(1, Math.round(n * 7))
+    return { valor: String(d), unidad: d === 1 ? 'día' : 'días' }
+  }
+  return { valor: semanas(n), unidad: semanas(n) === '1' ? 'semana' : 'semanas' }
+}
+
+// "3 días", "2,4 sem" (corto) o "2,4 semanas".
+export function alcance(n: number | null | undefined, corto = false) {
+  const p = alcancePartes(n)
+  if (!p.unidad) return p.valor
+  return `${p.valor} ${corto && p.unidad.startsWith('semana') ? 'sem' : p.unidad}`
+}
+
 // $84,6 M · $412 mil · $950
 export function plata(n: number | null | undefined) {
   if (n === null || n === undefined) return '—'

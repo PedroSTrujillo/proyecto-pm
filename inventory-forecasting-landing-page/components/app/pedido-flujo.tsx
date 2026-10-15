@@ -7,11 +7,11 @@
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, Ban, CalendarDays, Check, FileUp, RotateCcw, Trash2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Ban, CalendarDays, Check, FileUp, Plus, RotateCcw, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { api, prepararArchivo, textoErrores } from '@/lib/api'
 import { descargar } from '@/lib/descargar'
-import { claveCodigo, dia, fecha, fechaHora, mesAnio, numero, plural, semanas, ventasSemana } from '@/lib/formato'
+import { alcance, claveCodigo, dia, fecha, fechaHora, mesAnio, numero, plural, semanas, ventasSemana } from '@/lib/formato'
 import { GraficoVentas } from './graficos'
 import { useInventario, useSesion } from './contexto'
 import { useConfirmar } from './confirmar'
@@ -20,7 +20,7 @@ import { Reporte, estadoDeFila, type FilaReporte, type ReporteRotacion } from '.
 import { FormularioColumnas, SubirArchivos, type HojaMapeo } from './subir'
 import { Aviso, Boton, BotonEnlace, Cargando, Contador, ErrorLista, Tarjeta, claseEntrada } from './ui'
 
-type LineaGuardada = { codigo: string; nombre?: string; cantidad: number | string }
+type LineaGuardada = { codigo: string; nombre?: string; cantidad: number | string; proveedor?: string }
 type Conteo = { agregadas: number; quitadas: number; cambiadas: number; total: number }
 type Pedido = {
   id: number
@@ -70,6 +70,9 @@ export function PedidoFlujo({ id }: { id: number }) {
   }, [id])
 
   useEffect(() => { cargar() }, [cargar])
+  // Al cambiar de paso se recarga: en el paso 3 se pueden agregar productos a la lista final.
+  const pasoPedido = params.get('paso')
+  useEffect(() => { cargar() }, [pasoPedido, cargar])
 
   if (error) return <><VolverAPedidos /><ErrorLista mensaje={error} /></>
   if (!pedido) return <Cargando texto="Cargando el pedido…" />
@@ -182,7 +185,7 @@ export function PedidoFlujo({ id }: { id: number }) {
         {paso === 1 && <Paso1 pedido={pedido} ir={ir} />}
         {paso === 2 && <Paso2 pedido={pedido} ir={ir} alCambiar={setPedido} />}
         {paso === 3 && <Paso3 pedido={pedido} ir={ir} />}
-        {paso === 4 && <Paso4 pedido={pedido} ir={ir} />}
+        {paso === 4 && <Paso4 key={`${(pedido.listaFinal || []).length}-${pedido.finalGuardadaEn}`} pedido={pedido} ir={ir} />}
         {paso === 5 && <Paso5 pedido={pedido} recargar={cargar} />}
       </div>
     </>
@@ -328,13 +331,17 @@ function Paso1({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
   const datos = useRef({ proveedor, tipo })
   datos.current = { proveedor, tipo }
   const auto = useAutoguardado(() => api('PUT', `/pedidos/${pedido.id}/lista-inicial`, { lineas: hoja.current?.lineas() || [], tipo: datos.current.tipo, proveedor: datos.current.proveedor }))
+  // Los proveedores escritos en la lista (para el panel de proveedores).
+  const [enLista, setEnLista] = useState<Map<string, number>>(() => contarProveedores(pedido.listaInicial))
+  const cambioLista = () => { auto.cambio(); setTimeout(() => setEnLista(contarProveedores(hoja.current?.lineas() || [])), 150) }
+  const nombresProveedores = useNombresProveedores(enLista)
 
   if (pedido.inicialGuardadaEn) {
     return (
       <Tarjeta className="flex flex-col gap-4 p-5 sm:p-6">
         <h2 className="text-xl font-bold">Lo que ibas a pedir</h2>
         <p className="text-muted-foreground">La guardaste el {fechaHora(pedido.inicialGuardadaEn)}. Ya no se puede cambiar: es la base para comparar con tu lista final.</p>
-        <Hoja inicial={pedido.listaInicial} soloLectura />
+        <Hoja inicial={pedido.listaInicial} soloLectura conProveedor={pedido.listaInicial.some((l) => l.proveedor)} />
         {pedido.paso === 2 && <BotonEnlace href="?paso=2" variante="primario" className="self-end">Seguir: tus ventas y existencias <ArrowRight /></BotonEnlace>}
       </Tarjeta>
     )
@@ -394,15 +401,87 @@ function Paso1({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
           </div>
         </fieldset>
       </div>
-      <ImportarLista pedidoId={pedido.id} para="inicial" hoja={hoja} alImportar={auto.cambio} />
-      <Hoja ref={hoja} inicial={pedido.listaInicial} alCambiar={auto.cambio} />
-      <p className="text-sm text-muted-foreground">Cada línea necesita código de producto y cantidad; el nombre es opcional.</p>
+      <ImportarLista pedidoId={pedido.id} para="inicial" hoja={hoja} alImportar={cambioLista} />
+      <ProveedoresPedido enLista={enLista} />
+      <Hoja ref={hoja} inicial={pedido.listaInicial} alCambiar={cambioLista} conProveedor proveedores={nombresProveedores} />
+      <p className="text-sm text-muted-foreground">Cada línea necesita código y cantidad. El nombre y el proveedor son opcionales: el proveedor queda atado al producto, también en Datos.</p>
       {error && <ErrorLista mensaje={error.mensaje} lista={error.lista} />}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="text-sm text-muted-foreground" aria-live="polite">{auto.estado}</span>
         <Boton variante="primario" onClick={guardar} disabled={guardando}>{guardando ? 'Revisando…' : 'Guardar lista inicial'}</Boton>
       </div>
     </Tarjeta>
+  )
+}
+
+// Cuántos productos de la lista tiene cada proveedor.
+function contarProveedores(ls: { proveedor?: string }[]) {
+  const m = new Map<string, number>()
+  for (const l of ls) {
+    const p = (l.proveedor || '').trim()
+    if (p) m.set(p, (m.get(p) || 0) + 1)
+  }
+  return m
+}
+
+// Los proveedores que ya tiene (los mismos de Datos) más los que escribió en la lista.
+function useNombresProveedores(enLista: Map<string, number>) {
+  const { inventario, respuesta } = useInventario()
+  const aj = inventario?.ajustes ?? respuesta?.ajustes
+  const conocidos = [...(inventario?.proveedores || []).map((p) => p.nombre).filter((n) => n !== 'Sin proveedor'), ...Object.keys(aj?.entregas || {})]
+  return [...new Set([...conocidos, ...enLista.keys()])].sort((a, b) => (enLista.get(b) || 0) - (enLista.get(a) || 0) || a.localeCompare(b, 'es'))
+}
+
+// Panel del paso 1: cada proveedor con cuánto tarda. Se guarda en los ajustes de la cuenta, así
+// que es lo mismo que en Datos y lo usan el sugerido y la orden de compra.
+function ProveedoresPedido({ enLista }: { enLista: Map<string, number> }) {
+  const { inventario, respuesta, recargar } = useInventario()
+  const aj = inventario?.ajustes ?? respuesta?.ajustes
+  const nombres = useNombresProveedores(enLista)
+  const [propias, setPropias] = useState<Record<string, number>>({})
+  const [nuevo, setNuevo] = useState('')
+  const espera = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const defecto = aj?.entregaPorDefecto ?? 1
+  const tarda = (n: string) => propias[n] ?? aj?.entregas?.[n] ?? inventario?.proveedores.find((p) => p.nombre === n)?.entrega ?? defecto
+  async function poner(nombre: string, valor: number) {
+    const entregas = { ...(aj?.entregas || {}), ...propias, [nombre]: Math.max(0, Math.min(52, valor)) }
+    setPropias(entregas)
+    await api('PUT', '/inventario/ajustes', { entregas })
+    if (espera.current) clearTimeout(espera.current)
+    espera.current = setTimeout(recargar, 1500)
+  }
+  function agregar(e: React.FormEvent) {
+    e.preventDefault()
+    const n = nuevo.replace(/\s+/g, ' ').trim().slice(0, 80)
+    if (!n) return
+    setNuevo('')
+    poner(n, tarda(n))
+  }
+  const todos = [...new Set([...nombres, ...Object.keys(propias)])]
+  return (
+    <div className="flex flex-col gap-3 rounded-2xl border border-border bg-muted/40 p-4">
+      <div>
+        <strong className="text-[0.97rem]">Proveedores</strong>
+        <p className="text-[0.88rem] text-muted-foreground">Los mismos de Datos. Escribe el proveedor de cada producto en la tabla; uno nuevo se agrega solo. Ajusta aquí cuánto tarda en llegar cada pedido.</p>
+      </div>
+      {todos.length > 0 && (
+        <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {todos.slice(0, 30).map((n) => (
+            <li key={n} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-1.5">
+              <span className="min-w-0 leading-tight">
+                <span className="block truncate font-semibold" title={n}>{n}</span>
+                <span className="text-xs text-muted-foreground">{enLista.get(n) ? plural(enLista.get(n)!, 'producto en esta lista', 'productos en esta lista') : 'sin productos en esta lista'}</span>
+              </span>
+              <Contador valor={tarda(n)} etiqueta={`lo que tarda ${n}`} paso={1} onMover={(d) => poner(n, tarda(n) + d)} />
+            </li>
+          ))}
+        </ul>
+      )}
+      <form onSubmit={agregar} className="flex flex-wrap items-center gap-2">
+        <input className={cn(claseEntrada, 'h-10 w-auto min-w-56 flex-1 sm:flex-none')} placeholder="Nombre del proveedor nuevo" value={nuevo} onChange={(e) => setNuevo(e.target.value)} maxLength={80} />
+        <Boton type="submit" tamano="chico" disabled={!nuevo.trim()}><Plus /> Agregar proveedor</Boton>
+      </form>
+    </div>
   )
 }
 
@@ -555,6 +634,8 @@ function Paso3({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
 // Lo primero que quiere saber quien va a pedir: cómo están los productos de su propia lista y qué
 // se le está acabando que no tenía en cuenta. Sale del mismo reporte (no sugiere cantidades).
 function TuPedidoFrenteAlReporte({ pedido, r }: { pedido: Pedido; r: ReporteRotacion }) {
+  const { sug } = useSugerido(pedido.id)
+  const sugPorCodigo = new Map((sug?.productos || []).map((x) => [claveCodigo(x.codigo), x]))
   const porCodigo = new Map(r.filas.map((f) => [claveCodigo(f.codigo), f]))
   const enLista = new Set(pedido.listaInicial.map((l) => claveCodigo(l.codigo)))
   const lineas = pedido.listaInicial.map((l) => ({ l, f: porCodigo.get(claveCodigo(l.codigo)) }))
@@ -581,8 +662,8 @@ function TuPedidoFrenteAlReporte({ pedido, r }: { pedido: Pedido; r: ReporteRota
         <p className="text-[0.93rem] text-muted-foreground">Los {plural(lineas.length, 'producto', 'productos')} que ibas a pedir, según tu archivo.</p>
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-xl border border-rojo-borde bg-rojo-fondo p-3"><strong className="font-display text-2xl text-rojo tabular-nums">{agotan.length}</strong><span className="block text-[0.85rem] text-rojo-texto">se agotan</span></div>
-        <div className="rounded-xl border border-azul-borde bg-azul-fondo p-3"><strong className="font-display text-2xl text-azul tabular-nums">{sobran.length + sinVentas.length}</strong><span className="block text-[0.85rem] text-azul-texto">sobran o no se venden</span></div>
+        <div className="rounded-xl border border-rojo-borde bg-rojo-fondo p-3"><strong className="font-display text-2xl text-rojo tabular-nums">{agotan.length}</strong><span className="block text-[0.85rem] text-rojo-texto">agotados o por agotarse</span></div>
+        <div className="rounded-xl border border-azul-borde bg-azul-fondo p-3"><strong className="font-display text-2xl text-azul tabular-nums">{sobran.length + sinVentas.length}</strong><span className="block text-[0.85rem] text-azul-texto">sobrestock o sin ventas</span></div>
         <div className="rounded-xl border border-border p-3"><strong className="font-display text-2xl tabular-nums">{lineas.length - agotan.length - sobran.length - sinVentas.length - fuera.length}</strong><span className="block text-[0.85rem] text-muted-foreground">están bien</span></div>
         <div className="rounded-xl border border-ambar-borde bg-ambar-fondo p-3"><strong className="font-display text-2xl text-ambar-texto tabular-nums">{olvidados.length}</strong><span className="block text-[0.85rem] text-ambar-texto">se agotan y no están en tu lista</span></div>
       </div>
@@ -590,26 +671,72 @@ function TuPedidoFrenteAlReporte({ pedido, r }: { pedido: Pedido; r: ReporteRota
         <div className="grid gap-4 md:grid-cols-2">
           {agotan.length > 0 && (
             <div>
-              <strong className="text-[0.95rem] text-rojo-texto">De tu lista, se agotan</strong>
-              <ul className="divide-y divide-border">{agotan.map(({ l, f }) => <Fila key={l.codigo} codigo={l.codigo} f={f} extra={`te alcanza para ${semanas(f!.semanasInventario ?? 0)} sem`} cantidad={l.cantidad} />)}</ul>
+              <strong className="text-[0.95rem] text-rojo-texto">De tu lista, agotados o por agotarse</strong>
+              <ul className="divide-y divide-border">{agotan.map(({ l, f }) => <Fila key={l.codigo} codigo={l.codigo} f={f} extra={f!.existencias <= 0 ? 'agotado' : `te alcanza para ${alcance(f!.semanasInventario ?? 0)}`} cantidad={l.cantidad} />)}</ul>
             </div>
           )}
           {sobran.length + sinVentas.length > 0 && (
             <div>
-              <strong className="text-[0.95rem] text-azul-texto">De tu lista, ya te sobran</strong>
-              <ul className="divide-y divide-border">{[...sobran, ...sinVentas].map(({ l, f }) => <Fila key={l.codigo} codigo={l.codigo} f={f} extra={f!.semanasInventario === null ? 'no se vendió' : `te alcanza para ${semanas(f!.semanasInventario)} sem`} cantidad={l.cantidad} />)}</ul>
+              <strong className="text-[0.95rem] text-azul-texto">De tu lista, en sobrestock</strong>
+              <ul className="divide-y divide-border">{[...sobran, ...sinVentas].map(({ l, f }) => <Fila key={l.codigo} codigo={l.codigo} f={f} extra={f!.semanasInventario === null ? 'no se vendió' : `te alcanza para ${alcance(f!.semanasInventario)}`} cantidad={l.cantidad} />)}</ul>
             </div>
           )}
         </div>
       )}
       {olvidados.length > 0 && (
-        <details className="rounded-xl border border-ambar-borde bg-ambar-fondo/50 px-4 py-3">
-          <summary className="cursor-pointer font-semibold text-ambar-texto">Se agotan y no están en tu lista: los {Math.min(olvidados.length, 8)} que más vendes</summary>
-          <ul className="mt-2 divide-y divide-ambar-borde">{olvidados.slice(0, 8).map((f) => <Fila key={f.codigo} codigo={f.codigo} f={f} extra={`vendes ${ventasSemana(f.promedioSemanal)}/sem · tienes ${numero(f.existencias)}`} />)}</ul>
+        <details className="rounded-xl border border-ambar-borde bg-ambar-fondo/50 px-4 py-3" open={!pedido.terminado}>
+          <summary className="cursor-pointer font-semibold text-ambar-texto">Se agotan y no están en tu lista: los {Math.min(olvidados.length, 15)} que más vendes</summary>
+          {!pedido.terminado && <p className="mt-1 text-[0.88rem] text-ambar-texto">Con <strong>+</strong> lo agregas a tu lista final con la cantidad sugerida, o escribe otra.</p>}
+          <ul className="mt-2 divide-y divide-ambar-borde">
+            {olvidados.slice(0, 15).map((f) => (
+              <AgregarOlvidado key={f.codigo} pedido={pedido} f={f} sugerido={sugPorCodigo.get(claveCodigo(f.codigo))} nombre={nombre(f.codigo, f)} />
+            ))}
+          </ul>
         </details>
       )}
       {fuera.length > 0 && <p className="text-[0.88rem] text-muted-foreground">{plural(fuera.length, 'producto de tu lista no está', 'productos de tu lista no están')} en el archivo: {fuera.map(({ l }) => l.codigo).join(', ')}.</p>}
     </section>
+  )
+}
+
+// Un producto que se agota y no estaba en la lista: con "+" pasa a la lista final (borrador del
+// paso 4) con la cantidad sugerida o la que escriba. Cuenta como línea agregada.
+function AgregarOlvidado({ pedido, f, sugerido, nombre }: { pedido: Pedido; f: FilaReporte; sugerido?: ProductoSugerido; nombre: string }) {
+  const [cantidad, setCantidad] = useState('')
+  const [estado, setEstado] = useState<'listo' | 'agregando' | 'agregado' | string>('listo')
+  const propuesta = sugerido?.sugerido ? sugerido.sugerido : Math.max(1, Math.ceil(f.promedioSemanal * 4))
+  const valor = cantidad.trim() || String(propuesta)
+  async function agregar() {
+    const q = Number(valor.replace(',', '.'))
+    if (!Number.isFinite(q) || q <= 0) return setEstado('Escribe una cantidad mayor que 0.')
+    setEstado('agregando')
+    try {
+      const { pedido: actual } = await api<{ pedido: Pedido }>('GET', `/pedidos/${pedido.id}`)
+      const lista = (actual.listaFinal || actual.listaInicial).filter((l) => claveCodigo(l.codigo) !== claveCodigo(f.codigo))
+      const proveedor = sugerido?.proveedor && sugerido.proveedor !== 'Sin proveedor' ? sugerido.proveedor : undefined
+      await api('PUT', `/pedidos/${pedido.id}/lista-final`, { lineas: [...lista, { codigo: f.codigo, nombre, cantidad: q, ...(proveedor ? { proveedor } : {}) }] })
+      setEstado('agregado')
+    } catch (e) {
+      setEstado(textoErrores(e).mensaje)
+    }
+  }
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-1.5">
+      <span className="min-w-0"><span className="text-muted-foreground">{f.codigo}</span> {nombre}
+        <span className="block text-[0.85rem] text-muted-foreground">vendes {ventasSemana(f.promedioSemanal)}/sem · tienes {numero(f.existencias)}{f.existencias <= 0 ? ' (agotado)' : ` · te alcanza para ${alcance(f.semanasInventario)}`}</span>
+      </span>
+      {pedido.terminado ? null : estado === 'agregado' ? (
+        <span className="inline-flex items-center gap-1 text-[0.88rem] font-semibold text-verde"><Check className="size-4" /> En tu lista: {numero(Number(valor.replace(',', '.')))}</span>
+      ) : (
+        <span className="flex items-center gap-1.5">
+          <input aria-label={`Cantidad de ${nombre || f.codigo}`} inputMode="decimal" className="h-9 w-20 rounded-lg border border-input bg-card px-2 text-right tabular-nums" placeholder={String(propuesta)} value={cantidad} onChange={(e) => setCantidad(e.target.value)} />
+          <button type="button" onClick={agregar} disabled={estado === 'agregando'} title={`Agregar a tu lista final (${valor})`} aria-label={`Agregar ${nombre || f.codigo} a tu lista final`} className="presionable inline-flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground hover:bg-primary-hover disabled:opacity-50">
+            <Plus className="size-4" />
+          </button>
+        </span>
+      )}
+      {estado !== 'listo' && estado !== 'agregando' && estado !== 'agregado' && <span className="w-full text-[0.85rem] text-rojo-texto">{estado}</span>}
+    </li>
   )
 }
 
@@ -691,10 +818,11 @@ type ProductoSugerido = {
 }
 type Sugerido = { entrega: number; entregas?: Record<string, number>; cadaCuanto: number; nivelServicio: number; semanas: string[]; semanasPronostico: string[]; productos: ProductoSugerido[] }
 
-// Para cuántas semanas alcanza tener "existencias + cantidad" al ritmo que se espera vender.
+// Para cuántas semanas alcanza tener "existencias + cantidad": con la misma venta por semana del
+// reporte (existencias ÷ ventas por semana), así con 0 da lo mismo que "Te alcanza hoy".
 const duraSemanas = (p: ProductoSugerido, cantidad: number) =>
-  p.detalle && p.detalle.ventaSemana > 0 ? (Math.max(p.existencias, 0) + Math.max(cantidad, 0)) / p.detalle.ventaSemana : null
-const textoDura = (s: number | null) => (s === null ? '' : s >= 26 ? 'más de 6 meses' : `${semanas(s)} semanas (unos ${Math.round(s * 7)} días)`)
+  p.ventasSemana > 0 ? (Math.max(p.existencias, 0) + Math.max(cantidad, 0)) / p.ventasSemana : null
+const textoDura = (s: number | null) => (s === null ? '' : s >= 26 ? 'más de 6 meses' : s < 1 ? alcance(s) : `${semanas(s)} semanas (unos ${Math.round(s * 7)} días)`)
 
 // Lo que sugiere el modelo para este pedido: se puede ajustar el tiempo de entrega y cada cuánto
 // pide, llevar las cantidades sugeridas a la lista o agregar lo que se agota y no está en ella.
@@ -738,7 +866,7 @@ function RecuadroSugerido({ sug, hoja, alCambiarLista, alCambiarAjustes }: { sug
   }
   function agregar(ps: ProductoSugerido[]) {
     const lineas = (hoja.current?.lineas() || []).filter((l) => l.codigo || l.nombre || l.cantidad)
-    hoja.current?.fijar([...lineas, ...ps.map((p) => ({ codigo: p.codigo, nombre: p.nombre, cantidad: String(p.sugerido) }))])
+    hoja.current?.fijar([...lineas, ...ps.map((p) => ({ codigo: p.codigo, nombre: p.nombre, cantidad: String(p.sugerido), proveedor: p.proveedor && p.proveedor !== 'Sin proveedor' ? p.proveedor : '' }))])
     alCambiarLista()
     setHecho(`Se ${ps.length === 1 ? 'agregó' : 'agregaron'} ${plural(ps.length, 'producto', 'productos')} con su cantidad sugerida al final de tu lista. Quita los que no vayas a pedir.`)
   }
@@ -794,7 +922,7 @@ function RecuadroSugerido({ sug, hoja, alCambiarLista, alCambiarAjustes }: { sug
           <ul className="mt-2 flex flex-col divide-y divide-[#cfe5e1]">
             {faltan.slice(0, 40).map((p) => (
               <li key={p.codigo} className="flex flex-wrap items-center justify-between gap-2 py-1.5">
-                <span><span className="text-muted-foreground">{p.codigo}</span> · {p.nombre}: te alcanza para {semanas(p.semanas ?? 0)} semanas; sugerido <strong>{numero(p.sugerido ?? 0)}</strong></span>
+                <span><span className="text-muted-foreground">{p.codigo}</span> · {p.nombre}: {(p.existencias ?? 0) <= 0 ? 'agotado' : `te alcanza para ${alcance(p.semanas ?? 0)}`}; sugerido <strong>{numero(p.sugerido ?? 0)}</strong></span>
                 <button type="button" onClick={() => agregar([p])} className="presionable rounded-md border border-primary/40 bg-card px-2 py-0.5 text-[0.78rem] font-semibold text-primary hover:bg-primary hover:text-primary-foreground">Agregar</button>
               </li>
             ))}
@@ -873,7 +1001,8 @@ function DetalleSugerido({ p, sug, vasAPedir, ibasAPedir, alCerrar }: { p: Produ
           <div>
             <strong className="text-[0.95rem]">Por qué {numero(p.sugerido)}</strong>
             <ol className="mt-1 list-decimal space-y-1 pl-5 text-[0.93rem]">
-              <li>Vendes unas <strong>{ventasSemana(d.ventaSemana)}</strong> por semana de aquí en adelante (lo de los últimos meses pesa más y se tiene en cuenta la temporada).</li>
+              <li>Hoy tienes <strong>{numero(Math.max(p.existencias, 0))}</strong> y vendes {ventasSemana(p.ventasSemana)} por semana: {p.existencias <= 0 ? <strong>ya está agotado</strong> : <>te alcanza para <strong>{alcance(Math.max(p.existencias, 0) / Math.max(p.ventasSemana, 1e-9))}</strong></>}.</li>
+              <li>De aquí en adelante esperamos vender unas <strong>{ventasSemana(d.ventaSemana)}</strong> por semana (lo de los últimos meses pesa más y se tiene en cuenta la temporada).</li>
               <li>Tu proveedor tarda {semanas(p.entrega)} {p.entrega === 1 ? 'semana' : 'semanas'} y pides cada {semanas(sug.cadaCuanto)}: este pedido tiene que cubrir <strong>{semanas(d.semanasCubrir)} semanas</strong>.</li>
               {p.estado !== 'sobra' && <li>En esas semanas lo más probable es vender <strong>{numero(Math.round(d.media))}</strong>. Para no quedarte corto en {Math.round(sug.nivelServicio * 10)} de cada 10 casos hay que contar con <strong>{numero(Math.ceil(d.alto))}</strong>.</li>}
               {p.estado === 'sobra' ? (
@@ -953,7 +1082,7 @@ function Paso4({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
     const l = (hoja.current?.lineas() || []).find((x) => claveCodigo(x.codigo) === codigo)
     return l ? cantidad(l.cantidad) : null
   }
-  const textoSem = (n: number) => (n >= 26 ? '+6 meses' : `${semanas(n)} sem`)
+  const textoSem = (n: number) => (n >= 26 ? '+6 meses' : alcance(n, true))
   const cambiada = (l: { codigo: string; cantidad: string }) => {
     if (!l.codigo) return false
     const x = inicial.get(claveCodigo(l.codigo))
@@ -962,6 +1091,16 @@ function Paso4({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
   // Antes de la cantidad: cómo está el producto, lo que iba a pedir y lo que sugiere SINESC.
   const extrasAntes: Extra[] = [
     {
+      // Lo que tiene hoy según su archivo: la base de "Te alcanza hoy".
+      titulo: 'Tienes',
+      valor: (l) => {
+        if (!l.codigo) return { texto: '' }
+        const f = porCodigo.get(claveCodigo(l.codigo))
+        if (!f) return { texto: '—', clase: 'text-muted-foreground' }
+        return { texto: numero(f.existencias), clase: cn('tabular-nums', f.existencias <= 0 && 'font-semibold text-rojo') }
+      },
+    },
+    {
       titulo: 'Te alcanza hoy',
       valor: (l) => {
         if (!l.codigo) return { texto: '' }
@@ -969,7 +1108,9 @@ function Paso4({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
         if (!f) return { texto: 'no está en el archivo', clase: 'text-muted-foreground' }
         if (f.semanasInventario === null) return { texto: 'sin ventas', clase: 'text-azul' }
         const e = estadoDeFila(f)
-        return { texto: textoSem(f.semanasInventario), sub: e === 'agota' ? 'se agota' : e === 'sobra' ? 'sobra' : undefined, clase: cn('tabular-nums font-semibold', e === 'agota' && 'text-rojo', e === 'sobra' && 'text-azul'), claseSub: e === 'agota' ? 'text-rojo-texto' : 'text-azul-texto' }
+        if (f.existencias <= 0) return { texto: 'Agotado', clase: 'font-bold text-rojo' }
+        const sub = e === 'agota' ? (f.existencias <= 0 ? 'agotado' : 'se va a agotar') : e === 'sobra' ? 'sobrestock' : 'bien'
+        return { texto: textoSem(f.semanasInventario), sub, clase: cn('tabular-nums font-semibold', e === 'agota' && 'text-rojo', e === 'sobra' && 'text-azul'), claseSub: e === 'agota' ? 'font-semibold text-rojo-texto' : e === 'sobra' ? 'text-azul-texto' : 'text-verde' }
       },
     },
     {

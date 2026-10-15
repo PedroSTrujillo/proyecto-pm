@@ -7,7 +7,7 @@
 import { useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { mesAnio, numero, plural, semanas, ventasSemana } from '@/lib/formato'
+import { alcance, mesAnio, numero, plural, semanas, ventasSemana } from '@/lib/formato'
 import type { Estado } from '@/lib/tipos'
 import { Boton, ChipEstado, ESTADOS, Pildoras, claseEntrada } from './ui'
 
@@ -135,8 +135,8 @@ export function Reporte({ r, compacto = false }: { r: ReporteRotacion; compacto?
           onCambio={(v) => { setFiltro(v); setMostrar(POR_PAGINA) }}
           opciones={[
             { id: 'todos', texto: 'Todos' },
-            { id: 'agota', texto: `Se agotan (menos de ${u.seAgota} semanas)` },
-            { id: 'sobra', texto: 'Sobran' },
+            { id: 'agota', texto: `Agotados o por agotarse (menos de ${u.seAgota} semanas)` },
+            { id: 'sobra', texto: 'Sobrestock' },
           ]}
         />
       </div>
@@ -167,8 +167,8 @@ export function Reporte({ r, compacto = false }: { r: ReporteRotacion; compacto?
                   </td>
                   <td className="border-b border-[#f0f1ee] px-3 py-2.5 text-right tabular-nums">{numero(f.existencias)}</td>
                   <td className="border-b border-[#f0f1ee] px-3 py-2.5 text-right whitespace-nowrap">
-                    {f.semanasInventario === null ? <span className="text-muted-foreground">Sin ventas en el periodo</span> : <strong className={cn('font-display text-lg tabular-nums', ESTADOS[est].numero)}>{semanas(f.semanasInventario)}</strong>}
-                    {(est === 'agota' || f.sobra) && <span className="ml-2 align-middle"><ChipEstado estado={est === 'sin_ventas' ? 'sobra' : est} /></span>}
+                    {f.semanasInventario === null ? <span className="text-muted-foreground">Sin ventas en el periodo</span> : <strong className={cn('font-display text-lg tabular-nums', ESTADOS[est].numero)}>{alcance(f.semanasInventario, true)}</strong>}
+                    {(est === 'agota' || f.sobra) && <span className="ml-2 align-middle"><ChipEstado estado={est === 'sin_ventas' ? 'sobra' : est} existencias={f.existencias} /></span>}
                   </td>
                 </tr>
               )

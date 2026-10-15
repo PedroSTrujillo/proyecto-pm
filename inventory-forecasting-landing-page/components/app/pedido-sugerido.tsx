@@ -7,7 +7,7 @@ import { useMemo, useState } from 'react'
 import { Copy, Download, FileText, Minus, Plus, RotateCcw } from 'lucide-react'
 import { descargar } from '@/lib/descargar'
 import { cn } from '@/lib/utils'
-import { duracion, fecha, numero, plata, semanas } from '@/lib/formato'
+import { alcance, alcancePartes, duracion, fecha, numero, plata } from '@/lib/formato'
 import type { Inventario, Producto } from '@/lib/tipos'
 import { useInventario } from './contexto'
 import { Aviso, Boton, Cargando, ChipEstado, ESTADOS, ErrorLista, Pildoras, Tarjeta, Titulo, claseEntrada } from './ui'
@@ -164,11 +164,11 @@ function PedidoCon({ inv, encabezado }: { inv: Inventario; encabezado: boolean }
                       <td className="border-b border-[#f0f1ee] px-2 py-2.5">
                         <span className="block text-xs text-muted-foreground">{p.codigo} · {p.proveedor}</span>
                         <span className={cn('font-semibold', c > 0 && 'text-foreground')}>{p.nombre}</span>
-                        <span className="mt-1 block"><ChipEstado estado={p.estado} /></span>
+                        <span className="mt-1 block"><ChipEstado estado={p.estado} existencias={p.existencias} /></span>
                       </td>
                       <td className="border-b border-[#f0f1ee] px-2 py-2.5 text-right whitespace-nowrap">
-                        <strong className={cn('tabular-nums', ESTADOS[p.estado].numero)}>{semanas(p.semanas)}</strong>
-                        <span className="text-sm text-muted-foreground"> sem</span>
+                        <strong className={cn('tabular-nums', ESTADOS[p.estado].numero)}>{alcancePartes(p.semanas).valor}</strong>
+                        <span className="text-sm text-muted-foreground"> {alcance(p.semanas, true).split(' ')[1]}</span>
                       </td>
                       <td className="border-b border-[#f0f1ee] px-2 py-2.5 text-right">
                         <button
@@ -217,7 +217,7 @@ function PedidoCon({ inv, encabezado }: { inv: Inventario; encabezado: boolean }
                     <li key={p.codigo}>
                       <button type="button" className="flex w-full items-center justify-between gap-3 px-3.5 py-2.5 text-left hover:bg-muted" onClick={() => { cambiar(p, Math.max(p.sugerido ?? 0, 1)); setBusca('') }}>
                         <span><span className="block text-xs text-muted-foreground">{p.codigo}</span>{p.nombre}</span>
-                        <span className="text-sm whitespace-nowrap text-muted-foreground">{semanas(p.semanas)} sem</span>
+                        <span className="text-sm whitespace-nowrap text-muted-foreground">{alcance(p.semanas, true)}</span>
                       </button>
                     </li>
                   ))}

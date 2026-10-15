@@ -27,6 +27,19 @@
 
 ---
 
+## 2026-10-14 (33) — Claude — lo que salió de la primera prueba: proveedores en el pedido, "+" en el paso 3, existencias y etiquetas
+- **Rama:** `main` y `mejoras-modelo`, en los dos repos.
+- **Estado:**
+  - **Proveedor en la lista:** el archivo de pedido puede traer una columna Proveedor (`CAMPOS_LISTA` de `lector.js`), y la tabla del paso 1 la muestra (`conProveedor` en `hoja.tsx`, con los proveedores conocidos para elegir). Al guardar la lista inicial o la final, cada producto queda atado a su proveedor en `usuarios.inventario.asignaciones` (`asignarProveedores` en `pedidos.js`): lo mismo que asignarlo en Datos o en la ficha. Arriba de la tabla, el panel "Proveedores" muestra los de Datos y los de la lista, cada uno con cuánto tarda (se guarda en los mismos ajustes), y deja agregar uno nuevo. `GET /api/inventario` devuelve los ajustes aunque todavía no haya archivo.
+  - **Paso 3:** "Se agotan y no están en tu lista" trae los 15 que más se venden, cada uno con su cantidad (la sugerida, o la que escriba) y un botón "+" que lo agrega a la lista final (`PUT /lista-final`). El pedido se recarga al cambiar de paso para que el paso 4 los muestre.
+  - **Paso 4:** columna "Tienes" (existencias del archivo). "Con tu cantidad, dura" usa la misma venta por semana del reporte que "Te alcanza hoy" (antes usaba el pronóstico y con 0 no daba lo mismo). El detalle dice "Hoy tienes X y vendes Y por semana: te alcanza para Z".
+  - **Días:** menos de una semana se muestra en días (`alcance` y `alcancePartes` en `lib/formato.ts`), en el panel, productos, reporte, pedido de la semana y los pasos.
+  - **Etiquetas:** Agotado (existencias en 0), Se va a agotar, Pide ya, Bien, Sobrestock, Sin ventas (`textoEstado` y `ChipEstado` con `existencias` en `ui.tsx`).
+- **Base de datos:** sin cambios (las asignaciones van en `usuarios.inventario`).
+- **Verificación:** `npm test` → 111/111; `tsc` sin errores; en el navegador (local): pedido importado con columna de proveedor (23 productos, 5 proveedores), tiempo de un proveedor cambiado desde el paso 1 y visto en el inventario, dos productos agregados con "+" en el paso 3 y vistos en el paso 4, cuentas de "Te alcanza" y "dura" revisadas a mano.
+- **Siguiente paso exacto:** seguir las pruebas con usuarios.
+- **Notas y bloqueos:** el "+" del paso 3 y el sugerido cambian lo que ve el probador: van en "Cambios" del Entregable.
+
 ## 2026-10-14 (32) — Claude — Helisa se importa de verdad; anular un pedido sin borrarlo
 - **Rama:** `main` y `mejoras-modelo`, en los dos repos.
 - **Estado:**

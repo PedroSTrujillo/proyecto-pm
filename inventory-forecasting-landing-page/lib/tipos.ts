@@ -103,6 +103,8 @@ export type RespuestaInventario = {
   sugerencias: boolean
   alcance?: 'completo' | 'prueba'
   finPrueba: string | null
+  // Sin archivo todavía, igual vienen sus ajustes (proveedores y tiempos de entrega).
+  ajustes?: { entregas: Record<string, number>; entregaPorDefecto: number; cadaCuanto: number }
   recordatorio?: { activo: boolean; pedidoId: number | null; fechaReporte: string; primerAviso: string | null } | null
 }
 

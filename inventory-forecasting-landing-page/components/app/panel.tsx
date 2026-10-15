@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { useMemo, useState, type ReactNode } from 'react'
 import { ArrowRight, BellRing, CalendarDays, Sparkles, TriangleAlert, Truck, Wallet } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { dia, duracion, fecha, mesAnio, numero, plata, plural, porcentaje, semanas, sumarDias, ventasSemana } from '@/lib/formato'
+import { alcance, alcancePartes, dia, duracion, fecha, mesAnio, numero, plata, plural, porcentaje, semanas, sumarDias, ventasSemana } from '@/lib/formato'
 import { nombrePrograma } from '@/lib/sistemas'
 import type { Inventario, Producto } from '@/lib/tipos'
 import { useInventario } from './contexto'
@@ -222,8 +222,8 @@ function FilaPrimero({ p, href }: { p: Producto; href: string }) {
       </td>
       <td className="border-b border-[#f0f1ee] px-2 py-3 text-right tabular-nums">{numero(p.existencias)}</td>
       <td className="border-b border-[#f0f1ee] px-2 py-3 text-right">
-        <strong className={cn('font-display text-xl tabular-nums', e.numero)}>{semanas(p.semanas)}</strong>
-        <span className="block text-xs text-muted-foreground">semanas</span>
+        <strong className={cn('font-display text-xl tabular-nums', e.numero)}>{alcancePartes(p.semanas).valor}</strong>
+        <span className="block text-xs text-muted-foreground">{alcancePartes(p.semanas).unidad}</span>
       </td>
       <td className="min-w-44 border-b border-[#f0f1ee] px-2 py-3">
         {/* En cero ya se agotó: un porcentaje ahí confunde (sería la probabilidad de que lo pidan). */}
@@ -233,7 +233,7 @@ function FilaPrimero({ p, href }: { p: Producto; href: string }) {
           p.riesgo !== null && <BarraRiesgo valor={p.riesgo} />
         )}
         <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          <ChipEstado estado={p.estado} texto={p.estado === 'pide' ? `Pide ya: tarda ${duracion(p.entrega)}` : undefined} />
+          <ChipEstado estado={p.estado} existencias={p.existencias} texto={p.estado === 'pide' ? `Pide ya: tarda ${duracion(p.entrega)}` : undefined} />
         </span>
       </td>
     </tr>
@@ -287,7 +287,7 @@ function AtenderHoy({ inv }: { inv: Inventario }) {
   if (pide) {
     tarjetas.push(
       <Tarjetita key="pide" icono={<Truck />} titulo="Pide ya: tarda en llegar" tono="ambar" accion={<BotonEnlace href={rutas.pedido} variante="primario" tamano="chico" className="self-start">Preparar pedido</BotonEnlace>}>
-        <strong>{pide.nombre}</strong> te alcanza para {semanas(pide.semanas)} semanas y {pide.proveedor} tarda {duracion(pide.entrega)}. Se acaba hacia el {fecha(sumarDias(hoy, Math.round((pide.semanas ?? 0) * 7)))}: pídelo ya para que llegue a tiempo.
+        <strong>{pide.nombre}</strong> te alcanza para {alcance(pide.semanas)} y {pide.proveedor} tarda {duracion(pide.entrega)}. Se acaba hacia el {fecha(sumarDias(hoy, Math.round((pide.semanas ?? 0) * 7)))}: pídelo ya para que llegue a tiempo.
       </Tarjetita>,
     )
   }
@@ -297,7 +297,7 @@ function AtenderHoy({ inv }: { inv: Inventario }) {
         {quieto.estado === 'sin_ventas' ? (
           <><strong>{quieto.nombre}</strong> no se vendió en todo el periodo y tienes {numero(quieto.existencias)}{quieto.valor ? `: ${plata(quieto.valor)} parados` : ''}.</>
         ) : (
-          <><strong>{quieto.nombre}</strong>: vendes {ventasSemana(quieto.ventasSemana)} por semana y tienes {numero(quieto.existencias)}, para {semanas(quieto.semanas)} semanas.{quieto.quieto ? ` Son ${plata(quieto.quieto)} de más.` : ''}</>
+          <><strong>{quieto.nombre}</strong>: vendes {ventasSemana(quieto.ventasSemana)} por semana y tienes {numero(quieto.existencias)}, para {alcance(quieto.semanas)}.{quieto.quieto ? ` Son ${plata(quieto.quieto)} de más.` : ''}</>
         )}
       </Tarjetita>,
     )

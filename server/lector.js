@@ -952,11 +952,11 @@ function listaCampos(campos) {
 
 // --- Lista de pedido ---------------------------------------------------------------
 
-const CAMPOS_LISTA = ['codigo', 'nombre', 'pedir'];
+const CAMPOS_LISTA = ['codigo', 'nombre', 'pedir', 'proveedor'];
 
 /**
  * Lee la hoja con la que el usuario arma el pedido (ej. su informe de mínimos).
- * Devuelve { ok: true, lineas: [{codigo, nombre, cantidad}], omitidas, hoja, columnas }
+ * Devuelve { ok: true, lineas: [{codigo, nombre, cantidad, proveedor?}], omitidas, hoja, columnas }
  *       o  { ok: false, errores, hojas }
  */
 function leerLista(buffer, nombreArchivo, mapeo = {}) {
@@ -1001,7 +1001,8 @@ function leerLista(buffer, nombreArchivo, mapeo = {}) {
     const bruto = f[c.pedir];
     const nombre = c.nombre !== undefined && f[c.nombre] !== null ? String(f[c.nombre]).trim() : '';
     if (bruto === null || bruto === undefined || bruto === 0 || bruto === '0') { if (codigo) omitidas++; continue; }
-    lineas.push({ codigo, nombre, cantidad: typeof bruto === 'number' ? bruto : String(bruto), fila: hoja.primeraFila + i });
+    const proveedor = c.proveedor !== undefined && f[c.proveedor] !== null && f[c.proveedor] !== undefined ? String(f[c.proveedor]).replace(/\s+/g, ' ').trim().slice(0, 80) : '';
+    lineas.push({ codigo, nombre, cantidad: typeof bruto === 'number' ? bruto : String(bruto), ...(proveedor ? { proveedor } : {}), fila: hoja.primeraFila + i });
   }
   if (!lineas.length && !omitidas) return { ok: false, errores: [SIN_LLENAR], hojas: [] };
   return {

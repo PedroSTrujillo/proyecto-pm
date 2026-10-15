@@ -7,7 +7,7 @@ import { useEffect, useId, useMemo, useState } from 'react'
 import { Download, Search, X } from 'lucide-react'
 import { descargar } from '@/lib/descargar'
 import { cn } from '@/lib/utils'
-import { claveCodigo, duracion, fecha, mesAnio, numero, plata, porcentaje, semanas, ventasSemana } from '@/lib/formato'
+import { alcance, alcancePartes, claveCodigo, duracion, fecha, mesAnio, numero, plata, porcentaje, semanas, ventasSemana } from '@/lib/formato'
 import type { Estado, Inventario, Producto } from '@/lib/tipos'
 import { useInventario } from './contexto'
 import { BarraRiesgo, GraficoVentas, LeyendaVentas, Sparkline } from './graficos'
@@ -94,10 +94,10 @@ function ProductosCon({ inv }: { inv: Inventario }) {
 
   const opciones: { id: Filtro; texto: string; cuenta: number }[] = [
     { id: 'todos', texto: 'Todos', cuenta: base.length },
-    { id: 'agota', texto: 'Se agotan', cuenta: cuenta('agota') },
+    { id: 'agota', texto: 'Agotados o por agotarse', cuenta: cuenta('agota') },
     { id: 'pide', texto: 'Pide ya', cuenta: cuenta('pide') },
-    { id: 'normal', texto: 'Normales', cuenta: cuenta('normal') },
-    { id: 'sobra', texto: 'Sobran', cuenta: cuenta('sobra') },
+    { id: 'normal', texto: 'Bien', cuenta: cuenta('normal') },
+    { id: 'sobra', texto: 'Sobrestock', cuenta: cuenta('sobra') },
   ]
   // Durante la prueba no hay tiempo de entrega, así que no existe "pide ya".
   if (inv.alcance === 'prueba') opciones.splice(2, 1)
@@ -177,11 +177,11 @@ function ProductosCon({ inv }: { inv: Inventario }) {
                         <span className="text-muted-foreground">sin ventas</span>
                       ) : (
                         <>
-                          <strong className={cn('font-display text-lg tabular-nums', ESTADOS[p.estado].numero)}>{semanas(p.semanas)}</strong>
-                          <span className="text-sm text-muted-foreground"> sem</span>
+                          <strong className={cn('font-display text-lg tabular-nums', ESTADOS[p.estado].numero)}>{alcancePartes(p.semanas).valor}</strong>
+                          <span className="text-sm text-muted-foreground"> {alcance(p.semanas, true).split(' ')[1]}</span>
                         </>
                       )}
-                      <span className="mt-0.5 block"><ChipEstado estado={p.estado} /></span>
+                      <span className="mt-0.5 block"><ChipEstado estado={p.estado} existencias={p.existencias} /></span>
                     </td>
                     {pronostica && (
                       <td className={cn('border-b border-[#f0f1ee] px-2 py-3 text-right tabular-nums', claseExtra)}>
@@ -239,9 +239,9 @@ function consejo(p: Producto, inv: Inventario) {
   if (p.estado === 'agota' && inv.alcance === 'prueba') return `Se agota en menos de ${u} semanas al ritmo actual. Revísalo en tu pedido.`
   if (p.estado === 'agota' && inv.sugerencias && !p.sugerido) return `Se agota en menos de ${u} semanas, pero cubre la entrega de ${p.proveedor === 'Sin proveedor' ? 'tu proveedor' : p.proveedor} hasta el próximo pedido.`
   if (p.estado === 'agota') return `Se agota en menos de ${u} semanas${p.entrega > 0 ? ` y ${p.proveedor === 'Sin proveedor' ? 'tu proveedor' : p.proveedor} tarda ${duracion(p.entrega)}` : ''}. Inclúyelo en este pedido.`
-  if (p.estado === 'pide' && p.semanas !== null && p.semanas < p.entrega) return `Alcanza para ${semanas(p.semanas)} semanas y el proveedor tarda ${duracion(p.entrega)}. Pídelo ya.`
-  if (p.estado === 'pide') return `Alcanza para ${semanas(p.semanas)} semanas y el proveedor tarda ${duracion(p.entrega)}. Si esperas al próximo pedido, llega tarde.`
-  if (p.estado === 'sobra') return `Alcanza para ${semanas(p.semanas)} semanas. No lo pidas por ahora${p.ventasSemana < 1 ? '; se vende muy poco: evalúa si se sigue trayendo' : ''}.`
+  if (p.estado === 'pide' && p.semanas !== null && p.semanas < p.entrega) return `Alcanza para ${alcance(p.semanas)} y el proveedor tarda ${duracion(p.entrega)}. Pídelo ya.`
+  if (p.estado === 'pide') return `Alcanza para ${alcance(p.semanas)} y el proveedor tarda ${duracion(p.entrega)}. Si esperas al próximo pedido, llega tarde.`
+  if (p.estado === 'sobra') return `Alcanza para ${alcance(p.semanas)}. No lo pidas por ahora${p.ventasSemana < 1 ? '; se vende muy poco: evalúa si se sigue trayendo' : ''}.`
   if (p.estado === 'sin_ventas') return 'Sin ventas en el periodo del archivo. Candidato a promoción o a salir del catálogo.'
   return `Bien surtido. ${inv.sugerencias && p.sugerido ? 'Si pides esta semana, usa lo sugerido.' : 'Revísalo en el próximo pedido.'}`
 }
@@ -275,8 +275,8 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
             <strong className="font-display text-2xl">Sin ventas</strong>
           ) : (
             <>
-              <strong className={cn('font-display text-[2.3rem] leading-none font-extrabold tabular-nums', e.numero)}>{semanas(p.semanas)}</strong>
-              <span className="text-[0.95rem]"> semanas</span>
+              <strong className={cn('font-display text-[2.3rem] leading-none font-extrabold tabular-nums', e.numero)}>{alcancePartes(p.semanas).valor}</strong>
+              <span className="text-[0.95rem]"> {alcancePartes(p.semanas).unidad}</span>
             </>
           )}
         </div>
@@ -359,7 +359,7 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
         <summary className="cursor-pointer font-semibold text-primary">¿De dónde sale el número?</summary>
         <div className="mt-2 flex flex-col gap-2 text-[0.93rem] text-foreground/85">
           {p.semanas !== null ? (
-            <p>Tienes {numero(p.existencias)} y vendes {ventasSemana(p.ventasSemana)} por semana: {numero(p.existencias)} ÷ {ventasSemana(p.ventasSemana)} = <strong>{semanas(p.semanas)} semanas</strong>.</p>
+            <p>Tienes {numero(p.existencias)} y vendes {ventasSemana(p.ventasSemana)} por semana: {numero(p.existencias)} ÷ {ventasSemana(p.ventasSemana)} = <strong>{alcance(p.semanas)}</strong>.</p>
           ) : (
             <p>No tiene ventas en el periodo del archivo, así que no se puede saber para cuántas semanas alcanza.</p>
           )}

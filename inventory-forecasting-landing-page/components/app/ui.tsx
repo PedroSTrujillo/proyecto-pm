@@ -58,16 +58,23 @@ export function Titulo({ children, sub, acciones, etiqueta }: { children: ReactN
 }
 
 export const ESTADOS: Record<Estado, { texto: string; chip: string; numero: string; barra: string; descripcion: string }> = {
-  agota: { texto: 'Se agota', chip: 'bg-rojo-fondo text-rojo-texto', numero: 'text-rojo', barra: 'bg-rojo', descripcion: 'Te alcanza para menos de las semanas que elegiste para avisarte (2 si no lo cambiaste).' },
+  agota: { texto: 'Se va a agotar', chip: 'bg-rojo-fondo text-rojo-texto', numero: 'text-rojo', barra: 'bg-rojo', descripcion: 'Te alcanza para menos de las semanas que elegiste para avisarte (2 si no lo cambiaste).' },
   pide: { texto: 'Pide ya', chip: 'bg-ambar-fondo text-ambar-texto', numero: 'text-ambar', barra: 'bg-ambar', descripcion: 'No te alcanza para lo que tarda en llegar un pedido, más una semana de margen.' },
-  normal: { texto: 'Normal', chip: 'bg-muted text-foreground/80', numero: 'text-foreground', barra: 'bg-primary', descripcion: 'Bien surtido.' },
-  sobra: { texto: 'Sobra', chip: 'bg-azul-fondo text-azul-texto', numero: 'text-azul', barra: 'bg-azul', descripcion: 'Tienes para más de 12 semanas.' },
+  normal: { texto: 'Bien', chip: 'bg-muted text-foreground/80', numero: 'text-foreground', barra: 'bg-primary', descripcion: 'Bien surtido.' },
+  sobra: { texto: 'Sobrestock', chip: 'bg-azul-fondo text-azul-texto', numero: 'text-azul', barra: 'bg-azul', descripcion: 'Tienes para más de 12 semanas.' },
   sin_ventas: { texto: 'Sin ventas', chip: 'bg-azul-fondo text-azul-texto', numero: 'text-muted-foreground', barra: 'bg-muted-foreground', descripcion: 'No se vendió en el periodo del archivo.' },
 }
 
-export function ChipEstado({ estado, className, texto }: { estado: Estado; className?: string; texto?: string }) {
+// existencias: si ya no hay nada y se vende, dice "Agotado" (no "se va a agotar").
+export function textoEstado(estado: Estado, existencias?: number | null) {
+  if (estado === 'agota' && existencias !== undefined && existencias !== null && existencias <= 0) return 'Agotado'
+  return ESTADOS[estado].texto
+}
+
+export function ChipEstado({ estado, className, texto, existencias }: { estado: Estado; className?: string; texto?: string; existencias?: number | null }) {
   const e = ESTADOS[estado]
-  return <span className={cn('inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold whitespace-nowrap', e.chip, className)}>{texto || e.texto}</span>
+  const agotado = textoEstado(estado, existencias) === 'Agotado'
+  return <span className={cn('inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold whitespace-nowrap', agotado ? 'bg-rojo text-white' : e.chip, className)}>{texto || textoEstado(estado, existencias)}</span>
 }
 
 type TonoAviso = 'info' | 'ok' | 'error' | 'cuidado'

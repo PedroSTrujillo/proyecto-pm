@@ -3,11 +3,11 @@
 // Tabla que se maneja como una hoja de Excel: filas y columnas, Enter y flechas para moverse,
 // y pegar varias filas copiadas de Excel (Ctrl+V / Cmd+V). Misma lógica que public/js/hoja.js.
 
-import { forwardRef, useImperativeHandle, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react'
+import { forwardRef, useId, useImperativeHandle, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react'
 import { Pencil, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-export type Linea = { codigo: string; nombre: string; cantidad: string }
+export type Linea = { codigo: string; nombre: string; cantidad: string; proveedor: string }
 // alClic: la celda es un botón (por ejemplo, para abrir el detalle de un producto).
 // accion: un botón pequeño al lado del valor (por ejemplo, "Usar" el sugerido en esa línea).
 export type Extra = {
@@ -19,17 +19,19 @@ export type Extra = {
 }
 export type HojaApi = {
   lineas: () => Linea[]
-  fijar: (l: { codigo: unknown; nombre?: unknown; cantidad: unknown }[]) => void
+  fijar: (l: { codigo: unknown; nombre?: unknown; cantidad: unknown; proveedor?: unknown }[]) => void
   marcarErrores: (filas: number[]) => void
   // Cambia la cantidad de una fila (para las acciones de una columna extra).
   ponerCantidad: (i: number, cantidad: string) => void
 }
 
 const COLUMNAS: (keyof Linea)[] = ['codigo', 'nombre', 'cantidad']
+const COLUMNAS_CON_PROVEEDOR: (keyof Linea)[] = ['codigo', 'nombre', 'proveedor', 'cantidad']
+const FILA_VACIA: Linea = { codigo: '', nombre: '', cantidad: '', proveedor: '' }
 const VACIAS_AL_FINAL = 3
 const MINIMAS = 8
 
-const vacia = (f: Linea) => !f.codigo && !f.nombre && f.cantidad === ''
+const vacia = (f: Linea) => !f.codigo && !f.nombre && f.cantidad === '' && !f.proveedor
 const normal = (t: string) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 export const pareceNumero = (t: string) => {
   const s = String(t ?? '').trim()
@@ -46,7 +48,7 @@ function conVacias(filas: Linea[]) {
   let alFinal = 0
   for (let i = out.length - 1; i >= 0 && vacia(out[i]); i--) alFinal++
   while (alFinal < VACIAS_AL_FINAL || out.length < MINIMAS) {
-    out.push({ codigo: '', nombre: '', cantidad: '' })
+    out.push({ ...FILA_VACIA })
     alFinal++
   }
   return out
@@ -58,16 +60,17 @@ function columnasPorEncabezado(fila: string[]) {
   const buscar = (re: RegExp) => n.findIndex((t) => re.test(t))
   const codigo = buscar(/^(cod|codigo|codigo producto|cod producto|referencia|ref|item|sku|articulo|codigo articulo|material|plu)\b/)
   if (codigo < 0) return null
+  const proveedor = buscar(/^(proveedor|proveedores|supplier|vendor)\b/)
   let cantidad = buscar(/pedir|pedido|comprar|solicitad/)
   if (cantidad < 0) cantidad = buscar(/^(cantidad|cant|unidades)\b/)
   let nombre = buscar(/^(nombre|descripcion|producto|detalle|denominacion)/)
   // "CODIGO | ARTÍCULO | PEDIDO": el código ya está; "Artículo" (o la única columna que queda) es el nombre.
-  if (nombre < 0) nombre = n.findIndex((t, i) => i !== codigo && i !== cantidad && /^(articulo|referencia|item|material)\b/.test(t))
+  if (nombre < 0) nombre = n.findIndex((t, i) => i !== codigo && i !== cantidad && i !== proveedor && /^(articulo|referencia|item|material)\b/.test(t))
   if (nombre < 0) {
-    const resto = n.map((_, i) => i).filter((i) => i !== codigo && i !== cantidad)
+    const resto = n.map((_, i) => i).filter((i) => i !== codigo && i !== cantidad && i !== proveedor)
     if (resto.length === 1) nombre = resto[0]
   }
-  return { codigo, nombre, cantidad }
+  return { codigo, nombre, cantidad, proveedor }
 }
 
 function separarFilas(datos: string) {
@@ -96,7 +99,10 @@ function separarFilas(datos: string) {
 // van antes de la decisión). destacarCantidad: la columna que se edita se resalta.
 // claseFila: una clase por fila (por ejemplo, las que cambiaron).
 type Props = {
-  inicial: { codigo: unknown; nombre?: unknown; cantidad: unknown }[]
+  inicial: { codigo: unknown; nombre?: unknown; cantidad: unknown; proveedor?: unknown }[]
+  // conProveedor: muestra la columna del proveedor; proveedores: los conocidos, para sugerirlos.
+  conProveedor?: boolean
+  proveedores?: string[]
   soloLectura?: boolean
   extras?: Extra[]
   extrasAntes?: Extra[]
@@ -106,15 +112,17 @@ type Props = {
   claseFila?: (l: Linea) => string | undefined
 }
 
-export const Hoja = forwardRef<HojaApi, Props>(function Hoja({ inicial, soloLectura = false, extras = [], extrasAntes = [], alCambiar, tituloCantidad = 'Cantidad', destacarCantidad = false, claseFila }, ref) {
-  const desde = (ls: Props['inicial']) => ls.map((l) => ({ codigo: texto(l.codigo), nombre: texto(l.nombre), cantidad: texto(l.cantidad) }))
+export const Hoja = forwardRef<HojaApi, Props>(function Hoja({ inicial, soloLectura = false, extras = [], extrasAntes = [], alCambiar, tituloCantidad = 'Cantidad', destacarCantidad = false, claseFila, conProveedor = false, proveedores = [] }, ref) {
+  const columnas = conProveedor ? COLUMNAS_CON_PROVEEDOR : COLUMNAS
+  const listaProveedores = useId()
+  const desde = (ls: Props['inicial']) => ls.map((l) => ({ codigo: texto(l.codigo), nombre: texto(l.nombre), cantidad: texto(l.cantidad), proveedor: texto(l.proveedor) }))
   const [filas, setFilas] = useState<Linea[]>(() => (soloLectura ? desde(inicial) : conVacias(desde(inicial))))
   const [errores, setErrores] = useState<Set<number>>(new Set())
   const tabla = useRef<HTMLTableElement>(null)
 
   useImperativeHandle(ref, () => ({
     lineas() {
-      const out = filas.map((f) => ({ codigo: f.codigo.trim(), nombre: f.nombre.trim(), cantidad: f.cantidad.trim() }))
+      const out = filas.map((f) => ({ codigo: f.codigo.trim(), nombre: f.nombre.trim(), cantidad: f.cantidad.trim(), proveedor: f.proveedor.trim() }))
       while (out.length && vacia(out[out.length - 1])) out.pop()
       return out
     },
@@ -152,7 +160,7 @@ export const Hoja = forwardRef<HojaApi, Props>(function Hoja({ inicial, soloLect
     if (e.key === 'Enter' || (e.key === 'ArrowDown' && !e.altKey)) {
       e.preventDefault()
       if (e.key === 'Enter' && e.shiftKey) return enfocar(Math.max(0, i - 1), col)
-      if (i + 1 >= filas.length) setFilas((f) => [...f, { codigo: '', nombre: '', cantidad: '' }])
+      if (i + 1 >= filas.length) setFilas((f) => [...f, { ...FILA_VACIA }])
       enfocar(i + 1, col)
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
@@ -160,7 +168,7 @@ export const Hoja = forwardRef<HojaApi, Props>(function Hoja({ inicial, soloLect
     } else if (e.key === 'ArrowLeft' && alInicio && col > 0) {
       e.preventDefault()
       enfocar(i, col - 1)
-    } else if (e.key === 'ArrowRight' && alFinal && col < 2) {
+    } else if (e.key === 'ArrowRight' && alFinal && col < columnas.length - 1) {
       e.preventDefault()
       enfocar(i, col + 1)
     }
@@ -172,25 +180,26 @@ export const Hoja = forwardRef<HojaApi, Props>(function Hoja({ inicial, soloLect
     e.preventDefault()
     let bloque = separarFilas(datos)
     if (!bloque.length) return
-    let mapa: { codigo: number; nombre: number; cantidad: number } | null = null
+    let mapa: { codigo: number; nombre: number; cantidad: number; proveedor: number } | null = null
     const enc = columnasPorEncabezado(bloque[0])
     if (enc && bloque[0].length > 1 && !pareceNumero(bloque[0][enc.cantidad] ?? 'x')) {
       mapa = enc
       bloque = bloque.slice(1)
     } else if (col === 0 && bloque.every((f) => f.length === 2) && bloque.filter((f) => pareceNumero(f[1])).length >= bloque.length * 0.6) {
-      mapa = { codigo: 0, nombre: -1, cantidad: 1 }
+      mapa = { codigo: 0, nombre: -1, cantidad: 1, proveedor: -1 }
     }
     const sig = filas.slice()
     bloque.forEach((celdas, k) => {
       const d = i + k
-      while (sig.length <= d) sig.push({ codigo: '', nombre: '', cantidad: '' })
+      while (sig.length <= d) sig.push({ ...FILA_VACIA })
       const f = { ...sig[d] }
       if (mapa) {
         if (mapa.codigo >= 0) f.codigo = celdas[mapa.codigo] ?? ''
         if (mapa.nombre >= 0) f.nombre = celdas[mapa.nombre] ?? ''
         if (mapa.cantidad >= 0) f.cantidad = celdas[mapa.cantidad] ?? ''
+        if (mapa.proveedor >= 0) f.proveedor = celdas[mapa.proveedor] ?? ''
       } else {
-        celdas.slice(0, 3 - col).forEach((c, j) => { f[COLUMNAS[col + j]] = c })
+        celdas.slice(0, columnas.length - col).forEach((c, j) => { f[columnas[col + j]] = c })
       }
       sig[d] = f
     })
@@ -224,13 +233,15 @@ export const Hoja = forwardRef<HojaApi, Props>(function Hoja({ inicial, soloLect
 
   return (
     <div className="flex flex-col gap-2">
+      {conProveedor && <datalist id={listaProveedores}>{proveedores.map((p) => <option key={p} value={p} />)}</datalist>}
       <div className="overflow-x-auto rounded-xl border border-border">
-        <table ref={tabla} className="w-full border-collapse text-[0.95rem]" style={{ minWidth: 520 + (extras.length + extrasAntes.length) * 80 }}>
+        <table ref={tabla} className="w-full border-collapse text-[0.95rem]" style={{ minWidth: 520 + (conProveedor ? 160 : 0) + (extras.length + extrasAntes.length) * 80 }}>
           <thead className="bg-muted text-left text-[0.82rem] text-muted-foreground">
             <tr>
               <th className="w-10 px-2 py-2 text-center font-semibold">#</th>
               <th className={cn('px-2.5 py-2 font-semibold', extras.length + extrasAntes.length > 2 ? 'w-28' : 'w-40')}>Código</th>
               <th className={cn('px-2.5 py-2 font-semibold', (extras.length > 0 || extrasAntes.length > 0) && 'min-w-48')}>Nombre <span className="font-normal">(opcional)</span></th>
+              {conProveedor && <th className="w-44 px-2.5 py-2 font-semibold">Proveedor <span className="font-normal">(opcional)</span></th>}
               {extrasAntes.map((x) => <th key={x.titulo} className="px-2.5 py-2 leading-tight font-semibold">{x.titulo}</th>)}
               <th className={cn('w-28 px-2.5 py-2 font-semibold', destacarCantidad && 'w-36 bg-primary text-primary-foreground')}>
                 {destacarCantidad ? <span className="inline-flex items-center gap-1.5"><Pencil className="size-3.5" aria-hidden="true" />{tituloCantidad}</span> : tituloCantidad}
@@ -249,17 +260,19 @@ export const Hoja = forwardRef<HojaApi, Props>(function Hoja({ inicial, soloLect
                     <>
                       <td className="px-2.5 py-2">{f.codigo}</td>
                       <td className="px-2.5 py-2">{f.nombre}</td>
+                      {conProveedor && <td className="px-2.5 py-2">{f.proveedor}</td>}
                       {extrasAntes.map((x) => celdaExtra(x, f, i))}
                       <td className={cn('px-2.5 py-2 font-semibold tabular-nums', destacada)}>{f.cantidad}</td>
                     </>
                   ) : (
-                    COLUMNAS.flatMap((c, col) => [
+                    columnas.flatMap((c, col) => [
                       ...(c === 'cantidad' ? extrasAntes.map((x) => celdaExtra(x, f, i)) : []),
                       <td key={c} className={cn('border-l border-border p-0', c === 'cantidad' && destacada)}>
                         <input
                           data-col={col}
                           value={f[c]}
-                          aria-label={`${c === 'codigo' ? 'Código' : c === 'nombre' ? 'Nombre' : tituloCantidad}, fila ${i + 1}`}
+                          aria-label={`${c === 'codigo' ? 'Código' : c === 'nombre' ? 'Nombre' : c === 'proveedor' ? 'Proveedor' : tituloCantidad}, fila ${i + 1}`}
+                          list={c === 'proveedor' ? listaProveedores : undefined}
                           autoComplete="off"
                           spellCheck={false}
                           inputMode={c === 'cantidad' ? 'decimal' : undefined}

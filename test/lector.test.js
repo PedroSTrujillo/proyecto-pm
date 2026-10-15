@@ -482,3 +482,10 @@ test('lista con "CODIGO | ARTÍCULO | PEDIDO": artículo se toma como el nombre'
   assert.equal(r.ok, true);
   assert.deepEqual(r.lineas.map((l) => [l.codigo, l.nombre, l.cantidad]), [['010121', 'LIJA DE PRUEBA N° 80', 100], ['P-814', 'RODAMIENTO DE PRUEBA *2', 150], ['012540', 'PEGANTE DE PRUEBA 3 GRS', 48]]);
 });
+
+test('lista con columna de proveedor: cada línea trae su proveedor', () => {
+  const r = leerLista(xlsx({ Hoja1: [['Código', 'Producto', 'Proveedor', 'Pedido'], ['A-1', 'Tornillo', 'Tornillería Central', 10], ['B-2', 'Cinta', '', 5]] }), 'pedido.xlsx');
+  assert.equal(r.ok, true);
+  assert.equal(r.lineas[0].proveedor, 'Tornillería Central');
+  assert.equal(r.lineas[1].proveedor, undefined);
+});

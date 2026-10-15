@@ -20,6 +20,7 @@ const { revisarLista, compararListas, coherenciaConReporte } = require('./listas
 const recordatorios = require('./recordatorios');
 const { correoConfigurado } = require('./correo');
 const { leerAjustes, construirInventario } = require('./inventario');
+const { claveCodigo } = require('./valores');
 
 const MAX_LINEAS = 5000;
 const subida = multer({
@@ -137,7 +138,20 @@ function lineasDelCuerpo(body) {
     codigo: l && l.codigo !== undefined && l.codigo !== null ? String(l.codigo).slice(0, 100) : '',
     nombre: l && l.nombre !== undefined && l.nombre !== null ? String(l.nombre).slice(0, 200) : '',
     cantidad: l && l.cantidad !== undefined && l.cantidad !== null ? (typeof l.cantidad === 'number' ? l.cantidad : String(l.cantidad).slice(0, 30)) : '',
+    ...(l && l.proveedor ? { proveedor: String(l.proveedor).replace(/\s+/g, ' ').trim().slice(0, 80) } : {}),
   }));
+}
+
+// El proveedor que el usuario puso en su lista queda como el de ese producto, igual que si lo
+// asignara en Datos o en la ficha: así el panel, el sugerido y la orden de compra lo usan.
+async function asignarProveedores(usuarioId, lineas) {
+  const conProveedor = lineas.filter((l) => l.codigo && l.proveedor);
+  if (!conProveedor.length) return;
+  const u = await db.uno('SELECT inventario FROM usuarios WHERE id = $1', [usuarioId]);
+  const actual = (u && u.inventario) || {};
+  const asignaciones = { ...(actual.asignaciones || {}) };
+  for (const l of conProveedor) asignaciones[claveCodigo(l.codigo)] = l.proveedor;
+  await db.query('UPDATE usuarios SET inventario = $1::jsonb WHERE id = $2', [JSON.stringify(leerAjustes({ ...actual, asignaciones })), usuarioId]);
 }
 
 // Borrador: quita filas vacías del final para no guardar basura.
@@ -281,6 +295,7 @@ rutas.post('/:id/lista-inicial', async (req, res) => {
     [JSON.stringify(revision.lineas), tipo, String(req.body?.proveedor ?? p.proveedor).trim().slice(0, 120), p.id, req.usuario.id],
   );
   if (!actualizado) throw new ErrorUsuario('La lista inicial ya está guardada y no se puede cambiar.', 409);
+  await asignarProveedores(req.usuario.id, revision.lineas);
   await registrarEvento(req.usuario.id, 'lista_inicial_guardada', { pedidoId: p.id, detalle: { lineas: revision.lineas.length, tipo } });
   res.json({ pedido: await vistaPedido(actualizado), avisos: revision.avisos });
 });
@@ -626,6 +641,7 @@ rutas.post('/:id/lista-final', async (req, res) => {
     [JSON.stringify(revision.lineas), JSON.stringify(comparacion), p.id],
   );
   if (!actualizado) throw new ErrorUsuario('Este pedido ya está terminado.', 409);
+  await asignarProveedores(req.usuario.id, revision.lineas);
   await registrarEvento(req.usuario.id, 'lista_final_guardada', { pedidoId: p.id, detalle: comparacion.conteo });
   res.json({ pedido: await vistaPedido(actualizado), avisos: revision.avisos });
 });

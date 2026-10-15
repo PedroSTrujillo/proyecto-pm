@@ -24,6 +24,7 @@ function revisarLista(lineas) {
     const fila = Number.isInteger(l.fila) ? l.fila : i + 1;
     const codigo = textoCodigo(l.codigo);
     const nombre = l.nombre === null || l.nombre === undefined ? '' : String(l.nombre).trim().slice(0, 200);
+    const proveedor = l.proveedor === null || l.proveedor === undefined ? '' : String(l.proveedor).replace(/\s+/g, ' ').trim().slice(0, 80);
     const bruto = l.cantidad === null || l.cantidad === undefined ? '' : String(l.cantidad).trim();
     if (!codigo && !bruto && !nombre) return;
     if (!codigo) { errores.push({ fila, mensaje: `La fila ${fila} no tiene código de producto.` }); return; }
@@ -39,8 +40,9 @@ function revisarLista(lineas) {
       previa.cantidad = Math.round((previa.cantidad + cantidad) * 1e6) / 1e6;
       previa.filas.push(fila);
       if (!previa.nombre && nombre) previa.nombre = nombre;
+      if (!previa.proveedor && proveedor) previa.proveedor = proveedor;
     } else {
-      porClave.set(clave, { codigo, nombre, cantidad, filas: [fila] });
+      porClave.set(clave, { codigo, nombre, cantidad, proveedor, filas: [fila] });
     }
   });
 
@@ -52,7 +54,7 @@ function revisarLista(lineas) {
   if (enCero) avisos.push(`${enCero === 1 ? 'Una fila tiene' : `${enCero} filas tienen`} cantidad 0 y no ${enCero === 1 ? 'cuenta' : 'cuentan'} como parte del pedido.`);
 
   return {
-    lineas: [...porClave.values()].map(({ codigo, nombre, cantidad }) => ({ codigo, nombre, cantidad })),
+    lineas: [...porClave.values()].map(({ codigo, nombre, cantidad, proveedor }) => ({ codigo, nombre, cantidad, ...(proveedor ? { proveedor } : {}) })),
     errores,
     avisos,
   };
