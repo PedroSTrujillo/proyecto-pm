@@ -1,4 +1,5 @@
 import { Analytics } from '@vercel/analytics/next'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 import type { Metadata, Viewport } from 'next'
 import { Figtree, Plus_Jakarta_Sans } from 'next/font/google'
 import './globals.css'
@@ -46,6 +47,7 @@ export default function RootLayout({
         {children}
         {/* Solo si se activa Web Analytics en Vercel (y se pone ANALITICA_VERCEL=1): si no, su script da 404 en cada página. */}
         {process.env.NODE_ENV === 'production' && process.env.ANALITICA_VERCEL === '1' && <Analytics />}
+        <SpeedInsights />
       </body>
     </html>
   )
