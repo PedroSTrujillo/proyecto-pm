@@ -2,6 +2,8 @@
 
 Escrito el 2026-10-28. Rama: `empresas-inventario-diario` (sale de `main` en `06770b4`). Es el plan de trabajo de las próximas sesiones; el estado de cada fase va en `docs/HANDOFF.md`.
 
+**Estado (2026-10-28, entrada 35 de la bitácora):** fases 1 a 6 implementadas en la rama, sin publicar. Pendiente: la fase 0 (rama de Neon y variables en Vercel, la hace una persona del equipo) y lo que la entrada 35 lista como "no se hizo".
+
 ## Qué se pidió
 
 1. **Inventario diario.** Además del flujo de hoy (subir el export del programa contable), registrar entradas y salidas de inventario cada día, con un manejo básico de inventario (existencias por producto, historial, conteo). No reemplaza nada de lo que existe.

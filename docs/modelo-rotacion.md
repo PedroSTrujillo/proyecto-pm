@@ -112,9 +112,9 @@ El documento fija "se agota" en menos de 2 semanas. Desde el 2026-10-13 cada cue
 - Si el usuario no elige nada, U = 2 y todo da igual que antes.
 - U es un número entero de semanas entre 1 y 11, menor que el umbral de "sobra" (12), para que un producto no pueda salir con los dos estados. Se guarda en `usuarios.inventario.semanasAgota` y lo valida `leerAjustes` (`server/inventario.js`).
 - Sᵢ no cambia: solo cambia qué productos se marcan como "se agota" (Sᵢ < U).
-- **Reporte del paso 3:** cada pedido tiene su U (`pedidos.semanas_agota`). Se elige en el paso 2 (`PUT /api/pedidos/:id/semanas-agota`, que también lo deja como el de Datos) o, si no, es el de Datos, y **queda fijo al ver el reporte**. El reporte guardado en `exports` se calcula con el U de Datos al subir el archivo; si el pedido usa otro (por ejemplo, con "Usar ese inventario"), `conUmbral` (`server/rotacion.js`) vuelve a marcar los estados con las mismas semanas. La coherencia con el reporte (§4.3), el recordatorio y la vista del equipo usan el U del pedido. Los pedidos de antes no tienen U guardado y usan el de su reporte (2).
+- **Reporte del paso 3:** cada pedido tiene su U (`pedidos.semanas_agota`). Se elige en el paso 2 (`PUT /api/pedidos/:id/semanas-agota`, que también lo deja como el de Datos) o, si no, es el de Datos, y **queda fijo al ver el reporte**. El reporte guardado en `exports` se calcula con el U de Datos al subir el archivo; si el pedido usa otro (por ejemplo, con "Usar ese inventario"), `conUmbral` (`server/rotacion.js`) vuelve a marcar los estados con las mismas semanas. La coherencia con el reporte (§4.3), el recordatorio y `npm run resultados` usan el U del pedido. Los pedidos de antes no tienen U guardado y usan el de su reporte (2).
 - **Panel y productos:** usan el U de hoy, también con un archivo subido antes.
-- **Aplica también a los probadores durante sus 14 días** (decisión del equipo, 2026-10-13). Es un cambio de tratamiento: la vista del equipo muestra el U de cada probador y el de cada reporte, y tiene que quedar su fila en "4 · Cambios y Reflexión".
+- **Aplica también a los probadores durante sus 14 días** (decisión del equipo, 2026-10-13). Es un cambio de tratamiento: `npm run resultados` muestra el U de cada probador y el de cada reporte, y tiene que quedar su fila en "4 · Cambios y Reflexión".
 
 ### 3.5 Casos borde
 
@@ -175,12 +175,12 @@ La prueba automática `test/listas.test.js` verifica la comparación contra un c
 - De cada usuario se toma el pedido con mayor M entre los que guardó como lista final dentro de esa ventana. Si dos pedidos empatan, se prefiere el real.
 - **Cumple:** M ≥ 5. **No cambia:** M ≤ 1. **Intermedio:** M entre 2 y 4. **Sin pedido:** todavía no guarda una lista final dentro de la ventana.
 - **Veredicto:** se cumplió la meta si 3 o más usuarios cumplen. Toca pivotar si 3 o más no cambian. Si no pasa ninguna de las dos, la prueba sigue en curso.
-- El segundo criterio de pivote (cambiaron por probar la herramienta) es cualitativo. La pantalla del equipo muestra la respuesta a "¿por qué cambió?" al lado de cada pedido para que el equipo lo juzgue.
+- El segundo criterio de pivote (cambiaron por probar la herramienta) es cualitativo. `npm run resultados` muestra la respuesta a "¿qué tuviste en cuenta?" (antes "¿por qué cambió?"; opcional desde el 2026-10-28) al lado de cada pedido para que el equipo lo juzgue.
 - Cada pedido queda marcado como **real** o **simulado**, y el resumen dice cuántos de los que cumplen lo hicieron con un pedido real.
 
 ### 4.3 Coherencia con el reporte y magnitud del cambio (apoyo, no cambian el veredicto)
 
-M cuenta líneas, pero no dice si el cambio lo produjo el dato. Para el segundo criterio de pivote (vacío #12) y para el ruido de M (vacío #11), la vista del equipo muestra dos números más por pedido. Los dos se calculan solos al guardar la lista final (`coherenciaConReporte` y `compararListas` en `server/listas.js`):
+M cuenta líneas, pero no dice si el cambio lo produjo el dato. Para el segundo criterio de pivote (vacío #12) y para el ruido de M (vacío #11), `npm run resultados` muestra dos números más por pedido. Los dos se calculan solos al guardar la lista final (`coherenciaConReporte` y `compararListas` en `server/listas.js`):
 
 ```
 Para cada línea cambiada c, dirección(c) = sube  si se agregó o subió su cantidad
@@ -195,7 +195,7 @@ Magnitud   = Σ |qᶠ(c) − qᴵ(c)| ÷ Σ qᴵ(c)          (una línea agregad
 
 En el ejemplo de §4.1, con un reporte donde F se agota, G y D sobran, B está normal y E no aparece: coherentes = 2 (F y D), contrarias = 1 (G), neutras = 2, **coherencia = 2 ÷ 5 = 40 %**; magnitud = 16 ÷ 27 = **59 %**. Lo verifica `test/listas.test.js`.
 
-El resumen dice cuántos de los que cumplen movieron **la mayoría** (≥ 50 %) de sus líneas en la dirección del reporte (`COHERENCIA_MAYORIA` en `server/equipo.js`). Es una ayuda para leer los "¿por qué?", no un criterio nuevo: el veredicto sigue siendo el de §4.2. Al usuario no se le muestra, para no sugerirle qué responder en el paso 5. Los pedidos guardados antes del 2026-10-11 se completan solos la primera vez que se abre la vista del equipo, con las listas y el reporte que ya están en la base.
+El resumen dice cuántos de los que cumplen movieron **la mayoría** (≥ 50 %) de sus líneas en la dirección del reporte (`COHERENCIA_MAYORIA` en `server/equipo.js`). Es una ayuda para leer los "¿por qué?", no un criterio nuevo: el veredicto sigue siendo el de §4.2. Al usuario no se le muestra, para no sugerirle qué responder en el paso 5. Los pedidos guardados antes del 2026-10-11 se completan solos la primera vez que se abre `npm run resultados`, con las listas y el reporte que ya están en la base.
 
 ## 5. Recordatorio antes de que se agote (stickiness)
 
@@ -212,7 +212,7 @@ fecha recordatorio(i)  = fecha umbral(i) − 3 días
 - U es el umbral de "se agota" con que se vio ese reporte (§3.4.1); sin cambiarlo, U = 2 y la fórmula es la de la corrección. Con un U alto, "buen nivel" sube a U + 2 para no programar avisos que ya pasaron.
 - Solo se programan los productos que llegan a U semanas dentro de los próximos 3 meses (`SEMANAS_HORIZONTE`). Más allá, la estimación ya no vale y lo correcto es subir otro export.
 - Un recordatorio junta los productos de los 7 días siguientes al primero, así que llega como máximo uno por semana.
-- La vista del equipo mide el stickiness: quién lo pidió, quién descargó el calendario, a quién ya le llegó la fecha de su primer recordatorio y quién volvió a entrar desde ese día. El recordatorio vive en el calendario del usuario, así que no se sabe si lo abrió; volver a entrar desde esa fecha es la señal.
+- `npm run resultados` mide el stickiness: quién lo pidió, quién descargó el calendario, a quién ya le llegó la fecha de su primer recordatorio y quién volvió a entrar desde ese día. El recordatorio vive en el calendario del usuario, así que no se sabe si lo abrió; volver a entrar desde esa fecha es la señal.
 
 ## 6. Lo que queda para después
 
@@ -277,6 +277,22 @@ Se esconden las últimas 8 semanas del archivo, se pronostican con lo anterior (
 ### 7.6 La prueba con los probadores
 
 Durante los 14 días de prueba de cada probador (desde su primera lista inicial) la app muestra solo lo que declara el plan de prueba del Entregable 2: las semanas de inventario, "se agota" y "sobra". Nada de esta sección (ni pronóstico, ni temporada, ni tiempo de entrega, ni riesgo, ni cantidad sugerida, ni mínimos y máximos): si lo vieran, M ya no mediría el efecto del reporte de semanas. Y su inventario solo se ve después de guardar la primera lista inicial (`alcance` y `permisos` en `server/inventario-rutas.js`). Ver `docs/ENTREGABLE_Y_APP.md`.
+
+## 8. Alpha 0.2: inventario desde movimientos y unidades al mostrar (2026-10-28)
+
+### 8.1 Inventario desde movimientos
+
+Además del archivo del programa contable, la empresa puede registrar cada día entradas, ventas, devoluciones de clientes, otras salidas (daño, consumo, traslado) y conteos físicos (`server/saldos.js`, `server/movimientos.js`). No cambia el modelo: los movimientos producen un export más, con la misma forma, y se calcula con `calcularRotacion` igual que un archivo.
+
+- **Ventas:** las del último archivo (rearmadas desde sus ventas por semana guardadas, una por semana en su primer día; si el archivo traía solo el total de un periodo, el total se reparte por igual entre sus semanas) más las ventas registradas después de la fecha del archivo, menos las devoluciones (igual que NC en la pregunta de documentos, §3.5).
+- **Existencias:** las del archivo más entradas y devoluciones, menos ventas y otras salidas. Un conteo fija la cantidad de ese día. Lo registrado el día del archivo o antes no se suma (ya está en el archivo) y se avisa.
+- **Periodo:** termina el día del último movimiento aunque ese día no se haya vendido nada (`hastaDia` en `calcularRotacion` y `seriesSemanales`): las existencias son las de ese día.
+- **Sin archivo:** el inventario sale solo de los movimientos, con el aviso de historial corto (menos de 26 semanas) que ya trae el modelo.
+- El reporte de un pedido sigue fijo: si un pedido usa un inventario calculado con movimientos, el siguiente cálculo crea otro.
+
+### 8.2 Unidades al mostrar
+
+El modelo sigue en semanas: S, los umbrales (2 y 12 semanas), el tiempo de entrega y cada cuánto pide. Cada persona elige si lo ve en días (S × 7), semanas o meses (S × 7 ÷ 30,44). Menos de una semana se dice siempre en días. También elige el horizonte de "venderás en…" (de media semana a 26 semanas; 4 si no elige): es la predictiva de §7.2 con h igual al horizonte, no la suma de los rangos de cada semana. Los reportes guardados no cambian.
 
 ## Fuentes
 

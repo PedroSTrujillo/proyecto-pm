@@ -434,13 +434,15 @@ function datosDelSector(id) {
  * El inventario de ejemplo de un sector, con la misma forma que el de un usuario.
  * Las ventas llegan hasta ayer y las existencias son las de hoy. ajustes (opcional): los
  * tiempos de entrega que el visitante cambió en "Datos", para ver cómo cambia el pedido.
+ * horizonte: semanas del pronóstico que eligió el visitante (4 si no eligió).
  */
-function inventarioDemo(id, ajustes = null) {
+function inventarioDemo(id, ajustes = null, horizonte = 4) {
   const sector = SECTORES[id];
   if (!sector) return null;
   const d = datosDelSector(id);
   const propios = ajustes && typeof ajustes === 'object' ? ajustes : {};
   return construirInventario({
+    semanasPronostico: horizonte,
     reporte: { ...d.rotacion, hojasUsadas: [] },
     series: d.series,
     catalogo: d.catalogo,

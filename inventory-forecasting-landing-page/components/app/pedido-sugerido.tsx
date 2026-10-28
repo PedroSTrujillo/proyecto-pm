@@ -21,7 +21,7 @@ export function PedidoSugerido({ encabezado = true }: { encabezado?: boolean }) 
   if (!inventario.sugerencias) {
     return (
       <Aviso titulo="La cantidad sugerida todavía no está activa">
-        Se activa cuando terminen tus 14 días de prueba{respuesta?.finPrueba ? `, el ${fecha(respuesta.finPrueba)}` : ''}. Mientras tanto, prepara tus pedidos desde &quot;Pedidos&quot;: el reporte te muestra las semanas de inventario de cada producto.
+        Se activa{respuesta?.finPrueba ? ` el ${fecha(respuesta.finPrueba)}` : ' más adelante'}. Mientras tanto, prepara tus pedidos desde &quot;Pedidos&quot;: el reporte te muestra las semanas de inventario de cada producto.
       </Aviso>
     )
   }

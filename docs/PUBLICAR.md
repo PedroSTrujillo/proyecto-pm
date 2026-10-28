@@ -21,13 +21,15 @@ En local todo sigue igual: `npm run dev` levanta la API y la página juntas con 
    Pongan la región de las funciones de Vercel igual a la de Neon (*Settings → Functions → Function Region*): si quedan lejos, cada pedido tarda más.
 4. **Variables** (*Settings → Environment Variables*, para *Production*):
    - `DATABASE_URL`: la de Neon (si usaron *Storage*, ya está).
-   - `TEAM_EMAILS`: los correos del equipo, separados por coma. Esas cuentas ven "Resultados de la prueba" y "Ejemplos".
+   - `TEAM_EMAILS`: los correos del equipo, separados por coma. Esas cuentas ven "Ejemplos" y no cuentan como probadores. Los resultados de la prueba no están en la aplicación: se leen con `npm run resultados` (README).
    - Opcional, `NEXT_PUBLIC_POSTHOG_KEY` (y `NEXT_PUBLIC_POSTHOG_REGION=eu` si el proyecto de PostHog está en Europa): embudo y grabaciones de sesión. Se lee al compilar, así que después de ponerla hay que hacer *Redeploy*.
-   - Opcionales: `BREVO_API_KEY` y `CORREO_REMITENTE`, para mandar el recordatorio por correo. `APP_URL` solo si usan un dominio propio; si no, se usa sola la dirección de producción de Vercel.
+   - Opcionales: `BREVO_API_KEY` y `CORREO_REMITENTE`, para mandar por correo el recordatorio, las invitaciones a la empresa y el boletín diario. `APP_URL` solo si usan un dominio propio; si no, se usa sola la dirección de producción de Vercel.
+   - Para el boletín diario: `CRON_SECRET` (Vercel lo manda solo al llamar el Cron de `vercel.json`, todos los días a las 11:00 UTC, 6:00 en Bogotá) y `BOLETIN_SECRETO` (firma el enlace para darse de baja). En el plan Hobby, Vercel corre el Cron en algún momento de esa hora. Para probarlo antes: `npm run boletin -- --email tu@correo.co` con la `DATABASE_URL` de la vista previa (te llega aunque hoy ya te haya llegado).
+   - Para las vistas previas (*Preview*) de la rama `empresas-inventario-diario`, usen una rama de Neon creada desde producción solo con el esquema, no la base de producción: el arranque crea las tablas nuevas y la "empresa vacía" de cada usuario.
 5. *Deploy*. Cuando termine, revisen:
    - `/salud` responde `{"ok":true}`.
    - `/` y `/demo` cargan.
-   - Crear una cuenta funciona. Con un correo de `TEAM_EMAILS`, el menú muestra "Resultados de la prueba" y "Ejemplos".
+   - Crear una cuenta funciona. Con un correo de `TEAM_EMAILS`, el menú muestra "Ejemplos".
    - En "Ejemplos", "Cargar en mi cuenta" deja el panel con ese negocio.
 
 ## Cada versión nueva

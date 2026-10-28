@@ -7,7 +7,8 @@
 import { useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { alcance, mesAnio, numero, plural, semanas, ventasSemana } from '@/lib/formato'
+import { SelectorTiempo } from './vista'
+import { alcance, duracion, mesAnio, numero, plural, semanas, ventasSemana } from '@/lib/formato'
 import type { Estado } from '@/lib/tipos'
 import { Boton, ChipEstado, ESTADOS, Pildoras, claseEntrada } from './ui'
 
@@ -94,15 +95,16 @@ export function Reporte({ r, compacto = false }: { r: ReporteRotacion; compacto?
       {importantes.map((a) => (
         <p key={a} className="rounded-xl border border-ambar-borde bg-ambar-fondo px-4 py-3 text-[0.95rem] text-ambar-texto">{a}</p>
       ))}
+      <SelectorTiempo />
       <div className="grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-3">
         <div className="rounded-2xl border border-border bg-card p-4"><strong className="font-display text-[1.8rem] tabular-nums">{numero(r.resumen.productos)}</strong><span className="block text-sm text-muted-foreground">productos</span></div>
-        <div className="rounded-2xl border border-rojo-borde bg-rojo-fondo p-4"><strong className="font-display text-[1.8rem] text-rojo tabular-nums">{numero(r.resumen.seAgotan)}</strong><span className="block text-sm text-rojo-texto">se agotan en menos de {u.seAgota} semanas</span></div>
-        <div className="rounded-2xl border border-azul-borde bg-azul-fondo p-4"><strong className="font-display text-[1.8rem] text-azul tabular-nums">{numero(r.resumen.sobran)}</strong><span className="block text-sm text-azul-texto">sobran: más de {u.sobra} semanas o sin ventas</span></div>
+        <div className="rounded-2xl border border-rojo-borde bg-rojo-fondo p-4"><strong className="font-display text-[1.8rem] text-rojo tabular-nums">{numero(r.resumen.seAgotan)}</strong><span className="block text-sm text-rojo-texto">se agotan en menos de {duracion(u.seAgota)}</span></div>
+        <div className="rounded-2xl border border-azul-borde bg-azul-fondo p-4"><strong className="font-display text-[1.8rem] text-azul tabular-nums">{numero(r.resumen.sobran)}</strong><span className="block text-sm text-azul-texto">sobran: más de {duracion(u.sobra)} o sin ventas</span></div>
       </div>
 
       <details className="rounded-xl border border-border bg-card px-4 py-3">
         <summary className="cursor-pointer font-semibold text-primary">¿De dónde sale el número?</summary>
-        <p className="mt-2"><strong>Semanas de inventario = existencias ÷ ventas por semana.</strong>{e ? ` Por ejemplo, ${e.codigo} vende ${ventasSemana(e.promedioSemanal)} por semana y tienes ${numero(e.existencias)}: te alcanza para ${semanas(e.semanasInventario)} semanas.` : ''}</p>
+        <p className="mt-2"><strong>Semanas de inventario = existencias ÷ ventas por semana.</strong>{e ? ` Por ejemplo, ${e.codigo} vende ${ventasSemana(e.promedioSemanal)} por semana y tienes ${numero(e.existencias)}: te alcanza para ${semanas(e.semanasInventario)} semanas${alcance(e.semanasInventario) !== `${semanas(e.semanasInventario)} semanas` ? ` (${alcance(e.semanasInventario)})` : ''}.` : ''}</p>
         <p className="mt-1 text-[0.93rem] text-muted-foreground">
           {conAjustes
             ? 'Las ventas por semana salen de tu archivo: lo de los últimos 3 meses cuenta doble, un mes fuera de lo normal no infla el promedio y un producto nuevo se mide desde su primera venta.'
@@ -135,7 +137,7 @@ export function Reporte({ r, compacto = false }: { r: ReporteRotacion; compacto?
           onCambio={(v) => { setFiltro(v); setMostrar(POR_PAGINA) }}
           opciones={[
             { id: 'todos', texto: 'Todos' },
-            { id: 'agota', texto: `Agotados o por agotarse (menos de ${u.seAgota} semanas)` },
+            { id: 'agota', texto: `Agotados o por agotarse (menos de ${duracion(u.seAgota)})` },
             { id: 'sobra', texto: 'Sobrestock' },
           ]}
         />

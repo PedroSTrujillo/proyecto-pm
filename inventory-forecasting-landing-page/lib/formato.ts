@@ -23,17 +23,48 @@ export function semanas(n: number | null | undefined) {
   return formato(0, n >= 10 ? 0 : 1).format(n)
 }
 
+// --- Unidad de tiempo ---------------------------------------------------------------------------
+// El modelo calcula todo en semanas (docs/modelo-rotacion.md). Cada persona elige si lo ve en días,
+// semanas o meses (Mi cuenta o el selector del panel): eso cambia solo cómo se dice. La unidad la
+// fija contexto.tsx con la de la sesión, así las funciones de abajo la usan en todas las pantallas
+// sin pasarla una por una.
+
+export type Unidad = 'dias' | 'semanas' | 'meses'
+export const DIAS_POR_MES = 30.44
+let unidadActual: Unidad = 'semanas'
+
+export function fijarUnidad(u: Unidad) {
+  unidadActual = u
+}
+export function unidadDeTiempo() {
+  return unidadActual
+}
+
+export const NOMBRE_UNIDAD: Record<Unidad, string> = { dias: 'días', semanas: 'semanas', meses: 'meses' }
+
+// Semanas → la unidad elegida (número, sin redondear).
+export function enUnidad(n: number, u: Unidad = unidadActual) {
+  return u === 'dias' ? n * 7 : u === 'meses' ? (n * 7) / DIAS_POR_MES : n
+}
+
+function partesDias(n: number) {
+  const d = n <= 0 ? 0 : Math.max(1, Math.round(n * 7))
+  return { valor: numero(d), unidad: d === 1 ? 'día' : 'días' }
+}
+
 // Para cuánto alcanza un inventario. Menos de una semana se dice en días: "0 semanas" no dice nada.
-export function alcancePartes(n: number | null | undefined): { valor: string; unidad: string } {
+export function alcancePartes(n: number | null | undefined, u: Unidad = unidadActual): { valor: string; unidad: string } {
   if (n === null || n === undefined) return { valor: '—', unidad: '' }
-  if (n < 1) {
-    const d = n <= 0 ? 0 : Math.max(1, Math.round(n * 7))
-    return { valor: String(d), unidad: d === 1 ? 'día' : 'días' }
+  if (n < 1 || u === 'dias') return partesDias(n)
+  if (u === 'meses') {
+    const m = enUnidad(n, 'meses')
+    const v = formato(0, m >= 10 ? 0 : 1).format(m)
+    return { valor: v, unidad: v === '1' ? 'mes' : 'meses' }
   }
   return { valor: semanas(n), unidad: semanas(n) === '1' ? 'semana' : 'semanas' }
 }
 
-// "3 días", "2,4 sem" (corto) o "2,4 semanas".
+// "3 días", "2,4 sem" (corto) o "2,4 semanas"; "1,5 meses".
 export function alcance(n: number | null | undefined, corto = false) {
   const p = alcancePartes(n)
   if (!p.unidad) return p.valor
@@ -88,12 +119,31 @@ export function mesAnio(v: string) {
   return fmtMesAnio.format(new Date(`${v}-15T12:00:00Z`))
 }
 
-// Una duración en semanas dicha como se habla: "media semana", "1 semana", "2,5 semanas".
+// Una duración en semanas dicha como se habla, en la unidad elegida: "media semana", "1 semana",
+// "2,5 semanas"; "14 días"; "1,5 meses".
 export function duracion(n: number | null | undefined) {
   if (n === null || n === undefined) return '—'
+  if (unidadActual !== 'semanas') return alcance(n)
   if (n === 0.5) return 'media semana'
   if (n === 1) return '1 semana'
   return `${semanas(n)} semanas`
+}
+
+// Un horizonte de pronóstico en semanas, dicho en la unidad elegida ("4 semanas", "28 días", "1 mes").
+export function horizonteTexto(n: number) {
+  if (unidadActual === 'dias') return `${numero(Math.round(n * 7))} días`
+  if (unidadActual === 'meses') {
+    const m = Math.round(enUnidad(n, 'meses') * 10) / 10
+    return `${formato(0, 1).format(m)} ${m === 1 ? 'mes' : 'meses'}`
+  }
+  return `${semanas(n)} ${n === 1 ? 'semana' : 'semanas'}`
+}
+
+// Las opciones de horizonte en cada unidad, en semanas (se guardan así).
+export const HORIZONTES: Record<Unidad, number[]> = {
+  dias: [1, 2, 30 / 7],
+  semanas: [2, 4, 8, 12],
+  meses: [DIAS_POR_MES / 7, (2 * DIAS_POR_MES) / 7, (3 * DIAS_POR_MES) / 7],
 }
 
 export function plural(n: number, uno: string, varios: string) {

@@ -7,13 +7,14 @@ import Link from 'next/link'
 import { useMemo, useState, type ReactNode } from 'react'
 import { ArrowRight, BellRing, CalendarDays, Sparkles, TriangleAlert, Truck, Wallet } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { alcance, alcancePartes, dia, duracion, fecha, mesAnio, numero, plata, plural, porcentaje, semanas, sumarDias, ventasSemana } from '@/lib/formato'
+import { alcance, alcancePartes, dia, duracion, fecha, mesAnio, numero, plata, plural, porcentaje, sumarDias, ventasSemana } from '@/lib/formato'
 import { nombrePrograma } from '@/lib/sistemas'
 import type { Inventario, Producto } from '@/lib/tipos'
 import { useInventario } from './contexto'
 import { BarraRiesgo, GraficoVentas, LeyendaVentas, Sparkline } from './graficos'
 import { Ayuda, BotonEnlace, Cargando, ChipEstado, ESTADOS, ErrorLista, Pildoras, Tarjeta, Titulo } from './ui'
 import { SinInventario } from './sin-inventario'
+import { SelectorTiempo } from './vista'
 
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
 
@@ -29,14 +30,18 @@ function PanelCon({ inv }: { inv: Inventario }) {
   const { rutas, fuente } = useInventario()
   const r = inv.resumen
   const demo = fuente.tipo === 'demo'
+  // El operador ve las métricas gruesas (server/inventario.js, resumirParaOperador).
+  const operador = inv.vista === 'operador'
   // Sin proveedores en el archivo y sin un tiempo de entrega dicho por el usuario, "pide ya" no dice nada.
   const prueba = inv.alcance === 'prueba'
   const sinTiempos = inv.proveedores.every((p) => p.nombre === 'Sin proveedor') && inv.ajustes.entregaPorDefecto <= 1 && !demo
   const pideTop = inv.proveedores.filter((p) => p.pideYa > 0).sort((a, b) => b.pideYa - a.pideYa || b.entrega - a.entrega)[0]
   const sub = [
-    inv.fuente.programa ? `Archivo de ${nombrePrograma(inv.fuente.programa)}` : 'Tu último archivo',
+    inv.fuente.origen === 'movimientos'
+      ? `${inv.fuente.archivos?.length ? 'Tu archivo' : 'Tus movimientos'}${inv.fuente.archivos?.length && inv.fuente.movimientos ? ` + ${plural(inv.fuente.movimientos, 'movimiento', 'movimientos')}` : ''}`
+      : inv.fuente.programa ? `Archivo de ${nombrePrograma(inv.fuente.programa)}` : 'Tu último archivo',
     // La fecha que importa es hasta dónde llegan las ventas, no el día en que se subió el archivo.
-    inv.fuente.hasta ? `ventas hasta el ${fecha(inv.fuente.hasta)}` : `del ${fecha(inv.fuente.fecha)}`,
+    inv.fuente.hasta ? `${inv.fuente.origen === 'movimientos' ? 'al día' : 'ventas hasta'} el ${fecha(inv.fuente.hasta)}` : `del ${fecha(inv.fuente.fecha)}`,
     `${numero(r.productos)} productos`,
     inv.proveedores.length > 1 ? `${inv.proveedores.length} proveedores` : null,
   ].filter(Boolean).join(' · ')
@@ -47,14 +52,22 @@ function PanelCon({ inv }: { inv: Inventario }) {
         etiqueta={demo ? <span className="self-start rounded-full bg-secondary px-2.5 py-0.5 text-[0.82rem] font-semibold text-secondary-foreground">{inv.fuente.empresa}</span> : undefined}
         sub={sub}
         acciones={
-          <>
-            <BotonEnlace href={rutas.datos}>Actualizar datos</BotonEnlace>
-            <BotonEnlace href={rutas.pedido} variante="primario">Preparar pedido</BotonEnlace>
-          </>
+          operador && !demo ? (
+            <>
+              <BotonEnlace href={rutas.datos}>Subir archivo</BotonEnlace>
+              <BotonEnlace href="/movimientos" variante="primario">Registrar movimientos</BotonEnlace>
+            </>
+          ) : (
+            <>
+              <BotonEnlace href={rutas.datos}>Actualizar datos</BotonEnlace>
+              <BotonEnlace href={rutas.pedido} variante="primario">Preparar pedido</BotonEnlace>
+            </>
+          )
         }
       >
         Tu inventario hoy
       </Titulo>
+      <SelectorTiempo className="-mt-3" />
 
       {prueba && <AvisoPrueba />}
       {!demo && diasDesde(inv.fuente.hasta) > 30 && (
@@ -65,12 +78,12 @@ function PanelCon({ inv }: { inv: Inventario }) {
 
       <section aria-label="Resumen" className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <Cifra
-          titulo={`Se agotan en ${inv.umbrales.seAgota} semanas`}
+          titulo={`Se agotan en ${duracion(inv.umbrales.seAgota)}`}
           tono="text-rojo"
           etiqueta="text-rojo-texto"
           valor={numero(r.seAgotan)}
-          detalle={r.enCero && !prueba ? `${r.enCero} ya están en cero` : r.seAgotan ? 'Los tienes primero en la lista de abajo' : `Nada se agota en las próximas ${inv.umbrales.seAgota} semanas`}
-          ayuda={`Productos que no alcanzan para ${inv.umbrales.seAgota} semanas al ritmo de venta actual. El umbral se cambia en Datos.`}
+          detalle={r.enCero && !prueba ? `${r.enCero} ya están en cero` : r.seAgotan ? 'Los tienes primero en la lista de abajo' : `Nada se agota en ${duracion(inv.umbrales.seAgota)}`}
+          ayuda={`Productos que no alcanzan para ${duracion(inv.umbrales.seAgota)} al ritmo de venta actual. El umbral se cambia en Datos.`}
           href={`${rutas.productos}?filtro=agota`}
         />
         {prueba ? (
@@ -105,27 +118,52 @@ function PanelCon({ inv }: { inv: Inventario }) {
             href={`${rutas.productos}?filtro=pide`}
           />
         )}
-        <Cifra
-          titulo="Dinero quieto"
-          tono="text-azul"
-          etiqueta="text-azul-texto"
-          valor={r.tieneCostos ? plata(r.dineroQuieto) : numero(r.sobran)}
-          detalle={r.tieneCostos ? `en ${numero(r.sobran)} productos que sobran` : 'productos con más de 12 semanas. Si tu archivo trae el costo, aquí ves cuánta plata es.'}
-          ayuda="Valor a costo del inventario por encima de 12 semanas de venta, más lo que no se vendió en el periodo."
-          href={`${rutas.productos}?filtro=sobra`}
-        />
-        <Cifra
-          titulo="Ventas: últimas 4 semanas del archivo"
-          tono={r.tendencia4 !== null && r.tendencia4 < 0 ? 'text-foreground' : 'text-verde'}
-          etiqueta="text-verde"
-          valor={porcentaje(r.tendencia4, true)}
-          detalle="frente a las 4 anteriores, sin contar proyectos"
-          ayuda="Unidades vendidas en las últimas 4 semanas del archivo frente a las 4 anteriores, sin proyectos."
-        />
+        {operador ? (
+          <>
+            <Cifra
+              titulo="Sobran"
+              tono="text-azul"
+              etiqueta="text-azul-texto"
+              valor={numero(r.sobran)}
+              detalle={`productos con más de ${duracion(inv.umbrales.sobra)} o sin ventas`}
+              ayuda="No hace falta pedirlos por ahora."
+              href={`${rutas.productos}?filtro=sobra`}
+            />
+            <Cifra
+              titulo="Ya en cero"
+              tono="text-rojo"
+              etiqueta="text-rojo-texto"
+              valor={numero(r.enCero)}
+              detalle={r.enCero ? 'productos que se venden y no tienes' : 'Ningún producto que se venda está en cero'}
+              ayuda="Productos con ventas y cero existencias hoy."
+              href={demo ? `${rutas.productos}?filtro=agota` : '/existencias'}
+            />
+          </>
+        ) : (
+          <>
+            <Cifra
+              titulo="Dinero quieto"
+              tono="text-azul"
+              etiqueta="text-azul-texto"
+              valor={r.tieneCostos ? plata(r.dineroQuieto) : numero(r.sobran)}
+              detalle={r.tieneCostos ? `en ${numero(r.sobran)} productos que sobran` : `productos con más de ${duracion(inv.umbrales.sobra)}. Si tu archivo trae el costo, aquí ves cuánta plata es.`}
+              ayuda={`Valor a costo del inventario por encima de ${duracion(inv.umbrales.sobra)} de venta, más lo que no se vendió en el periodo.`}
+              href={`${rutas.productos}?filtro=sobra`}
+            />
+            <Cifra
+              titulo="Ventas: últimas 4 semanas del archivo"
+              tono={r.tendencia4 !== null && r.tendencia4 < 0 ? 'text-foreground' : 'text-verde'}
+              etiqueta="text-verde"
+              valor={porcentaje(r.tendencia4, true)}
+              detalle="frente a las 4 anteriores, sin contar proyectos"
+              ayuda="Unidades vendidas en las últimas 4 semanas del archivo frente a las 4 anteriores, sin proyectos."
+            />
+          </>
+        )}
       </section>
 
       <p className="-mt-2 flex flex-wrap gap-x-6 gap-y-1 text-[0.92rem] text-muted-foreground">
-        {r.cobertura !== null && <span>El producto típico te alcanza para <strong className="text-foreground tabular-nums">{semanas(r.cobertura)} semanas</strong></span>}
+        {r.cobertura !== null && <span>El producto típico te alcanza para <strong className="text-foreground tabular-nums">{alcance(r.cobertura)}</strong></span>}
         {r.tieneCostos && <span>Inventario a costo: <strong className="text-foreground tabular-nums">{plata(r.valorInventario)}</strong></span>}
         {r.sinVentas > 0 && <span>{plural(r.sinVentas, 'producto sin ventas', 'productos sin ventas')} en el periodo</span>}
         {!demo && !prueba && r.sinProveedor > 0 && r.sinProveedor < r.productos && (
@@ -418,7 +456,6 @@ function Ventas({ inv }: { inv: Inventario }) {
   )
 }
 
-// Durante la prueba, el probador ve lo que declara el plan de prueba: el reporte de semanas.
 // Días entre una fecha "YYYY-MM-DD" y hoy.
 function diasDesde(v: string | null | undefined) {
   if (!v) return 0
@@ -430,8 +467,8 @@ function AvisoPrueba() {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#cfe5e1] bg-secondary px-5 py-4 text-[0.95rem] text-[#0b3f3b]">
       <p>
-        <strong>Estás en tu prueba{respuesta?.finPrueba ? ` hasta el ${fecha(respuesta.finPrueba)}` : ''}.</strong> Por ahora ves para cuántas semanas te alcanza cada producto.
-        El pronóstico, el tiempo de entrega de tus proveedores y la cantidad sugerida se activan al terminar.
+        <strong>Por ahora ves para cuántas semanas te alcanza cada producto.</strong>
+        El pronóstico, el tiempo de entrega de tus proveedores y la cantidad sugerida se activan{respuesta?.finPrueba ? ` el ${fecha(respuesta.finPrueba)}` : ' más adelante'}.
       </p>
     </div>
   )

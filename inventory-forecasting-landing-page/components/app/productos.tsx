@@ -7,11 +7,12 @@ import { useEffect, useId, useMemo, useState } from 'react'
 import { Download, Search, X } from 'lucide-react'
 import { descargar } from '@/lib/descargar'
 import { cn } from '@/lib/utils'
-import { alcance, alcancePartes, claveCodigo, duracion, fecha, mesAnio, numero, plata, porcentaje, semanas, ventasSemana } from '@/lib/formato'
+import { alcance, alcancePartes, claveCodigo, duracion, fecha, horizonteTexto, mesAnio, numero, plata, porcentaje, ventasSemana } from '@/lib/formato'
 import type { Estado, Inventario, Producto } from '@/lib/tipos'
 import { useInventario } from './contexto'
 import { BarraRiesgo, GraficoVentas, LeyendaVentas, Sparkline } from './graficos'
 import { Boton, Cargando, ChipEstado, ESTADOS, ErrorLista, Pildoras, Tarjeta, Titulo, claseEntrada } from './ui'
+import { SelectorTiempo } from './vista'
 import { SinInventario } from './sin-inventario'
 import { VentaUnica } from './pedido-flujo'
 
@@ -105,7 +106,8 @@ function ProductosCon({ inv }: { inv: Inventario }) {
 
   return (
     <>
-      <Titulo sub="Ordenados por lo que se acaba primero. Toca un producto para ver su ficha." acciones={inv.sugerencias ? <DescargarMinimos inv={inv} /> : undefined}>Productos</Titulo>
+      <Titulo sub="Ordenados por lo que se acaba primero. Toca un producto para ver su ficha." acciones={inv.sugerencias && inv.vista !== 'operador' ? <DescargarMinimos inv={inv} /> : undefined}>Productos</Titulo>
+      <SelectorTiempo conHorizonte={pronostica} className="-mt-3" />
 
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-3">
@@ -147,7 +149,7 @@ function ProductosCon({ inv }: { inv: Inventario }) {
                   <th scope="col" className="hidden border-b border-border px-2 py-3 text-right font-semibold sm:table-cell">Ventas/semana</th>
                   <th scope="col" className="hidden border-b border-border px-2 py-3 text-right font-semibold sm:table-cell">Tienes</th>
                   <th scope="col" className="border-b border-border px-2 py-3 text-right font-semibold">Te alcanza</th>
-                  {pronostica && <th scope="col" className={cn('border-b border-border px-2 py-3 text-right leading-tight font-semibold', claseExtra)}>Venderás en<br />4 semanas</th>}
+                  {pronostica && <th scope="col" className={cn('border-b border-border px-2 py-3 text-right leading-tight font-semibold', claseExtra)}>Venderás en<br />{horizonteTexto(inv.horizonte ?? 4)}</th>}
                   {inv.sugerencias && <th scope="col" className={cn('border-b border-border px-2 py-3 text-right font-semibold', claseExtra)}>Pedir</th>}
                 </tr>
               </thead>
@@ -187,8 +189,9 @@ function ProductosCon({ inv }: { inv: Inventario }) {
                       <td className={cn('border-b border-[#f0f1ee] px-2 py-3 text-right tabular-nums', claseExtra)}>
                         {p.pronostico ? (
                           <>
-                            <span className="font-semibold">{numero(Math.round(p.pronostico.slice(0, 4).reduce((s, x) => s + x.media, 0)))}</span>
-                            <span className="block text-xs text-muted-foreground">entre {numero(Math.round(p.pronostico.slice(0, 4).reduce((s, x) => s + x.bajo, 0)))} y {numero(Math.round(p.pronostico.slice(0, 4).reduce((s, x) => s + x.alto, 0)))}</span>
+                            {/* El rango sale de la venta del horizonte completo, no de sumar los rangos de cada semana. */}
+                            <span className="font-semibold">{numero(Math.round(p.ventaHorizonte?.media ?? p.pronostico.slice(0, 4).reduce((s, x) => s + x.media, 0)))}</span>
+                            {p.ventaHorizonte && <span className="block text-xs text-muted-foreground">entre {numero(Math.round(p.ventaHorizonte.bajo))} y {numero(Math.round(p.ventaHorizonte.alto))}</span>}
                           </>
                         ) : <span className="text-muted-foreground">—</span>}
                       </td>
@@ -236,9 +239,9 @@ function consejo(p: Producto, inv: Inventario) {
   const u = inv.umbrales.seAgota
   if (p.ventaUnica) return `Venta única: ${numero(p.ventaUnica.vendido)} en la semana del ${fecha(p.ventaUnica.desde)} y nada más. Parece un proyecto; no se sugiere pedirlo.`
   if (p.existencias <= 0 && p.ventasSemana > 0) return `Agotado. Vende unas ${ventasSemana(p.ventasSemana)} por semana. ${inv.sugerencias && p.sugerido ? `Sugerido para este pedido: ${numero(p.sugerido)}.` : 'Inclúyelo en este pedido.'}`
-  if (p.estado === 'agota' && inv.alcance === 'prueba') return `Se agota en menos de ${u} semanas al ritmo actual. Revísalo en tu pedido.`
-  if (p.estado === 'agota' && inv.sugerencias && !p.sugerido) return `Se agota en menos de ${u} semanas, pero cubre la entrega de ${p.proveedor === 'Sin proveedor' ? 'tu proveedor' : p.proveedor} hasta el próximo pedido.`
-  if (p.estado === 'agota') return `Se agota en menos de ${u} semanas${p.entrega > 0 ? ` y ${p.proveedor === 'Sin proveedor' ? 'tu proveedor' : p.proveedor} tarda ${duracion(p.entrega)}` : ''}. Inclúyelo en este pedido.`
+  if (p.estado === 'agota' && (inv.alcance === 'prueba' || inv.vista === 'operador')) return `Se agota en menos de ${duracion(u)} al ritmo actual. Revísalo en tu pedido.`
+  if (p.estado === 'agota' && inv.sugerencias && !p.sugerido) return `Se agota en menos de ${duracion(u)}, pero cubre la entrega de ${p.proveedor === 'Sin proveedor' ? 'tu proveedor' : p.proveedor} hasta el próximo pedido.`
+  if (p.estado === 'agota') return `Se agota en menos de ${duracion(u)}${p.entrega > 0 ? ` y ${p.proveedor === 'Sin proveedor' ? 'tu proveedor' : p.proveedor} tarda ${duracion(p.entrega)}` : ''}. Inclúyelo en este pedido.`
   if (p.estado === 'pide' && p.semanas !== null && p.semanas < p.entrega) return `Alcanza para ${alcance(p.semanas)} y el proveedor tarda ${duracion(p.entrega)}. Pídelo ya.`
   if (p.estado === 'pide') return `Alcanza para ${alcance(p.semanas)} y el proveedor tarda ${duracion(p.entrega)}. Si esperas al próximo pedido, llega tarde.`
   if (p.estado === 'sobra') return `Alcanza para ${alcance(p.semanas)}. No lo pidas por ahora${p.ventasSemana < 1 ? '; se vende muy poco: evalúa si se sigue trayendo' : ''}.`
@@ -288,7 +291,7 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
           </div>
         ) : p.riesgo !== null ? (
           <div className="rounded-2xl border border-border p-4">
-            <span className="block text-[0.82rem] font-semibold text-muted-foreground">Riesgo de agotarse en {semanas(horizonte)} semanas</span>
+            <span className="block text-[0.82rem] font-semibold text-muted-foreground">Riesgo de agotarse en {duracion(horizonte)}</span>
             <strong className="font-display text-[1.8rem] leading-tight tabular-nums">{`${Math.round(p.riesgo * 100)} %`}</strong>
             <BarraRiesgo valor={p.riesgo} className="mt-1 [&>span:last-child]:hidden" />
           </div>
@@ -312,7 +315,11 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
               En {mesAnio(p.pico.mes)} vendió {numero(p.pico.vendido)}, mucho más de lo normal (un proyecto o un cliente puntual). Para el promedio se contaron {numero(p.pico.contado)}.
             </p>
           )}
-          {prox4.length > 0 && (
+          {p.ventaHorizonte ? (
+            <p className="text-[0.92rem] text-muted-foreground">
+              Próximas {horizonteTexto(inv.horizonte ?? 4)}: lo más probable es vender {numero(Math.round(p.ventaHorizonte.media))} (entre {numero(Math.round(p.ventaHorizonte.bajo))} y {numero(Math.round(p.ventaHorizonte.alto))}).
+            </p>
+          ) : prox4.length > 0 && (
             <p className="text-[0.92rem] text-muted-foreground">
               Próximas 4 semanas: lo más probable es vender {numero(Math.round(media4))}.
             </p>
@@ -385,7 +392,7 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
           <p className="text-[0.95rem] text-[#0b3f3b]">
             {p.sugerido > 0
               ? <>Sugerido: <strong>{numero(p.sugerido)}</strong>. Cubre la entrega ({duracion(p.entrega)}) y {duracion(inv.ajustes.cadaCuanto)} más hasta el próximo pedido.{p.lote > 1 ? ` Va en paquetes de ${numero(p.lote)}, como se vende.` : ''}</>
-              : <>Con lo que tienes cubres la entrega y {semanas(inv.ajustes.cadaCuanto)} semanas más: no hace falta pedir.</>}
+              : <>Con lo que tienes cubres la entrega y {duracion(inv.ajustes.cadaCuanto)} más: no hace falta pedir.</>}
           </p>
           {enPedido ? (
             <Boton onClick={() => ponerEnPedido(p.codigo, 0)}>En tu pedido: {numero(enPedido)} · quitar</Boton>

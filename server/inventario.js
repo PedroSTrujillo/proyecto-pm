@@ -14,7 +14,7 @@ const { inicioDeSemana } = require('./series');
 const { claveCodigo, MS_DIA } = require('./valores');
 
 const SEMANAS_GRAFICO = 52;
-const SEMANAS_PRONOSTICO = 8;
+const SEMANAS_PRONOSTICO = 8; // mínimo del gráfico; si el usuario elige un horizonte más largo, se alarga
 const ENTREGA_POR_DEFECTO = 1; // semanas, si el usuario no ha dicho cuánto tarda su proveedor
 const CADA_CUANTO_POR_DEFECTO = 4; // semanas entre un pedido y el siguiente
 const NIVEL_SERVICIO = 0.9; // la cantidad sugerida alcanza en 9 de cada 10 casos
@@ -153,14 +153,16 @@ function estadoDe(f, entrega) {
  * reporte: lo que guardó procesarExport (calcularRotacion + avisos).
  * series: seriesSemanales(...) o null (totales de un periodo).
  * catalogo: { clave: { costo, proveedor } } o null.
- * ajustes: leerAjustes(usuarios.inventario).
+ * ajustes: leerAjustes(empresas.inventario).
+ * semanasPronostico: el horizonte que eligió el usuario para "venderás en…" (ventaHorizonte).
+ *   El gráfico pronostica al menos 8 semanas, o el horizonte si es más largo.
  * alcance: 'completo' o 'prueba'. En 'prueba' (un probador en sus 14 días) solo sale lo que
  *   declara el plan de prueba del Entregable 2: el reporte de semanas de inventario, sin
  *   pronóstico, sin temporada, sin tiempo de entrega ("pide ya", riesgo) y sin cantidad
  *   sugerida. Así el tratamiento de la prueba es el que se declaró y M mide el reporte.
  * sugerencias: forma antigua de pedir el alcance (false = 'prueba').
  */
-function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos, fuente = {}, alcance = null, sugerencias = true }) {
+function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos, fuente = {}, alcance = null, sugerencias = true, semanasPronostico = 4 }) {
   const completo = alcance ? alcance === 'completo' : sugerencias !== false;
   const ajustes = leerAjustes(ajustesCrudos);
   const cat = catalogo || {};
@@ -208,10 +210,13 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
   }
   const indice = series && completo ? P.indiceTemporada(totalesRecortados, hasta) : null;
   const futuro = (h) => P.semanasConTemporada(indice, hasta, semanasSerie, h);
+  // El horizonte que eligió el usuario ("venderás en…") y las semanas del gráfico.
+  const horizonte = Math.max(0.5, Number(semanasPronostico) || 4);
+  const semanasGrafico = Math.max(SEMANAS_PRONOSTICO, Math.ceil(horizonte));
 
   const productos = [];
-  let varianzaSemana = new Array(SEMANAS_PRONOSTICO).fill(0);
-  let mediaSemana = new Array(SEMANAS_PRONOSTICO).fill(0);
+  let varianzaSemana = new Array(semanasGrafico).fill(0);
+  let mediaSemana = new Array(semanasGrafico).fill(0);
   for (const f of filas) {
     const k = claveCodigo(f.codigo);
     const datos = cat[k] || {};
@@ -230,6 +235,7 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
     let maximo = null;
     let pronostico = null;
     let detalleSugerido = null;
+    let ventaHorizonte = null;
     if (unica) sugerido = 0;
     if (f.promedioSemanal > 0 && completo && !unica) {
       const ventana = P.temporadaDeLaVentana(indice, hasta, semanasSerie, f.semanasProducto, f.semanasRecientes);
@@ -263,8 +269,10 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       // menos, se pide hasta llegar al máximo. El mínimo cubre la entrega en 9 de cada 10 casos.
       minimo = Math.ceil(P.predictiva(ajuste, futuro(Math.max(entrega, 0.5))).cuantil(NIVEL_SERVICIO));
       maximo = P.aLote(Math.max(minimo, Math.ceil(necesidad)), lote);
+      const enHorizonte = P.predictiva(ajuste, futuro(horizonte));
+      ventaHorizonte = { media: redondear(enHorizonte.media, 1), bajo: redondear(enHorizonte.cuantil(0.1), 1), alto: redondear(enHorizonte.cuantil(0.9), 1) };
       pronostico = [];
-      for (let s = 0; s < SEMANAS_PRONOSTICO; s++) {
+      for (let s = 0; s < semanasGrafico; s++) {
         const t = P.temporadaDeSemana(indice, hasta, semanasSerie, semanasSerie + s);
         const pred = P.predictiva(ajuste, t);
         pronostico.push({ media: redondear(pred.media, 2), bajo: redondear(pred.cuantil(0.1), 2), alto: redondear(pred.cuantil(0.9), 2) });
@@ -318,6 +326,7 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       serie: crudo ? crudo.slice(desde).map((x) => redondear(x, 1)) : null,
       semanasPico: semanasPico.filter((i) => i >= desde).map((i) => i - desde),
       pronostico,
+      ventaHorizonte,
     });
   }
 
@@ -371,6 +380,8 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       mensual: reporte.periodo.mensual,
     },
     umbrales: { seAgota: ajustes.semanasAgota, sobra: SEMANAS_SOBRA },
+    horizonte,
+    vista: 'analista',
     ajustes: { ...ajustes, nivelServicio: NIVEL_SERVICIO },
     sugerencias: completo,
     alcance: completo ? 'completo' : 'prueba',
@@ -404,4 +415,38 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
   };
 }
 
-module.exports = { construirInventario, leerAjustes, recortarPico, ventaUnica, proveedorDe, SIN_PROVEEDOR, ENTREGA_POR_DEFECTO, CADA_CUANTO_POR_DEFECTO };
+// Lo que ve el operador (D3): cuántos productos hay en cada estado y, por producto, existencias,
+// estado y para cuánto alcanza. Sin pronóstico, probabilidades, sugeridos ni dinero. Es la misma
+// respuesta con los detalles en null, para que las pantallas usen los mismos tipos.
+const CAMPOS_RESUMEN_OPERADOR = ['productos', 'seAgotan', 'enCero', 'pideYa', 'sobran', 'sinVentas', 'cobertura', 'sinProveedor', 'tieneCostos'];
+
+function resumirParaOperador(inv) {
+  const resumen = {};
+  for (const k of Object.keys(inv.resumen)) resumen[k] = CAMPOS_RESUMEN_OPERADOR.includes(k) ? inv.resumen[k] : null;
+  resumen.picosRecortados = 0;
+  resumen.productosNuevos = 0;
+  return {
+    ...inv,
+    vista: 'operador',
+    temporada: null,
+    grafico: null,
+    resumen,
+    productos: inv.productos.map((p) => ({
+      ...p,
+      riesgo: null,
+      sugerido: null,
+      detalleSugerido: null,
+      minimo: null,
+      maximo: null,
+      valor: null,
+      quieto: null,
+      tendencia: null,
+      serie: null,
+      semanasPico: [],
+      pronostico: null,
+      ventaHorizonte: null,
+    })),
+  };
+}
+
+module.exports = { construirInventario, resumirParaOperador, leerAjustes, recortarPico, ventaUnica, proveedorDe, SIN_PROVEEDOR, ENTREGA_POR_DEFECTO, CADA_CUANTO_POR_DEFECTO };

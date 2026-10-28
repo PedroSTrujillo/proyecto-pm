@@ -6,7 +6,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
-import type { Inventario, RespuestaInventario, Usuario } from '@/lib/tipos'
+import { fijarUnidad, type Unidad } from '@/lib/formato'
+import type { Inventario, Perfil, RespuestaInventario, Usuario } from '@/lib/tipos'
 
 export type Fuente = { tipo: 'demo'; sector: string } | { tipo: 'cuenta' }
 
@@ -49,7 +50,7 @@ export function SesionProvider({ children, exigir = false }: { children: ReactNo
   useEffect(() => {
     const ph = (window as unknown as { posthog?: { identify: (id: string, p: object) => void; reset: () => void } }).posthog
     if (!ph) return
-    if (usuario) ph.identify(`u${usuario.id}`, { rol: usuario.rol })
+    if (usuario) ph.identify(`u${usuario.id}`, { rol: usuario.rol, perfil: usuario.perfil, empresa: usuario.empresa ? `e${usuario.empresa.id}` : null })
     else if (!cargando) ph.reset()
   }, [usuario, cargando])
 
@@ -88,6 +89,13 @@ type EstadoInventario = {
   vaciarPedido: () => void
   // Tiempos de entrega y cada cuánto pide. En la demo se guardan en este navegador.
   guardarAjustes: (a: Ajustes) => Promise<void>
+  // Analista u operador, la unidad de tiempo y el horizonte del pronóstico. En la cuenta se
+  // guardan en el servidor; en la demo, en este navegador.
+  perfil: Perfil
+  unidad: Unidad
+  horizonte: number
+  cambiarPerfil: (p: Perfil) => Promise<void>
+  cambiarTiempo: (t: { unidad?: Unidad; horizonte?: number }) => Promise<void>
 }
 
 export type Ajustes = Partial<{ entregas: Record<string, number>; entregaPorDefecto: number; cadaCuanto: number; semanasAgota: number; asignaciones: Record<string, string>; prefijos: { prefijo: string; proveedor: string }[] }>
@@ -103,7 +111,22 @@ function leerGuardado<T = Record<string, number>>(llave: string): T | null {
   }
 }
 
+type Vista = { perfil: Perfil; unidad: Unidad; horizonte: number }
+const VISTA_INICIAL: Vista = { perfil: 'analista', unidad: 'semanas', horizonte: 4 }
+
 export function InventarioProvider({ fuente, children }: { fuente: Fuente; children: ReactNode }) {
+  const { usuario, fijar } = useSesion()
+  const llaveVista = fuente.tipo === 'demo' ? 'sinesc-vista-demo' : ''
+  const [vistaDemo, setVistaDemo] = useState<Vista>(VISTA_INICIAL)
+  useEffect(() => {
+    if (llaveVista) setVistaDemo({ ...VISTA_INICIAL, ...(leerGuardado<Partial<Vista>>(llaveVista) || {}) })
+  }, [llaveVista])
+  const vista: Vista = fuente.tipo === 'cuenta' && usuario
+    ? { perfil: usuario.perfil, unidad: usuario.preferencias.unidad, horizonte: usuario.preferencias.horizonte }
+    : vistaDemo
+  // Las funciones de lib/formato.ts dicen las duraciones en esta unidad.
+  fijarUnidad(vista.unidad)
+
   const [respuesta, setRespuesta] = useState<RespuestaInventario | null>(null)
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -112,22 +135,28 @@ export function InventarioProvider({ fuente, children }: { fuente: Fuente; child
   const cargadoPara = useRef<string | null>(null)
   const llave = fuente.tipo === 'demo' ? `sinesc-pedido-demo-${fuente.sector}` : 'sinesc-pedido-sugerido'
   const llaveAjustes = fuente.tipo === 'demo' ? `sinesc-ajustes-demo-${fuente.sector}` : ''
-  const clave = fuente.tipo === 'demo' ? fuente.sector : 'cuenta'
+  const clave = `${fuente.tipo === 'demo' ? fuente.sector : 'cuenta'}|${vista.perfil}|${vista.horizonte}`
+  const negocio = fuente.tipo === 'demo' ? fuente.sector : 'cuenta'
+  const rutaDemo = (ajustes: Ajustes | null) => {
+    const q = new URLSearchParams({ horizonte: String(vista.horizonte), ...(vista.perfil === 'operador' ? { perfil: 'operador' } : {}), ...(ajustes ? { ajustes: JSON.stringify(ajustes) } : {}) })
+    return fuente.tipo === 'demo' ? `/demo/${fuente.sector}?${q}` : ''
+  }
 
   useEffect(() => {
     let vivo = true
-    // Otro negocio u otra cuenta: se muestra el esqueleto; si solo se recalcula, se deja lo que hay.
-    if (cargadoPara.current !== clave) {
+    // Otro negocio u otra cuenta: se muestra el esqueleto; si solo se recalcula (otro perfil u
+    // horizonte, o datos nuevos), se deja lo que hay.
+    if (cargadoPara.current !== negocio) {
       setRespuesta(null)
       setCargando(true)
     }
     setError(null)
     const ajustesDemo = llaveAjustes ? leerGuardado<Ajustes>(llaveAjustes) : null
-    const ruta = fuente.tipo === 'demo' ? `/demo/${fuente.sector}${ajustesDemo ? `?ajustes=${encodeURIComponent(JSON.stringify(ajustesDemo))}` : ''}` : '/inventario'
+    const ruta = fuente.tipo === 'demo' ? rutaDemo(ajustesDemo) : `/inventario?horizonte=${vista.horizonte}`
     api<RespuestaInventario | { inventario: Inventario }>('GET', ruta)
       .then((r) => {
         if (!vivo) return
-        cargadoPara.current = clave
+        cargadoPara.current = negocio
         const resp: RespuestaInventario = 'puedeSubir' in r ? r : { inventario: r.inventario, puedeSubir: false, sugerencias: true, finPrueba: null }
         setRespuesta(resp)
         // El pedido arranca con lo sugerido de lo que se agota o hay que pedir ya.
@@ -190,16 +219,40 @@ export function InventarioProvider({ fuente, children }: { fuente: Fuente; child
           } catch {
             // sin almacenamiento no se recuerdan, pero el cálculo de abajo sí los usa
           }
-          const r = await api<{ inventario: Inventario }>('GET', `/demo/${fuente.sector}?ajustes=${encodeURIComponent(JSON.stringify(a))}`)
+          const r = await api<{ inventario: Inventario }>('GET', rutaDemo(a))
           setRespuesta((prev) => (prev ? { ...prev, inventario: r.inventario } : prev))
           return
         }
         await api('PUT', '/inventario/ajustes', a)
         setVuelta((v) => v + 1)
       },
+      ...vista,
+      cambiarPerfil: async (perfil) => {
+        if (fuente.tipo === 'demo') return guardarVistaDemo({ perfil })
+        const r = await api<{ usuario: Usuario }>('PUT', '/cuenta/perfil', { perfil })
+        fijar(r.usuario)
+      },
+      cambiarTiempo: async (t) => {
+        if (fuente.tipo === 'demo') return guardarVistaDemo(t)
+        const r = await api<{ usuario: Usuario }>('PUT', '/cuenta/preferencias', t)
+        fijar(r.usuario)
+      },
     }),
-    [fuente, respuesta, cargando, error, pedido, guardar, llaveAjustes],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [fuente, respuesta, cargando, error, pedido, guardar, llaveAjustes, vista.perfil, vista.unidad, vista.horizonte, fijar],
   )
+
+  function guardarVistaDemo(cambio: Partial<Vista>) {
+    setVistaDemo((prev) => {
+      const sig = { ...prev, ...cambio }
+      try {
+        window.localStorage.setItem(llaveVista, JSON.stringify(sig))
+      } catch {
+        // sin almacenamiento la elección dura mientras la página esté abierta
+      }
+      return sig
+    })
+  }
 
   return <InventarioCtx.Provider value={valor}>{children}</InventarioCtx.Provider>
 }

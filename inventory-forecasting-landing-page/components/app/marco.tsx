@@ -6,11 +6,13 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState, type ReactNode } from 'react'
-import { BarChart3, ClipboardList, Database, FlaskConical, LayoutDashboard, LogOut, Menu, Package, UserRound, X } from 'lucide-react'
+import { ArrowLeftRight, Boxes, Building2, ClipboardList, Database, FlaskConical, LayoutDashboard, LogOut, Menu, Package, UserRound, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useInventario, useSesion } from './contexto'
 import { reportarError } from './pantalla-error'
 import { clasesBoton } from './ui'
+import { SelectorPerfil } from './vista'
+import type { Perfil } from '@/lib/tipos'
 
 function Monograma({ className }: { className?: string }) {
   return (
@@ -58,14 +60,21 @@ function Navegacion({ items, alElegir }: { items: Item[]; alElegir?: () => void 
   )
 }
 
-function itemsDe(demo: boolean, rutas: ReturnType<typeof useInventario>['rutas'], equipo: boolean): Item[] {
-  const base: Item[] = [
-    { href: rutas.panel, texto: 'Panel', icono: <LayoutDashboard />, exacto: true },
+// El operador empieza por lo que registra (movimientos y existencias); el analista, por el panel.
+function itemsDe(demo: boolean, rutas: ReturnType<typeof useInventario>['rutas'], equipo: boolean, perfil: Perfil): Item[] {
+  const panel: Item = { href: rutas.panel, texto: perfil === 'operador' ? 'Resumen' : 'Panel', icono: <LayoutDashboard />, exacto: true }
+  const diario: Item[] = demo ? [] : [
+    { href: '/movimientos', texto: 'Movimientos', icono: <ArrowLeftRight /> },
+    { href: '/existencias', texto: 'Existencias', icono: <Boxes /> },
+  ]
+  const resto: Item[] = [
     { href: rutas.productos, texto: 'Productos', icono: <Package /> },
     { href: rutas.pedido, texto: demo ? 'Preparar pedido' : 'Pedidos', icono: <ClipboardList /> },
     { href: rutas.datos, texto: 'Datos', icono: <Database /> },
   ]
-  if (!demo && equipo) base.push({ href: '/equipo', texto: 'Resultados de la prueba', icono: <BarChart3 /> }, { href: '/ejemplos', texto: 'Ejemplos', icono: <FlaskConical /> })
+  const base = perfil === 'operador' ? [...diario, panel, ...resto] : [panel, ...resto.slice(0, 2), ...diario, ...resto.slice(2)]
+  if (!demo) base.push({ href: '/empresa', texto: 'Mi empresa', icono: <Building2 /> })
+  if (!demo && equipo) base.push({ href: '/ejemplos', texto: 'Ejemplos', icono: <FlaskConical /> })
   if (!demo) base.push({ href: '/cuenta', texto: 'Mi cuenta', icono: <UserRound /> })
   return base
 }
@@ -76,10 +85,10 @@ function Iniciales({ nombre }: { nombre: string }) {
 }
 
 export function Marco({ children }: { children: ReactNode }) {
-  const { fuente, rutas, inventario } = useInventario()
+  const { fuente, rutas, inventario, perfil } = useInventario()
   const { usuario, salir } = useSesion()
   const demo = fuente.tipo === 'demo'
-  const items = itemsDe(demo, rutas, usuario?.rol === 'equipo')
+  const items = itemsDe(demo, rutas, usuario?.rol === 'equipo', perfil)
   const [abierto, setAbierto] = useState(false)
   const ruta = usePathname()!
 
@@ -98,10 +107,11 @@ export function Marco({ children }: { children: ReactNode }) {
   }, [])
 
   const persona = demo ? inventario?.fuente.persona || 'Datos de ejemplo' : usuario?.nombre || ''
-  const empresa = demo ? inventario?.fuente.empresa || '' : usuario?.email || ''
+  const empresa = demo ? inventario?.fuente.empresa || '' : usuario?.empresa && !usuario.empresa.vacia ? usuario.empresa.nombre : usuario?.email || ''
 
   const pie = (
     <div className="flex flex-col gap-2">
+      <SelectorPerfil />
       <div className="flex items-center gap-3 rounded-2xl border border-border p-3">
         <Iniciales nombre={persona} />
         <span className="flex min-w-0 flex-col">

@@ -1,0 +1,397 @@
+'use strict';
+
+// Inventario diario de la empresa: catálogo de productos, entradas y salidas, existencias de hoy
+// y el inventario "al día" que combina el último archivo con lo registrado después.
+//
+//   GET  /api/catalogo?q=               productos de la empresa (para buscar al registrar)
+//   POST /api/catalogo                  crear un producto
+//   PUT  /api/catalogo/:id              corregir nombre, costo, proveedor o unidad
+//   POST /api/movimientos               registrar uno o varios movimientos (todo o nada)
+//   GET  /api/movimientos               historial (?desde=&hasta=&codigo=)
+//   POST /api/movimientos/:id/anular    anular uno (no se borra)
+//   GET  /api/existencias               existencias de hoy por producto
+//   GET  /api/existencias/:codigo       historial de un producto con su saldo (kardex)
+//
+// Los movimientos no reemplazan el archivo del programa contable: producen un export más, de
+// origen 'movimientos', con la misma forma. Así el panel, los productos, el pedido sugerido y el
+// flujo de 5 pasos ("usar el último inventario") funcionan sin cambios (D8: el modelo sigue en semanas).
+
+const express = require('express');
+const db = require('./db');
+const { requiereUsuario, registrarEvento, ErrorUsuario } = require('./cuentas');
+const { calcularRotacion } = require('./rotacion');
+const { seriesSemanales } = require('./series');
+const { leerAjustes } = require('./inventario');
+const { fechaBogota } = require('./recordatorios');
+const { claveCodigo, leerNumero, MS_DIA } = require('./valores');
+const S = require('./saldos');
+
+const MAX_LINEAS = 2000;
+const DIAS_ATRAS = 730; // no se registra nada de hace más de dos años
+const TEXTO_TIPO = { entrada: 'entrada', venta: 'venta', devolucion: 'devolución', salida: 'salida', conteo: 'conteo' };
+
+const texto = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
+
+// --- Archivo base y movimientos -------------------------------------------------------------
+
+// El último archivo subido por alguien de la empresa (no un inventario calculado con movimientos).
+async function exportBase(empresaId) {
+  return db.uno(
+    `SELECT id, usuario_id, subido_en, reporte, series, catalogo FROM exports
+      WHERE empresa_id = $1 AND origen = 'archivo' AND estado = 'ok' AND ${db.EXPORT_VIGENTE}
+      ORDER BY subido_en DESC, id DESC LIMIT 1`,
+    [empresaId],
+  );
+}
+
+async function movimientosDe(empresaId, { conAnulados = false, productoId = null } = {}) {
+  return db.query(
+    `SELECT m.id, m.tipo, m.cantidad::float AS cantidad, m.fecha, m.nota, m.creado_en, m.anulado_en, m.usuario_id,
+            p.codigo, p.nombre, u.nombre AS registro
+       FROM movimientos m JOIN productos p ON p.id = m.producto_id LEFT JOIN usuarios u ON u.id = m.usuario_id
+      WHERE m.empresa_id = $1 ${conAnulados ? '' : 'AND m.anulado_en IS NULL'} ${productoId ? 'AND m.producto_id = $2' : ''}
+      ORDER BY m.fecha, m.id`,
+    productoId ? [empresaId, productoId] : [empresaId],
+  );
+}
+
+// --- Inventario al día ----------------------------------------------------------------------
+
+/**
+ * Recalcula el inventario de la empresa con los movimientos, si cambiaron o si llegó otro archivo
+ * desde el último cálculo. El resultado es una fila de exports de origen 'movimientos'.
+ *
+ * El reporte que vio un pedido nunca cambia: si algún pedido ya usa el inventario calculado, se
+ * crea otro en vez de reescribirlo. Devuelve el id del export o null si no hubo nada que calcular.
+ */
+async function inventarioAlDia(empresaId) {
+  const emp = await db.uno('SELECT movimientos_cambiaron_en, inventario_calculado_en, inventario FROM empresas WHERE id = $1', [empresaId]);
+  if (!emp || !emp.movimientos_cambiaron_en) return null;
+  const base = await exportBase(empresaId);
+  const calculado = emp.inventario_calculado_en ? new Date(emp.inventario_calculado_en).getTime() : 0;
+  const alDia = calculado >= new Date(emp.movimientos_cambiaron_en).getTime() && (!base || calculado >= new Date(base.subido_en).getTime());
+  if (alDia) return null;
+
+  const movimientos = await movimientosDe(empresaId);
+  const combinado = S.combinar({ base: base ? S.ventasDeExport(base) : null, movimientos });
+  let exportId = null;
+  // Sin movimientos nuevos después del archivo, el inventario es el archivo. Sin ninguna venta no
+  // hay promedio que calcular: las existencias se ven igual en "Existencias".
+  if (combinado.usados && combinado.ventas.length) {
+    const semanasAgota = leerAjustes(emp.inventario).semanasAgota;
+    const rotacion = calcularRotacion({
+      ventas: combinado.ventas,
+      existencias: combinado.existencias,
+      semanasAgota,
+      hoy: Math.floor(Date.now() / MS_DIA),
+      hastaDia: combinado.hasta,
+    });
+    const reporte = {
+      ...rotacion,
+      avisos: [...combinado.avisos, ...rotacion.avisos],
+      hojasUsadas: base && base.reporte.hojasUsadas ? base.reporte.hojasUsadas : [],
+    };
+    const series = seriesSemanales(combinado.ventas, { hastaDia: combinado.hasta });
+    const catalogo = await catalogoDe(empresaId, base ? base.catalogo : null);
+    const ultimoMov = movimientos[movimientos.length - 1];
+    const dueno = (ultimoMov && ultimoMov.usuario_id) || (base && base.usuario_id) || (await db.uno('SELECT id FROM usuarios WHERE empresa_id = $1 ORDER BY admin_empresa DESC, id LIMIT 1', [empresaId])).id;
+    const valores = [JSON.stringify(reporte), series ? JSON.stringify(series) : null, JSON.stringify(catalogo), base ? base.id : null, combinado.usados, dueno];
+    const previo = await db.uno(
+      `SELECT x.id FROM exports x WHERE x.empresa_id = $1 AND x.origen = 'movimientos'
+         AND NOT EXISTS (SELECT 1 FROM pedidos p WHERE p.export_id = x.id)
+       ORDER BY x.subido_en DESC, x.id DESC LIMIT 1`,
+      [empresaId],
+    );
+    if (previo) {
+      await db.query(
+        `UPDATE exports SET reporte = $1::jsonb, series = $2::jsonb, catalogo = $3::jsonb, base_export_id = $4, movimientos = $5, usuario_id = $6,
+                subido_en = now(), estado = 'ok' WHERE id = $7`,
+        [...valores, previo.id],
+      );
+      exportId = previo.id;
+    } else {
+      const r = await db.uno(
+        `INSERT INTO exports (reporte, series, catalogo, base_export_id, movimientos, usuario_id, empresa_id, origen, estado)
+         VALUES ($1::jsonb, $2::jsonb, $3::jsonb, $4, $5, $6, $7, 'movimientos', 'ok') RETURNING id`,
+        [...valores, empresaId],
+      );
+      exportId = r.id;
+    }
+  }
+  await db.query('UPDATE empresas SET inventario_calculado_en = now() WHERE id = $1', [empresaId]);
+  return exportId;
+}
+
+// Costo y proveedor de cada producto: los del archivo y, encima, lo que la empresa corrigió en el catálogo.
+async function catalogoDe(empresaId, delArchivo) {
+  const out = { ...(delArchivo || {}) };
+  const filas = await db.query('SELECT clave, costo::float AS costo, proveedor FROM productos WHERE empresa_id = $1 AND (costo IS NOT NULL OR proveedor IS NOT NULL)', [empresaId]);
+  for (const f of filas) out[f.clave] = { ...(out[f.clave] || {}), ...(f.costo !== null ? { costo: f.costo } : {}), ...(f.proveedor ? { proveedor: f.proveedor } : {}) };
+  return out;
+}
+
+/**
+ * Agrega al catálogo de la empresa los productos de un archivo procesado (código, nombre, costo y
+ * proveedor), sin pisar lo que ya está: la empresa pudo haberlo corregido a mano.
+ */
+async function agregarAlCatalogo(exportId) {
+  const e = await db.uno("SELECT empresa_id, reporte->'filas' AS filas, catalogo FROM exports WHERE id = $1 AND estado = 'ok'", [exportId]);
+  if (!e || !e.empresa_id || !Array.isArray(e.filas) || !e.filas.length) return 0;
+  const vistos = new Set();
+  const cols = { clave: [], codigo: [], nombre: [], costo: [], proveedor: [] };
+  for (const f of e.filas) {
+    const k = claveCodigo(f.codigo);
+    if (!k || vistos.has(k)) continue;
+    vistos.add(k);
+    const c = (e.catalogo && e.catalogo[k]) || {};
+    cols.clave.push(k);
+    cols.codigo.push(texto(f.codigo, 100));
+    cols.nombre.push(texto(f.nombre, 200));
+    cols.costo.push(c.costo > 0 ? c.costo : null);
+    cols.proveedor.push(c.proveedor ? texto(c.proveedor, 80) : null);
+  }
+  const r = await db.query(
+    `INSERT INTO productos (empresa_id, clave, codigo, nombre, costo, proveedor)
+     SELECT $1, * FROM unnest($2::text[], $3::text[], $4::text[], $5::numeric[], $6::text[])
+     ON CONFLICT (empresa_id, clave) DO NOTHING RETURNING id`,
+    [e.empresa_id, cols.clave, cols.codigo, cols.nombre, cols.costo, cols.proveedor],
+  );
+  return r.length;
+}
+
+// La primera vez que alguien abre el catálogo, se llena con el último archivo de la empresa.
+async function asegurarCatalogo(empresaId) {
+  const hay = await db.uno('SELECT 1 FROM productos WHERE empresa_id = $1 LIMIT 1', [empresaId]);
+  if (hay) return;
+  const base = await exportBase(empresaId);
+  if (base) await agregarAlCatalogo(base.id);
+}
+
+// --- Catálogo -----------------------------------------------------------------------------
+
+const catalogo = express.Router();
+catalogo.use(requiereUsuario);
+
+function vistaProducto(p) {
+  return { id: p.id, codigo: p.codigo, nombre: p.nombre, unidad: p.unidad, costo: p.costo === null || p.costo === undefined ? null : Number(p.costo), proveedor: p.proveedor, activo: p.activo };
+}
+
+catalogo.get('/', async (req, res) => {
+  await asegurarCatalogo(req.usuario.empresa_id);
+  const q = texto(req.query.q, 80);
+  const limite = Math.min(Math.max(Number(req.query.limite) || 50, 1), 500);
+  const filas = q
+    ? await db.query(
+      `SELECT * FROM productos WHERE empresa_id = $1 AND activo AND (clave LIKE $2 OR lower(nombre) LIKE $3)
+        ORDER BY (clave = $4) DESC, (clave LIKE $2) DESC, codigo LIMIT $5`,
+      [req.usuario.empresa_id, `${claveCodigo(q)}%`, `%${q.toLowerCase()}%`, claveCodigo(q), limite],
+    )
+    : await db.query('SELECT * FROM productos WHERE empresa_id = $1 AND activo ORDER BY codigo LIMIT $2', [req.usuario.empresa_id, limite]);
+  const { n } = await db.uno('SELECT count(*)::int AS n FROM productos WHERE empresa_id = $1 AND activo', [req.usuario.empresa_id]);
+  res.json({ productos: filas.map(vistaProducto), total: n });
+});
+
+function leerProducto(body, parcial = false) {
+  const codigo = texto(body?.codigo, 100);
+  const nombre = texto(body?.nombre, 200);
+  if (!parcial && !claveCodigo(codigo)) throw new ErrorUsuario('Escribe el código del producto.');
+  if (!parcial && !nombre) throw new ErrorUsuario('Escribe el nombre del producto.');
+  const costo = body?.costo === undefined || body?.costo === null || body?.costo === '' ? null : leerNumero(body.costo);
+  if (costo !== null && !(costo >= 0)) throw new ErrorUsuario('El costo tiene que ser un número de 0 en adelante.');
+  return { codigo, nombre, costo, proveedor: texto(body?.proveedor, 80) || null, unidad: texto(body?.unidad, 20) || null };
+}
+
+catalogo.post('/', async (req, res) => {
+  const p = leerProducto(req.body);
+  const r = await db.uno(
+    `INSERT INTO productos (empresa_id, clave, codigo, nombre, costo, proveedor, unidad) VALUES ($1, $2, $3, $4, $5, $6, $7)
+     ON CONFLICT (empresa_id, clave) DO NOTHING RETURNING *`,
+    [req.usuario.empresa_id, claveCodigo(p.codigo), p.codigo, p.nombre, p.costo, p.proveedor, p.unidad],
+  );
+  if (!r) throw new ErrorUsuario(`Ya hay un producto con el código ${p.codigo}.`, 409);
+  await registrarEvento(req.usuario.id, 'producto_creado', { detalle: { codigo: p.codigo } });
+  res.status(201).json({ producto: vistaProducto(r) });
+});
+
+catalogo.put('/:id', async (req, res) => {
+  const actual = await db.uno('SELECT * FROM productos WHERE id = $1 AND empresa_id = $2', [Number(req.params.id), req.usuario.empresa_id]);
+  if (!actual) throw new ErrorUsuario('Ese producto no está en tu catálogo.', 404);
+  const p = leerProducto({ ...vistaProducto(actual), ...req.body }, true);
+  const r = await db.uno(
+    'UPDATE productos SET nombre = $1, costo = $2, proveedor = $3, unidad = $4, activo = $5 WHERE id = $6 RETURNING *',
+    [p.nombre || actual.nombre, p.costo, p.proveedor, p.unidad, typeof req.body?.activo === 'boolean' ? req.body.activo : actual.activo, actual.id],
+  );
+  // El costo y el proveedor entran al próximo cálculo del inventario.
+  await db.query('UPDATE empresas SET movimientos_cambiaron_en = now() WHERE id = $1 AND movimientos_cambiaron_en IS NOT NULL', [req.usuario.empresa_id]);
+  res.json({ producto: vistaProducto(r) });
+});
+
+// --- Movimientos ----------------------------------------------------------------------------
+
+const rutas = express.Router();
+rutas.use(requiereUsuario);
+
+function hoyBogota() {
+  return fechaBogota();
+}
+
+/**
+ * Revisa todas las líneas antes de guardar nada. Devuelve las líneas limpias o los errores con
+ * su número de fila, en español sencillo, y los códigos que no están en el catálogo.
+ */
+function revisarMovimientos(lineas, porClave) {
+  const hoy = hoyBogota();
+  const minimo = new Date(Date.parse(`${hoy}T12:00:00Z`) - DIAS_ATRAS * MS_DIA).toISOString().slice(0, 10);
+  const errores = [];
+  const faltan = new Set();
+  const limpias = [];
+  lineas.forEach((l, i) => {
+    const fila = i + 1;
+    const codigo = texto(l && l.codigo, 100);
+    if (!codigo) return errores.push(`Fila ${fila}: falta el código del producto.`);
+    const producto = porClave.get(claveCodigo(codigo));
+    if (!producto) {
+      faltan.add(codigo);
+      return errores.push(`Fila ${fila}: el código ${codigo} no está en tu catálogo.`);
+    }
+    const tipo = l.tipo;
+    if (!S.TIPOS.includes(tipo)) return errores.push(`Fila ${fila}: elige si es entrada, venta, devolución, salida o conteo.`);
+    const cantidad = leerNumero(l.cantidad);
+    if (cantidad === null) return errores.push(`Fila ${fila}: la cantidad "${texto(l.cantidad, 20)}" no es un número.`);
+    if (cantidad < 0) return errores.push(`Fila ${fila}: la cantidad no puede ser negativa. Para restar, usa venta o salida.`);
+    if (cantidad === 0 && tipo !== 'conteo') return errores.push(`Fila ${fila}: la cantidad es 0. Solo un conteo puede ser 0.`);
+    const fecha = l.fecha ? String(l.fecha).trim() : hoy;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || Number.isNaN(Date.parse(`${fecha}T12:00:00Z`))) return errores.push(`Fila ${fila}: la fecha no es válida.`);
+    if (fecha > hoy) return errores.push(`Fila ${fila}: la fecha es después de hoy.`);
+    if (fecha < minimo) return errores.push(`Fila ${fila}: la fecha es de hace más de dos años.`);
+    limpias.push({ producto, tipo, cantidad, fecha, nota: texto(l.nota, 200) });
+  });
+  return { limpias, errores, faltan: [...faltan] };
+}
+
+rutas.post('/', async (req, res) => {
+  const lineas = Array.isArray(req.body?.movimientos) ? req.body.movimientos : [];
+  if (!lineas.length) throw new ErrorUsuario('Escribe al menos un movimiento.');
+  if (lineas.length > MAX_LINEAS) throw new ErrorUsuario(`Son más de ${MAX_LINEAS} movimientos. Regístralos en partes.`);
+  const empresaId = req.usuario.empresa_id;
+  await asegurarCatalogo(empresaId);
+  const claves = [...new Set(lineas.map((l) => claveCodigo(l && l.codigo)).filter(Boolean))];
+  const productos = await db.query('SELECT id, clave, codigo, nombre FROM productos WHERE empresa_id = $1 AND clave = ANY($2::text[])', [empresaId, claves]);
+  const revision = revisarMovimientos(lineas, new Map(productos.map((p) => [p.clave, p])));
+  if (revision.errores.length) {
+    throw new ErrorUsuario('Revisa los movimientos antes de guardar. No se guardó ninguno.', 400, { errores: revision.errores.slice(0, 50), faltan: revision.faltan });
+  }
+  await db.tx(async (t) => {
+    for (const m of revision.limpias) {
+      await t.query(
+        'INSERT INTO movimientos (empresa_id, producto_id, usuario_id, tipo, cantidad, fecha, nota) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+        [empresaId, m.producto.id, req.usuario.id, m.tipo, m.cantidad, m.fecha, m.nota],
+      );
+    }
+    await t.query('UPDATE empresas SET movimientos_cambiaron_en = now() WHERE id = $1', [empresaId]);
+  });
+  const tipos = {};
+  for (const m of revision.limpias) tipos[m.tipo] = (tipos[m.tipo] || 0) + 1;
+  await registrarEvento(req.usuario.id, 'movimientos_registrados', { detalle: { cantidad: revision.limpias.length, tipos } });
+
+  // Avisos sobre lo que se acaba de guardar: fechas que ya están en el archivo y saldos negativos.
+  const estado = await existenciasDe(empresaId);
+  const avisos = [];
+  if (estado.base) {
+    const viejos = revision.limpias.filter((m) => m.fecha <= estado.base.hasta).length;
+    if (viejos) avisos.push(`${viejos === 1 ? '1 movimiento es' : `${viejos} movimientos son`} del ${estado.base.hasta} o antes: ese día ya está en el archivo que subieron, así que no cambia las existencias.`);
+  }
+  const tocados = new Set(revision.limpias.map((m) => m.producto.clave));
+  for (const p of estado.productos) {
+    if (tocados.has(claveCodigo(p.codigo)) && p.existencias < 0) avisos.push(`${p.codigo} quedó en ${p.existencias}. ¿Falta registrar una entrada?`);
+  }
+  res.status(201).json({ guardados: revision.limpias.length, avisos: avisos.slice(0, 20) });
+});
+
+function vistaMovimiento(m) {
+  return { id: m.id, codigo: m.codigo, nombre: m.nombre, tipo: m.tipo, cantidad: Number(m.cantidad), fecha: m.fecha, nota: m.nota, registro: m.registro || null, creadoEn: m.creado_en, anulado: Boolean(m.anulado_en) };
+}
+
+rutas.get('/', async (req, res) => {
+  const valida = (t) => (/^\d{4}-\d{2}-\d{2}$/.test(String(t || '')) ? String(t) : null);
+  const desde = valida(req.query.desde);
+  const hasta = valida(req.query.hasta);
+  const codigo = req.query.codigo ? claveCodigo(req.query.codigo) : null;
+  const params = [req.usuario.empresa_id];
+  let filtro = '';
+  if (desde) { params.push(desde); filtro += ` AND m.fecha >= $${params.length}`; }
+  if (hasta) { params.push(hasta); filtro += ` AND m.fecha <= $${params.length}`; }
+  if (codigo) { params.push(codigo); filtro += ` AND p.clave = $${params.length}`; }
+  const filas = await db.query(
+    `SELECT m.id, m.tipo, m.cantidad::float AS cantidad, m.fecha, m.nota, m.creado_en, m.anulado_en, p.codigo, p.nombre, u.nombre AS registro
+       FROM movimientos m JOIN productos p ON p.id = m.producto_id LEFT JOIN usuarios u ON u.id = m.usuario_id
+      WHERE m.empresa_id = $1${filtro} ORDER BY m.fecha DESC, m.id DESC LIMIT 500`,
+    params,
+  );
+  res.json({ movimientos: filas.map(vistaMovimiento), hoy: hoyBogota() });
+});
+
+rutas.post('/:id/anular', async (req, res) => {
+  const m = await db.uno(
+    'UPDATE movimientos SET anulado_en = now() WHERE id = $1 AND empresa_id = $2 AND anulado_en IS NULL RETURNING id, tipo',
+    [Number(req.params.id), req.usuario.empresa_id],
+  );
+  if (!m) throw new ErrorUsuario('Ese movimiento no existe o ya está anulado.', 404);
+  await db.query('UPDATE empresas SET movimientos_cambiaron_en = now() WHERE id = $1', [req.usuario.empresa_id]);
+  await registrarEvento(req.usuario.id, 'movimiento_anulado', { detalle: { movimiento: m.id, tipo: TEXTO_TIPO[m.tipo] } });
+  res.json({ ok: true });
+});
+
+// --- Existencias ----------------------------------------------------------------------------
+
+// Existencias de hoy: las del último archivo más los movimientos posteriores. Incluye los productos
+// del catálogo que no están en el archivo ni tienen movimientos (con 0).
+async function existenciasDe(empresaId) {
+  await asegurarCatalogo(empresaId);
+  const base = await exportBase(empresaId);
+  const movimientos = await movimientosDe(empresaId);
+  const combinado = S.combinar({ base: base ? { ...S.ventasDeExport(base), ventas: [] } : null, movimientos });
+  const porClave = new Map(combinado.existencias.map((e) => [claveCodigo(e.codigo), e]));
+  const ultimo = new Map();
+  for (const m of movimientos) ultimo.set(claveCodigo(m.codigo), { fecha: m.fecha, tipo: m.tipo, cantidad: Number(m.cantidad) });
+  const catalogoFilas = await db.query('SELECT clave, codigo, nombre, unidad FROM productos WHERE empresa_id = $1 AND activo', [empresaId]);
+  const productos = [];
+  const vistos = new Set();
+  for (const p of catalogoFilas) {
+    const e = porClave.get(p.clave);
+    vistos.add(p.clave);
+    productos.push({ codigo: p.codigo, nombre: p.nombre || (e && e.nombre) || '', unidad: p.unidad, existencias: e ? e.existencias : 0, ultimo: ultimo.get(p.clave) || null });
+  }
+  for (const [k, e] of porClave) if (!vistos.has(k)) productos.push({ codigo: e.codigo, nombre: e.nombre, unidad: null, existencias: e.existencias, ultimo: ultimo.get(k) || null });
+  productos.sort((a, b) => a.codigo.localeCompare(b.codigo, 'es', { numeric: true }));
+  return {
+    base: base ? { exportId: base.id, hasta: base.reporte.periodo.hasta, subidoEn: base.subido_en } : null,
+    movimientos: combinado.usados,
+    ignorados: combinado.ignorados,
+    negativos: combinado.negativos.length,
+    hoy: hoyBogota(),
+    productos,
+  };
+}
+
+const existencias = express.Router();
+existencias.use(requiereUsuario);
+
+existencias.get('/', async (req, res) => {
+  res.json(await existenciasDe(req.usuario.empresa_id));
+});
+
+existencias.get('/:codigo', async (req, res) => {
+  const empresaId = req.usuario.empresa_id;
+  const clave = claveCodigo(req.params.codigo);
+  const p = await db.uno('SELECT * FROM productos WHERE empresa_id = $1 AND clave = $2', [empresaId, clave]);
+  if (!p) throw new ErrorUsuario('Ese producto no está en tu catálogo.', 404);
+  const base = await exportBase(empresaId);
+  const fila = base ? (base.reporte.filas || []).find((f) => claveCodigo(f.codigo) === clave) : null;
+  const inicial = base ? { dia: S.diaDeFecha(base.reporte.periodo.hasta), fecha: base.reporte.periodo.hasta, existencias: fila ? fila.existencias : 0 } : null;
+  const movimientos = (await movimientosDe(empresaId, { conAnulados: true, productoId: p.id })).map((m) => ({ ...vistaMovimiento(m), anulado: Boolean(m.anulado_en) }));
+  const k = S.kardex({ inicial, movimientos });
+  res.json({ producto: vistaProducto(p), inicial: inicial && { fecha: inicial.fecha, existencias: inicial.existencias }, filas: k.filas.reverse(), existencias: k.saldo });
+});
+
+module.exports = { rutas, catalogo, existencias, inventarioAlDia, agregarAlCatalogo, revisarMovimientos };

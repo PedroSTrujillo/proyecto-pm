@@ -1,6 +1,6 @@
 'use client'
 
-// "Pedidos": los pedidos de la prueba y, cuando termina la prueba, el pedido sugerido.
+// "Pedidos": los pedidos en 5 pasos y el pedido sugerido.
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -20,10 +20,10 @@ const PASOS_GUIA: [string, string][] = [
   ['Sube tu informe', 'Ventas y existencias, tal como salen de tu programa contable.'],
   ['Mira el reporte', 'Qué se te agota, qué te sobra y para cuántas semanas te alcanza cada producto.'],
   ['Decide tu cantidad final', 'Con lo que sugiere SINESC al lado, línea por línea. Tú decides.'],
-  ['Cuéntanos por qué', 'En dos líneas. Y te llevas la orden de compra en PDF, Excel o WhatsApp.'],
+  ['Termina tu pedido', 'Te llevas la orden de compra en PDF, Excel o WhatsApp.'],
 ]
 
-const NOMBRES_PASOS = ['lo que ibas a pedir', 'ventas y existencias', 'el reporte', 'tu lista final', '¿por qué cambió?']
+const NOMBRES_PASOS = ['lo que ibas a pedir', 'ventas y existencias', 'el reporte', 'tu lista final', 'tu pedido']
 
 export function Pedidos() {
   const [pedidos, setPedidos] = useState<Resumen[] | null>(null)
@@ -106,7 +106,7 @@ export function Pedidos() {
             <BotonEnlace href="/pedidos/sugerido" variante="primario">Abrir el pedido sugerido <ArrowRight /></BotonEnlace>
           </Tarjeta>
         ) : respuesta?.finPrueba ? (
-          <p className="text-[0.95rem] text-muted-foreground">La cantidad sugerida por producto se activa cuando terminen tus 14 días de prueba, el {fecha(respuesta.finPrueba)}. Mientras tanto, el reporte te muestra las semanas de inventario de cada producto.</p>
+          <p className="text-[0.95rem] text-muted-foreground">La cantidad sugerida por producto se activa el {fecha(respuesta.finPrueba)}. Mientras tanto, el reporte te muestra las semanas de inventario de cada producto.</p>
         ) : null
       )}
 

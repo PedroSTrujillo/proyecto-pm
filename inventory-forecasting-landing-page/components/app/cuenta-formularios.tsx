@@ -4,7 +4,7 @@
 
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { api, textoErrores } from '@/lib/api'
 import type { Usuario } from '@/lib/tipos'
 import { Marca } from './marco'
@@ -85,28 +85,84 @@ export function Entrar() {
   )
 }
 
+// Toda cuenta entra a una empresa: la crea aquí mismo o llega con el enlace que le mandaron
+// (?invitacion=…). Elige también cómo va a usar la app (analista u operador) y si quiere el boletín.
 export function CrearCuenta() {
   const router = useRouter()
   const params = useSearchParams()!
+  const invitacion = params.get('invitacion')
   const { enviando, error, enviar } = useEnvio()
+  const [invitada, setInvitada] = useState<{ empresa: string; email: string | null } | null>(null)
+  const [errorInvitacion, setErrorInvitacion] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!invitacion) return
+    api<{ empresa: string; email: string | null }>('GET', `/empresa/invitaciones/${encodeURIComponent(invitacion)}`)
+      .then(setInvitada)
+      .catch((e) => setErrorInvitacion(textoErrores(e).mensaje))
+  }, [invitacion])
+
   function alEnviar(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    const d = Object.fromEntries(new FormData(e.currentTarget))
+    const d = Object.fromEntries(new FormData(e.currentTarget)) as Record<string, string>
     enviar(async () => {
-      await api<{ usuario: Usuario }>('POST', '/cuenta/crear', d)
-      router.replace(destino(params))
+      await api<{ usuario: Usuario }>('POST', '/cuenta/crear', { ...d, boletin: d.boletin === 'on', ...(invitacion ? { invitacion } : {}) })
+      router.replace(d.perfil === 'operador' ? '/movimientos' : destino(params))
     })
   }
+  const sub = invitacion
+    ? invitada ? `Te invitaron a ${invitada.empresa}. Crea tu cuenta para ver y llevar su inventario.` : 'Revisando tu invitación…'
+    : 'Crea la cuenta de tu empresa. Después invitas a tu equipo desde "Mi empresa".'
   return (
-    <Caja titulo="Crea tu cuenta" sub="Es gratis mientras dure la prueba. Al entrar, preparas tu primer pedido con tus propios archivos." pie={<p className="text-center">¿Ya tienes cuenta? <Link href="/entrar" className="font-semibold text-primary hover:text-primary-hover">Entra</Link>.</p>}>
-      <form className="flex flex-col gap-4" onSubmit={alEnviar} noValidate>
-        <Campo etiqueta="Tu nombre"><input className={claseEntrada} type="text" name="nombre" required autoComplete="name" autoFocus /></Campo>
-        <Campo etiqueta="Correo"><input className={claseEntrada} type="email" name="email" required autoComplete="email" /></Campo>
-        <Campo etiqueta="Contraseña" nota="(mínimo 8 caracteres)"><input className={claseEntrada} type="password" name="clave" required minLength={8} autoComplete="new-password" /></Campo>
-        {error && <ErrorLista mensaje={error.mensaje} lista={error.lista} />}
-        <Boton type="submit" variante="primario" disabled={enviando}>{enviando ? 'Creando…' : 'Crear cuenta'}</Boton>
-      </form>
+    <Caja titulo={invitacion ? 'Únete a tu empresa' : 'Crea tu cuenta'} sub={sub} pie={<p className="text-center">¿Ya tienes cuenta? <Link href="/entrar" className="font-semibold text-primary hover:text-primary-hover">Entra</Link>.</p>}>
+      {errorInvitacion ? (
+        <div className="flex flex-col gap-4">
+          <Aviso tono="error">{errorInvitacion}</Aviso>
+          <Link href="/crear-cuenta" className="font-semibold text-primary hover:text-primary-hover">Crear una empresa nueva</Link>
+        </div>
+      ) : (
+        <form className="flex flex-col gap-4" onSubmit={alEnviar} noValidate>
+          {!invitacion && (
+            <>
+              <Campo etiqueta="Nombre de tu empresa"><input className={claseEntrada} type="text" name="empresa" required autoComplete="organization" autoFocus /></Campo>
+              <Campo etiqueta="NIT" nota="(opcional)"><input className={claseEntrada} type="text" name="nit" inputMode="numeric" /></Campo>
+            </>
+          )}
+          <Campo etiqueta="Tu nombre"><input className={claseEntrada} type="text" name="nombre" required autoComplete="name" autoFocus={Boolean(invitacion)} /></Campo>
+          <Campo etiqueta="Correo"><input className={claseEntrada} type="email" name="email" required autoComplete="email" defaultValue={invitada?.email || ''} key={invitada?.email || ''} /></Campo>
+          <Campo etiqueta="Contraseña" nota="(mínimo 8 caracteres)"><input className={claseEntrada} type="password" name="clave" required minLength={8} autoComplete="new-password" /></Campo>
+          <fieldset className="flex flex-col gap-2">
+            <legend className="mb-1 text-[0.95rem] font-semibold">¿Cómo vas a usar SINESC?</legend>
+            <ElegirPerfil nombre="perfil" />
+            <span className="text-[0.85rem] text-muted-foreground">Lo cambias cuando quieras, desde el menú.</span>
+          </fieldset>
+          <label className="flex items-start gap-2.5 text-[0.95rem]">
+            <input type="checkbox" name="boletin" defaultChecked className="mt-1 size-4 accent-[var(--primary)]" />
+            <span>Recibir cada mañana un correo con el estado del inventario. <span className="text-muted-foreground">Te das de baja con un clic.</span></span>
+          </label>
+          {error && <ErrorLista mensaje={error.mensaje} lista={error.lista} />}
+          <Boton type="submit" variante="primario" disabled={enviando || Boolean(invitacion && !invitada)}>{enviando ? 'Creando…' : 'Crear cuenta'}</Boton>
+        </form>
+      )}
     </Caja>
+  )
+}
+
+export const PERFILES = [
+  { id: 'analista', titulo: 'Analista', texto: 'Miro el detalle: pronóstico, riesgo, cuánto pedir y dinero quieto.' },
+  { id: 'operador', titulo: 'Operador', texto: 'Registro entradas y salidas, subo el archivo y veo lo que se agota.' },
+] as const
+
+function ElegirPerfil({ nombre }: { nombre: string }) {
+  return (
+    <div className="grid gap-2 sm:grid-cols-2">
+      {PERFILES.map((p, i) => (
+        <label key={p.id} className="flex cursor-pointer gap-2.5 rounded-xl border border-input p-3 has-[:checked]:border-primary has-[:checked]:bg-secondary">
+          <input type="radio" name={nombre} value={p.id} defaultChecked={i === 0} className="mt-1 size-4 accent-[var(--primary)]" />
+          <span className="flex flex-col"><strong>{p.titulo}</strong><span className="text-[0.85rem] text-muted-foreground">{p.texto}</span></span>
+        </label>
+      ))}
+    </div>
   )
 }
 
@@ -132,7 +188,7 @@ export function Olvide() {
       ) : respuesta ? (
         <Aviso tono="ok">Si hay una cuenta con ese correo, te enviamos un enlace para cambiar la contraseña. Revisa también la carpeta de correo no deseado.</Aviso>
       ) : (
-        <Aviso tono="info">Escríbele al equipo que te invitó a la prueba: ellos te mandan un enlace para poner una contraseña nueva.</Aviso>
+        <Aviso tono="info">Por ahora no podemos mandarte el enlace por correo. Escríbenos y te mandamos uno para poner una contraseña nueva.</Aviso>
       )}
     </Caja>
   )

@@ -8,11 +8,11 @@
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
-const db = require('./db');
 const { requiereEquipo, ErrorUsuario } = require('./cuentas');
 const { guardarExport } = require('./inventario-rutas');
 const { archivoDemo, sectores } = require('./demo');
 const { leerAjustes } = require('./inventario');
+const { inventarioDelUsuario, guardarInventarioDelUsuario } = require('./empresas');
 
 // En Vercel la API va empaquetada dentro de la web y __dirname ya no es server/: se busca la
 // carpeta también desde donde corre el proceso (next.config.mjs la incluye en la función).
@@ -105,10 +105,8 @@ rutas.post('/negocios/:id/cargar', async (req, res) => {
   const a = negocio(req);
   const r = await guardarExport(req.usuario.id, [{ nombre: a.nombre, buffer: a.buffer }], { desde: 'ejemplos', periodo: a.periodo || null });
   if (r.ok) {
-    const u = await db.uno('SELECT inventario FROM usuarios WHERE id = $1', [req.usuario.id]);
-    const previos = (u && u.inventario) || {};
-    const ajustes = leerAjustes({ ...previos, cadaCuanto: a.cadaCuanto, entregas: { ...(previos.entregas || {}), ...a.entregas } });
-    await db.query('UPDATE usuarios SET inventario = $1::jsonb WHERE id = $2', [JSON.stringify(ajustes), req.usuario.id]);
+    const previos = await inventarioDelUsuario(req.usuario.id);
+    await guardarInventarioDelUsuario(req.usuario.id, leerAjustes({ ...previos, cadaCuanto: a.cadaCuanto, entregas: { ...(previos.entregas || {}), ...a.entregas } }));
   }
   res.json(r);
 });

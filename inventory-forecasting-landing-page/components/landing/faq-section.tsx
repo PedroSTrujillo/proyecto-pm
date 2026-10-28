@@ -39,7 +39,7 @@ const faqs: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: '¿Quién puede ver mi información?',
-    a: 'Tus pedidos y tus archivos solo los ves tú. Mientras dura la prueba, el equipo que hace la herramienta ve cuántas líneas cambiaste y lo que respondes sobre por qué, para saber si te está sirviendo. Si quieres que borremos tus datos, escríbenos y los borramos.',
+    a: 'Tus pedidos solo los ves tú; el inventario lo ven las personas de tu empresa. El equipo de SINESC puede revisar cómo se usa la herramienta, por ejemplo qué cambias en tus pedidos, para mejorarla. No compartimos tus datos con nadie. Si quieres que los borremos, escríbenos y los borramos.',
   },
 ]
 

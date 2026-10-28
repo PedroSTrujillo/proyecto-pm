@@ -2,10 +2,11 @@
 
 // Datos: el último archivo, subir uno nuevo, cuánto tarda cada proveedor y el historial.
 
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Check, Minus, Plus } from 'lucide-react'
 import { api } from '@/lib/api'
-import { fecha, fechaHora, numero, plural, semanas } from '@/lib/formato'
+import { duracion, fecha, fechaHora, numero, plural, semanas } from '@/lib/formato'
 import { nombrePrograma } from '@/lib/sistemas'
 import type { Inventario } from '@/lib/tipos'
 import { useInventario, useSesion } from './contexto'
@@ -22,14 +23,19 @@ export function Datos() {
 }
 
 function DatosCon({ inv }: { inv: Inventario | null }) {
-  const { fuente, recargar } = useInventario()
+  const { fuente, recargar, perfil } = useInventario()
   const { usuario, fijar } = useSesion()
   const demo = fuente.tipo === 'demo'
   const [listo, setListo] = useState<string | null>(null)
 
   return (
     <>
-      <Titulo sub="Tu inventario queda guardado. Súbelo de nuevo cuando quieras ponerlo al día.">Datos</Titulo>
+      <Titulo sub="El inventario es de tu empresa y queda guardado. Súbelo de nuevo cuando quieras ponerlo al día.">Datos</Titulo>
+      {!demo && (
+        <Aviso tono="info" titulo="Dos formas de llevar el inventario, y se combinan">
+          Sube el archivo de tu programa contable (cada mes o cuando quieras) o registra las entradas y salidas de cada día en <Link href="/movimientos" className="font-semibold underline underline-offset-2">Movimientos</Link>. Lo registrado después de la fecha del archivo se suma encima.
+        </Aviso>
+      )}
 
       {inv && <UltimaCarga inv={inv} />}
 
@@ -51,13 +57,20 @@ function DatosCon({ inv }: { inv: Inventario | null }) {
             </>
           )}
         </Tarjeta>
-        {inv && (
+        {inv && perfil === 'operador' && (
+          <Tarjeta className="flex min-w-0 flex-col gap-2 p-5 sm:p-6">
+            <h2 className="text-xl font-bold">Ajustes de tu empresa</h2>
+            <p className="text-[0.95rem]">Un producto se va a agotar si te alcanza para menos de <strong>{duracion(inv.umbrales.seAgota)}</strong>. Si el proveedor no está dicho, se asume que tarda <strong>{duracion(inv.ajustes.entregaPorDefecto)}</strong>, y se pide cada <strong>{duracion(inv.ajustes.cadaCuanto)}</strong>.</p>
+            <p className="text-[0.88rem] text-muted-foreground">Los tiempos de cada proveedor y estos ajustes los cambia quien usa el perfil analista.</p>
+          </Tarjeta>
+        )}
+        {inv && perfil !== 'operador' && (
           <div className="flex min-w-0 flex-col gap-5">
             {inv.alcance !== 'prueba' && <Proveedores inv={inv} />}
             {inv.alcance === 'prueba' && (
               <Tarjeta className="flex flex-col gap-2 p-5 sm:p-6">
                 <h2 className="text-xl font-bold">Tus proveedores</h2>
-                <p className="text-[0.95rem] text-muted-foreground">Al terminar tu prueba podrás indicar cuánto tarda cada proveedor para saber qué y cuánto pedir a tiempo.</p>
+                <p className="text-[0.95rem] text-muted-foreground">Pronto podrás indicar cuánto tarda cada proveedor para saber qué y cuánto pedir a tiempo.</p>
               </Tarjeta>
             )}
             <UmbralAgota inv={inv} />
@@ -336,7 +349,7 @@ function FilaTiempo({ nombre, detalle, valor, onMover }: { nombre: string; detal
   )
 }
 
-type Carga = { id: number; subidoEn: string; estado: string; pedidoId: number | null; productos: number | null; archivos: string[] }
+type Carga = { id: number; subidoEn: string; estado: string; pedidoId: number | null; productos: number | null; archivos: string[]; subidoPor?: string | null }
 
 function Historial({ inv }: { inv: Inventario | null }) {
   const { fuente } = useInventario()
@@ -366,7 +379,7 @@ function Historial({ inv }: { inv: Inventario | null }) {
           <li key={c.id} className="flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-[#f0f1ee] py-3 first:border-t-0">
             <strong className="w-full shrink-0 tabular-nums sm:w-60">{fechaHora(c.subidoEn)}</strong>
             <span className="min-w-0 flex-1 basis-full truncate text-foreground/85 sm:basis-auto">{c.archivos.join(' · ') || '—'}</span>
-            <span className="text-[0.93rem] text-muted-foreground tabular-nums">{c.productos !== null ? `${numero(c.productos)} productos` : ''}{c.pedidoId ? ` · pedido #${c.pedidoId}` : ''}</span>
+            <span className="text-[0.93rem] text-muted-foreground tabular-nums">{c.productos !== null ? `${numero(c.productos)} productos` : ''}{c.pedidoId ? ` · pedido #${c.pedidoId}` : ''}{c.subidoPor ? ` · lo subió ${c.subidoPor}` : ''}</span>
             <span className={c.id === vigente?.id ? 'rounded-full bg-secondary px-2.5 py-0.5 text-xs font-bold text-secondary-foreground' : c.estado === 'ok' ? 'rounded-full bg-muted px-2.5 py-0.5 text-xs font-bold text-foreground/70' : 'rounded-full bg-rojo-fondo px-2.5 py-0.5 text-xs font-bold text-rojo-texto'}>
               {c.id === vigente?.id ? 'En uso' : c.estado === 'ok' ? 'Anterior' : 'No se pudo leer'}
             </span>

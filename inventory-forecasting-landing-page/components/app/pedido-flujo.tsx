@@ -1,7 +1,7 @@
 'use client'
 
 // Un pedido de la prueba, en 5 pasos: lo que ibas a pedir → tus ventas y existencias → el
-// reporte → tu lista final → por qué cambió. Las reglas (la lista inicial queda fija, no hay
+// reporte → tu lista final → tu pedido. Las reglas (la lista inicial queda fija, no hay
 // reporte sin lista inicial) se hacen cumplir en el servidor (server/pedidos.js).
 
 import Link from 'next/link'
@@ -49,7 +49,7 @@ type Pedido = {
   anulado: { en: string; motivo: string } | null
 }
 
-const PASOS = ['Lo que ibas a pedir', 'Ventas y existencias', 'El reporte', 'Tu lista final', '¿Por qué cambió?']
+const PASOS = ['Lo que ibas a pedir', 'Ventas y existencias', 'El reporte', 'Tu lista final', 'Tu pedido']
 
 export function PedidoFlujo({ id }: { id: number }) {
   const [pedido, setPedido] = useState<Pedido | null>(null)
@@ -935,18 +935,13 @@ function RecuadroSugerido({ sug, hoja, alCambiarLista, alCambiarAjustes }: { sug
   )
 }
 
-// Lo que lleva cambiado frente a la lista inicial: es lo que mide la prueba.
-function ResumenCambios({ hoja, inicial, version, sugeridos }: { hoja: React.RefObject<HojaApi | null>; inicial: Pedido['listaInicial']; version: unknown; sugeridos: Map<string, ProductoSugerido> }) {
+// Cuánto lleva el pedido. No cuenta las líneas cambiadas frente a la lista inicial: es lo que se
+// mide, y mostrarlo como un marcador empuja a cambiar por cambiar (la columna "Cambio" de cada fila
+// basta para ver qué movió).
+function ResumenPedido({ hoja, version, sugeridos }: { hoja: React.RefObject<HojaApi | null>; version: unknown; sugeridos: Map<string, ProductoSugerido> }) {
   void version // se vuelve a calcular cada vez que cambia la hoja
   const cant = (v: unknown) => Number(String(v ?? '').trim().replace(',', '.'))
   const ahora = new Map((hoja.current?.lineas() || []).filter((l) => l.codigo && cant(l.cantidad) > 0).map((l) => [claveCodigo(l.codigo), cant(l.cantidad)]))
-  const antes = new Map(inicial.map((l) => [claveCodigo(l.codigo), cant(l.cantidad)]))
-  let agregadas = 0
-  let quitadas = 0
-  let distintas = 0
-  for (const [k, v] of ahora) if (!antes.has(k)) agregadas++; else if (Math.abs(antes.get(k)! - v) > 1e-9) distintas++
-  for (const k of antes.keys()) if (!ahora.has(k)) quitadas++
-  const total = agregadas + quitadas + distintas
   let unidades = 0
   let plata = 0
   let conCosto = 0
@@ -956,17 +951,10 @@ function ResumenCambios({ hoja, inicial, version, sugeridos }: { hoja: React.Ref
     if (c && c > 0) { plata += c * v; conCosto++ }
   }
   return (
-    <div className="flex flex-col gap-2 rounded-xl bg-muted px-4 py-3 text-[0.95rem] sm:flex-row sm:items-center sm:justify-between">
-      <span className="font-semibold">
-        Tu pedido: {plural(ahora.size, 'producto', 'productos')}, {numero(unidades)} unidades
-        {conCosto > 0 && <> · {plata.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })} a costo{conCosto < ahora.size ? ` (${conCosto} con costo)` : ''}</>}
-      </span>
-    <p>
-      {total === 0
-        ? 'Por ahora tu lista final es igual a la inicial.'
-        : <>Frente a lo que ibas a pedir llevas <strong>{plural(total, 'línea cambiada', 'líneas cambiadas')}</strong>: {plural(agregadas, 'agregada', 'agregadas')}, {plural(quitadas, 'quitada', 'quitadas')} y {plural(distintas, 'con otra cantidad', 'con otra cantidad')}.</>}
+    <p className="rounded-xl bg-muted px-4 py-3 text-[0.95rem] font-semibold">
+      Tu pedido: {plural(ahora.size, 'producto', 'productos')}, {numero(unidades)} unidades
+      {conCosto > 0 && <> · {plata.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })} a costo{conCosto < ahora.size ? ` (${conCosto} con costo)` : ''}</>}
     </p>
-    </div>
   )
 }
 
@@ -1241,7 +1229,7 @@ function Paso4({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
       {detalle && sug && sugPorCodigo.get(detalle.codigo) && (
         <DetalleSugerido p={sugPorCodigo.get(detalle.codigo)!} sug={sug} vasAPedir={cantidadEnHoja(detalle.codigo) ?? detalle.cantidad} ibasAPedir={inicial.has(detalle.codigo) ? cantidad(inicial.get(detalle.codigo)!.cantidad) : null} alCerrar={() => setDetalle(null)} />
       )}
-      <ResumenCambios hoja={hoja} inicial={pedido.listaInicial} version={actuales} sugeridos={sugPorCodigo} />
+      <ResumenPedido hoja={hoja} version={actuales} sugeridos={sugPorCodigo} />
       {quitados.length > 0 && (
         <p className="text-[0.93rem]">
           <strong>Quitaste {plural(quitados.length, 'producto', 'productos')} de tu lista inicial:</strong>{' '}
@@ -1298,17 +1286,14 @@ function Paso5({ pedido, recargar }: { pedido: Pedido; recargar: () => Promise<v
   return (
     <Tarjeta className="flex flex-col gap-5 p-5 sm:p-6">
       <div>
-        <h2 className="text-xl font-bold">¿Por qué cambió?</h2>
-        <p className="mt-1 text-muted-foreground">Comparamos tu lista inicial con la final, producto por producto (por código).</p>
+        <h2 className="text-xl font-bold">Tu pedido</h2>
+        <p className="mt-1 text-muted-foreground">{pedido.terminado ? 'Listo para mandar a tus proveedores.' : 'Termínalo para llevarte la orden de compra.'}</p>
       </div>
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
-        <Cifra n={n.agregadas} texto={n.agregadas === 1 ? 'línea agregada' : 'líneas agregadas'} />
-        <Cifra n={n.quitadas} texto={n.quitadas === 1 ? 'línea quitada' : 'líneas quitadas'} />
-        <Cifra n={n.cambiadas} texto="con cantidad distinta" />
-        <Cifra n={n.total} texto={n.total === 1 ? 'línea cambiada en total' : 'líneas cambiadas en total'} destacado />
-      </div>
-      <details open={n.total > 0 && n.total <= 30} className="rounded-xl border border-border px-4 py-3">
-        <summary className="cursor-pointer font-semibold">Ver el detalle</summary>
+      <details className="rounded-xl border border-border px-4 py-3">
+        <summary className="cursor-pointer font-semibold">Qué cambió frente a lo que ibas a pedir</summary>
+        <p className="mt-2 text-[0.93rem] text-muted-foreground">
+          {n.total === 0 ? 'Tu lista final quedó igual a la inicial.' : `${plural(n.agregadas, 'producto agregado', 'productos agregados')}, ${plural(n.quitadas, 'quitado', 'quitados')} y ${plural(n.cambiadas, 'con otra cantidad', 'con otra cantidad')}.`}
+        </p>
         <div className="mt-3 grid gap-4 md:grid-cols-3">
           <Detalle titulo="Agregadas" items={c.agregadas.map((x) => <><span className="text-muted-foreground">{x.codigo}</span>{nombre(x)}: {numero(x.cantidad, 2)}</>)} />
           <Detalle titulo="Quitadas" items={c.quitadas.map((x) => <><span className="text-muted-foreground">{x.codigo}</span>{nombre(x)}: {numero(x.cantidad, 2)}</>)} />
@@ -1318,9 +1303,13 @@ function Paso5({ pedido, recargar }: { pedido: Pedido; recargar: () => Promise<v
       </details>
       {pedido.terminado ? (
         <>
-          <Aviso tono="ok" titulo={`Pedido terminado el ${fechaHora(pedido.terminadoEn)}. ¡Gracias!`}>
-            <p className="mt-1 font-semibold">¿Por qué cambiaste lo que cambiaste?</p>
-            <p className="whitespace-pre-line">{pedido.porQue}</p>
+          <Aviso tono="ok" titulo={`Pedido terminado el ${fechaHora(pedido.terminadoEn)}.`}>
+            {pedido.porQue && (
+              <>
+                <p className="mt-1 font-semibold">Lo que tuviste en cuenta</p>
+                <p className="whitespace-pre-line">{pedido.porQue}</p>
+              </>
+            )}
           </Aviso>
           <OrdenDeCompra pedido={pedido} />
           <div className="flex flex-wrap gap-2.5">
@@ -1331,8 +1320,8 @@ function Paso5({ pedido, recargar }: { pedido: Pedido; recargar: () => Promise<v
       ) : (
         <>
           <label className="flex flex-col gap-1.5 font-semibold">
-            ¿Por qué cambiaste lo que cambiaste?
-            <textarea className={cn(claseEntrada, 'min-h-36 py-3 font-normal')} maxLength={5000} placeholder="Si no cambiaste nada, cuéntanos por qué." value={texto} onChange={(e) => setTexto(e.target.value)} />
+            <span>¿Qué tuviste en cuenta para decidir tu pedido? <span className="font-normal text-muted-foreground">(opcional)</span></span>
+            <textarea className={cn(claseEntrada, 'min-h-28 py-3 font-normal')} maxLength={5000} value={texto} onChange={(e) => setTexto(e.target.value)} />
           </label>
           {error && <ErrorLista mensaje={error} />}
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1404,15 +1393,6 @@ function OrdenDeCompra({ pedido }: { pedido: Pedido }) {
         <pre className="mt-2 rounded-lg bg-card p-3 font-sans whitespace-pre-wrap">{mensaje}</pre>
       </details>
     </section>
-  )
-}
-
-function Cifra({ n, texto, destacado }: { n: number; texto: string; destacado?: boolean }) {
-  return (
-    <div className={cn('rounded-2xl border p-4', destacado ? 'border-verde-borde bg-verde-fondo' : 'border-border bg-card')}>
-      <strong className={cn('font-display text-[1.8rem] tabular-nums', destacado && 'text-verde')}>{numero(n)}</strong>
-      <span className="block text-sm text-muted-foreground">{texto}</span>
-    </div>
   )
 }
 

@@ -9,6 +9,7 @@ const { enviarCorreo, correoConfigurado } = require('./correo');
 
 const COOKIE = 'sesion';
 const HORAS_ENLACE_RESTABLECER = 24;
+const DIAS_INVITACION = 7;
 const DURACION_SESION_DIAS = 30;
 // Si alguien vuelve con la sesión abierta después de este tiempo sin actividad,
 // cuenta como un nuevo ingreso (para ver si los usuarios vuelven por su cuenta).
@@ -82,22 +83,41 @@ function esEmailDeEquipo(email) {
   return lista.includes(email);
 }
 
+// Lo que se sabe de un usuario en cada petición: sus datos, su empresa y sus preferencias.
+const COLUMNAS_USUARIO = `u.id, u.email, u.nombre, u.rol, u.sistema, u.empresa_id, u.admin_empresa, u.perfil,
+  u.preferencias, u.boletin, e.nombre AS empresa_nombre, e.vacia AS empresa_vacia`;
+
+async function usuarioPorId(id) {
+  return db.uno(`SELECT ${COLUMNAS_USUARIO} FROM usuarios u LEFT JOIN empresas e ON e.id = u.empresa_id WHERE u.id = $1`, [id]);
+}
+
+// Todo usuario pertenece a una empresa. Si la suya se borró, queda con una empresa vacía nueva
+// (lo mismo que reciben los usuarios de antes de las empresas, en server/db.js).
+async function asegurarEmpresa(u) {
+  if (u.empresa_id) return u;
+  const e = await db.uno('INSERT INTO empresas (vacia) VALUES (true) RETURNING id');
+  await db.query('UPDATE usuarios SET empresa_id = $1, admin_empresa = true WHERE id = $2', [e.id, u.id]);
+  return { ...u, empresa_id: e.id, admin_empresa: true, empresa_nombre: '', empresa_vacia: true };
+}
+
 // Carga req.usuario si hay sesión válida.
 async function cargarUsuario(req, _res, next) {
   const token = leerCookies(req)[COOKIE];
   if (!token) return next();
   const fila = await db.uno(
-    `SELECT u.id, u.email, u.nombre, u.rol, u.sistema, s.token_hash, s.ultima_actividad_en
-       FROM sesiones s JOIN usuarios u ON u.id = s.usuario_id
+    `SELECT ${COLUMNAS_USUARIO}, s.token_hash, s.ultima_actividad_en
+       FROM sesiones s JOIN usuarios u ON u.id = s.usuario_id LEFT JOIN empresas e ON e.id = u.empresa_id
       WHERE s.token_hash = $1 AND s.expira_en > now()`,
     [hashToken(token)],
   );
   if (!fila) return next();
-  req.usuario = fila;
+  req.usuario = await asegurarEmpresa(fila);
   const minutos = (Date.now() - new Date(fila.ultima_actividad_en).getTime()) / 60000;
   if (minutos >= 1) {
     if (minutos >= MINUTOS_ENTRE_INGRESOS) {
-      await registrarEvento(fila.id, 'ingreso', { detalle: { como: 'volvio_con_sesion_abierta' } });
+      // Los enlaces del boletín diario traen ?desde=boletin (llega en el encabezado Referer de la API).
+      const desdeBoletin = /[?&]desde=boletin\b/.test(String(req.get('referer') || ''));
+      await registrarEvento(fila.id, 'ingreso', { detalle: { como: desdeBoletin ? 'boletin' : 'volvio_con_sesion_abierta' } });
     }
     await db.query('UPDATE sesiones SET ultima_actividad_en = now() WHERE token_hash = $1', [fila.token_hash]);
   }
@@ -115,8 +135,43 @@ function requiereEquipo(req, _res, next) {
   next();
 }
 
+function requiereAdminEmpresa(req, _res, next) {
+  if (!req.usuario) return next(new ErrorUsuario('Tu sesión se cerró. Vuelve a iniciar sesión.', 401));
+  if (!req.usuario.admin_empresa) return next(new ErrorUsuario('Solo quien administra la empresa puede hacer esto.', 403));
+  next();
+}
+
+const UNIDADES = ['dias', 'semanas', 'meses'];
+const HORIZONTE_POR_DEFECTO = 4; // semanas: lo de "Venderás en 4 semanas"
+const HORIZONTE_MAXIMO = 26;
+
+// Cómo quiere ver el tiempo: en días, semanas o meses, y cuántas semanas pronosticar. El cálculo
+// sigue en semanas (docs/modelo-rotacion.md, "Unidades al mostrar"): esto solo cambia cómo se dice.
+function leerPreferencias(p) {
+  const pref = p && typeof p === 'object' ? p : {};
+  const h = Number(pref.horizonte);
+  return {
+    unidad: UNIDADES.includes(pref.unidad) ? pref.unidad : 'semanas',
+    horizonte: Number.isFinite(h) && h >= 0.5 && h <= HORIZONTE_MAXIMO ? Math.round(h * 100) / 100 : HORIZONTE_POR_DEFECTO,
+  };
+}
+
 function publico(u) {
-  return { id: u.id, email: u.email, nombre: u.nombre, rol: u.rol, sistema: u.sistema || null };
+  return {
+    id: u.id,
+    email: u.email,
+    nombre: u.nombre,
+    rol: u.rol,
+    sistema: u.sistema || null,
+    perfil: u.perfil || 'analista',
+    preferencias: leerPreferencias(u.preferencias),
+    boletin: Boolean(u.boletin),
+    empresa: u.empresa_id ? { id: u.empresa_id, nombre: u.empresa_nombre || '', vacia: Boolean(u.empresa_vacia), admin: Boolean(u.admin_empresa) } : null,
+  };
+}
+
+async function publicoPorId(id) {
+  return publico(await usuarioPorId(id));
 }
 
 function validarClave(clave) {
@@ -144,24 +199,55 @@ function baseDe(req) {
 
 const rutas = express.Router();
 
+// Una cuenta nueva siempre entra a una empresa: la que crea en el mismo formulario o la de la
+// invitación que le mandaron (docs/PLAN_EMPRESAS_INVENTARIO.md, D2).
 rutas.post('/crear', async (req, res) => {
   const nombre = String(req.body?.nombre || '').trim().slice(0, 100);
   const email = String(req.body?.email || '').trim().toLowerCase();
   const clave = String(req.body?.clave || '');
+  const invitacion = String(req.body?.invitacion || '').trim();
+  const empresa = typeof req.body?.empresa === 'object' && req.body.empresa ? req.body.empresa : { nombre: req.body?.empresa, nit: req.body?.nit };
+  const nombreEmpresa = String(empresa.nombre || '').trim().slice(0, 120);
+  const nit = String(empresa.nit || '').trim().slice(0, 30) || null;
+  const perfil = req.body?.perfil === 'operador' ? 'operador' : 'analista';
+  const boletin = req.body?.boletin === true || req.body?.boletin === 'on' || req.body?.boletin === 'true';
   if (!nombre) throw new ErrorUsuario('Escribe tu nombre.');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new ErrorUsuario('Escribe un correo válido.');
   validarClave(clave);
+  if (!invitacion && !nombreEmpresa) throw new ErrorUsuario('Escribe el nombre de tu empresa o abre el enlace de invitación que te mandaron.');
   const existe = await db.uno('SELECT id FROM usuarios WHERE email = $1', [email]);
   if (existe) throw new ErrorUsuario('Ya hay una cuenta con ese correo. Inicia sesión.');
   const rol = esEmailDeEquipo(email) ? 'equipo' : 'usuario';
-  const u = await db.uno(
-    'INSERT INTO usuarios (email, nombre, clave_hash, rol) VALUES ($1, $2, $3, $4) RETURNING id, email, nombre, rol, sistema',
-    [email, nombre, hashClave(clave), rol],
-  );
-  await registrarEvento(u.id, 'cuenta_creada');
-  await registrarEvento(u.id, 'ingreso', { detalle: { como: 'cuenta_nueva' } });
-  await abrirSesion(req, res, u.id);
-  res.status(201).json({ usuario: publico(u) });
+  const id = await db.tx(async (t) => {
+    let empresaId;
+    let admin;
+    if (invitacion) {
+      const { rows } = await t.query(
+        `UPDATE invitaciones SET usada_en = now()
+          WHERE token_hash = $1 AND usada_en IS NULL AND expira_en > now() AND (email IS NULL OR email = $2)
+          RETURNING empresa_id`,
+        [hashToken(invitacion), email],
+      );
+      if (!rows[0]) throw new ErrorUsuario('Este enlace de invitación ya se usó, se venció o es para otro correo. Pide uno nuevo a quien te invitó.');
+      empresaId = rows[0].empresa_id;
+      admin = false;
+    } else {
+      const { rows } = await t.query('INSERT INTO empresas (nombre, nit) VALUES ($1, $2) RETURNING id', [nombreEmpresa, nit]);
+      empresaId = rows[0].id;
+      admin = true;
+    }
+    const { rows } = await t.query(
+      `INSERT INTO usuarios (email, nombre, clave_hash, rol, empresa_id, admin_empresa, perfil, boletin)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+      [email, nombre, hashClave(clave), rol, empresaId, admin, perfil, boletin],
+    );
+    if (invitacion) await t.query('UPDATE invitaciones SET usada_por = $1 WHERE token_hash = $2', [rows[0].id, hashToken(invitacion)]);
+    return rows[0].id;
+  });
+  await registrarEvento(id, 'cuenta_creada', { detalle: { como: invitacion ? 'invitacion' : 'empresa_nueva', perfil } });
+  await registrarEvento(id, 'ingreso', { detalle: { como: 'cuenta_nueva' } });
+  await abrirSesion(req, res, id);
+  res.status(201).json({ usuario: await publicoPorId(id) });
 });
 
 rutas.post('/entrar', async (req, res) => {
@@ -174,7 +260,7 @@ rutas.post('/entrar', async (req, res) => {
   u.rol = rol;
   await registrarEvento(u.id, 'ingreso', { detalle: { como: 'inicio_sesion' } });
   await abrirSesion(req, res, u.id);
-  res.json({ usuario: publico(u) });
+  res.json({ usuario: publico(await asegurarEmpresa(await usuarioPorId(u.id))) });
 });
 
 rutas.post('/salir', async (req, res) => {
@@ -197,8 +283,35 @@ rutas.put('/datos', requiereUsuario, async (req, res) => {
   if (!nombre) throw new ErrorUsuario('Escribe tu nombre.');
   const sistema = req.body?.sistema === undefined ? req.usuario.sistema : req.body.sistema;
   if (sistema !== null && !/^[a-z0-9-]{1,40}$/.test(String(sistema))) throw new ErrorUsuario('Elige tu programa contable de la lista.');
-  const u = await db.uno('UPDATE usuarios SET nombre = $1, sistema = $2 WHERE id = $3 RETURNING id, email, nombre, rol, sistema', [nombre, sistema, req.usuario.id]);
-  res.json({ usuario: publico(u) });
+  await db.query('UPDATE usuarios SET nombre = $1, sistema = $2 WHERE id = $3', [nombre, sistema, req.usuario.id]);
+  res.json({ usuario: await publicoPorId(req.usuario.id) });
+});
+
+// Analista u operador: lo elige cada quien, sin contraseña aparte (D3).
+rutas.put('/perfil', requiereUsuario, async (req, res) => {
+  const perfil = req.body?.perfil;
+  if (perfil !== 'analista' && perfil !== 'operador') throw new ErrorUsuario('Elige analista u operador.');
+  await db.query('UPDATE usuarios SET perfil = $1 WHERE id = $2', [perfil, req.usuario.id]);
+  if (perfil !== req.usuario.perfil) await registrarEvento(req.usuario.id, 'perfil_cambiado', { detalle: { perfil } });
+  res.json({ usuario: await publicoPorId(req.usuario.id) });
+});
+
+rutas.put('/preferencias', requiereUsuario, async (req, res) => {
+  const cuerpo = req.body && typeof req.body === 'object' ? req.body : {};
+  if (cuerpo.unidad !== undefined && !UNIDADES.includes(cuerpo.unidad)) throw new ErrorUsuario('Elige días, semanas o meses.');
+  if (cuerpo.horizonte !== undefined && !(Number(cuerpo.horizonte) >= 0.5 && Number(cuerpo.horizonte) <= HORIZONTE_MAXIMO)) {
+    throw new ErrorUsuario(`El horizonte tiene que estar entre media semana y ${HORIZONTE_MAXIMO} semanas.`);
+  }
+  const pref = leerPreferencias({ ...leerPreferencias(req.usuario.preferencias), ...cuerpo });
+  await db.query('UPDATE usuarios SET preferencias = $1::jsonb WHERE id = $2', [JSON.stringify(pref), req.usuario.id]);
+  res.json({ usuario: await publicoPorId(req.usuario.id) });
+});
+
+rutas.put('/boletin', requiereUsuario, async (req, res) => {
+  if (typeof req.body?.activo !== 'boolean') throw new ErrorUsuario('Elige si quieres recibir el boletín.');
+  await db.query('UPDATE usuarios SET boletin = $1 WHERE id = $2', [req.body.activo, req.usuario.id]);
+  await registrarEvento(req.usuario.id, req.body.activo ? 'boletin_activado' : 'boletin_desactivado');
+  res.json({ usuario: await publicoPorId(req.usuario.id) });
 });
 
 rutas.put('/clave', requiereUsuario, async (req, res) => {
@@ -246,8 +359,7 @@ rutas.post('/restablecer', async (req, res) => {
   await db.query('DELETE FROM sesiones WHERE usuario_id = $1', [r.usuario_id]);
   await registrarEvento(r.usuario_id, 'clave_restablecida');
   await abrirSesion(req, res, r.usuario_id);
-  const u = await db.uno('SELECT id, email, nombre, rol, sistema FROM usuarios WHERE id = $1', [r.usuario_id]);
-  res.json({ usuario: publico(u) });
+  res.json({ usuario: await publicoPorId(r.usuario_id) });
 });
 
 module.exports = {
@@ -255,6 +367,11 @@ module.exports = {
   cargarUsuario,
   requiereUsuario,
   requiereEquipo,
+  requiereAdminEmpresa,
+  leerPreferencias,
+  hashToken,
+  esEmailDeEquipo,
+  DIAS_INVITACION,
   registrarEvento,
   ErrorUsuario,
   hashClave,

@@ -15,7 +15,9 @@
     "test": "node --test test/*.test.js",
     "ejemplos": "node scripts/generar-ejemplos.js",
     "texto": "node scripts/revisar-texto.js",
-    "borrar-datos": "node scripts/borrar-datos.js"
+    "borrar-datos": "node scripts/borrar-datos.js",
+    "boletin": "node scripts/enviar-boletin.js",
+    "resultados": "node scripts/resultados.js"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.3.16",

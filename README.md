@@ -18,9 +18,9 @@ Para medirlo, cada pedido es un flujo de 5 pasos y sus reglas las hace cumplir e
 2. **Ventas y existencias:** sube el informe de su programa contable.
 3. **El reporte:** ve sus productos por semanas de inventario.
 4. **Tu lista final:** arranca como copia de la inicial y la cambia con el reporte al lado. La columna "Cambio" muestra la diferencia.
-5. **¿Por qué cambió?:** texto libre. Con eso el pedido queda terminado.
+5. **Tu pedido:** el pedido queda terminado y sale la orden de compra. Antes, una pregunta opcional: "¿Qué tuviste en cuenta para decidir tu pedido?". El resumen de lo que cambió va plegado.
 
-La app compara las dos listas por código y cuenta las líneas agregadas, quitadas y con otra cantidad. El veredicto de la prueba sale de la base de datos, en "Resultados de la prueba". En la lista final (paso 4), al lado de cada producto, SINESC muestra la cantidad que sugiere pedir el modelo, con el tiempo de entrega y cada cuánto pide el usuario (los puede cambiar ahí mismo). El usuario decide: puede llevar las sugeridas a su lista, agregar lo que se agota o dejar lo suyo. Desde el 2026-10-14 los probadores ven todo desde el primer día:
+La app compara las dos listas por código y cuenta las líneas agregadas, quitadas y con otra cantidad. El veredicto de la prueba sale de la base de datos con `npm run resultados`; la aplicación no lo muestra. En la lista final (paso 4), al lado de cada producto, SINESC muestra la cantidad que sugiere pedir el modelo, con el tiempo de entrega y cada cuánto pide el usuario (los puede cambiar ahí mismo). El usuario decide: puede llevar las sugeridas a su lista, agregar lo que se agota o dejar lo suyo. Desde el 2026-10-14 los probadores ven todo desde el primer día:
 - un panel con lo que hay que atender;
 - la ficha de cada producto con su pronóstico;
 - el riesgo de agotarse antes de que llegue un pedido;
@@ -64,14 +64,16 @@ Abre http://localhost:3000. La página, la demo, las cuentas y la aplicación sa
 | Variable | Para qué | Ejemplo |
 |---|---|---|
 | `DATABASE_URL` | PostgreSQL en producción (Neon). Sin ella se usa PGlite. | `postgresql://usuario:clave@host/db?sslmode=require` |
-| `TEAM_EMAILS` | Correos del equipo, separados por coma. Esas cuentas ven "Resultados de la prueba" y "Ejemplos" y no cuentan como probadores. | `ana@grupo1.co,juan@grupo1.co` |
+| `TEAM_EMAILS` | Correos del equipo, separados por coma. Esas cuentas ven "Ejemplos" y no cuentan como probadores. | `ana@grupo1.co,juan@grupo1.co` |
 | `APP_URL` | Opcional. La dirección pública, para los enlaces de los recordatorios y de "cambiar contraseña". En Vercel, sin ella, se usa la dirección de producción. | `https://sinesc.vercel.app` |
-| `BREVO_API_KEY` y `CORREO_REMITENTE` | Opcionales. Para que el recordatorio llegue también por correo con [Brevo](https://www.brevo.com). Sin ellas, el recordatorio solo se descarga. | `xkeysib-…`, `avisos@grupo1.co` |
+| `BREVO_API_KEY` y `CORREO_REMITENTE` | Opcionales. Para que el recordatorio, las invitaciones a la empresa y el boletín diario lleguen por correo con [Brevo](https://www.brevo.com). Sin ellas, el recordatorio solo se descarga, la invitación se copia y el boletín no sale. | `xkeysib-…`, `avisos@grupo1.co` |
+| `CRON_SECRET` | La clave con la que el Cron de Vercel llama `/api/tareas/boletin` (boletín diario). Sin ella la ruta responde 401. Vercel la manda sola en el encabezado `Authorization`. | una cadena larga al azar |
+| `BOLETIN_SECRETO` | Firma los enlaces "Dejar de recibirlo" del boletín. Si falta se usa `CRON_SECRET`. | una cadena larga al azar |
 | `NEXT_PUBLIC_POSTHOG_KEY` | Opcional. La clave del **proyecto** de PostHog (empieza por `phc_`, nunca la personal `phx_`). Sin ella no se carga nada. Se lee al compilar: después de ponerla hay que volver a desplegar. | `phc_…` |
 | `NEXT_PUBLIC_POSTHOG_REGION` | `eu` si el proyecto de PostHog está en Europa; si no, Estados Unidos. | `us` |
 | `NODE_ENV`, `PORT`, `DATA_DIR` | `production` exige HTTPS para la cookie de sesión; el puerto lo pone el hosting; `DATA_DIR=memory://` deja PGlite en memoria (lo usan las pruebas). | |
 
-**Alguien del grupo creó su cuenta con un correo que no está en `TEAM_EMAILS`:** en "Resultados de la prueba", en su tarjeta, el botón "Es del equipo, no un probador" lo pasa al equipo para siempre, sin tocar la variable.
+**Alguien del grupo creó su cuenta con un correo que no está en `TEAM_EMAILS`:** `npm run resultados -- --equipo su@correo.co` lo pasa al equipo para siempre, sin tocar la variable.
 
 ## Publicar
 
@@ -105,13 +107,13 @@ Probado con archivos reales: el "Movimiento detalle" de Helisa (26.000 filas) y 
 
 1. **Pidan a cada probador su export real antes de la prueba** y súbanlo con una cuenta del equipo en un pedido de prueba (o en la página Ejemplos). Si lo lee solo, listo. Si no, la app dice qué columna falta: agreguen su nombre exacto a los sinónimos de ese campo en `server/formatos.js` (en minúscula, sin tildes).
 2. **Antes de empezar, borren los datos de prueba,** para que el resumen cuente solo a los probadores: `npm run borrar-datos -- --todos --confirmar` con la `DATABASE_URL` de Neon en la terminal.
-3. **Durante la prueba,** "Resultados de la prueba" muestra cada probador con:
+3. **Durante la prueba,** `npm run resultados` (con la `DATABASE_URL` de Neon en la terminal) imprime el veredicto y cada probador con:
    - sus pedidos y las líneas que cambió;
    - la coherencia con el reporte y las unidades movidas;
    - cuánto le cuesta equivocarse (productos en cero, los que se agotan, lo que sobra);
    - el recordatorio y si volvió.
    
-   Ahí mismo el equipo marca cada "¿por qué?" como "el dato le sirvió" o "por probar la herramienta" (el segundo criterio de pivote).
+   Cada respuesta a "¿qué tuviste en cuenta?" sale con el número del pedido, y el equipo la marca con `npm run resultados -- --clasificar <pedido> dato` (o `probar`, el segundo criterio de pivote). Otras opciones: `--json`, `--errores`, `--anular <pedido> "motivo"`, `--reactivar <pedido>` y `--restablecer correo` (enlace para una contraseña nueva cuando no hay correo configurado). La aplicación es un producto para el usuario: no tiene ninguna pantalla con datos de otras cuentas ni con la hipótesis.
 4. **PostHog** (si está configurado) graba las sesiones para ver dónde se traba alguien. Las tablas y lo que se escribe quedan tapados. La métrica sigue saliendo de la base de datos.
 5. Al terminar, si un probador lo pide (sus archivos son datos de su empresa): `npm run borrar-datos -- --email correo@empresa.co --confirmar`.
 
@@ -124,8 +126,13 @@ Probado con archivos reales: el "Movimiento detalle" de Helisa (26.000 filas) y 
 
 | Requisito | Dónde |
 |---|---|
-| Crear cuenta, iniciar y cerrar sesión; cada usuario ve solo lo suyo | `server/cuentas.js`; todas las consultas filtran por usuario (`server/pedidos.js`) |
-| Rol de equipo que ve los resultados de todos | `TEAM_EMAILS` o el botón "Es del equipo" (`usuarios.es_equipo`), `server/equipo.js`, pantalla "Resultados de la prueba" |
+| Crear cuenta, iniciar y cerrar sesión; cada usuario ve solo lo suyo | `server/cuentas.js`; los pedidos filtran por usuario (`server/pedidos.js`) y el inventario por empresa |
+| Cuenta de empresa (Alpha 0.2, `docs/PLAN_EMPRESAS_INVENTARIO.md`): toda cuenta nueva crea su empresa o entra con una invitación; las de antes quedaron con una "empresa vacía" | `server/empresas.js`, `POST /api/cuenta/crear` (`server/cuentas.js`), relleno en `ESQUEMA` (`server/db.js`), pantalla "Mi empresa" (`components/app/empresa.tsx`) |
+| Perfiles analista (detalle) y operador (métricas gruesas e ingreso de inventario), sin separarse por contraseña | `usuarios.perfil`, `PUT /api/cuenta/perfil`, `resumirParaOperador` (`server/inventario.js`), `SelectorPerfil` (`components/app/vista.tsx`) y el menú (`marco.tsx`) |
+| Entradas y salidas del día y manejo básico de inventario (catálogo, existencias, kardex, conteo), sin reemplazar la subida del archivo | `server/movimientos.js` y `server/saldos.js`; pantallas `movimientos.tsx` y `existencias.tsx`. El inventario "al día" es un export más (origen `movimientos`) |
+| Horizonte en días, semanas o meses | `usuarios.preferencias`, `PUT /api/cuenta/preferencias`, `?horizonte=` en `/api/inventario`; `fijarUnidad` y `horizonteTexto` en `lib/formato.ts`, `SelectorTiempo` en `components/app/vista.tsx` |
+| Boletín diario por correo | `server/boletin.js` y `server/boletin-correo.js`, Cron en `inventory-forecasting-landing-page/vercel.json`, `npm run boletin`; se activa en "Mi cuenta" o al crear la cuenta |
+| Rol de equipo (ve Ejemplos y no cuenta como probador) | `TEAM_EMAILS` o `npm run resultados -- --equipo` (`usuarios.es_equipo`) |
 | Flujo de 5 pasos con indicador; no se salta al reporte; se retoma donde quedó | `components/app/pedido-flujo.tsx`. En el servidor: sin lista inicial guardada, subir el export o pedir el reporte responde 403. Los borradores se guardan solos |
 | Lista inicial tipo Excel (pegar filas) o importando Excel/CSV; sin imágenes; real o simulado | `components/app/hoja.tsx`, `leerLista` en `server/lector.js`. Una lista con solo los productos de ejemplo de la plantilla no se acepta |
 | La lista inicial queda fija al guardarla | `UPDATE … WHERE inicial_guardada_en IS NULL`; editarla después responde 409 |
@@ -135,15 +142,15 @@ Probado con archivos reales: el "Movimiento detalle" de Helisa (26.000 filas) y 
 | Cada archivo subido queda guardado con su fecha | Tabla `archivos` (contenido y fecha) |
 | Cálculo de rotación, casos borde y devoluciones | `server/rotacion.js`, `docs/modelo-rotacion.md` §2–3 |
 | Reporte ordenado, lo que se agota (menos del umbral; 2 semanas si no se elige) resaltado, lo que sobra visible, filtros, explicación con un producto del archivo | `components/app/reporte.tsx`; "Qué leímos de tu archivo" dice qué columnas y qué documentos se usaron |
-| Umbral de "se agota" que elige cada cuenta (2 semanas si no elige; agregado el 2026-10-13, ver §3.4.1 del modelo) | Paso 2 del pedido (`UmbralDelPedido` en `pedido-flujo.tsx`, `PUT /api/pedidos/:id/semanas-agota`, `pedidos.semanas_agota`, fijo al ver el reporte) y tarjeta en Datos (`datos.tsx`, `semanasAgota` en `leerAjustes`); `conUmbral` y `calcularRotacion` (`server/rotacion.js`), `planearAvisos` (`server/recordatorios.js`); la vista del equipo muestra el de cada probador y de cada pedido |
+| Umbral de "se agota" que elige cada cuenta (2 semanas si no elige; agregado el 2026-10-13, ver §3.4.1 del modelo) | Paso 2 del pedido (`UmbralDelPedido` en `pedido-flujo.tsx`, `PUT /api/pedidos/:id/semanas-agota`, `pedidos.semanas_agota`, fijo al ver el reporte) y tarjeta en Datos (`datos.tsx`, `semanasAgota` en `leerAjustes`); `conUmbral` y `calcularRotacion` (`server/rotacion.js`), `planearAvisos` (`server/recordatorios.js`); `npm run resultados` muestra el de cada probador y de cada pedido |
 | Lista final como copia de la inicial, con el reporte visible mientras se edita | Paso 4: "Vas a pedir", "Ibas a pedir", "Cambio" y "Semanas de inventario", y el botón "Mostrar el reporte" |
 | Comparación por código (agregadas, quitadas, cantidad cambiada, total) y "¿Por qué cambiaste lo que cambiaste?" | `compararListas` en `server/listas.js`, paso 5 |
-| Vista del equipo con el resumen (cuántos cambiaron 5 o más; cuántos 0 o 1) calculado de los datos | `server/equipo.js`, `components/app/equipo.tsx` |
+| Resumen del equipo (cuántos cambiaron 5 o más; cuántos 0 o 1) calculado de los datos, fuera de la aplicación | `server/equipo.js`, `scripts/resultados.js` (`npm run resultados`) |
 | Registro con fecha de cada ingreso, archivo subido y pedido | Tabla `eventos`. Volver después de 30 minutos sin actividad cuenta como un nuevo ingreso |
 | Stickiness corregido (2026-10-07): recordatorio 3 días antes de que un producto con más de 4 semanas llegue a 2 | `server/recordatorios.js` (archivo de calendario, sin tareas programadas), `server/correo.js` (opcional), tarjeta en el paso 3 |
 | Cálculo de semanas explicado desglosado | Tres ajustes en `server/rotacion.js` (§3.6 del modelo); explicación en el reporte y en la ficha de cada producto |
 | Guía para sacar los archivos según el programa contable | `lib/sistemas.ts` (copia en `public/js/sistemas.js`), con fuentes |
-| Ayuda para el segundo criterio de pivote | Coherencia con el reporte y magnitud del cambio (`server/listas.js`); clasificación del "¿por qué?" en la vista del equipo |
+| Ayuda para el segundo criterio de pivote | Coherencia con el reporte y magnitud del cambio (`server/listas.js`); clasificación del "¿por qué?" con `npm run resultados -- --clasificar` |
 | Página de cuenta, cambiar y restablecer contraseña | `server/cuentas.js` (`/datos`, `/clave`, `/olvide`, `/restablecer`); sin correo, el equipo genera el enlace desde su vista |
 | Todo en español sencillo | Textos de la interfaz y mensajes del servidor |
 | Stack declarado en el plan de prueba (Next.js con Postgres y autenticación) | Interfaz en Next.js (`inventory-forecasting-landing-page/`); API en Express dentro del mismo proyecto; PostgreSQL en Neon |
@@ -160,7 +167,12 @@ server/                 la API (Express 5, CommonJS)
   index.js              arranque en local: API + Next.js en un solo servidor
   app.js                rutas, encabezados de seguridad, errores en español
   db.js                 PostgreSQL (pg) o PGlite, y el esquema
-  cuentas.js            cuentas, sesiones (cookie HttpOnly), eventos
+  cuentas.js            cuentas, sesiones (cookie HttpOnly), eventos, perfil y preferencias
+  empresas.js           empresa, miembros e invitaciones
+  movimientos.js        catálogo, entradas y salidas, existencias e inventario al día
+  saldos.js             existencias y ventas desde los movimientos (sin base de datos)
+  boletin.js            boletín diario (tarea programada) y baja de un clic
+  boletin-correo.js     el correo del boletín (texto y HTML)
   limites.js            límite de intentos (entrar, crear cuenta, contraseña)
   pedidos.js            el flujo de 5 pasos y sus reglas
   listas.js             validación y comparación de listas (la métrica)
@@ -178,7 +190,7 @@ server/                 la API (Express 5, CommonJS)
   plantillas.js         plantillas descargables
   excel.js, pdf.js, logo.js, exportar.js   archivos con el diseño de SINESC
   demo.js, ejemplos.js  negocios inventados y página Ejemplos
-  errores.js            registro de errores (se ve en Resultados de la prueba)
+  errores.js            registro de errores (se ve con npm run resultados -- --errores)
   borrar.js             borrado de datos de probadores
 inventory-forecasting-landing-page/   página y aplicación (Next.js 16)
   app/                  rutas: página, demo, cuenta y aplicación
@@ -190,7 +202,7 @@ inventory-forecasting-landing-page/   página y aplicación (Next.js 16)
 public/                 versión anterior de la aplicación, sin compilar; se usa si falta la web
 docs/                   modelo, entregable, publicación y bitácora
 test/                   pruebas automáticas (node --test)
-scripts/                compilar la web, generar ejemplos, revisar textos, borrar datos
+scripts/                compilar la web, generar ejemplos, revisar textos, borrar datos, boletín
 ejemplos/               archivos inventados con formatos de distintos programas
 ```
 

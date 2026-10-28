@@ -21,6 +21,8 @@ const recordatorios = require('./recordatorios');
 const { correoConfigurado } = require('./correo');
 const { leerAjustes, construirInventario } = require('./inventario');
 const { claveCodigo } = require('./valores');
+const { inventarioDelUsuario, guardarInventarioDelUsuario } = require('./empresas');
+const { inventarioAlDia, agregarAlCatalogo } = require('./movimientos');
 
 const MAX_LINEAS = 5000;
 const subida = multer({
@@ -147,11 +149,10 @@ function lineasDelCuerpo(body) {
 async function asignarProveedores(usuarioId, lineas) {
   const conProveedor = lineas.filter((l) => l.codigo && l.proveedor);
   if (!conProveedor.length) return;
-  const u = await db.uno('SELECT inventario FROM usuarios WHERE id = $1', [usuarioId]);
-  const actual = (u && u.inventario) || {};
+  const actual = await inventarioDelUsuario(usuarioId);
   const asignaciones = { ...(actual.asignaciones || {}) };
   for (const l of conProveedor) asignaciones[claveCodigo(l.codigo)] = l.proveedor;
-  await db.query('UPDATE usuarios SET inventario = $1::jsonb WHERE id = $2', [JSON.stringify(leerAjustes({ ...actual, asignaciones })), usuarioId]);
+  await guardarInventarioDelUsuario(usuarioId, leerAjustes({ ...actual, asignaciones }));
 }
 
 // Borrador: quita filas vacías del final para no guardar basura.
@@ -174,10 +175,9 @@ async function mapeosDe(usuarioId) {
   return (u && u.mapeos) || {};
 }
 
-// El umbral de "se agota" que el usuario eligió en Datos (2 si no eligió).
+// El umbral de "se agota" que la empresa eligió en Datos (2 si no eligió).
 async function semanasAgotaDe(usuarioId) {
-  const u = await db.uno('SELECT inventario FROM usuarios WHERE id = $1', [usuarioId]);
-  return leerAjustes(u && u.inventario).semanasAgota;
+  return leerAjustes(await inventarioDelUsuario(usuarioId)).semanasAgota;
 }
 
 // Recuerda las columnas que el usuario eligió, para que la próxima vez su archivo se lea solo.
@@ -398,6 +398,8 @@ async function procesarExport(usuarioId, pedido, exportId, manual) {
   );
   // Sin pedido: el archivo se subió desde "Datos" y solo actualiza el inventario guardado.
   if (pedido) await db.query('UPDATE pedidos SET export_id = $1 WHERE id = $2', [exportId, pedido.id]);
+  // Los productos nuevos del archivo quedan en el catálogo de la empresa, para registrar movimientos.
+  await agregarAlCatalogo(exportId).catch((e) => console.error('No se pudo actualizar el catálogo:', e.message));
   if (manual) {
     for (const h of lectura.hojasUsadas) if (manual[h.clave]) await recordarMapeo(usuarioId, 'export', h.firma, manual[h.clave]);
   }
@@ -417,7 +419,10 @@ rutas.post('/:id/export', subida.array('archivos', 24), async (req, res) => {
   if (!req.files || !req.files.length) throw new ErrorUsuario('Elige el archivo de ventas y existencias.');
 
   const periodo = leerPeriodo(req.body);
-  const exp = await db.uno("INSERT INTO exports (usuario_id, pedido_id, estado, periodo) VALUES ($1, $2, 'procesando', $3::jsonb) RETURNING id", [req.usuario.id, p.id, periodo ? JSON.stringify(periodo) : null]);
+  const exp = await db.uno(
+    "INSERT INTO exports (usuario_id, empresa_id, pedido_id, estado, periodo) VALUES ($1, $2, $3, 'procesando', $4::jsonb) RETURNING id",
+    [req.usuario.id, req.usuario.empresa_id, p.id, periodo ? JSON.stringify(periodo) : null],
+  );
   const nombres = [];
   for (const f of req.files) {
     const { nombre, buffer } = archivoSubido(f);
@@ -431,13 +436,16 @@ rutas.post('/:id/export', subida.array('archivos', 24), async (req, res) => {
   res.json(await procesarExport(req.usuario.id, p, exp.id, null));
 });
 
-// Usar el inventario que ya subió (desde "Datos" o en otro pedido) en vez de subirlo otra vez.
-// Igual que subirlo: solo después de guardar la lista inicial.
+// Usar el inventario que ya tiene la empresa (subido desde "Datos", en otro pedido o calculado con
+// los movimientos del día) en vez de subirlo otra vez. Igual que subirlo: solo después de guardar
+// la lista inicial.
 rutas.post('/:id/export/usar-ultimo', async (req, res) => {
   const p = await pedidoActivo(req);
   exigirInicialGuardada(p);
   if (p.terminado_en) throw new ErrorUsuario('Este pedido ya está terminado.', 409);
-  const e = await db.uno(`SELECT id, reporte->'resumen' AS resumen, reporte->'periodo' AS periodo FROM exports WHERE usuario_id = $1 AND estado = 'ok' AND ${db.EXPORT_VIGENTE} ORDER BY subido_en DESC, id DESC LIMIT 1`, [req.usuario.id]);
+  // Si hay movimientos nuevos, primero se calcula el inventario al día (server/movimientos.js).
+  await inventarioAlDia(req.usuario.empresa_id);
+  const e = await db.uno(`SELECT id, reporte->'resumen' AS resumen, reporte->'periodo' AS periodo FROM exports WHERE empresa_id = $1 AND estado = 'ok' AND ${db.EXPORT_VIGENTE} ORDER BY subido_en DESC, id DESC LIMIT 1`, [req.usuario.empresa_id]);
   if (!e) throw new ErrorUsuario('Todavía no has subido tu inventario. Súbelo aquí.', 404);
   await db.query('UPDATE pedidos SET export_id = $1 WHERE id = $2', [e.id, p.id]);
   await registrarEvento(req.usuario.id, 'export_reusado', { pedidoId: p.id, detalle: { exportId: e.id } });
@@ -512,8 +520,7 @@ rutas.get('/:id/sugerido', async (req, res) => {
   if (!p.reporte_visto_en || !p.export_id) throw new ErrorUsuario('Primero mira el reporte de rotación.', 409);
   const e = await db.uno("SELECT reporte, series, catalogo FROM exports WHERE id = $1 AND estado = 'ok'", [p.export_id]);
   if (!e) throw new ErrorUsuario('Primero sube tu export de ventas y existencias.', 409);
-  const u = await db.uno('SELECT inventario FROM usuarios WHERE id = $1', [req.usuario.id]);
-  const ajustes = { ...((u && u.inventario) || {}), semanasAgota: p.semanas_agota || (e.reporte.umbrales && e.reporte.umbrales.seAgota) || SEMANAS_SE_AGOTA };
+  const ajustes = { ...(await inventarioDelUsuario(req.usuario.id)), semanasAgota: p.semanas_agota || (e.reporte.umbrales && e.reporte.umbrales.seAgota) || SEMANAS_SE_AGOTA };
   const inv = construirInventario({ reporte: e.reporte, series: e.series, catalogo: e.catalogo || {}, ajustes, alcance: 'completo' });
   res.json({
     entrega: inv.ajustes.entregaPorDefecto,
@@ -539,9 +546,7 @@ rutas.put('/:id/semanas-agota', async (req, res) => {
   if (p.reporte_visto_en) throw new ErrorUsuario(`Ya viste el reporte de este pedido con ${p.semanas_agota || SEMANAS_SE_AGOTA} semanas. El cambio aplica desde tu próximo pedido; hazlo en Datos.`, 409);
   const semanas = Number(req.body?.semanas);
   if (!Number.isInteger(semanas) || semanas < 1 || semanas > 11) throw new ErrorUsuario('Elige un número de semanas entre 1 y 11.');
-  const u = await db.uno('SELECT inventario FROM usuarios WHERE id = $1', [req.usuario.id]);
-  const ajustes = leerAjustes({ ...(u && u.inventario), semanasAgota: semanas });
-  await db.query('UPDATE usuarios SET inventario = $1::jsonb WHERE id = $2', [JSON.stringify(ajustes), req.usuario.id]);
+  await guardarInventarioDelUsuario(req.usuario.id, leerAjustes({ ...(await inventarioDelUsuario(req.usuario.id)), semanasAgota: semanas }));
   const actualizado = await db.uno('UPDATE pedidos SET semanas_agota = $1 WHERE id = $2 RETURNING *', [semanas, p.id]);
   await registrarEvento(req.usuario.id, 'umbral_elegido', { pedidoId: p.id, detalle: { semanas } });
   res.json({ pedido: await vistaPedido(actualizado) });
@@ -646,21 +651,22 @@ rutas.post('/:id/lista-final', async (req, res) => {
   res.json({ pedido: await vistaPedido(actualizado), avisos: revision.avisos });
 });
 
-// --- Paso 5: ¿por qué cambió? ------------------------------------------------------------------
+// --- Paso 5: tu pedido -------------------------------------------------------------------------
+// Termina el pedido. La respuesta a "¿qué tuviste en cuenta?" es opcional: sin texto queda en NULL
+// y el pedido no tiene nada que clasificar (server/equipo.js).
 
 rutas.post('/:id/por-que', async (req, res) => {
   const p = await pedidoActivo(req);
   if (!p.final_guardada_en) throw new ErrorUsuario('Primero guarda tu lista final.', 409);
   if (p.terminado_en) throw new ErrorUsuario('Este pedido ya está terminado.', 409);
   const respuesta = String(req.body?.respuesta || '').trim().slice(0, 5000);
-  if (!respuesta) throw new ErrorUsuario('Cuéntanos en una o dos frases por qué cambiaste lo que cambiaste.');
   const actualizado = await db.uno(
     'UPDATE pedidos SET por_que = $1, terminado_en = now() WHERE id = $2 AND terminado_en IS NULL RETURNING *',
-    [respuesta, p.id],
+    [respuesta || null, p.id],
   );
   if (!actualizado) throw new ErrorUsuario('Este pedido ya está terminado.', 409);
   await registrarEvento(req.usuario.id, 'pedido_terminado', { pedidoId: p.id, detalle: { ...p.comparacion.conteo, tipo: p.tipo } });
   res.json({ pedido: await vistaPedido(actualizado) });
 });
 
-module.exports = { rutas, pasoDe, filasDelReporte, procesarExport, leerPeriodo, leerDocumentos, leerMapeoManual, subida, archivoSubido };
+module.exports = { rutas, pasoDe, filasDelReporte, procesarExport, leerPeriodo, leerDocumentos, leerMapeoManual, subida, archivoSubido, semanasAgotaDe };

@@ -1,6 +1,7 @@
 'use client'
 
-// Mi cuenta: nombre, programa contable y contraseña.
+// Mi cuenta: nombre, programa contable, contraseña, cómo usa la app (analista u operador, días,
+// semanas o meses) y el boletín diario.
 
 import { useState, type FormEvent } from 'react'
 import { api, textoErrores } from '@/lib/api'
@@ -8,12 +9,24 @@ import { SISTEMAS } from '@/lib/sistemas'
 import type { Usuario } from '@/lib/tipos'
 import { useSesion } from './contexto'
 import { Aviso, Boton, Campo, ErrorLista, Tarjeta, Titulo, claseEntrada } from './ui'
+import { SelectorPerfil, SelectorTiempo } from './vista'
 
 export function Cuenta() {
   const { usuario, fijar } = useSesion()
   const [msgDatos, setMsgDatos] = useState<{ ok?: string; error?: ReturnType<typeof textoErrores> } | null>(null)
   const [msgClave, setMsgClave] = useState<{ ok?: string; error?: ReturnType<typeof textoErrores> } | null>(null)
+  const [msgBoletin, setMsgBoletin] = useState<ReturnType<typeof textoErrores> | null>(null)
   if (!usuario) return null
+
+  async function cambiarBoletin(activo: boolean) {
+    setMsgBoletin(null)
+    try {
+      const r = await api<{ usuario: Usuario }>('PUT', '/cuenta/boletin', { activo })
+      fijar(r.usuario)
+    } catch (err) {
+      setMsgBoletin(textoErrores(err))
+    }
+  }
 
   async function guardarDatos(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -68,6 +81,26 @@ export function Cuenta() {
             {msgClave?.error && <ErrorLista mensaje={msgClave.error.mensaje} lista={msgClave.error.lista} />}
             <Boton type="submit" variante="primario" className="self-start">Cambiar contraseña</Boton>
           </form>
+        </Tarjeta>
+        <Tarjeta className="flex flex-col gap-4 p-5 sm:p-6">
+          <h2 className="text-xl font-bold">Cómo usas SINESC</h2>
+          <SelectorPerfil />
+          <div className="flex flex-col gap-2">
+            <span className="text-[0.95rem] font-semibold">Para cuánto te alcanza, en</span>
+            <SelectorTiempo conHorizonte />
+            <p className="text-[0.85rem] text-muted-foreground">El cálculo es el mismo; solo cambia cómo se dice. 2 semanas son 14 días o medio mes.</p>
+          </div>
+        </Tarjeta>
+        <Tarjeta className="flex flex-col gap-4 p-5 sm:p-6">
+          <h2 className="text-xl font-bold">Boletín diario</h2>
+          <label className="flex items-start gap-3">
+            <input type="checkbox" checked={usuario.boletin} onChange={(e) => cambiarBoletin(e.target.checked)} className="mt-1 size-5 accent-[var(--primary)]" />
+            <span>
+              <strong>Recibir cada mañana el estado del inventario</strong>
+              <span className="block text-[0.9rem] text-muted-foreground">Llega a {usuario.email} hacia las 6 a. m. Dice qué está en cero, qué se va a agotar y qué cambió desde ayer{usuario.perfil === 'analista' ? ', con el sugerido y lo que hay que pedir por proveedor' : ''}. Llega cuando tu empresa ya tiene inventario.</span>
+            </span>
+          </label>
+          {msgBoletin && <ErrorLista mensaje={msgBoletin.mensaje} lista={msgBoletin.lista} />}
         </Tarjeta>
       </div>
     </>

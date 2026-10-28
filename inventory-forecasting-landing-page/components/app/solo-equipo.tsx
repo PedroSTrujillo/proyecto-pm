@@ -1,7 +1,7 @@
 'use client'
 
-// Páginas del equipo (resultados de la prueba y ejemplos). Un probador que llegue por la
-// dirección vuelve a su panel: no debe ver cómo va la prueba ni los datos de otros.
+// Páginas del equipo (los ejemplos). Quien no es del equipo y llega por la dirección vuelve a su
+// panel.
 
 import { useRouter } from 'next/navigation'
 import { useEffect, type ReactNode } from 'react'

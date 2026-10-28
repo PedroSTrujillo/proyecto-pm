@@ -1,6 +1,8 @@
 'use strict';
 
-// Resultados de la prueba, solo para el equipo. Todo sale de los datos guardados.
+// Resultados de la prueba, solo para el equipo y fuera de la aplicación: no hay pantalla ni ruta de
+// la API que los muestre (el producto es para el usuario). Se leen con `npm run resultados`
+// (scripts/resultados.js). Todo sale de los datos guardados.
 //
 // Hipótesis: 3 de 5 usuarios cambian 5 o más líneas de su pedido en 14 días.
 // Pivote:    3 o más de los 5 no cambian ninguna línea o cambian solo una.
@@ -9,12 +11,11 @@
 // 14 días de prueba (desde que guardó su primera lista inicial) y se toma el
 // pedido con más líneas cambiadas.
 
-const express = require('express');
 const db = require('./db');
-const { requiereEquipo, crearEnlaceRestablecer, baseDe, registrarEvento, ErrorUsuario } = require('./cuentas');
+const { crearEnlaceRestablecer, registrarEvento, ErrorUsuario } = require('./cuentas');
 const { pasoDe, filasDelReporte } = require('./pedidos');
 const { compararListas, coherenciaConReporte } = require('./listas');
-const { fechaBogota } = require('./recordatorios');
+const { fechaBogota, urlApp } = require('./recordatorios');
 const { construirInventario, leerAjustes } = require('./inventario');
 
 const DIAS_PRUEBA = 14;
@@ -118,12 +119,12 @@ function resumenRecordatorio(fila, actividad, hoy = fechaBogota()) {
   };
 }
 
-const rutas = express.Router();
-rutas.use(requiereEquipo);
-
-rutas.get('/resultados', async (_req, res) => {
+async function resultados() {
   await completarComparaciones();
-  const usuarios = await db.query("SELECT id, nombre, email, sistema, creado_en, inventario FROM usuarios WHERE rol = 'usuario' ORDER BY creado_en");
+  const usuarios = await db.query(
+    `SELECT u.id, u.nombre, u.email, u.sistema, u.creado_en, u.perfil, u.boletin, u.empresa_id, e.inventario, e.nombre AS empresa, e.vacia
+       FROM usuarios u LEFT JOIN empresas e ON e.id = u.empresa_id WHERE u.rol = 'usuario' ORDER BY u.creado_en`,
+  );
   const pedidos = await db.query(
     `SELECT p.id, p.usuario_id, p.proveedor, p.tipo, p.creado_en, p.inicial_guardada_en, p.export_id,
             p.reporte_visto_en, p.final_guardada_en, p.terminado_en, p.por_que, p.clasificacion, p.borrado_en,
@@ -138,7 +139,7 @@ rutas.get('/resultados', async (_req, res) => {
   const eventos = await db.query(
     `SELECT e.usuario_id, e.tipo, e.pedido_id, e.detalle, e.creado_en
        FROM eventos e JOIN usuarios u ON u.id = e.usuario_id
-      WHERE u.rol = 'usuario' AND e.tipo IN ('ingreso', 'archivo_subido', 'lista_inicial_guardada', 'reporte_visto', 'lista_final_guardada', 'pedido_terminado', 'recordatorio_respondido', 'recordatorio_enviado', 'calendario_descargado', 'umbral_elegido')
+      WHERE u.rol = 'usuario' AND e.tipo IN ('ingreso', 'archivo_subido', 'lista_inicial_guardada', 'reporte_visto', 'lista_final_guardada', 'pedido_terminado', 'recordatorio_respondido', 'recordatorio_enviado', 'calendario_descargado', 'umbral_elegido', 'movimientos_registrados', 'perfil_cambiado', 'boletin_enviado')
       ORDER BY e.creado_en`,
   );
   const recordatorios = await db.query('SELECT usuario_id, activo, respondido_en, primer_aviso FROM recordatorios');
@@ -148,13 +149,14 @@ rutas.get('/resultados', async (_req, res) => {
   );
 
   // "Qué seguimos sin saber" (Entregable 2): cuánto les cuesta equivocarse y cada cuánto piden.
-  // Sale del último archivo de cada probador y de las fechas de sus listas iniciales.
+  // Sale del último inventario de la empresa de cada probador y de las fechas de sus listas iniciales.
   const ultimos = await db.query(
-    `SELECT DISTINCT ON (usuario_id) usuario_id, subido_en, reporte, catalogo
-       FROM exports WHERE estado = 'ok' AND ${db.EXPORT_VIGENTE} ORDER BY usuario_id, subido_en DESC, id DESC`,
+    `SELECT DISTINCT ON (empresa_id) empresa_id, subido_en, reporte, catalogo
+       FROM exports WHERE estado = 'ok' AND empresa_id IS NOT NULL AND ${db.EXPORT_VIGENTE} ORDER BY empresa_id, subido_en DESC, id DESC`,
   );
-  const costoDe = (usuarioId) => {
-    const e = ultimos.find((x) => x.usuario_id === usuarioId);
+  const boletines = await db.query("SELECT usuario_id, count(*)::int AS n FROM boletines WHERE estado = 'enviado' GROUP BY usuario_id");
+  const costoDe = (empresaId) => {
+    const e = ultimos.find((x) => x.empresa_id === empresaId);
     if (!e || !e.reporte) return null;
     const inv = construirInventario({ reporte: e.reporte, series: null, catalogo: e.catalogo, ajustes: {}, alcance: 'prueba' });
     const r = inv.resumen;
@@ -199,6 +201,11 @@ rutas.get('/resultados', async (_req, res) => {
       email: u.email,
       sistema: u.sistema,
       semanasAgota: leerAjustes(u.inventario).semanasAgota,
+      // Dos probadores de la misma empresa (Disferral) comparten inventario: se ve aquí (vacío 13).
+      empresa: { id: u.empresa_id, nombre: u.empresa || '', vacia: Boolean(u.vacia) },
+      perfil: u.perfil,
+      boletin: { activo: Boolean(u.boletin), enviados: (boletines.find((b) => b.usuario_id === u.id) || { n: 0 }).n, ingresos: ingresos.filter((e) => e.detalle && e.detalle.como === 'boletin').length },
+      movimientos: actividad.filter((e) => e.tipo === 'movimientos_registrados').reduce((n, e) => n + ((e.detalle && e.detalle.cantidad) || 0), 0),
       creadoEn: u.creado_en,
       ingresos: ingresos.length,
       ultimoIngreso: ingresos.length ? ingresos[ingresos.length - 1].en : null,
@@ -209,58 +216,75 @@ rutas.get('/resultados', async (_req, res) => {
       pedidos: suyos,
       evaluacion,
       recordatorio: resumenRecordatorio(recordatorios.find((r) => r.usuario_id === u.id), actividad),
-      inventario: costoDe(u.id),
+      inventario: costoDe(u.empresa_id),
       diasEntrePedidos: diasEntre(suyos),
       actividad,
     };
   });
 
-  res.json({ resumen: resumirPrueba(lista), usuarios: lista, generadoEn: new Date() });
-});
+  return { resumen: resumirPrueba(lista), usuarios: lista, generadoEn: new Date() };
+}
+
+// Las acciones quedan en la actividad del dueño del pedido o de la cuenta, marcadas como del equipo.
 
 // El equipo lee el "¿por qué cambió?" y lo clasifica (criterio de pivote del plan de prueba).
-rutas.post('/pedidos/:id/clasificacion', async (req, res) => {
-  const valor = req.body?.valor === null ? null : String(req.body?.valor || '');
-  if (valor !== null && !['dato', 'probar'].includes(valor)) throw new ErrorUsuario('Elige una de las dos opciones.');
-  const p = await db.uno('UPDATE pedidos SET clasificacion = $1 WHERE id = $2 AND por_que IS NOT NULL RETURNING id', [valor, Number(req.params.id)]);
+async function clasificar(pedidoId, valor) {
+  if (valor !== null && !['dato', 'probar'].includes(valor)) throw new ErrorUsuario('La clasificación es dato, probar o ninguna.');
+  const p = await db.uno('UPDATE pedidos SET clasificacion = $1 WHERE id = $2 AND por_que IS NOT NULL RETURNING id, usuario_id', [valor, Number(pedidoId)]);
   if (!p) throw new ErrorUsuario('Ese pedido no existe o todavía no tiene respuesta.', 404);
-  await registrarEvento(req.usuario.id, 'por_que_clasificado', { pedidoId: p.id, detalle: { valor } });
-  res.json({ ok: true, valor });
-});
+  await registrarEvento(p.usuario_id, 'por_que_clasificado', { pedidoId: p.id, detalle: { valor, porEquipo: true } });
+  return { id: p.id, valor };
+}
 
-// El equipo anula un pedido de un probador (por ejemplo, uno de prueba que no es un pedido de
-// verdad) sin borrarlo: sigue a la vista con su motivo y deja de contar en el veredicto.
-rutas.post('/pedidos/:id/anular', async (req, res) => {
-  const motivo = String(req.body?.motivo || '').trim().slice(0, 300);
-  const p = await db.uno('UPDATE pedidos SET anulado_en = now(), anulado_motivo = $2 WHERE id = $1 AND anulado_en IS NULL AND borrado_en IS NULL RETURNING id', [Number(req.params.id), motivo || null]);
+// Anula un pedido (por ejemplo, uno de prueba que no es un pedido de verdad) sin borrarlo: sigue
+// a la vista del usuario y deja de contar en el veredicto.
+async function anular(pedidoId, motivo = '') {
+  motivo = String(motivo || '').trim().slice(0, 300);
+  const p = await db.uno('UPDATE pedidos SET anulado_en = now(), anulado_motivo = $2 WHERE id = $1 AND anulado_en IS NULL AND borrado_en IS NULL RETURNING id, usuario_id', [Number(pedidoId), motivo || null]);
   if (!p) throw new ErrorUsuario('Ese pedido no existe o ya está anulado.', 404);
-  await registrarEvento(req.usuario.id, 'pedido_anulado', { pedidoId: p.id, detalle: { motivo, porEquipo: true } });
-  res.json({ ok: true });
-});
+  await registrarEvento(p.usuario_id, 'pedido_anulado', { pedidoId: p.id, detalle: { motivo, porEquipo: true } });
+  return { id: p.id };
+}
 
-rutas.post('/pedidos/:id/reactivar', async (req, res) => {
-  const p = await db.uno('UPDATE pedidos SET anulado_en = NULL, anulado_motivo = NULL WHERE id = $1 AND anulado_en IS NOT NULL RETURNING id', [Number(req.params.id)]);
+async function reactivar(pedidoId) {
+  const p = await db.uno('UPDATE pedidos SET anulado_en = NULL, anulado_motivo = NULL WHERE id = $1 AND anulado_en IS NOT NULL RETURNING id, usuario_id', [Number(pedidoId)]);
   if (!p) throw new ErrorUsuario('Ese pedido no existe o no está anulado.', 404);
-  await registrarEvento(req.usuario.id, 'pedido_reactivado', { pedidoId: p.id, detalle: { porEquipo: true } });
-  res.json({ ok: true });
-});
+  await registrarEvento(p.usuario_id, 'pedido_reactivado', { pedidoId: p.id, detalle: { porEquipo: true } });
+  return { id: p.id };
+}
+
+async function usuarioPorEmail(email) {
+  const u = await db.uno('SELECT id, email FROM usuarios WHERE lower(email) = lower($1)', [String(email || '').trim()]);
+  if (!u) throw new ErrorUsuario(`No hay ninguna cuenta con el correo ${email}.`, 404);
+  return u;
+}
 
 // Alguien del grupo que creó su cuenta con un correo que no está en TEAM_EMAILS: queda como equipo
 // para siempre (es_equipo) y deja de contar como probador. Sus datos no se borran.
-rutas.post('/usuarios/:id/equipo', async (req, res) => {
-  const u = await db.uno("UPDATE usuarios SET es_equipo = true, rol = 'equipo' WHERE id = $1 RETURNING id", [Number(req.params.id)]);
-  if (!u) throw new ErrorUsuario('Ese usuario no existe.', 404);
-  await registrarEvento(req.usuario.id, 'marcado_equipo', { detalle: { usuario: u.id } });
-  res.json({ ok: true });
-});
+async function marcarEquipo(email) {
+  const u = await usuarioPorEmail(email);
+  await db.query("UPDATE usuarios SET es_equipo = true, rol = 'equipo' WHERE id = $1", [u.id]);
+  await registrarEvento(u.id, 'marcado_equipo', { detalle: { porEquipo: true } });
+  return u;
+}
 
-// Sin correo configurado, el equipo genera el enlace y se lo manda al probador (por ejemplo, por WhatsApp).
-rutas.post('/usuarios/:id/restablecer', async (req, res) => {
-  const u = await db.uno('SELECT id FROM usuarios WHERE id = $1', [Number(req.params.id)]);
-  if (!u) throw new ErrorUsuario('Ese usuario no existe.', 404);
-  const r = await crearEnlaceRestablecer(u.id, baseDe(req));
-  await registrarEvento(req.usuario.id, 'enlace_restablecer_creado', { detalle: { para: u.id } });
-  res.json(r);
-});
+// Sin correo configurado, el equipo genera el enlace y se lo manda a la persona (por ejemplo, por WhatsApp).
+async function enlaceRestablecer(email, base = urlApp()) {
+  const u = await usuarioPorEmail(email);
+  const r = await crearEnlaceRestablecer(u.id, base);
+  await registrarEvento(u.id, 'enlace_restablecer_creado', { detalle: { porEquipo: true } });
+  return r;
+}
 
-module.exports = { rutas, evaluarUsuario, resumirPrueba, DIAS_PRUEBA };
+// Los últimos errores que vio alguien en la aplicación (server/errores.js).
+async function erroresRecientes(limite = 50) {
+  const filas = await db.query(
+    `SELECT e.id, e.origen, e.mensaje, e.ruta, e.creado_en, u.email
+       FROM errores e LEFT JOIN usuarios u ON u.id = e.usuario_id
+      ORDER BY e.creado_en DESC LIMIT $1`,
+    [limite],
+  );
+  return filas.map((f) => ({ id: f.id, origen: f.origen, mensaje: f.mensaje, ruta: f.ruta, en: f.creado_en, email: f.email }));
+}
+
+module.exports = { resultados, clasificar, anular, reactivar, marcarEquipo, enlaceRestablecer, erroresRecientes, evaluarUsuario, resumirPrueba, DIAS_PRUEBA };

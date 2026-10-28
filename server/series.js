@@ -18,10 +18,11 @@ function diasDelMes(dia) {
 
 /**
  * ventas: [{ codigo, dia, cantidad }] como las devuelve leerExport.
+ * hastaDia: último día del periodo si es después de la última venta.
  * Devuelve { hasta: "YYYY-MM-DD", semanas, porProducto: { clave: [cantidad por semana] } }
  * La posición 0 es la semana más antigua; la última es la que termina en `hasta`.
  */
-function seriesSemanales(ventas, { mensual = false, totales = false } = {}) {
+function seriesSemanales(ventas, { mensual = false, totales = false, hastaDia } = {}) {
   if (totales || !ventas.length) return null;
   let desde = Infinity;
   let hasta = -Infinity;
@@ -30,6 +31,8 @@ function seriesSemanales(ventas, { mensual = false, totales = false } = {}) {
     if (v.dia > hasta) hasta = v.dia;
   }
   if (mensual) hasta = finDeMes(hasta);
+  // Igual que en calcularRotacion: el periodo puede terminar después de la última venta.
+  if (hastaDia !== undefined && hastaDia > hasta) hasta = hastaDia;
   const semanas = Math.min(Math.floor((hasta - desde + 1) / 7), SEMANAS_MAXIMAS);
   if (semanas < 1) return null;
   const primerDia = hasta - semanas * 7 + 1;

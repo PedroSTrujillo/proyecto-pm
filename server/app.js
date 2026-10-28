@@ -5,10 +5,12 @@ const express = require('express');
 const multer = require('multer');
 const cuentas = require('./cuentas');
 const pedidos = require('./pedidos');
-const equipo = require('./equipo');
 const inventario = require('./inventario-rutas');
 const ejemplos = require('./ejemplos');
 const exportar = require('./exportar');
+const empresas = require('./empresas');
+const movimientos = require('./movimientos');
+const boletin = require('./boletin');
 const { limitar, comprimirJson } = require('./limites');
 const errores = require('./errores');
 const { plantillaExport, plantillaLista, plantillaInventario } = require('./plantillas');
@@ -58,15 +60,22 @@ function crearApp({ web = null, dev = false } = {}) {
   app.use('/api/cuenta/crear', limitar({ max: 10, minutos: 60 }));
   app.use('/api/cuenta/olvide', limitar({ max: 5, minutos: 60, clave: porCorreo }));
   app.use('/api/cuenta/restablecer', limitar({ max: 10, minutos: 15 }));
+  app.use('/api/empresa/invitaciones', limitar({ max: 30, minutos: 60 }));
+  app.use('/api/boletin/baja', limitar({ max: 20, minutos: 15 }));
 
   // Las rutas de la API cargan la sesión; las páginas y los archivos de Next no la necesitan.
   app.use('/api', cuentas.cargarUsuario);
   app.use('/api/cuenta', cuentas.rutas);
   app.use('/api/pedidos', pedidos.rutas);
   app.use('/api/equipo/ejemplos', ejemplos.rutas);
-  app.use('/api/equipo', equipo.rutas);
   app.use('/api/inventario', inventario.rutas);
   app.use('/api/demo', inventario.demo);
+  app.use('/api/empresa', empresas.rutas);
+  app.use('/api/catalogo', movimientos.catalogo);
+  app.use('/api/movimientos', movimientos.rutas);
+  app.use('/api/existencias', movimientos.existencias);
+  app.use('/api/tareas', boletin.tareas);
+  app.use('/api/boletin', boletin.baja);
   app.use('/api/exportar', exportar.rutas);
   app.use('/api/errores', errores.rutas);
 

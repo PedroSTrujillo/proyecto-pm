@@ -39,6 +39,8 @@ export type Producto = {
   serie: number[] | null
   semanasPico: number[]
   pronostico: Pronostico[] | null
+  // Lo que se va a vender en el horizonte que eligió el usuario (null para el operador).
+  ventaHorizonte?: Pronostico | null
 }
 
 export type Proveedor = { nombre: string; entrega: number; productos: number; pideYa: number; seAgotan: number }
@@ -62,8 +64,15 @@ export type Inventario = {
     semanas: number
     totales: boolean
     mensual: boolean
+    // 'movimientos': el último archivo más lo registrado después (server/movimientos.js).
+    origen?: 'archivo' | 'movimientos'
+    movimientos?: number
   }
   umbrales: { seAgota: number; sobra: number }
+  // Semanas del pronóstico que eligió el usuario.
+  horizonte?: number
+  // 'operador': las métricas gruesas, con los detalles en null (server/inventario.js, resumirParaOperador).
+  vista?: Perfil
   ajustes: { entregaPorDefecto: number; cadaCuanto: number; semanasAgota: number; entregas: Record<string, number>; asignaciones: Record<string, string>; prefijos: { prefijo: string; proveedor: string }[]; nivelServicio: number }
   sugerencias: boolean
   alcance: 'completo' | 'prueba'
@@ -78,7 +87,7 @@ export type Inventario = {
     sinVentas: number
     cobertura: number | null
     sinProveedor: number
-    tieneCostos: boolean
+    tieneCostos: boolean | null
     valorInventario: number | null
     dineroQuieto: number | null
     tendencia4: number | null
@@ -103,11 +112,60 @@ export type RespuestaInventario = {
   sugerencias: boolean
   alcance?: 'completo' | 'prueba'
   finPrueba: string | null
+  perfil?: Perfil
   // Sin archivo todavía, igual vienen sus ajustes (proveedores y tiempos de entrega).
   ajustes?: { entregas: Record<string, number>; entregaPorDefecto: number; cadaCuanto: number }
   recordatorio?: { activo: boolean; pedidoId: number | null; fechaReporte: string; primerAviso: string | null } | null
 }
 
-export type Usuario = { id: number; email: string; nombre: string; rol: 'usuario' | 'equipo'; sistema: string | null }
+export type Perfil = 'analista' | 'operador'
+
+export type Usuario = {
+  id: number
+  email: string
+  nombre: string
+  rol: 'usuario' | 'equipo'
+  sistema: string | null
+  perfil: Perfil
+  preferencias: { unidad: 'dias' | 'semanas' | 'meses'; horizonte: number }
+  boletin: boolean
+  empresa: { id: number; nombre: string; vacia: boolean; admin: boolean } | null
+}
+
+export type Empresa = {
+  id: number
+  nombre: string
+  nit: string | null
+  vacia: boolean
+  creadoEn: string
+  miembros: { id: number; nombre: string; email: string; perfil: Perfil; admin: boolean; desde: string }[]
+  invitacionesAbiertas: { email: string | null; creadaEn: string; expiraEn: string }[]
+}
+
+export type TipoMovimiento = 'entrada' | 'venta' | 'devolucion' | 'salida' | 'conteo'
+
+export type Movimiento = {
+  id: number
+  codigo: string
+  nombre: string
+  tipo: TipoMovimiento
+  cantidad: number
+  fecha: string
+  nota: string
+  registro: string | null
+  creadoEn: string
+  anulado: boolean
+}
+
+export type ProductoCatalogo = { id: number; codigo: string; nombre: string; unidad: string | null; costo: number | null; proveedor: string | null; activo: boolean }
+
+export type Existencias = {
+  base: { exportId: number; hasta: string; subidoEn: string } | null
+  movimientos: number
+  ignorados: number
+  negativos: number
+  hoy: string
+  productos: { codigo: string; nombre: string; unidad: string | null; existencias: number; ultimo: { fecha: string; tipo: TipoMovimiento; cantidad: number } | null }[]
+}
 
 export type Sector = { id: string; empresa: string; sector: string; ciudad: string; programa: string; resumen: string; productos: number }

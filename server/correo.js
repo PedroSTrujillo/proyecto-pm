@@ -8,8 +8,10 @@ function correoConfigurado() {
   return Boolean(process.env.BREVO_API_KEY && process.env.CORREO_REMITENTE);
 }
 
-// adjuntos: [{ nombre, contenido (texto) }]
-async function enviarCorreo({ para, nombre, asunto, texto, adjuntos = [] }) {
+// adjuntos: [{ nombre, contenido (texto) }]. html es opcional (el boletín diario): siempre va
+// también el texto, para los programas de correo que no muestran HTML. encabezados: por ejemplo
+// List-Unsubscribe, para que el correo deje darse de baja con un clic.
+async function enviarCorreo({ para, nombre, asunto, texto, html = null, encabezados = null, adjuntos = [] }) {
   const r = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: { 'api-key': process.env.BREVO_API_KEY, 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -18,6 +20,8 @@ async function enviarCorreo({ para, nombre, asunto, texto, adjuntos = [] }) {
       to: [{ email: para, name: nombre }],
       subject: asunto,
       textContent: texto,
+      ...(html ? { htmlContent: html } : {}),
+      ...(encabezados ? { headers: encabezados } : {}),
       ...(adjuntos.length ? { attachment: adjuntos.map((a) => ({ name: a.nombre, content: Buffer.from(a.contenido).toString('base64') })) } : {}),
     }),
   });

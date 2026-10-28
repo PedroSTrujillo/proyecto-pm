@@ -52,7 +52,7 @@ export function Ejemplos() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Titulo sub="Solo lo ve el equipo. Cargar un ejemplo cambia el inventario de esta cuenta; no toca a los probadores ni los resultados de la prueba.">
+      <Titulo sub="Solo lo ve el equipo. Cargar un ejemplo cambia el inventario de esta cuenta y no toca ninguna otra.">
         Ejemplos para probar
       </Titulo>
 
@@ -105,7 +105,7 @@ export function Ejemplos() {
       <section aria-labelledby="t-archivos" className="flex flex-col gap-3">
         <div>
           <h2 id="t-archivos" className="text-xl font-bold">Archivos de otros programas</h2>
-          <p className="text-muted-foreground">Formatos difíciles para probar el lector. Para probar los 5 pasos como un probador, crea un pedido en Pedidos y sube estos archivos en el paso 2.</p>
+          <p className="text-muted-foreground">Formatos difíciles para probar el lector. Para probar los 5 pasos como un cliente, crea un pedido en Pedidos y sube estos archivos en el paso 2.</p>
         </div>
         <ul className="grid gap-4 md:grid-cols-2">
           {datos.archivos.map((a) => (

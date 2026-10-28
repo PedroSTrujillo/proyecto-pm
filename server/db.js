@@ -125,6 +125,96 @@ const ESQUEMA = [
     detalle TEXT NOT NULL DEFAULT '',
     creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
+  // --- Alpha 0.2 (docs/PLAN_EMPRESAS_INVENTARIO.md) -------------------------------------------
+  // Cuenta de empresa: el inventario (archivos, catálogo, movimientos y ajustes) es de la empresa;
+  // los pedidos y su medición siguen siendo de cada persona.
+  `CREATE TABLE IF NOT EXISTS empresas (
+    id SERIAL PRIMARY KEY,
+    nombre TEXT NOT NULL DEFAULT '',
+    nit TEXT,
+    vacia BOOLEAN NOT NULL DEFAULT false,
+    fundador_id INTEGER UNIQUE,
+    inventario JSONB NOT NULL DEFAULT '{}'::jsonb,
+    movimientos_cambiaron_en TIMESTAMPTZ,
+    inventario_calculado_en TIMESTAMPTZ,
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
+  'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS empresa_id INTEGER REFERENCES empresas(id) ON DELETE SET NULL',
+  'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS admin_empresa BOOLEAN NOT NULL DEFAULT false',
+  // analista: métricas detalladas; operador: métricas gruesas e ingreso de inventario. No es un
+  // permiso: cada persona lo elige y lo cambia cuando quiera. No confundir con rol (probador o equipo).
+  "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS perfil TEXT NOT NULL DEFAULT 'analista' CHECK (perfil IN ('analista', 'operador'))",
+  // { unidad: 'dias' | 'semanas' | 'meses', horizonte: semanas del pronóstico }
+  "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS preferencias JSONB NOT NULL DEFAULT '{}'::jsonb",
+  'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS boletin BOOLEAN NOT NULL DEFAULT false',
+  'ALTER TABLE exports ADD COLUMN IF NOT EXISTS empresa_id INTEGER REFERENCES empresas(id) ON DELETE CASCADE',
+  // 'archivo' (subido) o 'movimientos' (archivo base + lo registrado a mano después, server/saldos.js).
+  "ALTER TABLE exports ADD COLUMN IF NOT EXISTS origen TEXT NOT NULL DEFAULT 'archivo'",
+  'ALTER TABLE exports ADD COLUMN IF NOT EXISTS base_export_id INTEGER',
+  'ALTER TABLE exports ADD COLUMN IF NOT EXISTS movimientos INTEGER',
+  // Enlaces para unirse a una empresa: se guarda el hash del token, nunca el token.
+  `CREATE TABLE IF NOT EXISTS invitaciones (
+    token_hash TEXT PRIMARY KEY,
+    empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    creada_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+    email TEXT,
+    creada_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expira_en TIMESTAMPTZ NOT NULL,
+    usada_en TIMESTAMPTZ,
+    usada_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL
+  )`,
+  // Catálogo de la empresa: la identidad es claveCodigo (valores.js), igual que en el reporte.
+  `CREATE TABLE IF NOT EXISTS productos (
+    id SERIAL PRIMARY KEY,
+    empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    clave TEXT NOT NULL,
+    codigo TEXT NOT NULL,
+    nombre TEXT NOT NULL DEFAULT '',
+    unidad TEXT,
+    costo NUMERIC,
+    proveedor TEXT,
+    activo BOOLEAN NOT NULL DEFAULT true,
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (empresa_id, clave)
+  )`,
+  // Entradas y salidas del día. Las existencias no se guardan: se suman desde el último conteo o
+  // desde el archivo base (server/saldos.js). No se borran: se anulan, para que el historial cuadre.
+  `CREATE TABLE IF NOT EXISTS movimientos (
+    id SERIAL PRIMARY KEY,
+    empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+    producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+    usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+    tipo TEXT NOT NULL CHECK (tipo IN ('entrada', 'venta', 'devolucion', 'salida', 'conteo')),
+    cantidad NUMERIC NOT NULL CHECK (cantidad >= 0),
+    fecha TEXT NOT NULL,
+    nota TEXT NOT NULL DEFAULT '',
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+    anulado_en TIMESTAMPTZ
+  )`,
+  // Un boletín por persona y día (fecha en Bogotá): correr la tarea dos veces no manda dos correos.
+  `CREATE TABLE IF NOT EXISTS boletines (
+    usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    fecha TEXT NOT NULL,
+    empresa_id INTEGER REFERENCES empresas(id) ON DELETE CASCADE,
+    resumen JSONB,
+    estado TEXT NOT NULL,
+    error TEXT,
+    enviado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (usuario_id, fecha)
+  )`,
+  // Los usuarios de antes de las empresas quedan cada uno con su "empresa vacía" (sin nombre),
+  // con sus ajustes y sus archivos. No hace nada si ya no hay usuarios sin empresa.
+  `INSERT INTO empresas (vacia, fundador_id, inventario)
+     SELECT true, u.id, u.inventario FROM usuarios u WHERE u.empresa_id IS NULL
+     ON CONFLICT (fundador_id) DO NOTHING`,
+  `UPDATE usuarios u SET empresa_id = e.id, admin_empresa = true
+     FROM empresas e WHERE e.fundador_id = u.id AND u.empresa_id IS NULL`,
+  `UPDATE exports x SET empresa_id = u.empresa_id
+     FROM usuarios u WHERE u.id = x.usuario_id AND x.empresa_id IS NULL`,
+  'CREATE INDEX IF NOT EXISTS usuarios_empresa ON usuarios(empresa_id)',
+  'CREATE INDEX IF NOT EXISTS exports_empresa ON exports(empresa_id, subido_en)',
+  'CREATE INDEX IF NOT EXISTS movimientos_empresa ON movimientos(empresa_id, fecha)',
+  'CREATE INDEX IF NOT EXISTS movimientos_producto ON movimientos(producto_id, fecha)',
   'CREATE INDEX IF NOT EXISTS pedidos_usuario ON pedidos(usuario_id)',
   'CREATE INDEX IF NOT EXISTS exports_pedido ON exports(pedido_id)',
   'CREATE INDEX IF NOT EXISTS exports_usuario ON exports(usuario_id, subido_en)',
@@ -204,4 +294,4 @@ const EXPORT_VIGENTE = `NOT (pedido_id IS NOT NULL
   AND pedido_id IN (SELECT id FROM pedidos WHERE borrado_en IS NOT NULL)
   AND id NOT IN (SELECT export_id FROM pedidos WHERE export_id IS NOT NULL AND borrado_en IS NULL))`;
 
-module.exports = { EXPORT_VIGENTE, iniciar, query, uno, tx, cerrar, nombreMotor };
+module.exports = { EXPORT_VIGENTE, ESQUEMA, iniciar, query, uno, tx, cerrar, nombreMotor };

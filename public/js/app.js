@@ -10,7 +10,7 @@ let landing = null; // dirección de la página de presentación
 let destinoTrasEntrar = null;
 let alSalirDeVista = []; // p. ej. guardar el borrador antes de cambiar de pantalla
 
-const NOMBRES_PASOS = ['Lista inicial', 'Subir export', 'Ver reporte', 'Lista final', '¿Por qué cambió?'];
+const NOMBRES_PASOS = ['Lista inicial', 'Subir export', 'Ver reporte', 'Lista final', 'Tu pedido'];
 const LEMA = 'Sube lo que exportas de tu programa contable y mira, en semanas de inventario, qué productos se agotan primero y cuáles sobran.';
 
 // --- Navegación ---------------------------------------------------------------------
@@ -37,7 +37,6 @@ async function enrutar() {
   if (publicas.includes(partes[0])) return ir('#/');
   if (partes[0] === 'cuenta') return vistaCuenta();
   if (partes[0] === 'pedido' && partes[1]) return vistaPedido(Number(partes[1]), partes[2] ? Number(partes[2]) : null);
-  if (partes[0] === 'equipo') return vistaEquipo();
   return vistaInicio();
 }
 
@@ -47,7 +46,6 @@ function pintarMenu() {
   montar(menu, html`
     ${principal}
     <a href="#/">Mis pedidos</a>
-    ${usuario.rol === 'equipo' ? html`<a href="#/equipo">Resultados de la prueba</a>` : ''}
     <a href="#/cuenta" class="quien" title="Mi cuenta">${usuario.nombre}</a>
     <button type="button" class="enlace salir">Salir</button>`);
   menu.querySelector('.salir').addEventListener('click', async () => {
@@ -79,6 +77,7 @@ function formularioCuenta({ titulo, boton, conNombre, enviar, pie }) {
       <h1>${titulo}</h1>
       <p class="lema">${LEMA}</p>
       <form class="tarjeta" novalidate>
+        ${conNombre ? html`<label class="campo">Nombre de tu empresa <input type="text" name="empresa" required autocomplete="organization"></label>` : ''}
         ${conNombre ? html`<label class="campo">Tu nombre <input type="text" name="nombre" required autocomplete="name"></label>` : ''}
         <label class="campo">Correo <input type="email" name="email" required autocomplete="email"></label>
         <label class="campo">Contraseña ${conNombre ? html`<span class="opcional">(mínimo 8 caracteres)</span>` : ''}
@@ -151,7 +150,7 @@ function vistaOlvide() {
       const r = await api('POST', '/cuenta/olvide', Object.fromEntries(new FormData(form)));
       montar(form.querySelector('.mensajes'), r.correo
         ? html`<div class="mensaje ok">Si hay una cuenta con ese correo, te enviamos un enlace para cambiar la contraseña. Revisa también la carpeta de correo no deseado.</div>`
-        : html`<div class="mensaje info">Escríbele al equipo que te invitó a la prueba: ellos te mandan un enlace para poner una contraseña nueva.</div>`);
+        : html`<div class="mensaje info">Por ahora no podemos mandarte el enlace por correo. Escríbenos y te mandamos uno para poner una contraseña nueva.</div>`);
     } catch (e) {
       error(form.querySelector('.mensajes'), e);
       b.disabled = false;
@@ -279,7 +278,7 @@ async function vistaInicio() {
       <li><span><strong>Sube el export de ventas y existencias</strong> de tu software contable, tal como sale.</span></li>
       <li><span><strong>Mira la rotación</strong>: cuántas semanas de inventario te quedan de cada producto, de lo que se agota primero a lo que sobra.</span></li>
       <li><span><strong>Ajusta tu lista</strong> con lo que de verdad vas a pedir.</span></li>
-      <li><span><strong>Cuéntanos por qué</strong> cambiaste lo que cambiaste.</span></li>
+      <li><span><strong>Termina tu pedido</strong> y llévate la orden de compra.</span></li>
     </ol>`;
 
   if (!pedidos.length) {
@@ -872,7 +871,7 @@ async function paso4(cont, pedido) {
   });
 }
 
-// --- Paso 5: comparación y ¿por qué? ---------------------------------------------------------
+// --- Paso 5: tu pedido -------------------------------------------------------------------------
 
 function listaDetalle(titulo, items, pintar) {
   return html`<div><h3>${titulo} (${items.length})</h3>${items.length
@@ -885,15 +884,10 @@ function paso5(cont, pedido) {
   const n = c.conteo;
   const nombre = (x) => (x.nombre ? ` · ${x.nombre}` : '');
   montar(cont, html`<section class="tarjeta">
-    <h2>Paso 5 · ¿Por qué cambió?</h2>
-    <p class="ayuda">Comparamos tu lista inicial con la final, producto por producto (por código).</p>
-    <div class="cifras">
-      <div class="cifra"><strong>${n.agregadas}</strong><span>${n.agregadas === 1 ? 'línea agregada' : 'líneas agregadas'}</span></div>
-      <div class="cifra"><strong>${n.quitadas}</strong><span>${n.quitadas === 1 ? 'línea quitada' : 'líneas quitadas'}</span></div>
-      <div class="cifra"><strong>${n.cambiadas}</strong><span>con cantidad distinta</span></div>
-      <div class="cifra verde"><strong>${n.total}</strong><span>${n.total === 1 ? 'línea cambiada en total' : 'líneas cambiadas en total'}</span></div>
-    </div>
-    <details class="notas" ${n.total && n.total <= 30 ? 'open' : ''}><summary>Ver el detalle</summary>
+    <h2>Paso 5 · Tu pedido</h2>
+    <p class="ayuda">${pedido.terminado ? 'Listo para mandar a tus proveedores.' : 'Termínalo para llevarte la orden de compra.'}</p>
+    <details class="notas"><summary>Qué cambió frente a lo que ibas a pedir</summary>
+      <p class="nota">${n.total ? `${plural(n.agregadas, 'producto agregado', 'productos agregados')}, ${plural(n.quitadas, 'quitado', 'quitados')} y ${plural(n.cambiadas, 'con otra cantidad', 'con otra cantidad')}.` : 'Tu lista final quedó igual a la inicial.'}</p>
       <div class="comparacion-detalle">
         ${listaDetalle('Agregadas', c.agregadas, (x) => html`<span class="codigo">${x.codigo}</span>${nombre(x)}: ${numero(x.cantidad)}`)}
         ${listaDetalle('Quitadas', c.quitadas, (x) => html`<span class="codigo">${x.codigo}</span>${nombre(x)}: ${numero(x.cantidad)}`)}
@@ -906,15 +900,15 @@ function paso5(cont, pedido) {
 
   const zona = cont.querySelector('.por-que-zona');
   if (pedido.terminado) {
-    montar(zona, html`<div class="mensaje ok"><p><strong>Pedido terminado</strong> el ${fechaHora(pedido.terminadoEn)}. ¡Gracias!</p>
-        <p><strong>¿Por qué cambiaste lo que cambiaste?</strong></p><p class="por-que">${pedido.porQue}</p></div>
+    montar(zona, html`<div class="mensaje ok"><p><strong>Pedido terminado</strong> el ${fechaHora(pedido.terminadoEn)}.</p>
+        ${pedido.porQue ? html`<p><strong>Lo que tuviste en cuenta</strong></p><p class="por-que">${pedido.porQue}</p>` : ''}</div>
       <div class="acciones"><a class="boton" href="#/">Volver a mis pedidos</a><button type="button" class="boton primario nuevo">Preparar otro pedido</button></div>`);
     zona.querySelector('.nuevo').addEventListener('click', (e) => nuevoPedido(e.currentTarget));
     return;
   }
   montar(zona, html`<form>
-    <label class="campo">¿Por qué cambiaste lo que cambiaste?
-      <textarea name="respuesta" maxlength="5000" required placeholder="Si no cambiaste nada, cuéntanos por qué."></textarea></label>
+    <label class="campo">¿Qué tuviste en cuenta para decidir tu pedido? (opcional)
+      <textarea name="respuesta" maxlength="5000"></textarea></label>
     <div class="mensajes"></div>
     <div class="acciones">
       <a class="izquierda" href="#/pedido/${pedido.id}/4">← Volver a la lista final</a>
@@ -935,130 +929,6 @@ function paso5(cont, pedido) {
       error(form.querySelector('.mensajes'), e);
     }
   });
-}
-
-// --- Equipo: resultados de la prueba ------------------------------------------------------------
-
-const TEXTO_EVENTO = {
-  ingreso: () => 'Entró',
-  archivo_subido: (e) => (e.detalle && e.detalle.tipo === 'lista' ? `Importó una lista (${e.detalle.nombre})` : `Subió export${e.detalle && e.detalle.archivos ? ` (${e.detalle.archivos.join(', ')})` : ''}`),
-  lista_inicial_guardada: (e) => `Guardó la lista inicial del pedido #${e.pedidoId}`,
-  reporte_visto: (e) => `Vio el reporte del pedido #${e.pedidoId}`,
-  lista_final_guardada: (e) => `Guardó la lista final del pedido #${e.pedidoId}${e.detalle ? ` (${e.detalle.total} cambios)` : ''}`,
-  pedido_terminado: (e) => `Terminó el pedido #${e.pedidoId}`,
-  recordatorio_respondido: (e) => (e.detalle && e.detalle.activo ? `Pidió recordatorios (${plural(e.detalle.productos, 'producto', 'productos')})` : 'Dijo que no quiere recordatorios'),
-  recordatorio_enviado: () => 'Le llegó la invitación de calendario al correo',
-  calendario_descargado: (e) => `Descargó los recordatorios del pedido #${e.pedidoId}`,
-};
-
-function textoCoherencia(c) {
-  if (!c || !c.total) return '—';
-  return html`${c.coherentes} de ${c.total}${c.contrarias ? html`<span class="senal">${plural(c.contrarias, 'en contra del reporte', 'en contra del reporte')}</span>` : ''}`;
-}
-
-function textoRecordatorio(r) {
-  if (!r || r.activo === null) return 'sin responder';
-  if (!r.activo) return 'no lo quiso';
-  const partes = [`sí, el primero el ${dia(r.primerAviso)}`];
-  partes.push(r.descargoCalendario ? 'descargó el calendario' : r.correoEnviado ? 'lo recibió por correo' : 'no ha descargado el calendario');
-  if (r.yaLlego) partes.push(`entró ${r.ingresosDesdeAviso} ${r.ingresosDesdeAviso === 1 ? 'vez' : 'veces'} desde ese día`);
-  return partes.join(' · ');
-}
-
-const CATEGORIAS = {
-  cumple: html`<span class="etiqueta verde">Cambió 5 o más líneas</span>`,
-  no_cambia: html`<span class="etiqueta roja">Cambió 0 o 1 líneas</span>`,
-  intermedio: html`<span class="etiqueta ambar">Cambió entre 2 y 4 líneas</span>`,
-  sin_pedido: html`<span class="etiqueta gris">Sin lista final en sus 14 días</span>`,
-};
-
-async function vistaEquipo() {
-  montar(app, html`<p class="cargando">Cargando resultados…</p>`);
-  let datos;
-  try {
-    datos = await api('GET', '/equipo/resultados');
-  } catch (e) {
-    return error(app, e);
-  }
-  const r = datos.resumen;
-  const titulos = {
-    meta_cumplida: `Se cumplió la meta: ${r.cumplen} de ${r.usuarios} cambiaron ${r.reglas.metaLineas} o más líneas`,
-    pivotar: `Toca pivotar: ${r.noCambian} de ${r.usuarios} cambiaron 0 o 1 líneas`,
-    en_curso: 'Todavía no hay resultado',
-  };
-  montar(app, html`
-    <div class="encabezado-pagina">
-      <div><h1>Resultados de la prueba</h1><p class="ayuda">Calculado con los datos guardados el ${fechaHora(datos.generadoEn)}.</p></div>
-      <button type="button" class="boton actualizar">Actualizar</button>
-    </div>
-    <section class="veredicto ${r.veredicto}">
-      <h2>${titulos[r.veredicto]}</h2>
-      ${r.veredicto === 'en_curso' ? html`<p><strong>Por ahora: ${r.cumplen} de ${r.usuarios} cambiaron ${r.reglas.metaLineas} o más líneas y ${r.noCambian} cambiaron 0 o 1${r.sinPedido ? `; ${r.sinPedido} aún no ${r.sinPedido === 1 ? 'guarda' : 'guardan'} su lista final` : ''}.</strong></p>` : ''}
-      <p>Meta: ${r.reglas.metaUsuarios} de ${r.usuariosEsperados} usuarios cambian ${r.reglas.metaLineas} o más líneas de su pedido en ${r.reglas.diasPrueba} días.
-        Pivote: ${r.reglas.pivoteUsuarios} o más no cambian ninguna línea o cambian solo una.</p>
-      <p class="nota">Revisa también las respuestas a "¿por qué cambió?": si cambiaron por probar la herramienta y no porque el dato les pareciera correcto, también toca pivotar.
-        ${r.cumplen ? `Como apoyo: de los ${r.cumplen} que cumplen, ${r.cumplenCoherentes} movieron la mayoría de sus líneas en la dirección que indica el reporte (subir lo que se agota, bajar lo que sobra).` : ''}</p>
-    </section>
-    <div class="cifras">
-      <div class="cifra verde"><strong>${r.cumplen} de ${r.usuarios}</strong><span>cambiaron ${r.reglas.metaLineas} o más líneas (meta: ${r.reglas.metaUsuarios})${r.cumplen ? ` · ${r.cumplenReal} en pedido real, ${r.cumplenSimulado} simulado` : ''}</span></div>
-      <div class="cifra roja"><strong>${r.noCambian} de ${r.usuarios}</strong><span>cambiaron 0 o 1 líneas (pivote si son ${r.reglas.pivoteUsuarios} o más)</span></div>
-      <div class="cifra"><strong>${r.intermedios}</strong><span>cambiaron entre 2 y 4</span></div>
-      <div class="cifra"><strong>${r.sinPedido}</strong><span>aún sin lista final</span></div>
-    </div>
-    <h2 class="subtitulo">Stickiness: el recordatorio</h2>
-    <div class="cifras">
-      <div class="cifra"><strong>${r.aceptaronRecordatorio} de ${r.usuarios}</strong><span>pidieron el recordatorio</span></div>
-      <div class="cifra"><strong>${r.conRecordatorioVencido}</strong><span>ya pasaron la fecha de su primer recordatorio</span></div>
-      <div class="cifra verde"><strong>${r.volvieronTrasRecordatorio} de ${r.conRecordatorioVencido}</strong><span>volvieron a entrar desde ese día</span></div>
-    </div>
-    <p class="nota">Para cada usuario se toma el pedido con más líneas cambiadas (agregadas + quitadas + con cantidad distinta) cuya lista final guardó dentro de sus primeros ${r.reglas.diasPrueba} días, contados desde que guardó su primera lista inicial.
-      ${r.usuarios !== r.usuariosEsperados ? `Hoy hay ${r.usuarios} cuentas de prueba; la meta está pensada para ${r.usuariosEsperados}.` : ''}</p>
-    ${datos.usuarios.length ? '' : html`<div class="mensaje info">Todavía no hay usuarios de prueba registrados.</div>`}
-    ${datos.usuarios.map((u) => html`<section class="tarjeta usuario-prueba">
-      <header><h2>${u.nombre} <span class="opcional">${u.email}</span></h2>${CATEGORIAS[u.evaluacion.categoria]}</header>
-      <p class="nota">Programa contable: <strong>${u.sistema ? (sistemaPorId(u.sistema) || { nombre: u.sistema }).nombre : 'no lo ha dicho'}</strong>
-        · <button type="button" class="enlace enlace-clave" data-id="${u.id}">Enlace para que cambie su contraseña</button></p>
-      <div class="enlace-generado"></div>
-      <div class="metricas-usuario">
-        <span>Entró <strong>${u.ingresos}</strong> ${u.ingresos === 1 ? 'vez' : 'veces'}${u.ultimoIngreso ? ` (última: ${fechaHora(u.ultimoIngreso)})` : ''}</span>
-        <span>Subió <strong>${u.archivosExport}</strong> ${u.archivosExport === 1 ? 'archivo' : 'archivos'} de export${u.archivosLista ? ` y ${u.archivosLista} de lista` : ''}</span>
-        <span>Días con actividad: <strong>${u.diasConActividad}</strong></span>
-        <span>Cuenta creada: ${fecha(u.creadoEn)}</span>
-        ${u.evaluacion.inicio ? html`<span>Sus 14 días: ${fecha(u.evaluacion.inicio)} – ${fecha(u.evaluacion.fin)}</span>` : ''}
-        <span>Recordatorio: <strong>${textoRecordatorio(u.recordatorio)}</strong></span>
-      </div>
-      ${u.pedidos.length ? html`<div class="marco-tabla"><table class="datos">
-        <thead><tr><th>Pedido</th><th>Tipo</th><th>Lista inicial</th><th>Lista final</th><th class="numero">Agregadas</th><th class="numero">Quitadas</th><th class="numero">Cantidad distinta</th><th class="numero">Total</th><th class="numero" title="Cambios en la dirección que indica el reporte: subir o agregar lo que se agota, bajar o quitar lo que sobra">Coherentes con el reporte</th><th class="numero" title="Unidades agregadas, quitadas o cambiadas, sobre las unidades de la lista inicial">Unidades movidas</th><th>¿Por qué cambió?</th></tr></thead>
-        <tbody>${u.pedidos.map((p) => html`<tr>
-          <td>#${p.id}${p.proveedor ? ` · ${p.proveedor}` : ''}${p.paso < 6 ? html`<span class="senal">Va en el paso ${p.paso} de 5</span>` : ''}${p.finalGuardadaEn && p.dentroDePrueba === false ? html`<span class="senal">Fuera de sus 14 días</span>` : ''}${u.evaluacion.mejor && u.evaluacion.mejor.id === p.id ? html`<span class="senal">Es el que cuenta</span>` : ''}</td>
-          <td>${p.tipo === 'real' ? 'Real' : p.tipo === 'simulado' ? 'Simulado' : '—'}</td>
-          <td>${fechaHora(p.inicialGuardadaEn)}${p.inicialGuardadaEn ? html`<span class="senal">${plural(p.lineasInicial, 'línea', 'líneas')}</span>` : ''}</td>
-          <td>${fechaHora(p.finalGuardadaEn)}${p.finalGuardadaEn ? html`<span class="senal">${plural(p.lineasFinal, 'línea', 'líneas')}</span>` : ''}</td>
-          <td class="numero">${p.conteo ? p.conteo.agregadas : '—'}</td>
-          <td class="numero">${p.conteo ? p.conteo.quitadas : '—'}</td>
-          <td class="numero">${p.conteo ? p.conteo.cambiadas : '—'}</td>
-          <td class="numero"><strong>${p.conteo ? p.conteo.total : '—'}</strong></td>
-          <td class="numero">${textoCoherencia(p.coherencia)}</td>
-          <td class="numero">${p.magnitud && p.magnitud.porcentaje !== null ? `${numero(p.magnitud.porcentaje * 100, 0)} %` : '—'}${p.magnitud ? html`<span class="senal">${numero(p.magnitud.unidadesMovidas)} de ${numero(p.magnitud.unidadesIniciales)}</span>` : ''}</td>
-          <td class="por-que">${p.porQue || '—'}</td>
-        </tr>`)}</tbody></table></div>` : html`<p class="vacio">Todavía no ha empezado ningún pedido.</p>`}
-      ${u.actividad.length ? html`<details class="notas"><summary>Actividad con fecha (${u.actividad.length})</summary>
-        <ul class="actividad">${u.actividad.slice().reverse().map((e) => html`<li>${fechaHora(e.en)} · ${(TEXTO_EVENTO[e.tipo] || (() => e.tipo))(e)}</li>`)}</ul></details>` : ''}
-    </section>`)}`);
-  app.querySelector('.actualizar').addEventListener('click', vistaEquipo);
-  app.querySelectorAll('.enlace-clave').forEach((b) => b.addEventListener('click', async () => {
-    const caja = b.closest('section').querySelector('.enlace-generado');
-    try {
-      const r = await api('POST', `/equipo/usuarios/${b.dataset.id}/restablecer`);
-      montar(caja, html`<div class="mensaje info"><p>Mándale este enlace (por ejemplo, por WhatsApp). Sirve una sola vez y durante ${r.horas} horas:</p>
-        <input type="text" readonly class="enlace-copiar" value="${r.enlace}" aria-label="Enlace para cambiar la contraseña"></div>`);
-      const campo = caja.querySelector('input');
-      campo.select();
-      navigator.clipboard?.writeText(r.enlace).catch(() => {});
-    } catch (e) {
-      error(caja, e);
-    }
-  }));
 }
 
 // --- Arranque -----------------------------------------------------------------------------------
