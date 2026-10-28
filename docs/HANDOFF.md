@@ -27,6 +27,15 @@
 
 ---
 
+## 2026-10-28 (34) — Claude — plan: empresas, perfiles, inventario diario, horizonte y boletín
+- **Rama:** `empresas-inventario-diario` (sale de `main` en `06770b4`), solo en local.
+- **Estado:** solo el plan, sin código. `docs/PLAN_EMPRESAS_INVENTARIO.md` tiene las 6 fases, el modelo de datos de cada una, las rutas, las pantallas y las pruebas. Las 8 decisiones (D1 a D8) quedaron acordadas el 2026-10-28 tal como se recomendaron.
+- **Archivos tocados:** `docs/PLAN_EMPRESAS_INVENTARIO.md` (nuevo), esta bitácora.
+- **Base de datos:** sin cambios todavía (el plan lista las tablas y columnas nuevas).
+- **Verificación:** no aplica (no hay código).
+- **Siguiente paso exacto:** fase 0 (rama de Neon solo con el esquema para el entorno *Preview* de Vercel) y después fase 1 (empresas).
+- **Notas y bloqueos:** con D5 se deja atrás la regla "sin cron" del 2026-10-11, solo para el boletín; `CLAUDE.md` se corrige en la fase 6. Nada de esto se despliega en producción mientras un probador siga en sus 14 días.
+
 ## 2026-10-14 (33) — Claude — lo que salió de la primera prueba: proveedores en el pedido, "+" en el paso 3, existencias y etiquetas
 - **Rama:** `main` y `mejoras-modelo`, en los dos repos.
 - **Estado:**
