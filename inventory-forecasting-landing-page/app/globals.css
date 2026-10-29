@@ -50,6 +50,11 @@
   --color-azul-texto: var(--azul-texto);
   --color-verde-borde: var(--verde-borde);
   --color-superficie: var(--superficie);
+  /* Escala de letra de la aplicación (valores en .tema-app). Fuera de la app no se usa. */
+  --text-etiqueta: var(--texto-etiqueta, 0.8rem);
+  --text-nota: var(--texto-nota, 0.875rem);
+  --text-chico: var(--texto-chico, 0.9375rem);
+  --text-cuerpo: var(--texto-cuerpo, 1rem);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -161,6 +166,13 @@
   --verde-fondo: #eaf6ee;
   --verde-borde: #bfe3cb;
   --radius: 0.75rem;
+  /* Letra (retroalimentación de las pruebas: "letra más grande"). Nada por debajo de 0,875 rem
+     salvo las etiquetas en mayúsculas. Con la raíz en 17 px: 13,6 · 14,9 · 15,9 · 17 px.
+     Clases: text-etiqueta, text-nota, text-chico, text-cuerpo. */
+  --texto-etiqueta: 0.8rem;
+  --texto-nota: 0.875rem;
+  --texto-chico: 0.9375rem;
+  --texto-cuerpo: 1rem;
   font-family: var(--fuente-texto), system-ui, -apple-system, 'Segoe UI', sans-serif;
   background-color: var(--background);
   color: var(--foreground);

@@ -25,6 +25,7 @@ function revisarLista(lineas) {
     const codigo = textoCodigo(l.codigo);
     const nombre = l.nombre === null || l.nombre === undefined ? '' : String(l.nombre).trim().slice(0, 200);
     const proveedor = l.proveedor === null || l.proveedor === undefined ? '' : String(l.proveedor).replace(/\s+/g, ' ').trim().slice(0, 80);
+    const nota = l.nota === null || l.nota === undefined ? '' : String(l.nota).replace(/\s+/g, ' ').trim().slice(0, 200);
     const bruto = l.cantidad === null || l.cantidad === undefined ? '' : String(l.cantidad).trim();
     if (!codigo && !bruto && !nombre) return;
     if (!codigo) { errores.push({ fila, mensaje: `La fila ${fila} no tiene código de producto.` }); return; }
@@ -41,8 +42,9 @@ function revisarLista(lineas) {
       previa.filas.push(fila);
       if (!previa.nombre && nombre) previa.nombre = nombre;
       if (!previa.proveedor && proveedor) previa.proveedor = proveedor;
+      if (!previa.nota && nota) previa.nota = nota;
     } else {
-      porClave.set(clave, { codigo, nombre, cantidad, proveedor, filas: [fila] });
+      porClave.set(clave, { codigo, nombre, cantidad, proveedor, nota, filas: [fila] });
     }
   });
 
@@ -54,7 +56,7 @@ function revisarLista(lineas) {
   if (enCero) avisos.push(`${enCero === 1 ? 'Una fila tiene' : `${enCero} filas tienen`} cantidad 0 y no ${enCero === 1 ? 'cuenta' : 'cuentan'} como parte del pedido.`);
 
   return {
-    lineas: [...porClave.values()].map(({ codigo, nombre, cantidad, proveedor }) => ({ codigo, nombre, cantidad, ...(proveedor ? { proveedor } : {}) })),
+    lineas: [...porClave.values()].map(({ codigo, nombre, cantidad, proveedor, nota }) => ({ codigo, nombre, cantidad, ...(proveedor ? { proveedor } : {}), ...(nota ? { nota } : {}) })),
     errores,
     avisos,
   };
@@ -135,6 +137,28 @@ function coherenciaConReporte(comparacion, filasReporte) {
   return { ...cuenta, total: cambios.length, porcentaje: cambios.length ? cuenta.coherentes / cambios.length : null, detalle };
 }
 
+/**
+ * Cuánto del pedido sugerido quedó tal cual: la aceptación del piloto (D16 de
+ * docs/PLAN_ALPHA_02.md). sugerido es la foto que se guardó al crear el pedido; final, lo que la
+ * persona cerró. Es compararListas con la foto en el lugar de la lista inicial.
+ *   sinCambio: líneas sugeridas que quedaron con la misma cantidad
+ *   ajustadas: con otra cantidad · quitadas: las sacó · agregadas: no estaban en lo sugerido
+ */
+function medirAceptacion(sugerido, final) {
+  const c = compararListas(sugerido || [], final || []);
+  const sugeridas = (sugerido || []).length;
+  return {
+    sugeridas,
+    sinCambio: c.iguales,
+    ajustadas: c.conteo.cambiadas,
+    quitadas: c.conteo.quitadas,
+    agregadas: c.conteo.agregadas,
+    porcentaje: sugeridas ? c.iguales / sugeridas : null,
+    magnitud: c.magnitud,
+    cambios: { agregadas: c.agregadas, quitadas: c.quitadas, cambiadas: c.cambiadas },
+  };
+}
+
 function unir(nums) {
   if (nums.length <= 1) return String(nums[0]);
   return `${nums.slice(0, -1).join(', ')} y ${nums[nums.length - 1]}`;
@@ -144,4 +168,4 @@ function formatear(n) {
   return new Intl.NumberFormat('es-CO', { maximumFractionDigits: 3 }).format(n);
 }
 
-module.exports = { revisarLista, compararListas, coherenciaConReporte };
+module.exports = { revisarLista, compararListas, coherenciaConReporte, medirAceptacion };

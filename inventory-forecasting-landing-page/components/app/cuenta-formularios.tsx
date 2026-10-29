@@ -10,7 +10,7 @@ import type { Usuario } from '@/lib/tipos'
 import { Marca } from './marco'
 import { Aviso, Boton, Campo, ErrorLista, claseEntrada } from './ui'
 
-const LEMA = 'Sube lo que exportas de tu programa contable y mira, en semanas de inventario, qué productos se agotan primero y cuáles sobran.'
+const LEMA = 'Suba lo que exporta de su programa contable y vea, en semanas de inventario, qué productos se agotan primero y cuáles sobran.'
 
 function Caja({ titulo, sub = LEMA, children, pie }: { titulo: string; sub?: string; children: ReactNode; pie?: ReactNode }) {
   return (
@@ -63,10 +63,10 @@ export function Entrar() {
   }
   return (
     <Caja
-      titulo="Entra a tu cuenta"
+      titulo="Entre a su cuenta"
       pie={
         <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5">
-          <p><strong>¿Es tu primera vez?</strong> Necesitas una cuenta. Es gratis y toma un minuto.</p>
+          <p><strong>¿Es su primera vez?</strong> Necesita una cuenta. Es gratis y toma un minuto.</p>
           <div className="flex flex-wrap gap-2.5">
             <Link href={`/crear-cuenta${params.get('volver') ? `?volver=${encodeURIComponent(params.get('volver')!)}` : ''}`} className="presionable inline-flex min-h-10 items-center rounded-xl border border-input bg-card px-4 font-semibold hover:bg-muted">Crear una cuenta</Link>
             <Link href="/demo" className="inline-flex min-h-10 items-center px-2 font-semibold text-primary hover:text-primary-hover">Ver un ejemplo</Link>
@@ -79,7 +79,7 @@ export function Entrar() {
         <Campo etiqueta="Contraseña"><input className={claseEntrada} type="password" name="clave" required autoComplete="current-password" /></Campo>
         {error && <ErrorLista mensaje={error.mensaje} lista={error.lista} />}
         <Boton type="submit" variante="primario" disabled={enviando}>{enviando ? 'Entrando…' : 'Entrar'}</Boton>
-        <Link href="/olvide" className="text-center text-[0.95rem] font-semibold text-primary hover:text-primary-hover">¿Olvidaste tu contraseña?</Link>
+        <Link href="/olvide" className="text-center text-cuerpo font-semibold text-primary hover:text-primary-hover">¿Olvidó su contraseña?</Link>
       </form>
     </Caja>
   )
@@ -111,10 +111,10 @@ export function CrearCuenta() {
     })
   }
   const sub = invitacion
-    ? invitada ? `Te invitaron a ${invitada.empresa}. Crea tu cuenta para ver y llevar su inventario.` : 'Revisando tu invitación…'
-    : 'Crea la cuenta de tu empresa. Después invitas a tu equipo desde "Mi empresa".'
+    ? invitada ? `Lo invitaron a ${invitada.empresa}. Cree su cuenta para ver y llevar el inventario de la empresa.` : 'Revisando su invitación…'
+    : 'Cree la cuenta de su empresa. Después invita a su equipo desde "Mi empresa".'
   return (
-    <Caja titulo={invitacion ? 'Únete a tu empresa' : 'Crea tu cuenta'} sub={sub} pie={<p className="text-center">¿Ya tienes cuenta? <Link href="/entrar" className="font-semibold text-primary hover:text-primary-hover">Entra</Link>.</p>}>
+    <Caja titulo={invitacion ? 'Únase a su empresa' : 'Cree su cuenta'} sub={sub} pie={<p className="text-center">¿Ya tiene cuenta? <Link href="/entrar" className="font-semibold text-primary hover:text-primary-hover">Entrar</Link>.</p>}>
       {errorInvitacion ? (
         <div className="flex flex-col gap-4">
           <Aviso tono="error">{errorInvitacion}</Aviso>
@@ -124,21 +124,22 @@ export function CrearCuenta() {
         <form className="flex flex-col gap-4" onSubmit={alEnviar} noValidate>
           {!invitacion && (
             <>
-              <Campo etiqueta="Nombre de tu empresa"><input className={claseEntrada} type="text" name="empresa" required autoComplete="organization" autoFocus /></Campo>
+              <Campo etiqueta="Nombre de su empresa"><input className={claseEntrada} type="text" name="empresa" required autoComplete="organization" autoFocus /></Campo>
               <Campo etiqueta="NIT" nota="(opcional)"><input className={claseEntrada} type="text" name="nit" inputMode="numeric" /></Campo>
             </>
           )}
-          <Campo etiqueta="Tu nombre"><input className={claseEntrada} type="text" name="nombre" required autoComplete="name" autoFocus={Boolean(invitacion)} /></Campo>
+          <Campo etiqueta="Su nombre"><input className={claseEntrada} type="text" name="nombre" required autoComplete="name" autoFocus={Boolean(invitacion)} /></Campo>
+          <Campo etiqueta="Su cargo" nota="(opcional, va en el PDF de sus pedidos)"><input className={claseEntrada} type="text" name="cargo" maxLength={80} placeholder="Por ejemplo, jefe de compras" autoComplete="organization-title" /></Campo>
           <Campo etiqueta="Correo"><input className={claseEntrada} type="email" name="email" required autoComplete="email" defaultValue={invitada?.email || ''} key={invitada?.email || ''} /></Campo>
           <Campo etiqueta="Contraseña" nota="(mínimo 8 caracteres)"><input className={claseEntrada} type="password" name="clave" required minLength={8} autoComplete="new-password" /></Campo>
           <fieldset className="flex flex-col gap-2">
-            <legend className="mb-1 text-[0.95rem] font-semibold">¿Cómo vas a usar SINESC?</legend>
+            <legend className="mb-1 text-cuerpo font-semibold">¿Cómo va a usar SINESC?</legend>
             <ElegirPerfil nombre="perfil" />
-            <span className="text-[0.85rem] text-muted-foreground">Lo cambias cuando quieras, desde el menú.</span>
+            <span className="text-nota text-muted-foreground">Lo puede cambiar cuando quiera, desde el menú.</span>
           </fieldset>
-          <label className="flex items-start gap-2.5 text-[0.95rem]">
+          <label className="flex items-start gap-2.5 text-cuerpo">
             <input type="checkbox" name="boletin" defaultChecked className="mt-1 size-4 accent-[var(--primary)]" />
-            <span>Recibir cada mañana un correo con el estado del inventario. <span className="text-muted-foreground">Te das de baja con un clic.</span></span>
+            <span>Recibir cada mañana un correo con el estado del inventario. <span className="text-muted-foreground">Se da de baja con un clic.</span></span>
           </label>
           {error && <ErrorLista mensaje={error.mensaje} lista={error.lista} />}
           <Boton type="submit" variante="primario" disabled={enviando || Boolean(invitacion && !invitada)}>{enviando ? 'Creando…' : 'Crear cuenta'}</Boton>
@@ -159,7 +160,7 @@ function ElegirPerfil({ nombre }: { nombre: string }) {
       {PERFILES.map((p, i) => (
         <label key={p.id} className="flex cursor-pointer gap-2.5 rounded-xl border border-input p-3 has-[:checked]:border-primary has-[:checked]:bg-secondary">
           <input type="radio" name={nombre} value={p.id} defaultChecked={i === 0} className="mt-1 size-4 accent-[var(--primary)]" />
-          <span className="flex flex-col"><strong>{p.titulo}</strong><span className="text-[0.85rem] text-muted-foreground">{p.texto}</span></span>
+          <span className="flex flex-col"><strong>{p.titulo}</strong><span className="text-nota text-muted-foreground">{p.texto}</span></span>
         </label>
       ))}
     </div>
@@ -178,17 +179,17 @@ export function Olvide() {
     })
   }
   return (
-    <Caja titulo="¿Olvidaste tu contraseña?" sub="Escribe el correo con el que creaste tu cuenta." pie={<p className="text-center"><Link href="/entrar" className="font-semibold text-primary hover:text-primary-hover">Volver a entrar</Link></p>}>
+    <Caja titulo="¿Olvidó su contraseña?" sub="Escriba el correo con el que creó su cuenta." pie={<p className="text-center"><Link href="/entrar" className="font-semibold text-primary hover:text-primary-hover">Volver a entrar</Link></p>}>
       {respuesta === null ? (
         <form className="flex flex-col gap-4" onSubmit={alEnviar} noValidate>
-          <Campo etiqueta="Tu correo"><input className={claseEntrada} type="email" name="email" required autoComplete="email" autoFocus /></Campo>
+          <Campo etiqueta="Su correo"><input className={claseEntrada} type="email" name="email" required autoComplete="email" autoFocus /></Campo>
           {error && <ErrorLista mensaje={error.mensaje} lista={error.lista} />}
           <Boton type="submit" variante="primario" disabled={enviando}>{enviando ? 'Enviando…' : 'Pedir un enlace para cambiarla'}</Boton>
         </form>
       ) : respuesta ? (
-        <Aviso tono="ok">Si hay una cuenta con ese correo, te enviamos un enlace para cambiar la contraseña. Revisa también la carpeta de correo no deseado.</Aviso>
+        <Aviso tono="ok">Si hay una cuenta con ese correo, le enviamos un enlace para cambiar la contraseña. Revise también la carpeta de correo no deseado.</Aviso>
       ) : (
-        <Aviso tono="info">Por ahora no podemos mandarte el enlace por correo. Escríbenos y te mandamos uno para poner una contraseña nueva.</Aviso>
+        <Aviso tono="info">Por ahora no podemos enviarle el enlace por correo. Escríbanos y le enviamos uno para poner una contraseña nueva.</Aviso>
       )}
     </Caja>
   )
@@ -207,10 +208,10 @@ export function Restablecer({ token }: { token: string }) {
     })
   }
   return (
-    <Caja titulo="Pon una contraseña nueva" sub="Con ella vuelves a entrar desde cualquier computador.">
+    <Caja titulo="Ponga una contraseña nueva" sub="Con ella vuelve a entrar desde cualquier computador.">
       <form className="flex flex-col gap-4" onSubmit={alEnviar} noValidate>
         <Campo etiqueta="Contraseña nueva" nota="(mínimo 8 caracteres)"><input className={claseEntrada} type="password" name="clave" required autoComplete="new-password" autoFocus /></Campo>
-        <Campo etiqueta="Escríbela otra vez"><input className={claseEntrada} type="password" name="repetida" required autoComplete="new-password" /></Campo>
+        <Campo etiqueta="Escríbala otra vez"><input className={claseEntrada} type="password" name="repetida" required autoComplete="new-password" /></Campo>
         {error && <ErrorLista mensaje={error.mensaje} lista={error.lista} />}
         <Boton type="submit" variante="primario" disabled={enviando}>{enviando ? 'Guardando…' : 'Guardar y entrar'}</Boton>
       </form>

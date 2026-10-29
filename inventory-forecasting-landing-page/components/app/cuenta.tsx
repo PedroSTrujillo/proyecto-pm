@@ -32,7 +32,7 @@ export function Cuenta() {
     e.preventDefault()
     const d = Object.fromEntries(new FormData(e.currentTarget)) as Record<string, string>
     try {
-      const r = await api<{ usuario: Usuario }>('PUT', '/cuenta/datos', { nombre: d.nombre, sistema: d.sistema || null })
+      const r = await api<{ usuario: Usuario }>('PUT', '/cuenta/datos', { nombre: d.nombre, cargo: d.cargo, sistema: d.sistema || null })
       fijar(r.usuario)
       setMsgDatos({ ok: 'Guardado.' })
     } catch (err) {
@@ -46,7 +46,7 @@ export function Cuenta() {
     try {
       await api('PUT', '/cuenta/clave', Object.fromEntries(new FormData(form)))
       form.reset()
-      setMsgClave({ ok: 'Contraseña actualizada. En otros equipos tendrás que volver a entrar.' })
+      setMsgClave({ ok: 'Contraseña actualizada. En otros equipos tendrá que volver a entrar.' })
     } catch (err) {
       setMsgClave({ error: textoErrores(err) })
     }
@@ -57,13 +57,14 @@ export function Cuenta() {
       <Titulo>Mi cuenta</Titulo>
       <div className="grid items-start gap-5 lg:grid-cols-2">
         <Tarjeta className="p-5 sm:p-6">
-          <h2 className="mb-4 text-xl font-bold">Tus datos</h2>
+          <h2 className="mb-4 text-xl font-bold">Sus datos</h2>
           <form className="flex flex-col gap-4" onSubmit={guardarDatos} noValidate>
             <Campo etiqueta="Nombre"><input className={claseEntrada} name="nombre" required defaultValue={usuario.nombre} autoComplete="name" /></Campo>
+            <Campo etiqueta="Cargo" nota="(va en el PDF de sus pedidos)"><input className={claseEntrada} name="cargo" defaultValue={usuario.cargo} maxLength={80} placeholder="Por ejemplo, jefe de compras" autoComplete="organization-title" /></Campo>
             <Campo etiqueta="Correo"><input className={claseEntrada} type="email" value={usuario.email} disabled /></Campo>
             <Campo etiqueta="Programa contable">
               <select className={claseEntrada} name="sistema" defaultValue={usuario.sistema || ''}>
-                <option value="">Elige una opción</option>
+                <option value="">Elija una opción</option>
                 {SISTEMAS.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
               </select>
             </Campo>
@@ -83,12 +84,12 @@ export function Cuenta() {
           </form>
         </Tarjeta>
         <Tarjeta className="flex flex-col gap-4 p-5 sm:p-6">
-          <h2 className="text-xl font-bold">Cómo usas SINESC</h2>
+          <h2 className="text-xl font-bold">Cómo usa SINESC</h2>
           <SelectorPerfil />
           <div className="flex flex-col gap-2">
-            <span className="text-[0.95rem] font-semibold">Para cuánto te alcanza, en</span>
+            <span className="text-cuerpo font-semibold">Para cuánto alcanza, en</span>
             <SelectorTiempo conHorizonte />
-            <p className="text-[0.85rem] text-muted-foreground">El cálculo es el mismo; solo cambia cómo se dice. 2 semanas son 14 días o medio mes.</p>
+            <p className="text-nota text-muted-foreground">El cálculo es el mismo; solo cambia cómo se dice. 2 semanas son 14 días o medio mes.</p>
           </div>
         </Tarjeta>
         <Tarjeta className="flex flex-col gap-4 p-5 sm:p-6">
@@ -97,7 +98,7 @@ export function Cuenta() {
             <input type="checkbox" checked={usuario.boletin} onChange={(e) => cambiarBoletin(e.target.checked)} className="mt-1 size-5 accent-[var(--primary)]" />
             <span>
               <strong>Recibir cada mañana el estado del inventario</strong>
-              <span className="block text-[0.9rem] text-muted-foreground">Llega a {usuario.email} hacia las 6 a. m. Dice qué está en cero, qué se va a agotar y qué cambió desde ayer{usuario.perfil === 'analista' ? ', con el sugerido y lo que hay que pedir por proveedor' : ''}. Llega cuando tu empresa ya tiene inventario.</span>
+              <span className="block text-chico text-muted-foreground">Llega a {usuario.email} hacia las 6 a. m. Dice qué está en cero, qué se va a agotar y qué cambió desde ayer{usuario.perfil === 'analista' ? ', con el sugerido y lo que hay que pedir por proveedor' : ''}. Llega cuando su empresa ya tiene inventario.</span>
             </span>
           </label>
           {msgBoletin && <ErrorLista mensaje={msgBoletin.mensaje} lista={msgBoletin.lista} />}

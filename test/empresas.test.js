@@ -116,7 +116,7 @@ test('los usuarios de antes de las empresas quedan cada uno con su empresa vací
 test('una cuenta nueva siempre entra a una empresa: la que crea o la de su invitación', async () => {
   const sin = await cliente().post('/api/cuenta/crear', { nombre: 'Sin', email: 'sin@prueba.co', clave: 'clave-segura' });
   assert.equal(sin.estado, 400);
-  assert.match(sin.error, /nombre de tu empresa/);
+  assert.match(sin.error, /nombre de su empresa/);
 
   const { c: ana, usuario } = await cuenta('Ana', 'ana@prueba.co', { empresa: 'Ferretería Ana', perfil: 'operador', boletin: true });
   assert.deepEqual({ ...usuario.empresa, id: undefined }, { id: undefined, nombre: 'Ferretería Ana', vacia: false, admin: true });

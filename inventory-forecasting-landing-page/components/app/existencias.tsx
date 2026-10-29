@@ -18,6 +18,10 @@ type Kardex = { producto: ProductoCatalogo; inicial: { fecha: string; existencia
 
 const MAX_FILAS = 300
 
+
+// Para qué sirve el conteo, dicho antes de que la persona lo use.
+const CONTEO = 'Si lo que hay en la bodega no coincide, haga un conteo: las existencias quedan en lo que usted cuente.'
+
 export function Existencias() {
   const { inventario, recargar } = useInventario()
   const [datos, setDatos] = useState<TExistencias | null>(null)
@@ -64,8 +68,8 @@ export function Existencias() {
       <Titulo
         sub={
           datos.base
-            ? `Las del archivo con ventas hasta el ${dia(datos.base.hasta)}${datos.movimientos ? `, más ${datos.movimientos === 1 ? '1 movimiento registrado' : `${numero(datos.movimientos)} movimientos registrados`} después` : ''}.`
-            : datos.movimientos ? 'Salen solo de los movimientos registrados.' : 'Todavía no hay archivo ni movimientos.'
+            ? `Las del archivo con ventas hasta el ${dia(datos.base.hasta)}${datos.movimientos ? `, más ${datos.movimientos === 1 ? '1 movimiento registrado' : `${numero(datos.movimientos)} movimientos registrados`} después` : ''}. ${CONTEO}`
+            : datos.movimientos ? `Salen solo de los movimientos registrados. ${CONTEO}` : 'Todavía no hay archivo ni movimientos.'
         }
         acciones={
           <>
@@ -83,24 +87,24 @@ export function Existencias() {
       {msg?.error && <ErrorLista mensaje={msg.error.mensaje} lista={msg.error.lista} />}
       {contando && (
         <Aviso tono="info" titulo="Conteo físico">
-          Escribe lo que contaste en cada producto (los que dejes vacíos no cambian). Al guardar, las existencias quedan en esa cantidad con fecha de hoy.
+          Escriba lo que contó en cada producto (los que deje vacíos no cambian). Al guardar, las existencias quedan en esa cantidad con fecha de hoy.
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <Boton variante="primario" tamano="chico" disabled={!contados.length} onClick={guardarConteo}>Guardar conteo{contados.length ? ` (${contados.length})` : ''}</Boton>
           </div>
         </Aviso>
       )}
 
-      <div className={cn('grid items-start gap-5', abierto && 'xl:grid-cols-[minmax(0,1fr)_24rem]')}>
+      <div className={cn('grid grid-cols-1 items-start gap-5', abierto && 'xl:grid-cols-[minmax(0,1fr)_24rem]')}>
         <Tarjeta className="p-4 sm:p-5">
           <input className={cn(claseEntrada, 'mb-3')} placeholder="Buscar por código o nombre" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Buscar producto" />
           {filas.length === 0 ? <p className="text-muted-foreground">No hay productos{q ? ' con esa búsqueda' : ''}.</p> : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[520px] border-separate border-spacing-0 text-[0.95rem]" data-privado>
+              <table className="w-full min-w-[520px] border-separate border-spacing-0 text-cuerpo" data-privado>
                 <thead>
                   <tr className="text-left text-sm text-muted-foreground">
                     <th scope="col" className="border-b border-border px-2 py-2 font-semibold">Producto</th>
-                    <th scope="col" className="border-b border-border px-2 py-2 text-right font-semibold">Tienes</th>
-                    {contando && <th scope="col" className="border-b border-border px-2 py-2 text-right font-semibold">Contaste</th>}
+                    <th scope="col" className="border-b border-border px-2 py-2 text-right font-semibold">Existencias</th>
+                    {contando && <th scope="col" className="border-b border-border px-2 py-2 text-right font-semibold">Conteo</th>}
                     <th scope="col" className="hidden border-b border-border px-2 py-2 font-semibold sm:table-cell">Último movimiento</th>
                   </tr>
                 </thead>
@@ -115,13 +119,13 @@ export function Existencias() {
                           <button type="button" className="text-left" onClick={() => setAbierto(p.codigo)}>
                             <strong>{p.codigo}</strong> <span className="text-muted-foreground">{p.nombre}</span>
                           </button>
-                          {inv && inv.estado === 'agota' && <span className="block text-[0.82rem] font-semibold text-rojo-texto">{inv.existencias <= 0 ? 'Agotado' : 'Se va a agotar'}</span>}
+                          {inv && inv.estado === 'agota' && <span className="block text-nota font-semibold text-rojo-texto">{inv.existencias <= 0 ? 'Agotado' : 'Se va a agotar'}</span>}
                         </td>
                         <td className={cn('border-b border-[#f0f1ee] px-2 py-2.5 text-right font-semibold tabular-nums', p.existencias < 0 && 'text-rojo')}>{numero(p.existencias, 2)}{p.unidad ? <span className="ml-1 text-sm font-normal text-muted-foreground">{p.unidad}</span> : null}</td>
                         {contando && (
                           <td className="border-b border-[#f0f1ee] px-2 py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
-                            <input className={cn(claseEntrada, 'ml-auto min-h-9 w-24 text-right')} inputMode="decimal" value={v} onChange={(e) => setConteo((c) => ({ ...c, [p.codigo]: e.target.value }))} aria-label={`Contaste de ${p.codigo}`} />
-                            {diferencia !== null && diferencia !== 0 && <span className={cn('block text-[0.78rem] font-semibold', diferencia < 0 ? 'text-rojo-texto' : 'text-azul-texto')}>{diferencia > 0 ? '+' : ''}{numero(diferencia, 2)}</span>}
+                            <input className={cn(claseEntrada, 'ml-auto min-h-9 w-24 text-right')} inputMode="decimal" value={v} onChange={(e) => setConteo((c) => ({ ...c, [p.codigo]: e.target.value }))} aria-label={`Conteo de ${p.codigo}`} />
+                            {diferencia !== null && diferencia !== 0 && <span className={cn('block text-nota font-semibold', diferencia < 0 ? 'text-rojo-texto' : 'text-azul-texto')}>{diferencia > 0 ? '+' : ''}{numero(diferencia, 2)}</span>}
                           </td>
                         )}
                         <td className="hidden border-b border-[#f0f1ee] px-2 py-2.5 text-sm text-muted-foreground sm:table-cell">{p.ultimo ? `${TEXTO_TIPO[p.ultimo.tipo]} de ${numero(p.ultimo.cantidad, 2)} · ${dia(p.ultimo.fecha)}` : '—'}</td>
@@ -130,7 +134,7 @@ export function Existencias() {
                   })}
                 </tbody>
               </table>
-              {filas.length > MAX_FILAS && <p className="mt-2 text-sm text-muted-foreground">Se muestran {MAX_FILAS} de {numero(filas.length)}. Busca para encontrar los demás.</p>}
+              {filas.length > MAX_FILAS && <p className="mt-2 text-sm text-muted-foreground">Se muestran {MAX_FILAS} de {numero(filas.length)}. Use el buscador para encontrar los demás.</p>}
             </div>
           )}
         </Tarjeta>
@@ -158,14 +162,14 @@ function FichaKardex({ codigo, cerrar }: { codigo: string; cerrar: () => void })
       </div>
       {error ? <ErrorLista mensaje={error} /> : !k ? <Cargando /> : (
         <>
-          <p><span className="text-muted-foreground">Hoy tienes</span> <strong className="font-display text-2xl tabular-nums">{numero(k.existencias, 2)}</strong></p>
-          <ol className="flex flex-col divide-y divide-border text-[0.92rem]" data-privado>
+          <p><span className="text-muted-foreground">Existencias hoy</span> <strong className="font-display text-2xl tabular-nums">{numero(k.existencias, 2)}</strong></p>
+          <ol className="flex flex-col divide-y divide-border text-chico" data-privado>
             {k.filas.length === 0 && <li className="py-2 text-muted-foreground">Sin movimientos registrados.</li>}
             {k.filas.map((f) => (
               <li key={f.id} className={cn('flex items-baseline justify-between gap-3 py-2', !f.cuenta && 'text-muted-foreground')}>
                 <span className={cn(f.anulado && 'line-through')}>
                   {dia(f.fecha)} · {TEXTO_TIPO[f.tipo]} de {numero(f.cantidad, 2)}
-                  {!f.cuenta && <span className="block text-[0.78rem] no-underline">{f.anulado ? 'Anulado' : 'Ya estaba en el archivo'}</span>}
+                  {!f.cuenta && <span className="block text-nota no-underline">{f.anulado ? 'Anulado' : 'Ya estaba en el archivo'}</span>}
                 </span>
                 <strong className="tabular-nums">{f.saldo === null ? '' : numero(f.saldo, 2)}</strong>
               </li>

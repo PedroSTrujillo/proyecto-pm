@@ -4,7 +4,9 @@
 // producto para el usuario y no tiene pantallas con datos de otras cuentas (server/equipo.js).
 //
 //   npm run resultados                                  veredicto, cada probador y sus respuestas
-//   npm run resultados -- --json                        todo, en JSON (para guardarlo o analizarlo)
+//   npm run resultados -- --piloto                      el piloto de Alpha 0.2: aceptación, satisfacción y uso
+//   npm run resultados -- --json                        todo, en JSON (la prueba de Alpha 0.1 y el piloto)
+//   npm run resultados -- --encuesta abrir [--email x]  la encuesta de satisfacción aparece a todos (o a uno)
 //   npm run resultados -- --errores                     los últimos errores que vio alguien
 //   npm run resultados -- --clasificar 12 dato          el "¿por qué?" del pedido 12: dato | probar | ninguna
 //   npm run resultados -- --anular 12 "No era un pedido"
@@ -31,6 +33,20 @@ const CATEGORIAS = {
   sin_pedido: 'sin lista final en sus 14 días',
 };
 
+const TITULOS_PILOTO = {
+  meta_cumplida: 'Se cumplió la meta',
+  meta_no_cumplida: 'No se cumplió la meta',
+  en_curso: 'Todavía no hay resultado',
+};
+const CATEGORIAS_PILOTO = {
+  cumple: 'cumple',
+  en_curso: 'en curso',
+  incompleto: 'terminó sin aceptación o sin encuesta',
+  no_cumple: 'no cumple',
+  sin_pedido: 'sin pedido desde lo sugerido',
+};
+const pct = (x) => (x === null || x === undefined ? '—' : `${Math.round(x * 100)} %`);
+
 const dia = (f) => (f ? new Date(f).toLocaleDateString('es-CO', { timeZone: 'America/Bogota', day: 'numeric', month: 'short' }) : '—');
 
 function imprimir({ resumen: r, usuarios, generadoEn }) {
@@ -53,6 +69,31 @@ function imprimir({ resumen: r, usuarios, generadoEn }) {
       const marca = e.mejor && e.mejor.id === p.id ? ' ← cuenta' : '';
       console.log(`  #${p.id} ${p.tipo} · ${estado} · ${lineas}${p.coherencia && p.coherencia.porcentaje !== null ? ` · ${Math.round(p.coherencia.porcentaje * 100)}% en la dirección del reporte` : ''}${marca}`);
       if (p.porQue) console.log(`      ¿Por qué?: "${p.porQue.replace(/\s+/g, ' ')}"${p.clasificacion ? ` [${p.clasificacion}]` : ' [sin clasificar]'}`);
+    }
+    console.log('');
+  }
+}
+
+function imprimirPiloto({ resumen: r, usuarios, generadoEn }) {
+  const g = r.reglas;
+  console.log(`Piloto de Alpha 0.2 · ${new Date(generadoEn).toLocaleString('es-CO', { timeZone: 'America/Bogota' })}`);
+  console.log(`Meta (provisional): ${g.metaUsuarios} de ${g.total} califican ${g.metaSatisfaccion} o más sobre 5 y aceptan sin cambios el ${pct(g.metaAceptacion)} de las líneas sugeridas, en ${g.dias} días.\n`);
+  console.log(`Veredicto: ${TITULOS_PILOTO[r.veredicto]}`);
+  console.log(`  Cumplen: ${r.cumplen} de ${r.usuarios} en el piloto · ventana cerrada: ${r.terminaron}`);
+  console.log(`  Aceptación de todas las líneas: ${pct(r.aceptacion)} · satisfacción promedio: ${r.satisfaccionPromedio === null ? '—' : r.satisfaccionPromedio.toFixed(1)} · uso promedio: ${pct(r.usoPromedio)} de los días hábiles\n`);
+  for (const u of usuarios) {
+    const p = u.piloto;
+    if (p.categoria === 'sin_pedido' && !u.comentarios.length) continue;
+    console.log(`${u.nombre} <${u.email}>${u.empresa ? ` · ${u.empresa}` : ''} · ${CATEGORIAS_PILOTO[p.categoria]}`);
+    if (p.inicio) console.log(`  Sus ${g.dias} días: ${dia(p.inicio)} – ${dia(p.fin)} · aceptación ${pct(p.aceptacion)} (${p.sinCambio} de ${p.sugeridas} en ${p.pedidos} pedidos) · satisfacción ${p.satisfaccion ?? '—'} · uso ${pct(p.uso)} (${p.diasConMovimientos} de ${p.diasHabiles} días hábiles)`);
+    for (const c of u.comentarios) console.log(`  Encuesta (${c.puntaje}): "${c.comentario.replace(/\s+/g, ' ')}"`);
+    for (const x of u.pedidos) {
+      const estado = x.borrado ? 'borrado' : x.anulado ? 'anulado' : x.terminadoEn ? `cerrado el ${dia(x.terminadoEn)}` : 'abierto';
+      const a = x.aceptacion ? ` · ${x.aceptacion.sinCambio} de ${x.aceptacion.sugeridas} sin cambio, ${x.aceptacion.ajustadas} ajustadas, ${x.aceptacion.quitadas} quitadas, ${x.aceptacion.agregadas} agregadas` : '';
+      const o = x.ocurrido && x.ocurrido.estado === 'medido'
+        ? ` · lo vendido cayó en el rango en ${x.ocurrido.dentro} de ${x.ocurrido.productos} (debajo ${x.ocurrido.debajo}, encima ${x.ocurrido.encima})`
+        : x.ocurrido && x.ocurrido.estado === 'pendiente' ? ' · todavía no pasa el tiempo que cubría' : '';
+      console.log(`  #${x.id} ${estado}${a}${o}`);
     }
     console.log('');
   }
@@ -84,13 +125,20 @@ async function main() {
   } else if ((v = opcion('--restablecer'))) {
     const r = await equipo.enlaceRestablecer(v[0]);
     console.log(`Enlace para ${v[0]} (sirve una vez, ${r.horas} horas):\n${r.enlace}`);
+  } else if ((v = opcion('--encuesta'))) {
+    if (v[0] !== 'abrir') throw new Error('Uso: npm run resultados -- --encuesta abrir [--email correo]');
+    const email = opcion('--email') ? opcion('--email')[0] : null;
+    const n = await equipo.abrirEncuesta(email);
+    console.log(email ? `La encuesta le aparece a ${email} la próxima vez que entre.` : `La encuesta les aparece a ${n} usuarios la próxima vez que entren.`);
+  } else if (opcion('--piloto')) {
+    imprimirPiloto(await equipo.piloto());
   } else if (opcion('--errores')) {
     const lista = await equipo.erroresRecientes();
     if (!lista.length) console.log('No hay errores registrados.');
     for (const e of lista) console.log(`${new Date(e.en).toISOString()} · ${e.origen} · ${e.email || 'sin sesión'} · ${e.ruta || ''}\n  ${e.mensaje}`);
   } else {
     const r = await equipo.resultados();
-    if (opcion('--json')) console.log(JSON.stringify(r, null, 2));
+    if (opcion('--json')) console.log(JSON.stringify({ ...r, piloto: await equipo.piloto() }, null, 2));
     else imprimir(r);
   }
   await db.cerrar();

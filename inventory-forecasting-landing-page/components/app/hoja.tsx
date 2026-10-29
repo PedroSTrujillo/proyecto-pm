@@ -213,14 +213,14 @@ export const Hoja = forwardRef<HojaApi, Props>(function Hoja({ inicial, soloLect
     const v = x.valor(f)
     const a = x.accion ? x.accion(f, i) : null
     return (
-      <td key={x.titulo} className={cn('border-l border-border px-2.5 py-2 text-[0.9rem] whitespace-nowrap', v.clase)}>
+      <td key={x.titulo} className={cn('border-l border-border px-2.5 py-2 text-chico whitespace-nowrap', v.clase)}>
         <span className="inline-flex items-center gap-2">
           <span className="leading-tight">
             {x.alClic && v.texto ? <button type="button" onClick={() => x.alClic!(f)} className="underline decoration-dotted underline-offset-4 hover:decoration-solid">{v.texto}</button> : v.texto}
-            {v.sub && <span className={cn('block text-[0.76rem] font-normal', v.claseSub ?? 'text-muted-foreground')}>{v.sub}</span>}
+            {v.sub && <span className={cn('block text-nota font-normal', v.claseSub ?? 'text-muted-foreground')}>{v.sub}</span>}
           </span>
           {a && (
-            <button type="button" title={a.titulo} onClick={a.alClic} className="presionable rounded-md border border-primary/40 bg-card px-2 py-0.5 text-[0.78rem] font-semibold text-primary hover:bg-primary hover:text-primary-foreground">
+            <button type="button" title={a.titulo} onClick={a.alClic} className="presionable rounded-md border border-primary/40 bg-card px-2 py-0.5 text-nota font-semibold text-primary hover:bg-primary hover:text-primary-foreground">
               {a.texto}
             </button>
           )}
@@ -235,8 +235,8 @@ export const Hoja = forwardRef<HojaApi, Props>(function Hoja({ inicial, soloLect
     <div className="flex flex-col gap-2">
       {conProveedor && <datalist id={listaProveedores}>{proveedores.map((p) => <option key={p} value={p} />)}</datalist>}
       <div className="overflow-x-auto rounded-xl border border-border">
-        <table ref={tabla} className="w-full border-collapse text-[0.95rem]" style={{ minWidth: 520 + (conProveedor ? 160 : 0) + (extras.length + extrasAntes.length) * 80 }}>
-          <thead className="bg-muted text-left text-[0.82rem] text-muted-foreground">
+        <table ref={tabla} className="w-full border-collapse text-cuerpo" style={{ minWidth: 520 + (conProveedor ? 160 : 0) + (extras.length + extrasAntes.length) * 80 }}>
+          <thead className="bg-muted text-left text-nota text-muted-foreground">
             <tr>
               <th className="w-10 px-2 py-2 text-center font-semibold">#</th>
               <th className={cn('px-2.5 py-2 font-semibold', extras.length + extrasAntes.length > 2 ? 'w-28' : 'w-40')}>Código</th>
@@ -255,7 +255,7 @@ export const Hoja = forwardRef<HojaApi, Props>(function Hoja({ inicial, soloLect
               const invalida = f.cantidad !== '' && !pareceNumero(f.cantidad)
               return (
                 <tr key={i} data-i={i} className={cn('border-t border-border', claseFila?.(f), errores.has(i) && 'bg-rojo-fondo')}>
-                  <td className="px-2 text-center text-[0.8rem] text-muted-foreground tabular-nums">{i + 1}</td>
+                  <td className="px-2 text-center text-nota text-muted-foreground tabular-nums">{i + 1}</td>
                   {soloLectura ? (
                     <>
                       <td className="px-2.5 py-2">{f.codigo}</td>

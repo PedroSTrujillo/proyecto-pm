@@ -25,7 +25,13 @@ function nombreHoja(nombre, usadas) {
   return n;
 }
 
-async function libroDePedido({ empresa, fecha, lineas }) {
+// "Ana Pérez (Jefe de compras)"
+const persona = (p) => (p && p.nombre ? `${p.nombre}${p.cargo ? ` (${p.cargo})` : ''}` : '');
+
+// Del pedido guardado llegan también numero, observaciones, la nota de cada línea, preparadoPor y
+// aprobadoPor ({ nombre, cargo, fecha }) y el logo de la empresa (server/pedidos.js).
+async function libroDePedido({ empresa, fecha, lineas, numero = null, preparadoPor = null, aprobadoPor = null, observaciones = '', logo = null }) {
+  const preparo = typeof preparadoPor === 'string' ? { nombre: preparadoPor } : preparadoPor;
   const libro = X.nuevoLibro();
   const porProveedor = new Map();
   for (const l of lineas) {
@@ -36,10 +42,12 @@ async function libroDePedido({ empresa, fecha, lineas }) {
   const conCosto = lineas.some((l) => l.costo > 0);
   const quien = empresa || 'mi empresa';
 
+  const conNota = lineas.some((l) => l.nota);
   const { hoja: resumen, inicio } = X.hojaConMarca(libro, 'Resumen', {
-    titulo: `Pedido de ${quien}`,
-    subtitulo: `Preparado con SINESC el ${fecha}`,
+    titulo: numero ? `Pedido ${numero} de ${quien}` : `Pedido de ${quien}`,
+    subtitulo: `Preparado con SINESC el ${fecha}${preparo && preparo.nombre ? ` por ${persona(preparo)}` : ''}`,
     anchos: [38, 12, 14, 18],
+    logo,
   });
   const filas = [...porProveedor].map(([p, ls]) => [
     p,
@@ -50,24 +58,31 @@ async function libroDePedido({ empresa, fecha, lineas }) {
   const formatos = ['', 'entero', 'entero', 'plata'];
   const fin = X.tabla(resumen, inicio, ['Proveedor', 'Líneas', 'Unidades', ...(conCosto ? ['Valor a costo'] : [])], filas, formatos);
   X.filaTotal(resumen, fin + 1, ['Total', lineas.length, lineas.reduce((s, l) => s + l.cantidad, 0), ...(conCosto ? [lineas.reduce((s, l) => s + l.cantidad * (l.costo || 0), 0)] : [])], formatos);
-  X.parrafos(resumen, fin + 4, ['Aprobado por: ______________________________        Fecha: ______________']);
+  X.parrafos(resumen, fin + 4, [
+    ...(observaciones ? [`Observaciones: ${observaciones}`, ''] : []),
+    ...(preparo && preparo.nombre ? [`Preparado por: ${persona(preparo)}${preparo.fecha ? `        Fecha: ${preparo.fecha}` : ''}`] : []),
+    aprobadoPor
+      ? `Aprobado por: ${persona(aprobadoPor)}        Fecha: ${aprobadoPor.fecha}`
+      : 'Aprobado por: ______________________________        Fecha: ______________',
+  ]);
 
   const usadas = new Set(['resumen']);
   for (const [p, ls] of porProveedor) {
     const { hoja, inicio: i } = X.hojaConMarca(libro, nombreHoja(p, usadas), {
       titulo: p,
-      subtitulo: `Pedido de ${quien} · ${fecha}`,
-      anchos: [16, 48, 12, ...(conCosto ? [16, 16] : [])],
+      subtitulo: `${numero ? `Pedido ${numero}` : 'Pedido'} de ${quien} · ${fecha}`,
+      anchos: [16, 48, 12, ...(conCosto ? [16, 16] : []), ...(conNota ? [40] : [])],
+      logo,
     });
-    const f = ['', '', 'entero', 'plata', 'plata'];
+    const f = ['', '', 'entero', ...(conCosto ? ['plata', 'plata'] : []), ''];
     const final = X.tabla(
       hoja,
       i,
-      ['Código', 'Producto', 'Cantidad', ...(conCosto ? ['Costo unitario', 'Valor'] : [])],
-      ls.map((l) => [l.codigo, l.nombre, l.cantidad, ...(conCosto ? [l.costo || null, l.costo ? l.cantidad * l.costo : null] : [])]),
+      ['Código', 'Producto', 'Cantidad', ...(conCosto ? ['Costo unitario', 'Valor'] : []), ...(conNota ? ['Nota'] : [])],
+      ls.map((l) => [l.codigo, l.nombre, l.cantidad, ...(conCosto ? [l.costo || null, l.costo ? l.cantidad * l.costo : null] : []), ...(conNota ? [l.nota || ''] : [])]),
       f,
     );
-    X.filaTotal(hoja, final + 1, ['Total', '', ls.reduce((s, l) => s + l.cantidad, 0), ...(conCosto ? ['', ls.reduce((s, l) => s + l.cantidad * (l.costo || 0), 0)] : [])], f);
+    X.filaTotal(hoja, final + 1, ['Total', '', ls.reduce((s, l) => s + l.cantidad, 0), ...(conCosto ? ['', ls.reduce((s, l) => s + l.cantidad * (l.costo || 0), 0)] : []), ...(conNota ? [''] : [])], f);
   }
   return X.aBuffer(libro);
 }
@@ -77,7 +92,7 @@ async function libroDeMinimos(productos) {
   const fecha = X.fechaHoy();
   const { hoja, inicio } = X.hojaConMarca(libro, 'Minimos y maximos', {
     titulo: 'Mínimos y máximos',
-    subtitulo: `Calculados con SINESC el ${fecha}. Cambian con tus ventas: actualízalos cada mes.`,
+    subtitulo: `Calculados con SINESC el ${fecha}. Cambian con sus ventas: actualícelos cada mes.`,
     anchos: [16, 46, 28, 15, 11, 11, 17],
   });
   X.tabla(
@@ -93,8 +108,8 @@ async function libroDeMinimos(productos) {
     anchos: [6, 110],
   });
   X.parrafos(notas, n, [
-    'Mínimo: lo que se vende mientras llega un pedido, en 9 de cada 10 casos. Cuando tengas el mínimo o menos, pide.',
-    'Máximo: hasta dónde pedir para cubrir la entrega y el tiempo hasta tu siguiente pedido.',
+    'Mínimo: lo que se vende mientras llega un pedido, en 9 de cada 10 casos. Cuando tenga el mínimo o menos, pida.',
+    'Máximo: hasta dónde pedir para cubrir la entrega y el tiempo hasta su siguiente pedido.',
     'Casi todos los programas contables tienen estos dos campos por producto y avisan cuando se baja del mínimo.',
   ]);
   return X.aBuffer(libro);

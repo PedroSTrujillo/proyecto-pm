@@ -7,7 +7,7 @@
 //   GET  /api/inventario            el inventario de la empresa: el último archivo y los movimientos
 //                                   registrados después (?horizonte= semanas del pronóstico)
 //   PUT  /api/inventario/ajustes    tiempos de entrega por proveedor y cada cuánto pide
-//   POST /api/inventario/export     subir un archivo nuevo sin estar en un pedido (+ columnas, documentos, periodo)
+//   POST /api/inventario/export     subir un archivo nuevo sin estar en un pedido (+ columnas, documentos, canales, periodo)
 //
 // Regla de la prueba: un probador solo puede subir su inventario por fuera de un pedido después
 // de guardar su primera lista inicial. Si lo viera antes, su primera lista ya no sería "lo que
@@ -17,14 +17,16 @@
 const express = require('express');
 const db = require('./db');
 const { requiereUsuario, registrarEvento, ErrorUsuario, leerPreferencias } = require('./cuentas');
-const { procesarExport, leerPeriodo, leerMapeoManual, subida, archivoSubido, leerDocumentos } = require('./pedidos');
+const { procesarExport, leerPeriodo, leerMapeoManual, subida, archivoSubido, leerDocumentos, leerCanales, mapeosDe } = require('./pedidos');
 const { DIAS_PRUEBA } = require('./equipo');
 const { leerExport } = require('./lector');
 const { seriesSemanales } = require('./series');
-const { construirInventario, leerAjustes, resumirParaOperador } = require('./inventario');
-const { inventarioAlDia, agregarAlCatalogo } = require('./movimientos');
+const { construirInventario, leerAjustes, resumirParaOperador, DIAS_HABILES_SEMANA } = require('./inventario');
+const { claveCodigo, leerNumero } = require('./valores');
+const { inventarioAlDia, agregarAlCatalogo, catalogoConEscrito } = require('./movimientos');
 const { inventarioDemo, sectores } = require('./demo');
 const { estadoDe } = require('./recordatorios');
+const { enCaminoDe, firmaEnCamino } = require('./recepcion');
 
 // --- Demo (sin cuenta) -------------------------------------------------------------------
 
@@ -72,8 +74,11 @@ async function permisos(usuario) {
   const terminada = Boolean(fin && Date.now() > fin.getTime());
   // Desde el 2026-10-14 (decisión del equipo) el probador ve todo desde el primer día: el reporte,
   // el pronóstico y la cantidad sugerida. La ventana de 14 días de la prueba no cambia.
+  // Desde el 2026-10-29 (D9 y D10 de docs/PLAN_ALPHA_02.md) la prueba de Alpha 0.1 está cerrada y
+  // el pedido por defecto arranca con lo sugerido: cualquiera sube su inventario desde el comienzo,
+  // sin la lista inicial de un pedido de 5 pasos.
   return {
-    puedeSubir: Boolean(inicio),
+    puedeSubir: true,
     sugerencias: true,
     alcance: 'completo',
     finPrueba: terminada ? null : fin,
@@ -84,7 +89,7 @@ async function permisos(usuario) {
 // calculado con los movimientos del día (origen 'movimientos').
 async function ultimoExport(empresaId) {
   return db.uno(
-    `SELECT id, usuario_id, pedido_id, subido_en, reporte, series, catalogo, periodo, documentos, origen, movimientos, base_export_id
+    `SELECT id, usuario_id, pedido_id, subido_en, reporte, series, catalogo, periodo, documentos, canales, origen, movimientos, base_export_id
        FROM exports WHERE empresa_id = $1 AND estado = 'ok' AND ${db.EXPORT_VIGENTE} ORDER BY subido_en DESC, id DESC LIMIT 1`,
     [empresaId],
   );
@@ -96,13 +101,12 @@ async function completarSeries(e) {
   if (e.series || (e.reporte && e.reporte.periodo && e.reporte.periodo.totales)) return e;
   const archivos = await db.query('SELECT nombre, contenido FROM archivos WHERE export_id = $1 ORDER BY id', [e.id]);
   if (!archivos.length) return e;
-  // Las columnas que recordó quien subió el archivo (puede ser otra persona de la empresa).
-  const u = await db.uno('SELECT mapeos FROM usuarios WHERE id = $1', [e.usuario_id]);
-  const mapeos = (u && u.mapeos) || {};
+  // Las columnas que recordó la empresa (y quien subió el archivo, de antes).
+  const mapeos = await mapeosDe(e.usuario_id);
   const lectura = leerExport(
     archivos.map((a) => ({ nombre: a.nombre, buffer: Buffer.from(a.contenido) })),
     { porFirma: mapeos.export },
-    { periodo: e.periodo, documentos: e.documentos, documentosPorFirma: mapeos.documentos },
+    { periodo: e.periodo, documentos: e.documentos, documentosPorFirma: mapeos.documentos, canales: e.canales, canalesPorFirma: mapeos.canales },
   );
   if (!lectura.ok) return e;
   const series = seriesSemanales(lectura.ventas, { mensual: lectura.mensual, totales: Boolean(lectura.periodo) });
@@ -114,6 +118,39 @@ async function completarSeries(e) {
 // tarda y no cambia hasta que suben otro archivo o cambian sus ajustes.
 const calculados = new Map();
 const MAX_CALCULADOS = 40;
+const DIAS_PEDIDO_RECIENTE = 14;
+
+/**
+ * Lo pedido en las últimas 2 semanas por cualquier persona de la empresa (pedidos cerrados, sin
+ * borrados ni anulados): { clave: { fecha, cantidad, numero, por } }, el más reciente de cada
+ * producto. Sirve para la etiqueta "Pedido hace 5 días" y para no pedir dos veces lo mismo.
+ */
+async function pedidosRecientes(empresaId) {
+  const filas = await db.query(
+    `SELECT p.id, p.terminado_en, p.lista_final, u.nombre AS por,
+            (SELECT count(*)::int FROM pedidos q WHERE q.usuario_id = p.usuario_id AND q.id <= p.id AND q.borrado_en IS NULL) AS numero
+       FROM pedidos p LEFT JOIN usuarios u ON u.id = p.usuario_id
+      WHERE p.empresa_id = $1 AND p.terminado_en IS NOT NULL AND p.terminado_en >= now() - make_interval(days => $2::int)
+        AND p.borrado_en IS NULL AND p.anulado_en IS NULL
+      ORDER BY p.terminado_en DESC, p.id DESC`,
+    [empresaId, DIAS_PEDIDO_RECIENTE],
+  );
+  const out = new Map();
+  for (const f of filas) {
+    for (const l of Array.isArray(f.lista_final) ? f.lista_final : []) {
+      const k = claveCodigo(l && l.codigo);
+      const cantidad = leerNumero(l && l.cantidad);
+      if (!k || out.has(k) || !(cantidad > 0)) continue;
+      out.set(k, { fecha: f.terminado_en, cantidad, numero: f.numero, por: f.por || null });
+    }
+  }
+  return out;
+}
+
+// La etiqueta va encima del inventario guardado en memoria: un pedido recién cerrado se ve sin recalcular.
+function conPedidosRecientes(inv, recientes) {
+  return { ...inv, productos: inv.productos.map((p) => ({ ...p, pedidoReciente: recientes.get(claveCodigo(p.codigo)) || null })) };
+}
 
 rutas.get('/', async (req, res) => {
   const per = await permisos(req.usuario);
@@ -123,13 +160,15 @@ rutas.get('/', async (req, res) => {
   const pref = leerPreferencias(req.usuario.preferencias);
   const horizonte = req.query.horizonte !== undefined ? leerPreferencias({ horizonte: req.query.horizonte }).horizonte : pref.horizonte;
   await inventarioAlDia(empresaId);
-  const emp = await db.uno('SELECT inventario FROM empresas WHERE id = $1', [empresaId]);
+  const emp = await db.uno('SELECT inventario, catalogo_cambio_en FROM empresas WHERE id = $1', [empresaId]);
   const cab = await db.uno(`SELECT id FROM exports WHERE empresa_id = $1 AND estado = 'ok' AND ${db.EXPORT_VIGENTE} ORDER BY subido_en DESC, id DESC LIMIT 1`, [empresaId]);
   if (!cab) {
     // Sin archivo todavía: igual van sus ajustes (proveedores y tiempos), para el paso 1 del pedido.
     return res.json({ inventario: null, ajustes: leerAjustes(emp && emp.inventario), ...per, perfil });
   }
-  const llave = JSON.stringify([cab.id, per.alcance, emp.inventario, req.usuario.sistema, req.usuario.nombre, horizonte]);
+  // Lo que viene en camino cambia el sugerido: va en la llave para que una llegada se vea sin esperar.
+  const enCamino = await enCaminoDe(empresaId);
+  const llave = JSON.stringify([cab.id, per.alcance, emp.inventario, emp.catalogo_cambio_en, req.usuario.sistema, req.usuario.nombre, horizonte, firmaEnCamino(enCamino)]);
   let inventario = calculados.get(llave);
   if (!inventario) {
     const e = await completarSeries(await ultimoExport(empresaId));
@@ -137,7 +176,7 @@ rutas.get('/', async (req, res) => {
     inventario = construirInventario({
       reporte: e.reporte,
       series: e.series,
-      catalogo: e.catalogo,
+      catalogo: await catalogoConEscrito(empresaId, e.catalogo),
       ajustes: emp.inventario,
       semanasPronostico: horizonte,
       fuente: {
@@ -151,20 +190,49 @@ rutas.get('/', async (req, res) => {
         movimientos: e.movimientos || 0,
       },
       alcance: per.alcance,
+      enCamino,
     });
     calculados.set(llave, inventario);
     if (calculados.size > MAX_CALCULADOS) calculados.delete(calculados.keys().next().value);
   }
+  inventario = conPedidosRecientes(inventario, await pedidosRecientes(empresaId));
   // El operador ve las métricas gruesas: se recorta la respuesta, el cálculo es el mismo (D3).
   res.json({ inventario: perfil === 'operador' ? resumirParaOperador(inventario) : inventario, ...per, perfil, recordatorio: await estadoDe(req.usuario.id) });
 });
+
+// El inventario de la empresa ya calculado, con todo (sugerido y pronóstico), para armar un pedido
+// desde lo sugerido (server/pedidos.js). null si la empresa todavía no tiene inventario.
+async function inventarioDeEmpresa(empresaId) {
+  await inventarioAlDia(empresaId);
+  const cab = await ultimoExport(empresaId);
+  if (!cab) return null;
+  const e = await completarSeries(cab);
+  const emp = await db.uno('SELECT inventario FROM empresas WHERE id = $1', [empresaId]);
+  const inv = construirInventario({ reporte: e.reporte, series: e.series, catalogo: await catalogoConEscrito(empresaId, e.catalogo), ajustes: emp && emp.inventario, alcance: 'completo', enCamino: await enCaminoDe(empresaId) });
+  return { exportId: e.id, inv: conPedidosRecientes(inv, await pedidosRecientes(empresaId)) };
+}
 
 // Se mezcla con lo guardado: cambiar un tiempo de entrega no borra los proveedores asignados, y al revés.
 // Son de la empresa: lo que cambie una persona lo ven las demás.
 rutas.put('/ajustes', async (req, res) => {
   const e = await db.uno('SELECT inventario FROM empresas WHERE id = $1', [req.usuario.empresa_id]);
-  const cuerpo = req.body && typeof req.body === 'object' ? req.body : {};
-  const ajustes = leerAjustes({ ...(e && e.inventario), ...cuerpo });
+  const cuerpo = req.body && typeof req.body === 'object' ? { ...req.body } : {};
+  const guardados = (e && e.inventario) || {};
+  // Las pantallas que todavía escriben el tiempo de entrega en semanas (el paso 4 de un pedido):
+  // lo que cambien pasa a días hábiles, para que no lo tape lo que estaba guardado en días.
+  if (cuerpo.entregas && !cuerpo.entregasDias) {
+    const actuales = leerAjustes(guardados);
+    const dias = { ...actuales.entregasDias };
+    for (const [k, v] of Object.entries(cuerpo.entregas)) {
+      if (Number.isFinite(Number(v)) && Number(v) !== actuales.entregas[k] && dias[k] !== undefined) dias[k] = Math.round(Number(v) * DIAS_HABILES_SEMANA);
+    }
+    cuerpo.entregasDias = dias;
+  }
+  if (cuerpo.entregaPorDefecto !== undefined && cuerpo.entregaPorDefectoDias === undefined) {
+    const actuales = leerAjustes(guardados);
+    if (actuales.entregaPorDefectoDias !== null && Number(cuerpo.entregaPorDefecto) !== actuales.entregaPorDefecto) cuerpo.entregaPorDefectoDias = Math.round(Number(cuerpo.entregaPorDefecto) * DIAS_HABILES_SEMANA);
+  }
+  const ajustes = leerAjustes({ ...guardados, ...cuerpo });
   await db.query('UPDATE empresas SET inventario = $1::jsonb WHERE id = $2', [JSON.stringify(ajustes), req.usuario.empresa_id]);
   res.json({ ajustes });
 });
@@ -173,14 +241,12 @@ rutas.put('/ajustes', async (req, res) => {
 
 async function exigirPuedeSubir(req) {
   const per = await permisos(req.usuario);
-  if (!per.puedeSubir) {
-    throw new ErrorUsuario('Antes de ver tu inventario, prepara tu primer pedido y anota lo que ibas a pedir. Así podemos medir si el reporte te sirve.', 403);
-  }
+  if (!per.puedeSubir) throw new ErrorUsuario('Todavía no puede subir su inventario.', 403);
 }
 
 async function exportSuelto(req) {
   const e = await db.uno("SELECT id FROM exports WHERE id = $1 AND empresa_id = $2 AND pedido_id IS NULL AND origen = 'archivo'", [Number(req.params.exportId), req.usuario.empresa_id]);
-  if (!e) throw new ErrorUsuario('No encontramos ese archivo. Vuelve a subirlo.', 404);
+  if (!e) throw new ErrorUsuario('No encontramos ese archivo. Vuelva a subirlo.', 404);
   return e;
 }
 
@@ -203,7 +269,7 @@ async function guardarExport(usuarioId, archivos, { periodo = null, desde = 'dat
 
 rutas.post('/export', subida.array('archivos', 24), async (req, res) => {
   await exigirPuedeSubir(req);
-  if (!req.files || !req.files.length) throw new ErrorUsuario('Elige el archivo de ventas y existencias.');
+  if (!req.files || !req.files.length) throw new ErrorUsuario('Elija el archivo de ventas y existencias.');
   const archivos = req.files.map(archivoSubido);
   res.json(await guardarExport(req.usuario.id, archivos, { periodo: leerPeriodo(req.body) }));
 });
@@ -212,7 +278,7 @@ rutas.post('/export/:exportId/columnas', async (req, res) => {
   await exigirPuedeSubir(req);
   const exp = await exportSuelto(req);
   const manual = leerMapeoManual(req.body?.mapeo);
-  if (!manual) throw new ErrorUsuario('Elige las columnas.');
+  if (!manual) throw new ErrorUsuario('Elija las columnas.');
   res.json(await procesarExport(req.usuario.id, null, exp.id, manual));
 });
 
@@ -223,11 +289,18 @@ rutas.post('/export/:exportId/documentos', async (req, res) => {
   res.json(await procesarExport(req.usuario.id, null, exp.id, leerMapeoManual(req.body?.mapeo)));
 });
 
+rutas.post('/export/:exportId/canales', async (req, res) => {
+  await exigirPuedeSubir(req);
+  const exp = await exportSuelto(req);
+  await db.query('UPDATE exports SET canales = $1::jsonb WHERE id = $2', [JSON.stringify(leerCanales(req.body)), exp.id]);
+  res.json(await procesarExport(req.usuario.id, null, exp.id, leerMapeoManual(req.body?.mapeo)));
+});
+
 rutas.post('/export/:exportId/periodo', async (req, res) => {
   await exigirPuedeSubir(req);
   const exp = await exportSuelto(req);
   const periodo = leerPeriodo(req.body);
-  if (!periodo) throw new ErrorUsuario('Escribe las dos fechas del periodo.');
+  if (!periodo) throw new ErrorUsuario('Escriba las dos fechas del periodo.');
   await db.query('UPDATE exports SET periodo = $1::jsonb WHERE id = $2', [JSON.stringify(periodo), exp.id]);
   res.json(await procesarExport(req.usuario.id, null, exp.id, leerMapeoManual(req.body?.mapeo)));
 });
@@ -247,4 +320,4 @@ rutas.get('/cargas', async (req, res) => {
   });
 });
 
-module.exports = { rutas, demo, permisos, guardarExport };
+module.exports = { rutas, demo, permisos, guardarExport, inventarioDeEmpresa };

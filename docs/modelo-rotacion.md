@@ -294,6 +294,78 @@ Además del archivo del programa contable, la empresa puede registrar cada día 
 
 El modelo sigue en semanas: S, los umbrales (2 y 12 semanas), el tiempo de entrega y cada cuánto pide. Cada persona elige si lo ve en días (S × 7), semanas o meses (S × 7 ÷ 30,44). Menos de una semana se dice siempre en días. También elige el horizonte de "venderás en…" (de media semana a 26 semanas; 4 si no elige): es la predictiva de §7.2 con h igual al horizonte, no la suma de los rangos de cada semana. Los reportes guardados no cambian.
 
+Desde el SP4 (2026-10-29), "cada cuánto pide" y el umbral de "se agota" se escriben en esa unidad y se guardan en semanas (cada cuánto pide con 3 decimales; el umbral sigue en semanas enteras, porque `pedidos.semanas_agota` es entero).
+
+## 9. Catálogo y motor de reabastecimiento (SP4, 2026-10-29)
+
+Código: `server/inventario.js`, `server/lector.js`, `server/rotacion.js`, `server/series.js`, `server/saldos.js` y `server/movimientos.js`. Pruebas: `test/catalogo-motor.test.js`. Pedidos de la retroalimentación de las pruebas (Hito 2 de `docs/Retroalimentación Pruebas.md`).
+
+### 9.1 Múltiplo de empaque y mínimo de pedido
+
+Cada producto del catálogo de la empresa (`productos.multiplo`, `productos.minimo_pedido`) puede tener un múltiplo (se pide en cajas de 80) y un mínimo de pedido. Se escriben en la ficha o se pegan desde Excel (`POST /api/catalogo/lote`).
+
+- Con múltiplo, el paquete de §7.4 es ese número y no el que se deduce de las ventas. La cantidad sugerida y el máximo se redondean hacia arriba a cajas completas. El múltiplo puede ser decimal (bultos de 2,5 kg).
+- Con mínimo, un sugerido que queda entre 0 y el mínimo sube al mínimo (redondeado a la caja). Un sugerido de 0 sigue en 0: el mínimo no obliga a pedir lo que no hace falta.
+- El desglose (`detalleSugerido`) guarda lo que faltaba antes de redondear, el paquete, de dónde salió (catálogo o ventas) y si subió al mínimo, para explicarlo.
+
+### 9.2 Tiempo de entrega en días hábiles
+
+El tiempo de cada proveedor se escribe en días hábiles (`ajustes.entregasDias`, y `entregaPorDefectoDias` para los demás). El modelo lo usa en semanas: días ÷ 5. Si un proveedor no tiene días escritos, se usan las semanas guardadas antes (`ajustes.entregas`), así que los ajustes de antes siguen sirviendo. Si una pantalla todavía manda semanas (el paso 4 de "Comparar con mi propia lista"), lo que cambie se convierte a días.
+
+### 9.3 Ventas de proyecto (D12)
+
+Una venta para un proyecto, una obra o un cliente puntual baja existencias pero no cuenta en el promedio de venta, porque no se repite. Se marca de tres formas:
+
+- **Tipo de documento:** en la pregunta de documentos (§3.5) cada tipo puede ser venta, devolución, **de proyecto** o nada.
+- **Columna de canal:** si el archivo trae una columna de centro de costo, OT, proyecto, cotización o cliente con entre 2 y 50 valores distintos, la app pregunta cuáles son de proyecto (puede no ser ninguno). La respuesta se guarda en `exports.canales` y se recuerda por formato (`usuarios.mapeos.canales`). Con más de 50 valores (cada cliente de un almacén) no se pregunta.
+- **Movimientos:** la casilla "Es para un proyecto" en una venta (`movimientos.proyecto`).
+
+En el cálculo, esas ventas cuentan para el periodo del archivo, pero no para Qᵢ ni para lo reciente: van aparte en `vendidoProyecto` (con la señal `proyecto`). Las ventas por semana (`exports.series`) las guardan aparte (`series.proyecto`), así que no se pronostican, pero el gráfico del catálogo las muestra como proyectos. Es distinto del recorte de un mes pico (§3.6), que sigue funcionando para lo que no se marcó. Los reportes ya guardados no se recalculan.
+
+### 9.4 Clasificación de cada producto
+
+| Clase | Regla |
+|---|---|
+| Venta única | La venta de una sola vez de §7.4. |
+| De proyecto | Más de la mitad de lo vendido (contando proyectos) fue para proyectos. |
+| Frecuente | Vendió en la mitad o más de sus semanas (Tᵢ, las que cuentan para el producto). |
+| Esporádico | Vendió en menos de la mitad de sus semanas. |
+
+Sin ventas por semana (un informe con el total del periodo) o sin ventas, no se clasifica. Aparte, **venta alta** marca el 20 % de los productos que más venden por semana. Se usan como etiqueta y filtro en Productos y en Preparar pedido; no cambian el sugerido.
+
+### 9.5 Pedido reciente
+
+Cada producto trae lo pedido en los últimos 14 días por cualquier persona de la empresa (pedidos cerrados, sin borrados ni anulados): fecha, cantidad, número del pedido y quién lo preparó. Se muestra como "Pedido hace 5 días" en Productos, el panel y Preparar pedido. Desde el SP5 lo que va en camino sí cambia el sugerido (§10.1).
+
+### 9.6 Cómo se calcula
+
+La ficha de cada producto, y el paso 3 si el inventario es el mismo archivo del reporte, explican el sugerido en orden con los números del producto: venta por semana con sus ajustes (y lo que no se contó por proyectos), para cuánto alcanza, temporada, lo que se puede vender en las semanas que cubre el pedido (el rango de 8 de cada 10) y el sugerido al 90 % con su redondeo a caja o al mínimo.
+
+## 10. Entradas, salidas y datos al día (SP5, 2026-10-29)
+
+Código: `server/recepcion.js`, `server/saldos.js`, `server/movimientos.js`, `server/rotacion.js` (`revisarCodigos`) y `server/inventario.js`. Pruebas: `test/recepcion-datos.test.js`. Pedidos de la retroalimentación de las pruebas (Hito 1).
+
+### 10.1 En camino y llegada de un pedido
+
+Al cerrar un pedido real, cada línea queda **en camino** (`pedidos.recibido = {}`). "Registrar llegada" (por proveedor, con lo pedido precargado) crea una entrada en Movimientos por cada línea que llegó (`movimientos.pedido_id`) y marca la línea; una línea en 0 "no llegó" y se cierra sin entrada. Una llegada parcial también cierra la línea: lo que falte, si llega, se registra como entrada en Movimientos. Si alguien anula la entrada, la línea vuelve a estar en camino.
+
+- **Sugerido:** con E = existencias y C = lo que sigue en camino de ese producto, lo que falta es ⌈necesidad − E − C⌉ (posición de inventario), y de ahí el redondeo a paquete y al mínimo de §9.1. `detalleSugerido.enCamino` guarda C.
+- **"Pedir ya":** usa (E + C) ÷ ventas por semana en vez de S. "Se agota" no cambia: lo que hay hoy no alcanza, aunque venga algo.
+- **El riesgo de agotarse** sigue calculado con E solamente (no se sabe si llega a tiempo).
+- No cuentan: pedidos anulados, borrados o simulados, los cerrados antes del SP5 (`recibido` NULL) ni los de hace más de 120 días (un importado puede tardar 3 o 4 meses; un pedido que nunca se recibió no frena el sugerido para siempre).
+
+### 10.2 Ventas de un periodo en Movimientos
+
+Una venta con `desde` es el total de un periodo (desde → fecha, como mucho un año). Para el promedio se reparte por partes iguales entre sus días, igual que un archivo con el total de un periodo; las existencias bajan completas el último día. Si el periodo empieza el día del archivo base o antes y termina después, se cuenta la parte proporcional a los días siguientes (de 30 días con 10 ya en el archivo, 20/30 de la cantidad), con aviso. El kardex cuenta lo mismo.
+
+### 10.3 Códigos que no coinciden
+
+Cada reporte trae `codigos`: cuántos códigos vendidos aparecen en las existencias, los que están en un solo lado (hasta 500 de cada uno) y parejas probables (el mismo código sin guiones, puntos, barras, espacios ni ceros a la izquierda, o sin su último pedazo: "TOR-0610-UN" y "TOR0610"). Si hay 5 o más códigos vendidos y menos de la mitad está en las existencias, el aviso va primero y la pantalla de subir lo muestra antes de seguir, con la lista para descargar. No cambia el cálculo: esos productos siguen con 0 existencias.
+
+### 10.4 Datos al día
+
+El panel muestra "Datos de hoy", "de ayer" o "de hace N días" según el último día con datos (`fuente.hasta`), en verde hasta 1 día hábil, en ámbar hasta 3 y en rojo después. Lo sugerido es tan bueno como esos datos (Claudia).
+
 ## Fuentes
 
 - Syntetos, A. A., Boylan, J. E., y Disney, S. M. (2009). *Forecasting for inventory planning: a 50-year review*. Journal of the Operational Research Society, 60(sup1), S149–S160.

@@ -19,6 +19,10 @@ const ENTREGA_POR_DEFECTO = 1; // semanas, si el usuario no ha dicho cuánto tar
 const CADA_CUANTO_POR_DEFECTO = 4; // semanas entre un pedido y el siguiente
 const NIVEL_SERVICIO = 0.9; // la cantidad sugerida alcanza en 9 de cada 10 casos
 const SIN_PROVEEDOR = 'Sin proveedor';
+const DIAS_HABILES_SEMANA = 5; // el tiempo de entrega se escribe en días hábiles (lunes a viernes)
+const MAX_DIAS_ENTREGA = 260; // un año hábil
+const VENDE_FRECUENTE = 0.5; // vende en la mitad de sus semanas o más: "frecuente"
+const PARTE_VENTA_ALTA = 0.2; // el 20 % de productos que más vende
 const MAX_ASIGNACIONES = 20000;
 const MAX_PREFIJOS = 200;
 
@@ -33,6 +37,10 @@ function suma(v) {
 
 // Ajustes que el usuario guarda en "Datos": cuánto tarda cada proveedor, cada cuánto pide y
 // con cuántas semanas un producto ya "se agota".
+//
+// El tiempo de entrega se escribe en días hábiles (entregasDias, SP4); el modelo sigue en semanas
+// (días ÷ 5). Los ajustes guardados antes solo traen `entregas` en semanas y siguen sirviendo: si
+// un proveedor tiene días escritos, mandan los días.
 function leerAjustes(a) {
   const ajustes = a && typeof a === 'object' ? a : {};
   const num = (v, def, min, max) => (Number.isFinite(Number(v)) && Number(v) >= min && Number(v) <= max ? Number(v) : def);
@@ -41,6 +49,16 @@ function leerAjustes(a) {
     const n = num(v, null, 0, 52);
     if (n !== null) entregas[String(k).slice(0, 80)] = n;
   }
+  const entregasDias = {};
+  for (const [k, v] of Object.entries(ajustes.entregasDias || {})) {
+    const n = num(v, null, 0, MAX_DIAS_ENTREGA);
+    if (n === null) continue;
+    entregasDias[String(k).slice(0, 80)] = Math.round(n);
+    entregas[String(k).slice(0, 80)] = Math.round(n) / DIAS_HABILES_SEMANA;
+  }
+  const entregaPorDefectoDias = ajustes.entregaPorDefectoDias === undefined || ajustes.entregaPorDefectoDias === null
+    ? null
+    : num(ajustes.entregaPorDefectoDias, null, 0, MAX_DIAS_ENTREGA);
   // Proveedor de cada producto cuando el archivo no lo trae: uno por uno (código → proveedor) o
   // por el comienzo del código ("TOR-" → Tornillería Central).
   const texto = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -54,8 +72,11 @@ function leerAjustes(a) {
     .map((x) => ({ prefijo: claveCodigo(texto(x && x.prefijo, 30)), proveedor: texto(x && x.proveedor, 80) }))
     .filter((x) => x.prefijo && x.proveedor);
   return {
-    entregaPorDefecto: num(ajustes.entregaPorDefecto, ENTREGA_POR_DEFECTO, 0, 52),
-    cadaCuanto: num(ajustes.cadaCuanto, CADA_CUANTO_POR_DEFECTO, 1, 26),
+    entregaPorDefecto: entregaPorDefectoDias !== null ? Math.round(entregaPorDefectoDias) / DIAS_HABILES_SEMANA : num(ajustes.entregaPorDefecto, ENTREGA_POR_DEFECTO, 0, 52),
+    entregaPorDefectoDias: entregaPorDefectoDias !== null ? Math.round(entregaPorDefectoDias) : null,
+    entregasDias,
+    // Se guarda con 3 decimales: en días o meses (la unidad que eligió el usuario) no da un número entero de semanas.
+    cadaCuanto: Math.round(num(ajustes.cadaCuanto, CADA_CUANTO_POR_DEFECTO, 1, 26) * 1000) / 1000,
     // Entero y por debajo de "sobra" (12): si no, un producto podría salir con los dos estados.
     semanasAgota: Number.isInteger(Number(ajustes.semanasAgota)) ? num(ajustes.semanasAgota, SEMANAS_SE_AGOTA, 1, SEMANAS_SOBRA - 1) : SEMANAS_SE_AGOTA,
     entregas,
@@ -131,6 +152,23 @@ function ventaUnica(serie, hasta) {
   return { vendido: redondear(suma(con.map((i) => serie[i])), 1), semanas: con.length, desde: new Date(inicio * MS_DIA).toISOString().slice(0, 10) };
 }
 
+/**
+ * Qué clase de venta tiene un producto (SP4):
+ *   unica       todo lo vendido cayó en 1 o 2 semanas (ventaUnica)
+ *   proyecto    más de la mitad de lo vendido fue para proyectos marcados (D12)
+ *   frecuente   vende en la mitad de sus semanas o más
+ *   esporadico  vende en menos de la mitad de sus semanas
+ * Sin ventas por semana (un informe con el total del periodo) o sin ventas, null.
+ */
+function clasificar({ serie, semanasProducto, vendido, vendidoProyecto = 0, unica = null }) {
+  if (unica) return 'unica';
+  if (vendidoProyecto > 0 && vendidoProyecto > (Math.max(vendido, 0) + vendidoProyecto) / 2) return 'proyecto';
+  if (!serie || !(vendido > 0)) return null;
+  const ventana = serie.slice(-Math.max(1, Math.round(semanasProducto || serie.length)));
+  const conVenta = ventana.filter((x) => x > 0).length;
+  return conVenta / ventana.length >= VENDE_FRECUENTE ? 'frecuente' : 'esporadico';
+}
+
 // Los productos que hoy están bien y llegan al umbral de "se agota" en los próximos 3 meses (lo mismo que
 // ofrece el recordatorio de calendario, server/recordatorios.js).
 function proximosAvisos(filas, fecha, semanasAgota) {
@@ -141,10 +179,13 @@ function proximosAvisos(filas, fecha, semanasAgota) {
   return { productos: avisos.length, primero: avisos[0] || null };
 }
 
-function estadoDe(f, entrega) {
+// enCamino: lo pedido que no ha llegado. No quita el "se agota" (lo que hay hoy no alcanza), pero
+// sí el "pedir ya": ese pedido ya se hizo.
+function estadoDe(f, entrega, enCamino = 0) {
   if (f.estado === 'sin_ventas') return 'sin_ventas';
   if (f.estado === 'se_agota') return 'agota';
-  if (f.semanasInventario < entrega + 1) return 'pide';
+  const semanasPosicion = f.semanasInventario + (enCamino > 0 && f.promedioSemanal > 0 ? enCamino / f.promedioSemanal : 0);
+  if (semanasPosicion < entrega + 1) return 'pide';
   if (f.sobra) return 'sobra';
   return 'normal';
 }
@@ -161,14 +202,17 @@ function estadoDe(f, entrega) {
  *   pronóstico, sin temporada, sin tiempo de entrega ("pide ya", riesgo) y sin cantidad
  *   sugerida. Así el tratamiento de la prueba es el que se declaró y M mide el reporte.
  * sugerencias: forma antigua de pedir el alcance (false = 'prueba').
+ * enCamino: Map clave → { cantidad, fecha } de lo pedido que no ha llegado (server/recepcion.js). El
+ *   sugerido descuenta existencias más en camino (posición de inventario, §7 del modelo).
  */
-function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos, fuente = {}, alcance = null, sugerencias = true, semanasPronostico = 4 }) {
+function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos, fuente = {}, alcance = null, sugerencias = true, semanasPronostico = 4, enCamino = null }) {
   const completo = alcance ? alcance === 'completo' : sugerencias !== false;
   const ajustes = leerAjustes(ajustesCrudos);
   const cat = catalogo || {};
   const hasta = series ? series.hasta : reporte.periodo.hasta;
   const semanasSerie = series ? series.semanas : 0;
   const porProducto = series ? series.porProducto : {};
+  const deProyecto = (series && series.proyecto) || {};
 
   // El panel usa el umbral de "se agota" que el usuario tiene hoy, aunque el archivo se haya
   // subido con otro. El reporte guardado no cambia.
@@ -214,6 +258,10 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
   const horizonte = Math.max(0.5, Number(semanasPronostico) || 4);
   const semanasGrafico = Math.max(SEMANAS_PRONOSTICO, Math.ceil(horizonte));
 
+  // Lo que se vendió para proyectos marcados (D12), por semana: no se pronostica, pero se ve en el gráfico.
+  const totalesProyecto = new Array(semanasSerie).fill(0);
+  for (const s of Object.values(deProyecto)) for (let i = 0; i < semanasSerie; i++) totalesProyecto[i] += s[i] || 0;
+
   const productos = [];
   let varianzaSemana = new Array(semanasGrafico).fill(0);
   let mediaSemana = new Array(semanasGrafico).fill(0);
@@ -227,8 +275,13 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
     const crudo = porProducto[k] || null;
     const existencias = Math.max(f.existencias, 0);
     const unica = completo ? ventaUnica(crudo, hasta) : null;
+    const llegando = (enCamino && enCamino.get(k)) || null;
+    const cantidadEnCamino = llegando && completo ? llegando.cantidad : 0;
 
-    const lote = P.loteDe(crudo);
+    // El múltiplo de empaque escrito en el catálogo manda; si no hay, el paquete en que siempre se vende.
+    const multiplo = datos.multiplo > 0 ? datos.multiplo : null;
+    const minimoPedido = datos.minimoPedido > 0 ? datos.minimoPedido : null;
+    const lote = multiplo || P.loteDe(crudo);
     let riesgo = null;
     let sugerido = null;
     let minimo = null;
@@ -249,8 +302,13 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       // o, si el proveedor tarda más, antes de que llegue un pedido hecho hoy.
       riesgo = redondear(P.predictiva(ajuste, futuro(Math.max(entrega, ajustes.semanasAgota))).probMayorQue(existencias), 3);
       const necesidad = P.predictiva(ajuste, futuro(entrega + ajustes.cadaCuanto)).cuantil(NIVEL_SERVICIO);
-      // Se pide en paquetes completos si el producto siempre se vende de a varios.
-      sugerido = P.aLote(Math.max(0, Math.ceil(necesidad - existencias)), lote);
+      // Se pide en paquetes completos: los del catálogo (cajas de 80) o los que se deducen de las ventas.
+      // Lo que ya viene en camino cuenta como si estuviera: si no, se pediría dos veces.
+      const falta = Math.max(0, Math.ceil(necesidad - existencias - cantidadEnCamino));
+      sugerido = P.aLote(falta, lote);
+      // Si el proveedor tiene un pedido mínimo, lo que quede entre 0 y ese mínimo sube al mínimo.
+      const subioAlMinimo = Boolean(minimoPedido && sugerido > 0 && sugerido < minimoPedido);
+      if (subioAlMinimo) sugerido = P.aLote(minimoPedido, lote);
       // Lo que el reporte marca como "sobra" (más de 12 semanas) no se sugiere pedir, aunque el
       // margen para ventas de golpe diera algo: sería contradecir el reporte que el usuario acaba de ver.
       if (f.sobra) sugerido = 0;
@@ -258,12 +316,22 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       // falta para el siguiente pedido), lo más probable que se venda en ellas y lo que alcanza en
       // 9 de cada 10 casos. ventaSemana (con temporada) dice para cuánto alcanza cualquier cantidad.
       const cubrir = entrega + ajustes.cadaCuanto;
-      const media = P.predictiva(ajuste, futuro(cubrir)).media;
+      const enCubrir = P.predictiva(ajuste, futuro(cubrir));
+      const media = enCubrir.media;
       detalleSugerido = {
         semanasCubrir: cubrir,
         media: redondear(media, 1),
+        // De bajo a alto cae lo que se vende en 8 de cada 10 casos: con eso se compara después lo
+        // que de verdad se vendió (server/equipo.js, sugerido contra ocurrido).
+        bajo: redondear(enCubrir.cuantil(0.1), 1),
         alto: redondear(necesidad, 1),
         ventaSemana: redondear(media / Math.max(cubrir, 0.5), 2),
+        // Para explicar el redondeo: lo que faltaba, en qué paquete se pidió y si subió al mínimo.
+        falta,
+        lote,
+        loteOrigen: multiplo ? 'catalogo' : lote > 1 ? 'ventas' : null,
+        minimoPedido: subioAlMinimo ? minimoPedido : null,
+        enCamino: cantidadEnCamino,
       };
       // Mínimo y máximo, como los llevan muchos programas contables: cuando quedan "mínimo" o
       // menos, se pide hasta llegar al máximo. El mínimo cubre la entrega en 9 de cada 10 casos.
@@ -288,7 +356,8 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
         return ant > 0 ? redondear(ult / ant - 1, 3) : null;
       })()
       : null;
-    const estado = estadoDe(f, completo ? entrega : 0);
+    const estado = estadoDe(f, completo ? entrega : 0, cantidadEnCamino);
+    const clase = clasificar({ serie: crudo, semanasProducto: f.semanasProducto, vendido: f.vendido, vendidoProyecto: f.vendidoProyecto || 0, unica });
     const sobrante = f.promedioSemanal > 0 ? Math.max(0, existencias - SEMANAS_SOBRA * f.promedioSemanal) : existencias;
     const desde = Math.max(0, semanasSerie - SEMANAS_GRAFICO);
     productos.push({
@@ -297,6 +366,13 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       proveedor,
       origenProveedor,
       entrega,
+      entregaDias: ajustes.entregasDias[proveedor] ?? (proveedor === SIN_PROVEEDOR || ajustes.entregas[proveedor] === undefined ? ajustes.entregaPorDefectoDias : null),
+      familia: datos.familia || null,
+      multiplo,
+      minimoPedido,
+      clase,
+      ventaAlta: false,
+      enCamino: llegando ? { cantidad: llegando.cantidad, fecha: llegando.fecha } : null,
       costo,
       ventasSemana: f.promedioSemanal,
       existencias: f.existencias,
@@ -317,6 +393,7 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       pico: f.pico,
       explicacion: {
         vendido: f.vendido,
+        vendidoProyecto: f.vendidoProyecto || 0,
         vendidoAjustado: f.vendidoAjustado,
         vendidoReciente: f.vendidoReciente,
         semanasProducto: f.semanasProducto,
@@ -329,6 +406,10 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       ventaHorizonte,
     });
   }
+
+  // Venta alta: el 20 % de los productos que más unidades venden por semana.
+  const vendedores = productos.filter((p) => p.ventasSemana > 0).sort((a, b) => b.ventasSemana - a.ventasSemana);
+  vendedores.slice(0, Math.ceil(vendedores.length * PARTE_VENTA_ALTA)).forEach((p) => { p.ventaAlta = true; });
 
   // Ventas del catálogo por semana: el último año y las próximas semanas.
   const desde = Math.max(0, semanasSerie - SEMANAS_GRAFICO);
@@ -346,8 +427,8 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
   const grafico = series ? {
     semanas: totalesCrudos.slice(desde).map((total, j) => ({
       inicio: inicioDeSemana(hasta, semanasSerie, desde + j),
-      total: Math.round(total),
-      proyectos: Math.round(total - totalesRecortados[desde + j]),
+      total: Math.round(total + totalesProyecto[desde + j]),
+      proyectos: Math.round(total - totalesRecortados[desde + j] + totalesProyecto[desde + j]),
     })),
     pronostico: !completo ? [] : mediaSemana.map((m, s) => ({
       inicio: inicioDeSemana(hasta, semanasSerie, semanasSerie + s),
@@ -397,6 +478,7 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       // Para cuántas semanas alcanza el producto típico (la mediana de los que se venden).
       cobertura: P.mediana(productos.filter((p) => p.semanas !== null).map((p) => p.semanas)) || null,
       sinProveedor: cuenta((p) => p.proveedor === SIN_PROVEEDOR),
+      enCamino: cuenta((p) => Boolean(p.enCamino)),
       tieneCostos,
       valorInventario: tieneCostos ? suma(productos.map((p) => p.valor || 0)) : null,
       dineroQuieto: tieneCostos ? suma(productos.map((p) => p.quieto || 0)) : null,
@@ -418,7 +500,7 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
 // Lo que ve el operador (D3): cuántos productos hay en cada estado y, por producto, existencias,
 // estado y para cuánto alcanza. Sin pronóstico, probabilidades, sugeridos ni dinero. Es la misma
 // respuesta con los detalles en null, para que las pantallas usen los mismos tipos.
-const CAMPOS_RESUMEN_OPERADOR = ['productos', 'seAgotan', 'enCero', 'pideYa', 'sobran', 'sinVentas', 'cobertura', 'sinProveedor', 'tieneCostos'];
+const CAMPOS_RESUMEN_OPERADOR = ['productos', 'seAgotan', 'enCero', 'pideYa', 'sobran', 'sinVentas', 'cobertura', 'sinProveedor', 'tieneCostos', 'enCamino'];
 
 function resumirParaOperador(inv) {
   const resumen = {};
@@ -449,4 +531,4 @@ function resumirParaOperador(inv) {
   };
 }
 
-module.exports = { construirInventario, resumirParaOperador, leerAjustes, recortarPico, ventaUnica, proveedorDe, SIN_PROVEEDOR, ENTREGA_POR_DEFECTO, CADA_CUANTO_POR_DEFECTO };
+module.exports = { construirInventario, resumirParaOperador, leerAjustes, recortarPico, ventaUnica, proveedorDe, clasificar, SIN_PROVEEDOR, ENTREGA_POR_DEFECTO, CADA_CUANTO_POR_DEFECTO, DIAS_HABILES_SEMANA };

@@ -34,7 +34,7 @@ export function Ejemplos() {
       const r = await api<Resultado>('POST', ruta)
       if (r.ok) {
         recargar()
-        setAviso({ ok: true, texto: `Listo: tu panel ya tiene ${nombre}${r.resumen ? ` (${numero(r.resumen.productos)} productos)` : ''}.` })
+        setAviso({ ok: true, texto: `Listo: su panel ya tiene ${nombre}${r.resumen ? ` (${numero(r.resumen.productos)} productos)` : ''}.` })
       } else {
         setAviso({ ok: false, texto: `No se pudo leer ${nombre}.`, lista: r.errores })
       }
@@ -73,11 +73,11 @@ export function Ejemplos() {
             <li key={n.id}>
               <Tarjeta className="flex h-full flex-col gap-3 p-5">
                 <div>
-                  <span className="text-[0.8rem] font-bold tracking-[0.06em] text-muted-foreground uppercase">{n.sector}</span>
+                  <span className="text-etiqueta font-bold tracking-[0.06em] text-muted-foreground uppercase">{n.sector}</span>
                   <h3 className="text-lg font-bold">{n.empresa}</h3>
                   <p className="text-sm text-muted-foreground">{n.ciudad} · {n.programa} · {numero(n.productos)} productos</p>
                 </div>
-                <p className="text-[0.95rem] text-foreground/80">{n.resumen}</p>
+                <p className="text-cuerpo text-foreground/80">{n.resumen}</p>
                 <div className="mt-auto flex flex-wrap gap-2 pt-1">
                   <Boton variante="primario" tamano="chico" disabled={cargando !== null} onClick={() => cargar(`n-${n.id}`, `/equipo/ejemplos/negocios/${n.id}/cargar`, n.empresa)}>
                     <Upload /> {cargando === `n-${n.id}` ? 'Cargando…' : 'Cargar en mi cuenta'}
@@ -105,14 +105,14 @@ export function Ejemplos() {
       <section aria-labelledby="t-archivos" className="flex flex-col gap-3">
         <div>
           <h2 id="t-archivos" className="text-xl font-bold">Archivos de otros programas</h2>
-          <p className="text-muted-foreground">Formatos difíciles para probar el lector. Para probar los 5 pasos como un cliente, crea un pedido en Pedidos y sube estos archivos en el paso 2.</p>
+          <p className="text-muted-foreground">Formatos difíciles para probar el lector. Para probar los 5 pasos como un cliente, cree un pedido en Pedidos y suba estos archivos en el paso 2.</p>
         </div>
         <ul className="grid gap-4 md:grid-cols-2">
           {datos.archivos.map((a) => (
             <li key={a.id}>
               <Tarjeta className="flex h-full flex-col gap-3 p-5">
                 <h3 className="text-lg font-bold">{a.titulo}</h3>
-                <p className="text-[0.95rem] text-foreground/80">{a.texto}</p>
+                <p className="text-cuerpo text-foreground/80">{a.texto}</p>
                 {!a.disponible && <p className="text-sm text-rojo-texto">Faltan archivos en ejemplos/. Se generan con npm run ejemplos.</p>}
                 <div className="mt-auto flex flex-wrap gap-2 pt-1">
                   {a.tipo === 'export' && (

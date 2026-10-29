@@ -20,7 +20,8 @@ const { registrarEvento, ErrorUsuario, leerPreferencias } = require('./cuentas')
 const { enviarCorreo, correoConfigurado } = require('./correo');
 const { fechaBogota, urlApp } = require('./recordatorios');
 const { construirInventario } = require('./inventario');
-const { inventarioAlDia } = require('./movimientos');
+const { enCaminoDe } = require('./recepcion');
+const { inventarioAlDia, catalogoConEscrito } = require('./movimientos');
 const { armarBoletin, resumenDelDia, cambiosDesde } = require('./boletin-correo');
 
 const TANDA = 20;
@@ -63,7 +64,7 @@ async function inventarioDeEmpresa(empresaId) {
   );
   if (!e) return null;
   const emp = await db.uno('SELECT nombre, inventario, movimientos_cambiaron_en FROM empresas WHERE id = $1', [empresaId]);
-  const inv = construirInventario({ reporte: e.reporte, series: e.series, catalogo: e.catalogo, ajustes: emp.inventario, fuente: { exportId: e.id, fecha: e.subido_en }, alcance: 'completo' });
+  const inv = construirInventario({ reporte: e.reporte, series: e.series, catalogo: await catalogoConEscrito(empresaId, e.catalogo), ajustes: emp.inventario, fuente: { exportId: e.id, fecha: e.subido_en }, alcance: 'completo', enCamino: await enCaminoDe(empresaId) });
   return { inv, empresa: emp.nombre, usaMovimientos: Boolean(emp.movimientos_cambiaron_en) };
 }
 
@@ -172,10 +173,10 @@ const baja = express.Router();
 // GET: el enlace del correo. POST: el botón "Cancelar suscripción" de Gmail (List-Unsubscribe-Post).
 const darDeBaja = async (req, res) => {
   const id = Number(req.query.u);
-  if (!Number.isInteger(id) || !firmaValida(id, String(req.query.f || ''))) throw new ErrorUsuario('Este enlace no es válido. Desactiva el boletín en Mi cuenta.', 400);
+  if (!Number.isInteger(id) || !firmaValida(id, String(req.query.f || ''))) throw new ErrorUsuario('Este enlace no es válido. Desactive el boletín en Mi cuenta.', 400);
   const u = await db.uno('UPDATE usuarios SET boletin = false WHERE id = $1 RETURNING id', [id]);
   if (u) await registrarEvento(u.id, 'boletin_desactivado', { detalle: { como: 'enlace' } });
-  res.type('html').send('<!doctype html><html lang="es"><meta charset="utf-8"><title>SINESC</title><p>Listo: ya no recibirás el boletín diario. Si cambias de opinión, actívalo de nuevo en Mi cuenta.</p></html>');
+  res.type('html').send('<!doctype html><html lang="es"><meta charset="utf-8"><title>SINESC</title><p>Listo: ya no recibirá el boletín diario. Si cambia de opinión, actívelo de nuevo en Mi cuenta.</p></html>');
 };
 baja.get('/baja', darDeBaja);
 baja.post('/baja', darDeBaja);

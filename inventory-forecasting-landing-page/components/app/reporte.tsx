@@ -10,7 +10,9 @@ import { cn } from '@/lib/utils'
 import { SelectorTiempo } from './vista'
 import { alcance, duracion, mesAnio, numero, plural, semanas, ventasSemana } from '@/lib/formato'
 import type { Estado } from '@/lib/tipos'
-import { Boton, ChipEstado, ESTADOS, Pildoras, claseEntrada } from './ui'
+import { Boton, ChipEstado, Desplegable, ESTADOS, Pildoras, claseEntrada } from './ui'
+import { useInventario } from './contexto'
+import { ComoSeCalcula } from './catalogo'
 
 export type FilaReporte = {
   codigo: string
@@ -40,7 +42,7 @@ export type ReporteRotacion = {
 }
 
 // Avisos que cambian cómo se leen las semanas (archivo viejo, meses sin ventas): van a la vista.
-const AVISO_IMPORTANTE = /^(Tus ventas llegan hasta|No hay ninguna venta entre)/
+const AVISO_IMPORTANTE = /^(Sus ventas llegan hasta|No hay ninguna venta entre)/
 
 // Los campos del lector, como se los mostramos al usuario.
 const NOMBRE_CAMPO: Record<string, string> = {
@@ -84,6 +86,11 @@ export function Reporte({ r, compacto = false }: { r: ReporteRotacion; compacto?
   }, [r, q, filtro])
   const e = r.ejemplo
   const conAjustes = Boolean(r.ajustes) && !r.periodo.totales
+  // El cálculo completo (promedio, temporada, rango y sugerido) con el producto de ejemplo, si el
+  // inventario de la empresa es el mismo archivo de este reporte: si no, los números no cuadrarían.
+  const { inventario } = useInventario()
+  const delEjemplo = e && inventario && r.subidoEn && inventario.fuente.fecha === r.subidoEn ? inventario.productos.find((p) => p.codigo === e.codigo) : null
+  const comoSeCalcula = delEjemplo && inventario ? <ComoSeCalcula p={delEjemplo} inv={inventario} titulo={`Cómo se calcula lo sugerido, con ${delEjemplo.codigo}`} /> : null
 
   const importantes = (r.avisos || []).filter((a) => AVISO_IMPORTANTE.test(a))
   // Varias hojas o archivos con las mismas columnas se describen una sola vez.
@@ -93,7 +100,7 @@ export function Reporte({ r, compacto = false }: { r: ReporteRotacion; compacto?
   return (
     <div className="flex flex-col gap-4">
       {importantes.map((a) => (
-        <p key={a} className="rounded-xl border border-ambar-borde bg-ambar-fondo px-4 py-3 text-[0.95rem] text-ambar-texto">{a}</p>
+        <p key={a} className="rounded-xl border border-ambar-borde bg-ambar-fondo px-4 py-3 text-cuerpo text-ambar-texto">{a}</p>
       ))}
       <SelectorTiempo />
       <div className="grid grid-cols-[repeat(auto-fit,minmax(170px,1fr))] gap-3">
@@ -102,27 +109,26 @@ export function Reporte({ r, compacto = false }: { r: ReporteRotacion; compacto?
         <div className="rounded-2xl border border-azul-borde bg-azul-fondo p-4"><strong className="font-display text-[1.8rem] text-azul tabular-nums">{numero(r.resumen.sobran)}</strong><span className="block text-sm text-azul-texto">sobran: más de {duracion(u.sobra)} o sin ventas</span></div>
       </div>
 
-      <details className="rounded-xl border border-border bg-card px-4 py-3">
-        <summary className="cursor-pointer font-semibold text-primary">¿De dónde sale el número?</summary>
-        <p className="mt-2"><strong>Semanas de inventario = existencias ÷ ventas por semana.</strong>{e ? ` Por ejemplo, ${e.codigo} vende ${ventasSemana(e.promedioSemanal)} por semana y tienes ${numero(e.existencias)}: te alcanza para ${semanas(e.semanasInventario)} semanas${alcance(e.semanasInventario) !== `${semanas(e.semanasInventario)} semanas` ? ` (${alcance(e.semanasInventario)})` : ''}.` : ''}</p>
-        <p className="mt-1 text-[0.93rem] text-muted-foreground">
+      {comoSeCalcula}
+      <Desplegable titulo="¿De dónde sale el número?">
+        <p><strong>Semanas de inventario = existencias ÷ ventas por semana.</strong>{e ? ` Por ejemplo, ${e.codigo} vende ${ventasSemana(e.promedioSemanal)} por semana y hay ${numero(e.existencias)}: alcanza para ${semanas(e.semanasInventario)} semanas${alcance(e.semanasInventario) !== `${semanas(e.semanasInventario)} semanas` ? ` (${alcance(e.semanasInventario)})` : ''}.` : ''}</p>
+        <p className="mt-1 text-chico text-muted-foreground">
           {conAjustes
-            ? 'Las ventas por semana salen de tu archivo: lo de los últimos 3 meses cuenta doble, un mes fuera de lo normal no infla el promedio y un producto nuevo se mide desde su primera venta.'
-            : `Las ventas por semana son todo lo vendido en tu archivo dividido entre sus ${semanas(r.periodo.semanas)} semanas.`}
+            ? 'Las ventas por semana salen de su archivo: lo de los últimos 3 meses cuenta doble, un mes fuera de lo normal no infla el promedio y un producto nuevo se mide desde su primera venta.'
+            : `Las ventas por semana son todo lo vendido en su archivo dividido entre sus ${semanas(r.periodo.semanas)} semanas.`}
         </p>
-      </details>
+      </Desplegable>
 
       {!compacto && (r.hojasUsadas?.length || r.avisos?.length) ? (
-        <details className="rounded-xl border border-border bg-card px-4 py-3">
-          <summary className="cursor-pointer font-semibold">Qué leímos de tu archivo{r.avisos?.length ? ' (hay notas para revisar)' : ''}</summary>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-[0.93rem]">
+        <Desplegable titulo={`Qué leímos de su archivo${r.avisos?.length ? ' (hay notas para revisar)' : ''}`}>
+          <ul className="list-disc space-y-1 pl-5 text-chico">
             <li>{plural(r.resumen.filasVenta, 'fila de ventas', 'filas de ventas')} y {plural(r.resumen.productos, 'producto', 'productos')}{r.archivos?.length ? ` (${r.archivos.join(', ')})` : ''}.</li>
             {usadas.map((h, i) => (
               <li key={i}>{h.uso === 'ventas' ? 'Ventas' : h.uso === 'existencias' ? 'Existencias' : 'Ventas y existencias'}{repetidas ? ' (igual en todos los archivos)' : h.hoja ? ` — hoja "${h.hoja}"` : ''}{h.porMes ? ' (una columna por mes)' : ''}: {Object.entries(h.columnas).map(([k, v]) => `${NOMBRE_CAMPO[k] || k} en ${v}`).join('; ')}.</li>
             ))}
             {(r.avisos || []).filter((a) => !AVISO_IMPORTANTE.test(a)).map((a, i) => <li key={`a${i}`}>{a}</li>)}
           </ul>
-        </details>
+        </Desplegable>
       ) : null}
 
       <div className="flex flex-wrap items-center gap-3">
@@ -146,7 +152,7 @@ export function Reporte({ r, compacto = false }: { r: ReporteRotacion; compacto?
       <div className={cn('overflow-auto rounded-2xl border border-border bg-card', compacto && 'max-h-[28rem]')}>
         <table className="w-full min-w-[640px] border-collapse">
           <thead className="sticky top-0 z-10 bg-card">
-            <tr className="text-left text-[0.82rem] text-muted-foreground">
+            <tr className="text-left text-nota text-muted-foreground">
               <th scope="col" className="border-b border-border px-3 py-2.5 font-semibold">Código</th>
               <th scope="col" className="border-b border-border px-3 py-2.5 font-semibold">Producto</th>
               <th scope="col" className="border-b border-border px-3 py-2.5 text-right font-semibold">Ventas/semana</th>
@@ -159,10 +165,10 @@ export function Reporte({ r, compacto = false }: { r: ReporteRotacion; compacto?
               const est = estadoDeFila(f)
               return (
                 <tr key={f.codigo} className={cn(est === 'agota' && 'bg-rojo-fondo/60', f.sobra && 'bg-azul-fondo/50')}>
-                  <td className="border-b border-[#f0f1ee] px-3 py-2.5 text-[0.9rem] text-muted-foreground">{f.codigo}</td>
+                  <td className="border-b border-[#f0f1ee] px-3 py-2.5 text-chico text-muted-foreground">{f.codigo}</td>
                   <td className="border-b border-[#f0f1ee] px-3 py-2.5">
                     {f.nombre || <span className="text-muted-foreground">Sin nombre en el archivo</span>}
-                    {f.senales.map((s) => <span key={s} className="block text-[0.82rem] text-muted-foreground">{(SENALES[s] || (() => s))(f)}</span>)}
+                    {f.senales.map((s) => <span key={s} className="block text-nota text-muted-foreground">{(SENALES[s] || (() => s))(f)}</span>)}
                   </td>
                   <td className="border-b border-[#f0f1ee] px-3 py-2.5 text-right tabular-nums" title={f.promedioSimple !== undefined && f.estado !== 'sin_ventas' ? `Sin ajustes: ${ventasSemana(f.promedioSimple)} por semana` : undefined}>
                     {f.estado === 'sin_ventas' ? '0' : ventasSemana(f.promedioSemanal)}

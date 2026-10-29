@@ -4,6 +4,8 @@ Escrito el 2026-10-28. Rama: `empresas-inventario-diario` (sale de `main` en `06
 
 **Estado (2026-10-28, entrada 35 de la bitácora):** fases 1 a 6 implementadas en la rama, sin publicar. Pendiente: la fase 0 (rama de Neon y variables en Vercel, la hace una persona del equipo) y lo que la entrada 35 lista como "no se hizo".
 
+**2026-10-29:** lo que sigue (la retroalimentación de las pruebas y el piloto de Alpha 0.2) está en `docs/PLAN_ALPHA_02.md`. La fase 0 de este plan pasó a ser su SP0, y los pendientes de la entrada 35 quedaron repartidos en sus SP4 y SP5.
+
 ## Qué se pidió
 
 1. **Inventario diario.** Además del flujo de hoy (subir el export del programa contable), registrar entradas y salidas de inventario cada día, con un manejo básico de inventario (existencias por producto, historial, conteo). No reemplaza nada de lo que existe.

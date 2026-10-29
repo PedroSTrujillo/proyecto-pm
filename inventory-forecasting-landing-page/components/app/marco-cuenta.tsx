@@ -10,7 +10,7 @@ function ConSesion({ children }: { children: ReactNode }) {
   if (cargando || !usuario) {
     return (
       <div className="tema-app min-h-dvh px-4 py-10 sm:px-8">
-        <Cargando texto="Revisando tu sesión…" />
+        <Cargando texto="Revisando su sesión…" />
       </div>
     )
   }

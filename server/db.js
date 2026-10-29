@@ -211,6 +211,85 @@ const ESQUEMA = [
      FROM empresas e WHERE e.fundador_id = u.id AND u.empresa_id IS NULL`,
   `UPDATE exports x SET empresa_id = u.empresa_id
      FROM usuarios u WHERE u.id = x.usuario_id AND x.empresa_id IS NULL`,
+  // Alpha 0.2 → piloto (docs/PLAN_ALPHA_02.md, SP2): el pedido que arranca con todo lo sugerido.
+  //   modo 'lista' = los 5 pasos de siempre; 'sugerido' = parte de la foto de lo sugerido.
+  //   sugerido = esa foto, tal como estaba al crear el pedido (con ella se mide la aceptación).
+  "ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS modo TEXT NOT NULL DEFAULT 'lista'",
+  'ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS sugerido JSONB',
+  'ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS empresa_id INTEGER REFERENCES empresas(id) ON DELETE CASCADE',
+  'ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS observaciones TEXT',
+  `UPDATE pedidos p SET empresa_id = u.empresa_id
+     FROM usuarios u WHERE u.id = p.usuario_id AND p.empresa_id IS NULL AND u.empresa_id IS NOT NULL`,
+  // SP3: la encuesta de satisfacción dentro de la app. Una fila por respuesta; "Ahora no" queda con
+  // puntaje NULL (pospuesta). encuesta_pedida_en: el equipo la abrió para esa persona.
+  `CREATE TABLE IF NOT EXISTS encuestas (
+    id SERIAL PRIMARY KEY,
+    usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    puntaje INTEGER CHECK (puntaje BETWEEN 1 AND 5),
+    comentario TEXT,
+    mostrada_en TIMESTAMPTZ,
+    respondida_en TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
+  'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS encuesta_pedida_en TIMESTAMPTZ',
+  'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS encuesta_mostrada_en TIMESTAMPTZ',
+  'CREATE INDEX IF NOT EXISTS encuestas_usuario ON encuestas(usuario_id)',
+  // SP4: catálogo y motor de reabastecimiento. Familia (línea o grupo del programa contable),
+  // múltiplo de empaque (se pide en cajas de este tamaño) y mínimo de pedido del proveedor.
+  'ALTER TABLE productos ADD COLUMN IF NOT EXISTS familia TEXT',
+  'ALTER TABLE productos ADD COLUMN IF NOT EXISTS multiplo NUMERIC',
+  'ALTER TABLE productos ADD COLUMN IF NOT EXISTS minimo_pedido NUMERIC',
+  // Cuándo cambió por última vez lo escrito a mano en el catálogo: el inventario calculado se
+  // guarda en memoria por archivo, y esto lo invalida (server/inventario-rutas.js).
+  'ALTER TABLE empresas ADD COLUMN IF NOT EXISTS catalogo_cambio_en TIMESTAMPTZ',
+  // Ventas de proyecto (D12): bajan existencias pero no cuentan en el promedio. En un archivo, por
+  // tipo de documento o por una columna de canal (centro de costo, OT, cliente): exports.canales
+  // guarda qué valores de esa columna son de proyecto. En Movimientos, una casilla por venta.
+  'ALTER TABLE exports ADD COLUMN IF NOT EXISTS canales JSONB',
+  'ALTER TABLE movimientos ADD COLUMN IF NOT EXISTS proyecto BOOLEAN NOT NULL DEFAULT false',
+  // SP5: entradas, salidas y datos al día.
+  //   movimientos.pedido_id: la entrada que se registró al recibir un pedido ("Registrar llegada").
+  //   movimientos.desde: una venta que es el total de un periodo (desde → fecha); se reparte por días.
+  //   pedidos.recibido: { clave: { cantidad, fecha, mov, por, en } } de lo que ya llegó. NULL en los
+  //     pedidos cerrados antes del SP5: de esos no se espera nada (no cuentan "en camino").
+  //   empresas.mapeos: las columnas y documentos que se recordaron, de toda la empresa.
+  'ALTER TABLE movimientos ADD COLUMN IF NOT EXISTS pedido_id INTEGER REFERENCES pedidos(id) ON DELETE SET NULL',
+  'ALTER TABLE movimientos ADD COLUMN IF NOT EXISTS desde TEXT',
+  'ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS recibido JSONB',
+  "ALTER TABLE empresas ADD COLUMN IF NOT EXISTS mapeos JSONB NOT NULL DEFAULT '{}'::jsonb",
+  'CREATE INDEX IF NOT EXISTS movimientos_pedido ON movimientos(pedido_id)',
+  // SP6: aprobación, trazabilidad y PDF de la empresa (D11).
+  //   usuarios.aprueba: el administrador marca quién aprueba pedidos. Es el único permiso que hace
+  //     cumplir el servidor; si nadie de la empresa aprueba, cada quien cierra sus pedidos.
+  //   usuarios.cargo: va en el PDF junto al nombre de quien prepara y de quien aprueba.
+  //   pedidos.enviado_en: esperando aprobación. Al devolverlo vuelve a NULL (devuelto_en y su motivo).
+  //   pedidos.lista_enviada: la lista tal como la envió quien la preparó, para medir aparte lo que
+  //     cambia quien aprueba (comparacion.aprobacion).
+  //   empresas.logo: PNG o JPG de hasta 300 KB para el PDF y el Excel.
+  'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS aprueba BOOLEAN NOT NULL DEFAULT false',
+  'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cargo TEXT',
+  'ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS enviado_en TIMESTAMPTZ',
+  'ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS lista_enviada JSONB',
+  'ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS aprobado_en TIMESTAMPTZ',
+  'ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS aprobado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL',
+  'ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS devuelto_en TIMESTAMPTZ',
+  'ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS devuelto_motivo TEXT',
+  'ALTER TABLE empresas ADD COLUMN IF NOT EXISTS logo BYTEA',
+  'ALTER TABLE empresas ADD COLUMN IF NOT EXISTS logo_tipo TEXT',
+  // Quién cambió qué línea de un pedido (server/trazas.js). antes/despues: la cantidad, o NULL si la
+  // línea no estaba. Los cambios de una persona sobre el mismo código en 10 minutos son una fila.
+  `CREATE TABLE IF NOT EXISTS pedido_cambios (
+    id SERIAL PRIMARY KEY,
+    pedido_id INTEGER NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
+    usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+    codigo TEXT NOT NULL,
+    nombre TEXT NOT NULL DEFAULT '',
+    antes NUMERIC,
+    despues NUMERIC,
+    nota TEXT,
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`,
+  'CREATE INDEX IF NOT EXISTS pedido_cambios_pedido ON pedido_cambios(pedido_id, creado_en)',
+  'CREATE INDEX IF NOT EXISTS pedidos_empresa ON pedidos(empresa_id)',
   'CREATE INDEX IF NOT EXISTS usuarios_empresa ON usuarios(empresa_id)',
   'CREATE INDEX IF NOT EXISTS exports_empresa ON exports(empresa_id, subido_en)',
   'CREATE INDEX IF NOT EXISTS movimientos_empresa ON movimientos(empresa_id, fecha)',

@@ -21,7 +21,7 @@ export async function api<T = unknown>(metodo: string, ruta: string, cuerpo?: un
   try {
     r = await fetch(`/api${ruta}`, init)
   } catch {
-    throw new ErrorApi('No hay conexión con el servidor. Revisa tu internet e intenta de nuevo.', 0, {})
+    throw new ErrorApi('No hay conexión con el servidor. Revise su conexión a internet e intente de nuevo.', 0, {})
   }
   let datos: ErrorApi['datos'] = {}
   try {
@@ -32,8 +32,8 @@ export async function api<T = unknown>(metodo: string, ruta: string, cuerpo?: un
   if (r.status === 401 && !ruta.startsWith('/cuenta/') && typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('sesion-cerrada'))
   }
-  if (r.status === 413) throw new ErrorApi('El archivo es muy pesado para subirlo (más de 4 MB, incluso comprimido). Si es un Excel .xlsx, guárdalo como .xls o .csv, o sube un periodo más corto.', 413, datos)
-  if (!r.ok) throw new ErrorApi(datos.error || 'Algo salió mal. Intenta de nuevo.', r.status, datos)
+  if (r.status === 413) throw new ErrorApi('El archivo es muy pesado para subirlo (más de 4 MB, incluso comprimido). Si es un Excel .xlsx, guárdelo como .xls o .csv, o suba un periodo más corto.', 413, datos)
+  if (!r.ok) throw new ErrorApi(datos.error || 'Algo salió mal. Intente de nuevo.', r.status, datos)
   return datos as T
 }
 
