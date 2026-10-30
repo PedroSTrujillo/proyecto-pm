@@ -6,6 +6,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState, type ReactNode } from 'react'
+import { api } from '@/lib/api'
 import { ArrowLeftRight, Boxes, Building2, ClipboardList, Database, FlaskConical, LayoutDashboard, LogOut, Menu, Package, UserRound, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useInventario, useSesion } from './contexto'
@@ -32,7 +33,10 @@ export function Marca({ href = '/' }: { href?: string }) {
   )
 }
 
-type Item = { href: string; texto: string; icono: ReactNode; exacto?: boolean }
+// Al aprobar o devolver un pedido, el contador del menú se vuelve a pedir sin cambiar de pantalla.
+export const EVENTO_POR_APROBAR = 'sinesc:por-aprobar'
+
+type Item = { href: string; texto: string; icono: ReactNode; exacto?: boolean; cuenta?: number }
 
 function Navegacion({ items, alElegir }: { items: Item[]; alElegir?: () => void }) {
   const ruta = usePathname()!
@@ -47,12 +51,17 @@ function Navegacion({ items, alElegir }: { items: Item[]; alElegir?: () => void 
             onClick={alElegir}
             aria-current={activo ? 'page' : undefined}
             className={cn(
-              'flex min-h-11 items-center gap-3 rounded-xl px-3 text-[0.95rem] font-semibold transition-colors duration-150',
+              'flex min-h-11 items-center gap-3 rounded-xl px-3 text-cuerpo font-semibold transition-colors duration-150',
               activo ? 'bg-primary text-primary-foreground' : 'text-foreground/80 hover:bg-muted hover:text-foreground',
             )}
           >
             <span className="[&_svg]:size-5">{it.icono}</span>
             {it.texto}
+            {Boolean(it.cuenta) && (
+              <span className={cn('ml-auto inline-flex min-w-6 items-center justify-center rounded-full px-1.5 text-nota font-bold tabular-nums', activo ? 'bg-primary-foreground text-primary' : 'bg-primary text-primary-foreground')}>
+                {it.cuenta}<span className="sr-only"> por aprobar</span>
+              </span>
+            )}
           </Link>
         )
       })}
@@ -88,11 +97,21 @@ export function Marco({ children }: { children: ReactNode }) {
   const { fuente, rutas, inventario, perfil } = useInventario()
   const { usuario, salir } = useSesion()
   const demo = fuente.tipo === 'demo'
-  const items = itemsDe(demo, rutas, usuario?.rol === 'equipo', perfil)
+  const [porAprobar, setPorAprobar] = useState(0)
+  const items = itemsDe(demo, rutas, usuario?.rol === 'equipo', perfil).map((it) => (it.href === '/pedidos' ? { ...it, cuenta: porAprobar } : it))
   const [abierto, setAbierto] = useState(false)
   const ruta = usePathname()!
+  const aprueba = !demo && Boolean(usuario?.aprueba)
 
   useEffect(() => setAbierto(false), [ruta])
+  // Cuántos pedidos esperan aprobación (D11): se vuelve a contar al cambiar de pantalla.
+  useEffect(() => {
+    if (!aprueba) return setPorAprobar(0)
+    const contar = () => { api<{ pedidos: unknown[] }>('GET', '/pedidos/por-aprobar').then((r) => setPorAprobar(r.pedidos.length)).catch(() => {}) }
+    contar()
+    window.addEventListener(EVENTO_POR_APROBAR, contar)
+    return () => window.removeEventListener(EVENTO_POR_APROBAR, contar)
+  }, [aprueba, ruta])
 
   // Errores que no rompen la pantalla (por ejemplo, en un botón) también se le avisan al equipo.
   useEffect(() => {
@@ -116,7 +135,7 @@ export function Marco({ children }: { children: ReactNode }) {
         <Iniciales nombre={persona} />
         <span className="flex min-w-0 flex-col">
           <strong className="truncate text-sm">{persona}</strong>
-          <span className="truncate text-[0.82rem] text-muted-foreground">{empresa}</span>
+          <span className="truncate text-nota text-muted-foreground">{empresa}</span>
         </span>
       </div>
       {demo ? (
@@ -168,7 +187,7 @@ function AvisoDemo() {
   const { inventario } = useInventario()
   return (
     <div className="no-imprimir border-b border-[#cfe5e1] bg-secondary">
-      <div className="mx-auto flex max-w-[1240px] flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-2.5 text-[0.92rem] sm:px-8">
+      <div className="mx-auto flex max-w-[1240px] flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-2.5 text-chico sm:px-8">
         <p className="text-[#0b3f3b]">
           <strong>Datos de ejemplo.</strong> <span className="hidden sm:inline">{inventario ? `${inventario.fuente.empresa} es un negocio inventado (${(inventario.fuente.sector || "").toLowerCase()}), armado con lo que nos contaron en las entrevistas.` : 'Un negocio inventado, armado con lo que nos contaron en las entrevistas.'}</span><span className="sm:hidden">Un negocio inventado.</span>
         </p>

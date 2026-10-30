@@ -102,7 +102,7 @@ const SECTORES = {
     ciudad: 'Medellín',
     programa: 'Helisa',
     persona: 'Julián Restrepo',
-    resumen: 'Almacén de muebles con producción de talleres locales y contenedores importados. Decide qué volver a traer en cada contenedor.',
+    resumen: 'Almacén de muebles con producción de talleres locales y contenedores importados. En cada contenedor hay que decidir qué volver a traer.',
     archivos: ['Movimiento detalle.xlsx', 'Listado de inventario.xlsx'],
     temporada: 'muebles',
     proveedores: [
@@ -272,7 +272,7 @@ const SECTORES = {
     ciudad: 'Pereira',
     programa: 'Helisa',
     persona: 'Hernán Ospina',
-    resumen: 'Distribuidora mayorista de ferretería y eléctricos que le pide cada semana a cada proveedor. Saca de Helisa el listado de inventario con las salidas del periodo, y una compra de promoción lleva meses quieta.',
+    resumen: 'Distribuidora mayorista de ferretería y eléctricos que le pide cada semana a cada proveedor. Su listado de inventario con las salidas del periodo sale de Helisa, y una compra de promoción lleva meses quieta.',
     archivos: ['Listado de inventario.xls'],
     temporada: 'ferreteria',
     cadaCuanto: 1,

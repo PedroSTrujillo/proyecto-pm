@@ -83,7 +83,8 @@ type EstadoInventario = {
   cargando: boolean
   error: string | null
   recargar: () => void
-  // El pedido que se arma en la demo (y, después de la prueba, el pedido sugerido): código → cantidad.
+  // Lo que va en el pedido: código → cantidad. En la demo vive en este navegador; en una cuenta es
+  // el pedido desde lo sugerido que está abierto (server/pedidos.js, /borrador).
   pedido: Record<string, number>
   ponerEnPedido: (codigo: string, cantidad: number) => void
   vaciarPedido: () => void
@@ -98,7 +99,7 @@ type EstadoInventario = {
   cambiarTiempo: (t: { unidad?: Unidad; horizonte?: number }) => Promise<void>
 }
 
-export type Ajustes = Partial<{ entregas: Record<string, number>; entregaPorDefecto: number; cadaCuanto: number; semanasAgota: number; asignaciones: Record<string, string>; prefijos: { prefijo: string; proveedor: string }[] }>
+export type Ajustes = Partial<{ entregas: Record<string, number>; entregasDias: Record<string, number>; entregaPorDefecto: number; entregaPorDefectoDias: number | null; cadaCuanto: number; semanasAgota: number; asignaciones: Record<string, string>; prefijos: { prefijo: string; proveedor: string }[] }>
 
 const InventarioCtx = createContext<EstadoInventario | null>(null)
 
@@ -133,7 +134,7 @@ export function InventarioProvider({ fuente, children }: { fuente: Fuente; child
   const [vuelta, setVuelta] = useState(0)
   const [pedido, setPedido] = useState<Record<string, number>>({})
   const cargadoPara = useRef<string | null>(null)
-  const llave = fuente.tipo === 'demo' ? `sinesc-pedido-demo-${fuente.sector}` : 'sinesc-pedido-sugerido'
+  const llave = fuente.tipo === 'demo' ? `sinesc-pedido-demo-${fuente.sector}` : ''
   const llaveAjustes = fuente.tipo === 'demo' ? `sinesc-ajustes-demo-${fuente.sector}` : ''
   const clave = `${fuente.tipo === 'demo' ? fuente.sector : 'cuenta'}|${vista.perfil}|${vista.horizonte}`
   const negocio = fuente.tipo === 'demo' ? fuente.sector : 'cuenta'
@@ -159,7 +160,15 @@ export function InventarioProvider({ fuente, children }: { fuente: Fuente; child
         cargadoPara.current = negocio
         const resp: RespuestaInventario = 'puedeSubir' in r ? r : { inventario: r.inventario, puedeSubir: false, sugerencias: true, finPrueba: null }
         setRespuesta(resp)
-        // El pedido arranca con lo sugerido de lo que se agota o hay que pedir ya.
+        if (fuente.tipo === 'cuenta') {
+          if (resp.inventario) {
+            api<{ pedido: { lineas: { codigo: string; cantidad: number | string }[] } | null }>('GET', '/pedidos/borrador')
+              .then((b) => vivo && setPedido(Object.fromEntries((b.pedido?.lineas || []).map((l) => [l.codigo, Number(l.cantidad) || 0]))))
+              .catch(() => {})
+          }
+          return
+        }
+        // En la demo, el pedido arranca con lo sugerido de lo que se agota o hay que pedir ya.
         const guardado = leerGuardado(llave)
         if (guardado) setPedido(guardado)
         else if (resp.inventario && resp.inventario.sugerencias) {
@@ -197,14 +206,20 @@ export function InventarioProvider({ fuente, children }: { fuente: Fuente; child
       error,
       recargar: () => setVuelta((v) => v + 1),
       pedido,
-      ponerEnPedido: (codigo, cantidad) =>
+      ponerEnPedido: (codigo, cantidad) => {
         setPedido((prev) => {
           const sig = { ...prev }
           if (cantidad > 0) sig[codigo] = Math.round(cantidad)
           else delete sig[codigo]
-          guardar(sig)
+          if (fuente.tipo === 'demo') guardar(sig)
           return sig
-        }),
+        })
+        if (fuente.tipo === 'cuenta') {
+          const p = respuesta?.inventario?.productos.find((x) => x.codigo === codigo)
+          api('POST', '/pedidos/borrador/linea', { codigo, cantidad: Math.max(0, Math.round(cantidad)), nombre: p?.nombre, proveedor: p && p.proveedor !== 'Sin proveedor' ? p.proveedor : undefined })
+            .catch((e) => setError(e.message))
+        }
+      },
       vaciarPedido: () => {
         setPedido({})
         guardar({})
@@ -212,7 +227,7 @@ export function InventarioProvider({ fuente, children }: { fuente: Fuente; child
       guardarAjustes: async (parcial) => {
         // Se manda lo que cambió junto con lo que ya había, para no borrar nada.
         const actuales = respuesta?.inventario?.ajustes
-        const a: Ajustes = { ...(actuales ? { entregas: actuales.entregas, entregaPorDefecto: actuales.entregaPorDefecto, cadaCuanto: actuales.cadaCuanto, semanasAgota: actuales.semanasAgota, asignaciones: actuales.asignaciones, prefijos: actuales.prefijos } : {}), ...parcial }
+        const a: Ajustes = { ...(actuales ? { entregas: actuales.entregas, entregasDias: actuales.entregasDias, entregaPorDefecto: actuales.entregaPorDefecto, entregaPorDefectoDias: actuales.entregaPorDefectoDias, cadaCuanto: actuales.cadaCuanto, semanasAgota: actuales.semanasAgota, asignaciones: actuales.asignaciones, prefijos: actuales.prefijos } : {}), ...parcial }
         if (fuente.tipo === 'demo') {
           try {
             window.localStorage.setItem(llaveAjustes, JSON.stringify(a))

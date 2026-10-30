@@ -11,8 +11,8 @@ import { useInventario } from './contexto'
 import { Pildoras } from './ui'
 
 export const TEXTO_PERFIL: Record<Perfil, { titulo: string; corto: string }> = {
-  analista: { titulo: 'Analista', corto: 'Ves el detalle: pronóstico, riesgo, cuánto pedir y dinero quieto.' },
-  operador: { titulo: 'Operador', corto: 'Registras entradas y salidas y ves lo que se agota.' },
+  analista: { titulo: 'Analista', corto: 'Para ver el detalle: pronóstico, riesgo, cuánto pedir y dinero quieto.' },
+  operador: { titulo: 'Operador', corto: 'Para registrar entradas y salidas y ver lo que se agota.' },
 }
 
 export function SelectorPerfil({ className }: { className?: string }) {
@@ -20,7 +20,7 @@ export function SelectorPerfil({ className }: { className?: string }) {
   const [cambiando, setCambiando] = useState(false)
   return (
     <div className={cn('flex flex-col gap-1.5', className)}>
-      <div role="radiogroup" aria-label="Cómo usas SINESC" className="grid grid-cols-2 rounded-xl border border-border bg-muted p-1">
+      <div role="radiogroup" aria-label="Cómo usa SINESC" className="grid grid-cols-2 rounded-xl border border-border bg-muted p-1">
         {(['analista', 'operador'] as const).map((p) => (
           <button
             key={p}
@@ -43,7 +43,7 @@ export function SelectorPerfil({ className }: { className?: string }) {
           </button>
         ))}
       </div>
-      <p className="px-1 text-[0.78rem] leading-snug text-muted-foreground">{TEXTO_PERFIL[perfil].corto}</p>
+      <p className="px-1 text-nota leading-snug text-muted-foreground">{TEXTO_PERFIL[perfil].corto}</p>
     </div>
   )
 }

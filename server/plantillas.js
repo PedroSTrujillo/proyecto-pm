@@ -70,8 +70,8 @@ async function plantillaExport() {
   X.hojaPlantilla(libro, PLANTILLA_EXPORT.existencias.hoja, ce, PRODUCTOS_EJEMPLO.map((p) => [p.codigo, p.nombre, p.existencias]), [14, 40, 13], ['', '', 'entero']);
   hojaInstrucciones(libro, 'Ventas y existencias', [
     '1. En la hoja "Ventas", una fila por cada venta: código, nombre, fecha y cantidad. Lo ideal es el último año.',
-    '2. En la hoja "Existencias", una fila por producto con lo que tienes hoy.',
-    '3. Borra los productos de ejemplo, pega los tuyos, guarda y sube el archivo en SINESC.',
+    '2. En la hoja "Existencias", una fila por producto con lo que tiene hoy.',
+    '3. Borre los productos de ejemplo, pegue los suyos, guarde y suba el archivo en SINESC.',
   ]);
   return X.aBuffer(libro);
 }
@@ -87,9 +87,9 @@ async function plantillaLista() {
   X.hojaPlantilla(libro, PLANTILLA_LISTA.hoja, PLANTILLA_LISTA.columnas, [], anchos, formatos);
   X.hojaPlantilla(libro, 'Ejemplo', PLANTILLA_LISTA.columnas, filas, anchos, formatos);
   hojaInstrucciones(libro, 'Lista de pedido', [
-    '1. En la hoja "Pedido", una fila por producto que ibas a pedir: código y cantidad a pedir. Lo demás es opcional.',
+    '1. En la hoja "Pedido", una fila por producto que iba a pedir: código y cantidad a pedir. Lo demás es opcional.',
     '2. Los productos sin cantidad no se tienen en cuenta.',
-    '3. Guarda el archivo y súbelo en el paso 1 de tu pedido en SINESC.',
+    '3. Guarde el archivo y súbalo en el paso 1 de su pedido en SINESC.',
     '',
     'La hoja "Ejemplo" muestra cómo se ve llena. No hace falta borrarla: no se tiene en cuenta.',
   ]);
@@ -129,12 +129,12 @@ function hojaInventario(libro, nombre, meses, filas) {
   const hoja = libro.addWorksheet(nombre, { views: [{ state: 'frozen', xSplit: 2, ySplit: FILA_ENCABEZADOS, showGridLines: false }] });
   hoja.properties.tabColor = { argb: C.primario };
   const columnas = [
-    { titulo: 'Código', ancho: 14, grupo: 'obligatorio', nota: 'El código del producto en tu programa. Si no usas códigos, copia aquí el nombre.' },
+    { titulo: 'Código', ancho: 14, grupo: 'obligatorio', nota: 'El código del producto en su programa. Si no usa códigos, copie aquí el nombre.' },
     { titulo: 'Producto', ancho: 36, grupo: 'obligatorio', nota: 'El nombre del producto.' },
-    { titulo: 'Existencias hoy', ancho: 15, grupo: 'obligatorio', formato: 'entero', nota: 'Cuántas unidades tienes hoy, sumando todas las bodegas.' },
-    ...meses.map((m) => ({ titulo: m, ancho: 10, grupo: 'mes', formato: 'entero', nota: `Unidades que vendiste en ${m}. En blanco si no vendiste.` })),
+    { titulo: 'Existencias hoy', ancho: 15, grupo: 'obligatorio', formato: 'entero', nota: 'Cuántas unidades tiene hoy, sumando todas las bodegas.' },
+    ...meses.map((m) => ({ titulo: m, ancho: 10, grupo: 'mes', formato: 'entero', nota: `Unidades que vendió en ${m}. En blanco si no vendió.` })),
     { titulo: 'Proveedor', ancho: 24, grupo: 'opcional', nota: 'Opcional. Con el proveedor, el pedido sugerido sale separado por proveedor.' },
-    { titulo: 'Costo unitario', ancho: 15, grupo: 'opcional', formato: 'plata', nota: 'Opcional. Lo que te cuesta una unidad. Con el costo ves cuánto dinero tienes quieto.' },
+    { titulo: 'Costo unitario', ancho: 15, grupo: 'opcional', formato: 'plata', nota: 'Opcional. Lo que le cuesta una unidad. Con el costo ve cuánto dinero tiene quieto.' },
   ];
   hoja.columns = columnas.map((c) => ({ width: c.ancho }));
   const ultima = columnas.length;
@@ -142,11 +142,11 @@ function hojaInventario(libro, nombre, meses, filas) {
 
   // Título y explicación.
   hoja.mergeCells(1, 1, 1, ultima);
-  hoja.getCell(1, 1).value = 'Tu inventario para SINESC: una fila por producto';
+  hoja.getCell(1, 1).value = 'Su inventario para SINESC: una fila por producto';
   hoja.getCell(1, 1).font = fuente({ size: 15, bold: true, color: { argb: C.primarioOscuro } });
   hoja.getRow(1).height = 26;
   hoja.mergeCells(2, 1, 2, ultima);
-  hoja.getCell(2, 1).value = 'Llena las columnas verdes oscuras y lo que vendiste cada mes. Proveedor y costo son opcionales. Pasa el mouse por un encabezado para ver qué va ahí.';
+  hoja.getCell(2, 1).value = 'Llene las columnas verdes oscuras y lo que vendió cada mes. Proveedor y costo son opcionales. Pase el mouse por un encabezado para ver qué va ahí.';
   hoja.getCell(2, 1).font = fuente({ size: 10, color: { argb: C.gris } });
 
   // Grupos de columnas (fila 3) y encabezados (fila 4).
@@ -195,7 +195,7 @@ function hojaInventario(libro, nombre, meses, filas) {
       if (col.formato) {
         celda.dataValidation = {
           type: 'decimal', operator: 'greaterThanOrEqual', formulae: [0], allowBlank: true,
-          showErrorMessage: true, errorTitle: 'Solo números', error: 'Escribe solo el número, sin letras ni signos.',
+          showErrorMessage: true, errorTitle: 'Solo números', error: 'Escriba solo el número, sin letras ni signos.',
         };
       }
     });
@@ -215,11 +215,11 @@ async function plantillaInventario() {
   ]);
   hojaInventario(libro, 'Ejemplo', meses, ejemplo);
   hojaInstrucciones(libro, 'Cómo llenar esta plantilla', [
-    '1. En la hoja "Productos", escribe una fila por producto: código, nombre y cuántas unidades tienes hoy.',
-    '2. En cada mes, las unidades que vendiste de ese producto. Si no vendiste nada, déjalo en blanco.',
-    '3. Proveedor y costo unitario son opcionales: con ellos el pedido sale por proveedor y ves cuánto dinero tienes quieto.',
-    '4. Si no usas códigos, copia el nombre del producto en la columna Código.',
-    '5. Guarda el archivo y súbelo en SINESC. Puedes pegar filas copiadas de otro Excel.',
+    '1. En la hoja "Productos", escriba una fila por producto: código, nombre y cuántas unidades tiene hoy.',
+    '2. En cada mes, las unidades que vendió de ese producto. Si no vendió nada, déjelo en blanco.',
+    '3. Proveedor y costo unitario son opcionales: con ellos el pedido sale por proveedor y ve cuánto dinero tiene quieto.',
+    '4. Si no usa códigos, copie el nombre del producto en la columna Código.',
+    '5. Guarde el archivo y súbalo en SINESC. Puede pegar filas copiadas de otro Excel.',
     '',
     'La hoja "Ejemplo" muestra cómo se ve llena. No hace falta borrarla: no se tiene en cuenta.',
   ]);

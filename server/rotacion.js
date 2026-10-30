@@ -30,6 +30,12 @@ const VECES_OTRO_MES = 2; // ...si además vende más del doble que cualquier ot
 // Avisos sobre el periodo que no cambian el cálculo pero sí cómo se lee: un archivo que llega
 // hasta hace semanas (las existencias son de ese día) y un hueco sin ninguna venta en la mitad
 // (casi siempre falta un archivo; el promedio sale más bajo).
+// Códigos que no coinciden entre ventas y existencias (SP5, Hito 1.6): si menos de la mitad de los
+// códigos vendidos aparecen en las existencias, casi seguro los dos informes escriben el código
+// distinto, y esos productos salen con 0 existencias (el sugerido pediría de más).
+const PARTE_MINIMA_COINCIDEN = 0.5;
+const MINIMO_CODIGOS_ALERTA = 5; // con 2 o 3 productos un porcentaje no dice nada
+const MAX_LISTA_CODIGOS = 500;
 const DIAS_ARCHIVO_VIEJO = 30;
 const DIAS_HUECO = 45;
 const DIAS_HUECO_MENSUAL = 62;
@@ -39,19 +45,21 @@ const fechaTexto = (dia) => { const d = new Date(dia * MS_DIA); return `${d.getU
 function avisosDelPeriodo(ventas, hasta, mensual, hoy) {
   const avisos = [];
   if (hoy !== undefined && hoy - hasta > DIAS_ARCHIVO_VIEJO) {
-    avisos.push(`Tus ventas llegan hasta el ${fechaTexto(hasta)}, hace ${Math.round((hoy - hasta) / 7)} semanas. Las existencias son las de ese día: si desde entonces vendiste o te llegó mercancía, saca el informe hasta hoy.`);
+    avisos.push(`Sus ventas llegan hasta el ${fechaTexto(hasta)}, hace ${Math.round((hoy - hasta) / 7)} semanas. Las existencias son las de ese día: si desde entonces vendió o le llegó mercancía, saque el informe hasta hoy.`);
   }
   const dias = [...new Set(ventas.filter((v) => v.cantidad > 0).map((v) => v.dia))].sort((a, b) => a - b);
   let hueco = null;
   for (let i = 1; i < dias.length; i++) if (!hueco || dias[i] - dias[i - 1] > hueco.dias) hueco = { desde: dias[i - 1], hasta: dias[i], dias: dias[i] - dias[i - 1] };
   if (hueco && hueco.dias > (mensual ? DIAS_HUECO_MENSUAL : DIAS_HUECO)) {
-    avisos.push(`No hay ninguna venta entre el ${fechaTexto(hueco.desde + 1)} y el ${fechaTexto(hueco.hasta - 1)}. Si te falta el archivo de esas fechas, súbelo junto con los demás: sin él, el promedio de venta sale más bajo.`);
+    avisos.push(`No hay ninguna venta entre el ${fechaTexto(hueco.desde + 1)} y el ${fechaTexto(hueco.hasta - 1)}. Si le falta el archivo de esas fechas, súbalo junto con los demás: sin él, el promedio de venta sale más bajo.`);
   }
   return avisos;
 }
 
 /**
- * ventas: [{ codigo, nombre, dia, cantidad }]  (dia = días desde 1970-01-01)
+ * ventas: [{ codigo, nombre, dia, cantidad, proyecto? }]  (dia = días desde 1970-01-01)
+ *   proyecto: true = venta para un proyecto (D12). Cuenta para el periodo del archivo, pero no
+ *   para el promedio: se guarda aparte en vendidoProyecto.
  * existencias: [{ codigo, nombre, existencias }]
  * mensual: true si las ventas vienen agrupadas por mes (la fecha es el día 1 de cada mes)
  * periodo: { desde, hasta } (días) si las ventas son totales de un periodo, sin fecha por venta.
@@ -85,7 +93,7 @@ function calcularRotacion({ ventas, existencias, mensual = false, periodo: total
     const clave = claveCodigo(codigo);
     let p = productos.get(clave);
     if (!p) {
-      p = { clave, codigo, nombre: nombre || '', vendido: 0, reciente: 0, primeraVenta: null, diasConVenta: new Set(), meses: new Map(), filasVenta: 0, existencias: 0, filasExistencias: 0 };
+      p = { clave, codigo, nombre: nombre || '', vendido: 0, vendidoProyecto: 0, reciente: 0, primeraVenta: null, diasConVenta: new Set(), meses: new Map(), filasVenta: 0, existencias: 0, filasExistencias: 0 };
       productos.set(clave, p);
     }
     return p;
@@ -93,6 +101,12 @@ function calcularRotacion({ ventas, existencias, mensual = false, periodo: total
 
   for (const v of ventas) {
     const p = producto(v.codigo, v.nombre);
+    if (v.proyecto) {
+      p.vendidoProyecto += v.cantidad;
+      p.filasVenta++;
+      if (!p.nombre && v.nombre) p.nombre = v.nombre;
+      continue;
+    }
     const esReciente = v.dia >= inicioReciente;
     p.vendido += v.cantidad;
     if (esReciente) p.reciente += v.cantidad;
@@ -131,7 +145,9 @@ function calcularRotacion({ ventas, existencias, mensual = false, periodo: total
     if (!enVentas) senales.push('no_en_ventas');
     if (!enExistencias) senales.push('no_en_existencias');
     if (existenciasActuales < 0) senales.push('existencias_negativas');
-    if (enVentas && vendido <= 0) senales.push('devoluciones');
+    const vendidoProyecto = redondear(p.vendidoProyecto);
+    if (enVentas && vendido <= 0 && !vendidoProyecto) senales.push('devoluciones');
+    if (vendidoProyecto > 0) senales.push('proyecto');
     if (ajuste && ajuste.pico) senales.push('pico_recortado');
     if (ajuste && ajuste.semanasProducto < semanasHistorico) senales.push('producto_nuevo');
 
@@ -149,6 +165,7 @@ function calcularRotacion({ ventas, existencias, mensual = false, periodo: total
       codigo: p.codigo,
       nombre: p.nombreExistencias || p.nombre,
       vendido,
+      vendidoProyecto,
       promedioSemanal,
       // El desglose del promedio, para explicarlo producto por producto.
       promedioSimple: vendido > 0 ? vendido / semanasHistorico : 0,
@@ -184,6 +201,7 @@ function calcularRotacion({ ventas, existencias, mensual = false, periodo: total
     noEnExistencias: cuenta((f) => f.senales.includes('no_en_existencias')),
     picosRecortados: cuenta((f) => f.senales.includes('pico_recortado')),
     productosNuevos: cuenta((f) => f.senales.includes('producto_nuevo')),
+    conProyectos: cuenta((f) => f.senales.includes('proyecto')),
     filasVenta: ventas.length,
   };
 
@@ -200,11 +218,15 @@ function calcularRotacion({ ventas, existencias, mensual = false, periodo: total
 
   const avisos = [];
   if (semanasHistorico < SEMANAS_HISTORICO_MINIMO) {
-    avisos.push(`Tu archivo trae ventas de solo ${Math.round(semanasHistorico)} semanas. El cálculo es más confiable con uno o dos años de ventas.`);
+    avisos.push(`Su archivo trae ventas de solo ${Math.round(semanasHistorico)} semanas. El cálculo es más confiable con uno o dos años de ventas.`);
   } else if (semanasHistorico > SEMANAS_HISTORICO_MAXIMO) {
-    avisos.push(`Tu archivo trae ventas de ${Math.round(semanasHistorico)} semanas (más de dos años). Se usaron todas.`);
+    avisos.push(`Su archivo trae ventas de ${Math.round(semanasHistorico)} semanas (más de dos años). Se usaron todas.`);
   }
   if (!totales) avisos.push(...avisosDelPeriodo(ventas, hasta, mensual, hoy));
+  const codigos = revisarCodigos(filas);
+  if (codigos.alerta) {
+    avisos.unshift(`Solo ${codigos.coinciden} de los ${codigos.ventas} códigos de las ventas aparecen en las existencias. Casi siempre es porque los dos informes escriben el código distinto (con guiones, ceros o un sufijo). Esos productos salen con 0 existencias y se sugiere pedirlos de más: revise la lista de códigos que no coinciden.`);
+  }
   if (resumen.noEnVentas) avisos.push(`${plural(resumen.noEnVentas, 'producto tiene', 'productos tienen')} existencias pero no aparece${resumen.noEnVentas === 1 ? '' : 'n'} en las ventas. Se muestra${resumen.noEnVentas === 1 ? '' : 'n'} como "sin ventas en el periodo".`);
   if (resumen.noEnExistencias) avisos.push(`${plural(resumen.noEnExistencias, 'producto aparece', 'productos aparecen')} en las ventas pero no en las existencias. Se tomaron con 0 existencias.`);
   if (variasBodegas) avisos.push(`${plural(variasBodegas, 'producto aparece', 'productos aparecen')} en varias filas de existencias (por ejemplo, varias bodegas). Se sumaron.`);
@@ -219,8 +241,68 @@ function calcularRotacion({ ventas, existencias, mensual = false, periodo: total
     periodo,
     ejemplo: elegirEjemplo(filas, semanasHistorico),
     avisos,
+    codigos,
     umbrales: { seAgota: semanasAgota, sobra: SEMANAS_SOBRA },
     ajustes: { semanasRecientes: SEMANAS_RECIENTES, semanasMinimasProducto: SEMANAS_MINIMAS_PRODUCTO, vecesLoNormal: VECES_LO_NORMAL, vecesOtroMes: VECES_OTRO_MES, mesesMinimosPico: MESES_MINIMOS_PICO },
+  };
+}
+
+// El código sin guiones, puntos, barras ni espacios, y sin ceros a la izquierda: "TOR-0610" y
+// "TOR0610" son el mismo; "00123" y "123" también.
+function claveSuelta(codigo) {
+  const t = claveCodigo(codigo).replace(/[^0-9A-Z]/g, '');
+  return t.replace(/^0+(?=\d)/, '');
+}
+
+// El código sin su último pedazo ("TOR-0610-UN" → "TOR-0610"), si después de quitarlo queda algo.
+function sinSufijo(codigo) {
+  const t = String(codigo).trim();
+  const i = Math.max(t.lastIndexOf('-'), t.lastIndexOf('_'), t.lastIndexOf('.'), t.lastIndexOf('/'), t.lastIndexOf(' '));
+  if (i < 2) return null;
+  const resto = claveSuelta(t.slice(0, i));
+  return resto.length >= 3 ? resto : null;
+}
+
+/**
+ * Qué códigos de las ventas no están en las existencias y al revés, y parejas probables: el mismo
+ * código escrito distinto (sin guiones ni sufijos). Pura; las listas van recortadas.
+ */
+function revisarCodigos(filas) {
+  const soloVentas = filas.filter((f) => f.senales.includes('no_en_existencias'));
+  const soloExistencias = filas.filter((f) => f.senales.includes('no_en_ventas'));
+  const ventas = filas.length - soloExistencias.length;
+  const existencias = filas.length - soloVentas.length;
+  const coinciden = ventas - soloVentas.length;
+
+  const porSuelta = new Map();
+  const porSinSufijo = new Map();
+  for (const f of soloExistencias) {
+    const k = claveSuelta(f.codigo);
+    if (!porSuelta.has(k)) porSuelta.set(k, f);
+    const c = sinSufijo(f.codigo);
+    if (c && !porSinSufijo.has(c)) porSinSufijo.set(c, f);
+  }
+  const usados = new Set();
+  const parejas = [];
+  for (const v of soloVentas) {
+    const k = claveSuelta(v.codigo);
+    const c = sinSufijo(v.codigo);
+    const e = [porSuelta.get(k), c && porSuelta.get(c), porSinSufijo.get(k)].find((x) => x && !usados.has(x.codigo));
+    if (!e) continue;
+    usados.add(e.codigo);
+    parejas.push({ ventas: v.codigo, existencias: e.codigo, nombre: v.nombre || e.nombre || '' });
+  }
+  return {
+    ventas,
+    existencias,
+    coinciden,
+    // Solo tiene sentido si las existencias vinieron aparte (si no, no hay nada que coincida).
+    alerta: existencias > 0 && ventas >= MINIMO_CODIGOS_ALERTA && coinciden < ventas * PARTE_MINIMA_COINCIDEN,
+    soloVentas: soloVentas.slice(0, MAX_LISTA_CODIGOS).map((f) => ({ codigo: f.codigo, nombre: f.nombre, vendido: f.vendido })),
+    soloExistencias: soloExistencias.slice(0, MAX_LISTA_CODIGOS).map((f) => ({ codigo: f.codigo, nombre: f.nombre, existencias: f.existencias })),
+    totalSoloVentas: soloVentas.length,
+    totalSoloExistencias: soloExistencias.length,
+    parejas: parejas.slice(0, MAX_LISTA_CODIGOS),
   };
 }
 
@@ -363,4 +445,4 @@ function plural(n, uno, varios) {
   return n === 1 ? `1 ${uno}` : `${n} ${varios}`;
 }
 
-module.exports = { calcularRotacion, conUmbral, estadoPorSemanas, SEMANAS_SE_AGOTA, SEMANAS_SOBRA };
+module.exports = { calcularRotacion, conUmbral, estadoPorSemanas, revisarCodigos, claveSuelta, SEMANAS_SE_AGOTA, SEMANAS_SOBRA };

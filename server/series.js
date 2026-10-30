@@ -17,10 +17,12 @@ function diasDelMes(dia) {
 }
 
 /**
- * ventas: [{ codigo, dia, cantidad }] como las devuelve leerExport.
+ * ventas: [{ codigo, dia, cantidad, proyecto? }] como las devuelve leerExport.
  * hastaDia: último día del periodo si es después de la última venta.
- * Devuelve { hasta: "YYYY-MM-DD", semanas, porProducto: { clave: [cantidad por semana] } }
- * La posición 0 es la semana más antigua; la última es la que termina en `hasta`.
+ * Devuelve { hasta: "YYYY-MM-DD", semanas, porProducto: { clave: [cantidad por semana] }, proyecto? }
+ * La posición 0 es la semana más antigua; la última es la que termina en `hasta`. Las ventas de
+ * proyecto (D12) no entran en porProducto, que es lo que se pronostica: van aparte en `proyecto`,
+ * con la misma forma, para el gráfico y para rearmar las ventas (saldos.js, ventasDeExport).
  */
 function seriesSemanales(ventas, { mensual = false, totales = false, hastaDia } = {}) {
   if (totales || !ventas.length) return null;
@@ -39,34 +41,40 @@ function seriesSemanales(ventas, { mensual = false, totales = false, hastaDia } 
   const indice = (dia) => Math.floor((dia - primerDia) / 7);
 
   const porProducto = new Map();
-  const serie = (codigo) => {
+  const deProyecto = new Map();
+  const serie = (codigo, mapa) => {
     const k = claveCodigo(codigo);
-    if (!porProducto.has(k)) porProducto.set(k, new Array(semanas).fill(0));
-    return porProducto.get(k);
+    if (!mapa.has(k)) mapa.set(k, new Array(semanas).fill(0));
+    return mapa.get(k);
   };
 
   for (const v of ventas) {
+    const mapa = v.proyecto ? deProyecto : porProducto;
     if (!mensual) {
       if (v.dia < primerDia || v.dia > hasta) continue;
-      serie(v.codigo)[indice(v.dia)] += v.cantidad;
+      serie(v.codigo, mapa)[indice(v.dia)] += v.cantidad;
       continue;
     }
     // Un mes: se reparte por igual entre sus días.
     const n = diasDelMes(v.dia);
     const porDia = v.cantidad / n;
-    const s = serie(v.codigo);
+    const s = serie(v.codigo, mapa);
     for (let d = v.dia; d < v.dia + n; d++) {
       if (d < primerDia || d > hasta) continue;
       s[indice(d)] += porDia;
     }
   }
 
-  const out = {};
-  for (const [k, s] of porProducto) {
-    descontarDevoluciones(s);
-    if (s.some((x) => x !== 0)) out[k] = s.map((x) => Math.round(x * 100) / 100);
-  }
-  return { hasta: textoDia(hasta), semanas, porProducto: out };
+  const limpiar = (mapa) => {
+    const out = {};
+    for (const [k, s] of mapa) {
+      descontarDevoluciones(s);
+      if (s.some((x) => x !== 0)) out[k] = s.map((x) => Math.round(x * 100) / 100);
+    }
+    return out;
+  };
+  const proyecto = limpiar(deProyecto);
+  return { hasta: textoDia(hasta), semanas, porProducto: limpiar(porProducto), ...(Object.keys(proyecto).length ? { proyecto } : {}) };
 }
 
 // Una devolución resta de la semana en que se hizo; si esa semana queda negativa (devolvieron algo

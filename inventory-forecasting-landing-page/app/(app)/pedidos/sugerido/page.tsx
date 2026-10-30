@@ -1,5 +1,5 @@
-import { PedidoSugerido } from '@/components/app/pedido-sugerido'
+import { AbrirPedido } from '@/components/app/abrir-pedido'
 
 export default function Page() {
-  return <PedidoSugerido />
+  return <AbrirPedido />
 }

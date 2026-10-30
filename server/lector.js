@@ -22,7 +22,7 @@ const MINIMO_FILAS_CON_PROBLEMAS = 10;
 class ErrorArchivo extends Error {}
 
 // Un archivo con los encabezados y sin productos: casi siempre es una plantilla de SINESC sin llenar.
-const SIN_LLENAR = 'El archivo solo trae los encabezados, sin productos. Si es la plantilla de SINESC, escribe tus productos en la primera hoja, guárdala y vuelve a subirla.';
+const SIN_LLENAR = 'El archivo solo trae los encabezados, sin productos. Si es la plantilla de SINESC, escriba sus productos en la primera hoja, guárdela y vuelva a subirla.';
 
 // Las hojas de ayuda de una plantilla ("Instrucciones", "Ejemplo") no son datos del usuario.
 const esHojaDeAyuda = (h) => /^(instrucciones?|ejemplos?|ayuda|como llenar.*)$/.test(normalizarEncabezado(h.hoja || ''));
@@ -124,7 +124,7 @@ function abrirArchivo(buffer, nombreArchivo) {
   try {
     libro = XLSX.read(buffer, { type: 'buffer', cellDates: true, UTC: true, dense: true });
   } catch {
-    throw new ErrorArchivo(`No pudimos abrir "${nombreArchivo}". Revisa que sea un Excel (.xlsx o .xls) o un CSV, y que no tenga contraseña.`);
+    throw new ErrorArchivo(`No pudimos abrir "${nombreArchivo}". Revise que sea un Excel (.xlsx o .xls) o un CSV, y que no tenga contraseña.`);
   }
   const hojas = [];
   for (const nombreHoja of libro.SheetNames) {
@@ -329,7 +329,7 @@ function mensajeProblema(p) {
   const pre = `${donde}la fila ${p.fila}`;
   switch (p.tipo) {
     case 'sin_codigo': return `${capital(pre)} no tiene código de producto.`;
-    case 'fecha': return `${capital(pre)} tiene una fecha que no entendemos ("${p.valor}", ${p.columna}). Usa el formato día/mes/año, por ejemplo 15/01/2026.`;
+    case 'fecha': return `${capital(pre)} tiene una fecha que no entendemos ("${p.valor}", ${p.columna}). Use el formato día/mes/año, por ejemplo 15/01/2026.`;
     case 'sin_fecha': return `${capital(pre)} no tiene fecha.`;
     case 'cantidad': return `${capital(pre)} tiene una cantidad que no es un número ("${p.valor}", ${p.columna}).`;
     case 'sin_cantidad': return `${capital(pre)} no tiene cantidad.`;
@@ -361,9 +361,13 @@ function muestraColumna(filas, desde, col, max = 3000) {
 
 // --- Export de ventas y existencias -----------------------------------------------
 
-// costo, costoTotal y proveedor son opcionales: si vienen, el panel muestra el dinero en
-// inventario y agrupa el pedido por proveedor. Su falta nunca impide leer el archivo.
-const CAMPOS_EXPORT = ['codigo', 'nombre', 'fecha', 'cantidad', 'existencias', 'entrada', 'documento', 'costo', 'costoTotal', 'proveedor'];
+// costo, costoTotal, proveedor, familia y canal son opcionales: si vienen, el panel muestra el
+// dinero en inventario, agrupa el pedido por proveedor, filtra por familia y separa las ventas de
+// proyecto. Su falta nunca impide leer el archivo.
+const CAMPOS_EXPORT = ['codigo', 'nombre', 'fecha', 'cantidad', 'existencias', 'entrada', 'documento', 'costo', 'costoTotal', 'proveedor', 'familia', 'canal'];
+
+// Una columna de canal con más valores que esto (cada cliente, cada factura) no se pregunta.
+const MAX_VALORES_CANAL = 50;
 
 // --- Informes "de impresora" y otros formatos difíciles -------------------------------
 
@@ -380,11 +384,18 @@ const esFilaDeSaldoSinMovimiento = (f, c) =>
 // DFCA, DFV…: devolución de una factura (así las nombra Helisa).
 const RE_DOC_DEVOLUCION = /^(NC|NCV|NCE|DV|DEV|DEVOLUCION|DEVOLUCIONES|DFCA|DFV|DFE|DFED)$/;
 
-// Lo que el usuario marcó: una lista (versión anterior: solo ventas) o { ventas, devoluciones }.
+// Lo que el usuario marcó: una lista (versión anterior: solo ventas) o { ventas, devoluciones,
+// proyectos }. Una venta de proyecto baja existencias pero no cuenta en el promedio (D12).
 function eleccionDocumentos(x) {
   if (!x) return null;
-  if (Array.isArray(x)) return { ventas: new Set(x), devoluciones: new Set() };
-  return { ventas: new Set(x.ventas || []), devoluciones: new Set(x.devoluciones || []) };
+  if (Array.isArray(x)) return { ventas: new Set(x), devoluciones: new Set(), proyectos: new Set() };
+  return { ventas: new Set(x.ventas || []), devoluciones: new Set(x.devoluciones || []), proyectos: new Set(x.proyectos || []) };
+}
+
+// El valor de una columna de canal, para compararlo sin importar espacios ni mayúsculas.
+function valorCanal(v) {
+  if (v === null || v === undefined) return '';
+  return String(v).replace(/\s+/g, ' ').trim().toUpperCase().slice(0, 60);
 }
 
 // FCA: la factura de venta en el Movimiento detalle de Helisa.
@@ -492,7 +503,9 @@ function pareceDelCampo(campo, valores) {
     case 'existencias':
     case 'costo':
     case 'costoTotal': return frac((v) => esNumero(v) && !(v instanceof Date)) >= 0.8;
-    case 'proveedor': return frac((v) => typeof v === 'string' && /[a-záéíóúñ]{3}/i.test(v)) >= 0.6;
+    case 'proveedor':
+    case 'familia': return frac((v) => typeof v === 'string' && /[a-záéíóúñ]{3}/i.test(v)) >= 0.6;
+    case 'canal': return frac((v) => !(v instanceof Date)) >= 0.6;
     case 'nombre': return frac((v) => typeof v === 'string' && /[a-záéíóúñ]{3}/i.test(v)) >= 0.6;
     case 'documento': return frac((v) => typeof v === 'string' && /[a-zñ]/i.test(v)) >= 0.6;
     default: return frac((v) => !(v instanceof Date)) >= 0.6; // código: cualquier texto o número
@@ -572,6 +585,10 @@ function sugerirPorContenido(hoja, analisis, campos) {
  * vendido de cada producto en un periodo, sin una fecha por venta (por ejemplo, "Ventas por
  * ítems" de Alegra o el listado de inventario con la casilla de salidas). Si el archivo es así
  * y no viene el periodo, se devuelve { ok: false, necesitaPeriodo: true } para preguntarlo.
+ *
+ * opciones.canales = { proyectos: [valores] }: qué valores de la columna de canal (centro de
+ * costo, OT, cliente) son ventas de proyecto. Si la columna trae entre 2 y 50 valores y no viene
+ * la elección (ni recordada en opciones.canalesPorFirma), se devuelve { ok: false, necesitaCanal }.
  *       o  { ok: false, errores, hojas } (hojas sirve para que el usuario elija columnas)
  */
 function leerExport(archivos, mapeo = {}, opciones = {}) {
@@ -660,7 +677,57 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
         ok: false,
         necesitaDocumentos: true,
         documentos: [...pregunta.values()].sort((a, b) => b.filas - a.filas).map((e) => ({ ...e, sugerido: RE_DOC_VENTA.test(e.prefijo), devolucion: RE_DOC_DEVOLUCION.test(e.prefijo) })),
-        errores: ['Tu archivo trae varios tipos de documento (por ejemplo, compras y ventas). Marca cuáles son ventas y cuáles devoluciones de clientes.'],
+        errores: ['Su archivo trae varios tipos de documento (por ejemplo, compras y ventas). Marque cuáles son ventas y cuáles devoluciones de clientes.'],
+        hojas: resumenHojas,
+      };
+    }
+  }
+
+  // Ventas de proyecto por una columna de canal (centro de costo, OT, proyecto o cliente, D12): si
+  // trae pocos valores distintos, el usuario marca cuáles son de proyecto. Se recuerda por formato.
+  // Con muchos valores (cada cliente de un almacén) no se pregunta: no se puede marcar uno por uno.
+  const canalesElegidos = new Map(); // clave de hoja → Set de valores de proyecto
+  const canalPorHoja = new Map(); // clave de hoja → Map(valor → { valor, filas, ejemplo })
+  const conCanal = hojasVentas.filter((h) => h.analisis.columnas.canal !== undefined);
+  for (const h of conCanal) {
+    const c = h.analisis.columnas;
+    const vistos = new Map();
+    for (let i = h.analisis.iEnc + 1; i < h.hoja.filas.length && vistos.size <= MAX_VALORES_CANAL; i++) {
+      const fila = h.hoja.filas[i];
+      if (filaVacia(fila) || esFilaDeRuido(fila, h.analisis.firma)) continue;
+      const { codigo } = codigoYNombre(fila, h.analisis);
+      if (!codigo || esFilaQueSeSalta(fila, codigo) || esFilaDeSaldoSinMovimiento(fila, c)) continue;
+      const v = valorCanal(fila[c.canal]);
+      if (!v) continue;
+      const x = vistos.get(v) || { valor: v, filas: 0, ejemplo: String(fila[c.canal]).replace(/\s+/g, ' ').trim().slice(0, 60) };
+      x.filas++;
+      vistos.set(v, x);
+    }
+    if (vistos.size >= 2 && vistos.size <= MAX_VALORES_CANAL) canalPorHoja.set(h.clave, vistos);
+  }
+  if (canalPorHoja.size) {
+    const sinElegir = [];
+    for (const h of conCanal) {
+      if (!canalPorHoja.has(h.clave)) continue;
+      const elegidos = opciones.canales || (opciones.canalesPorFirma && opciones.canalesPorFirma[h.analisis.firma]);
+      if (elegidos) canalesElegidos.set(h.clave, new Set((elegidos.proyectos || []).map(valorCanal)));
+      else sinElegir.push(h);
+    }
+    if (sinElegir.length) {
+      const pregunta = new Map();
+      for (const h of sinElegir) {
+        for (const e of canalPorHoja.get(h.clave).values()) {
+          const x = pregunta.get(e.valor) || { ...e, filas: 0 };
+          x.filas += e.filas;
+          pregunta.set(e.valor, x);
+        }
+      }
+      const h = sinElegir[0];
+      return {
+        ok: false,
+        necesitaCanal: true,
+        canal: { columna: describirColumna(h.hoja, h.analisis, h.analisis.columnas.canal), valores: [...pregunta.values()].sort((a, b) => b.filas - a.filas) },
+        errores: ['Su archivo trae una columna que dice de dónde vino cada venta. Marque cuáles son ventas de proyecto: bajan las existencias, pero no cuentan para el promedio de venta.'],
         hojas: resumenHojas,
       };
     }
@@ -673,13 +740,13 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
         ok: false,
         necesitaPeriodo: true,
         periodoSugerido: periodoDelTitulo(porPeriodo.map((h) => h.hoja)),
-        errores: ['Tu archivo trae el total vendido de cada producto, pero no la fecha de cada venta. Dinos de qué fecha a qué fecha son esas ventas.'],
+        errores: ['Su archivo trae el total vendido de cada producto, pero no la fecha de cada venta. Díganos de qué fecha a qué fecha son esas ventas.'],
         hojas: resumenHojas,
       };
     }
     const dia = (t) => V.diaDe(...t.split('-').map(Number));
     periodo = { desde: dia(opciones.periodo.desde), hasta: dia(opciones.periodo.hasta) };
-    avisos.push(`Tu archivo trae el total vendido de cada producto del ${opciones.periodo.desde} al ${opciones.periodo.hasta}, sin la fecha de cada venta.`);
+    avisos.push(`Su archivo trae el total vendido de cada producto del ${opciones.periodo.desde} al ${opciones.periodo.hasta}, sin la fecha de cada venta.`);
   }
 
   // Ventas
@@ -691,11 +758,12 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
   let filasOtrosDocumentos = 0;
   let fechasCompletadas = 0;
   let unidadesDevueltas = 0;
+  let unidadesProyecto = 0;
   const existenciasDeVentas = new Map(); // si la misma tabla trae ventas y existencias
-  // Costo y proveedor de cada producto, si el archivo los trae (gana la última fila con dato).
+  // Costo, proveedor y familia de cada producto, si el archivo los trae (gana la última fila con dato).
   const catalogo = new Map();
   const anotarCatalogo = (codigo, f, c, decimal, existenciasFila = null) => {
-    if (c.costo === undefined && c.costoTotal === undefined && c.proveedor === undefined) return;
+    if (c.costo === undefined && c.costoTotal === undefined && c.proveedor === undefined && c.familia === undefined) return;
     const clave = V.claveCodigo(codigo);
     const e = catalogo.get(clave) || {};
     if (c.costo !== undefined) {
@@ -710,7 +778,12 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
       const t = String(f[c.proveedor]).replace(/\s+/g, ' ').trim().slice(0, 80);
       if (t) e.proveedor = t;
     }
-    catalogo.set(clave, e);
+    // Solo si trae letras: una columna "Línea" con 1, 2, 3 es el número de la línea de la factura.
+    if (c.familia !== undefined && f[c.familia] !== null && f[c.familia] !== undefined) {
+      const t = String(f[c.familia]).replace(/\s+/g, ' ').trim().slice(0, 80);
+      if (/[a-záéíóúñ]/i.test(t)) e.familia = t;
+    }
+    if (Object.keys(e).length) catalogo.set(clave, e);
   };
   for (const h of hojasVentas) {
     const { hoja, analisis } = h;
@@ -753,7 +826,14 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
       const docs = documentosElegidos.get(h.clave);
       const prefijo = docs ? prefijoDocumento(f[c.documento]) : null;
       const esDevolucion = Boolean(docs && docs.devoluciones.has(prefijo));
-      if (docs && !docs.ventas.has(prefijo) && !esDevolucion) {
+      const proyectosCanal = canalesElegidos.get(h.clave);
+      const esProyecto = Boolean((docs && docs.proyectos.has(prefijo)) || (proyectosCanal && proyectosCanal.has(valorCanal(f[c.canal]))));
+      // La venta de proyecto va con su marca: rotacion.js y series.js no la cuentan en el promedio.
+      const venta = (v) => {
+        if (esProyecto) unidadesProyecto += v.cantidad;
+        ventas.push(esProyecto ? { ...v, proyecto: true } : v);
+      };
+      if (docs && !docs.ventas.has(prefijo) && !esDevolucion && !docs.proyectos.has(prefijo)) {
         // No es una venta, pero su saldo sí cuenta: en un kardex, el saldo de hoy es el del último
         // movimiento, sea una venta, una compra o un ajuste.
         filasOtrosDocumentos++;
@@ -779,7 +859,7 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
         if (bruto === null || bruto === undefined) continue; // sin ventas en el periodo
         const cantidad = cantidadDe(bruto);
         if (cantidad === null) { problemas.push({ tipo: 'cantidad', fila, donde, valor: textoValor(bruto), columna: describirColumna(hoja, analisis, c.cantidad) }); continue; }
-        if (cantidad !== 0) ventas.push({ codigo, nombre, dia: periodo.hasta, cantidad });
+        if (cantidad !== 0) venta({ codigo, nombre, dia: periodo.hasta, cantidad });
         todasMensuales = false;
         continue;
       }
@@ -789,7 +869,7 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
           if (bruto === null || bruto === undefined) continue;
           const cantidad = cantidadDe(bruto);
           if (cantidad === null) { problemas.push({ tipo: 'cantidad', fila, donde, valor: textoValor(bruto), columna: describirColumna(hoja, analisis, m.col) }); continue; }
-          if (cantidad !== 0) ventas.push({ codigo, nombre, dia: m.dia, cantidad });
+          if (cantidad !== 0) venta({ codigo, nombre, dia: m.dia, cantidad });
           if (!m.mensual) todasMensuales = false;
         }
         if (h.esExistencias && !soloExistencias.length) {
@@ -812,7 +892,7 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
       const cantidad = cantidadDe(brutoCant ?? 0);
       if (cantidad === null) { problemas.push({ tipo: 'cantidad', fila, donde, valor: textoValor(brutoCant), columna: describirColumna(hoja, analisis, c.cantidad) }); continue; }
       if (!fecha.mensual) todasMensuales = false;
-      if (cantidad !== 0) ventas.push({ codigo, nombre, dia: fecha.dia, cantidad });
+      if (cantidad !== 0) venta({ codigo, nombre, dia: fecha.dia, cantidad });
       anotarSaldo(codigo, nombre, f, fecha.dia);
     }
   }
@@ -866,7 +946,7 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
     return {
       ok: false,
       errores: [
-        `Muchas filas (${problemas.length} de ${filasDatos}) no se pudieron leer. Puede que una columna no sea la que creemos; revisa las columnas abajo o corrige estas filas:`,
+        `Muchas filas (${problemas.length} de ${filasDatos}) no se pudieron leer. Puede que una columna no sea la que creemos; revise las columnas abajo o corrija estas filas:`,
         ...resumirProblemas(problemas),
       ],
       hojas: resumenHojas,
@@ -904,16 +984,22 @@ function leerExport(archivos, mapeo = {}, opciones = {}) {
       d.devoluciones.forEach((p) => devolucionesUsadas.add(p));
     }
     const lista = (s) => { const a = [...s]; return a.length > 1 ? `${a.slice(0, -1).join(', ')} y ${a[a.length - 1]}` : a[0]; };
-    avisos.push(`Se contaron como ventas los documentos ${lista(ventasUsadas)}${devolucionesUsadas.size ? `, y como devoluciones de clientes los ${lista(devolucionesUsadas)}` : ''}. Los demás tipos no se tomaron como venta.`);
+    const proyectosUsados = new Set();
+    for (const d of documentosElegidos.values()) d.proyectos.forEach((p) => proyectosUsados.add(p));
+    avisos.push(`Se contaron como ventas los documentos ${lista(ventasUsadas)}${devolucionesUsadas.size ? `, como devoluciones de clientes los ${lista(devolucionesUsadas)}` : ''}${proyectosUsados.size ? `, y como ventas de proyecto los ${lista(proyectosUsados)}` : ''}. Los demás tipos no se tomaron como venta.`);
   }
+  if (unidadesProyecto) avisos.push(`${(Math.round(unidadesProyecto * 100) / 100).toLocaleString('es-CO')} unidades se vendieron para proyectos: bajan las existencias, pero no cuentan para el promedio de venta.`);
   if (unidadesDevueltas) avisos.push(`Se restaron de las ventas ${(Math.round(unidadesDevueltas * 100) / 100).toLocaleString('es-CO')} unidades que devolvieron los clientes.`);
   const documentos = documentosElegidos.size
     ? Object.fromEntries(analizadas.filter((h) => documentosElegidos.has(h.clave)).map((h) => {
       const d = documentosElegidos.get(h.clave);
-      return [h.analisis.firma, { ventas: [...d.ventas], devoluciones: [...d.devoluciones] }];
+      return [h.analisis.firma, { ventas: [...d.ventas], devoluciones: [...d.devoluciones], ...(d.proyectos.size ? { proyectos: [...d.proyectos] } : {}) }];
     }))
     : null;
-  return { ok: true, ventas, existencias, mensual: todasMensuales, periodo, documentos, catalogo: Object.fromEntries(catalogo), hojasUsadas, avisos, hojas: resumenHojas };
+  const canales = canalesElegidos.size
+    ? Object.fromEntries(analizadas.filter((h) => canalesElegidos.has(h.clave)).map((h) => [h.analisis.firma, { proyectos: [...canalesElegidos.get(h.clave)] }]))
+    : null;
+  return { ok: true, ventas, existencias, mensual: todasMensuales, periodo, documentos, canales, catalogo: Object.fromEntries(catalogo), hojasUsadas, avisos, hojas: resumenHojas };
 }
 
 function explicarFaltantes(analizadas, hayVentas, hayExistencias, varias) {
@@ -938,7 +1024,7 @@ function explicarFaltantes(analizadas, hayVentas, hayExistencias, varias) {
     if (cand && cand.f.length === 1 && cand.f[0] === 'codigo') {
       errores.push(`Para las existencias, en ${nombreHoja(cand.h.hoja, varias)} falta la columna de código de producto.`);
     } else {
-      errores.push('Falta la columna de existencias. Agrega una hoja con código y existencias, o sube también el archivo de existencias junto con el de ventas.');
+      errores.push('Falta la columna de existencias. Agregue una hoja con código y existencias, o suba también el archivo de existencias junto con el de ventas.');
     }
   }
   return errores;

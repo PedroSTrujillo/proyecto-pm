@@ -45,11 +45,39 @@ function saldos({ base = {}, movimientos }) {
   return out;
 }
 
-// Las ventas con la forma de leerExport: la devolución va en negativo (series.js la descuenta).
+// Las ventas con la forma de leerExport: la devolución va en negativo (series.js la descuenta). Una
+// venta marcada como de proyecto (D12) baja existencias igual, pero va con su marca para que no
+// cuente en el promedio.
+//
+// Una venta de un periodo (SP5: m.desde → m.fecha, "vendí 120 en octubre") se reparte por partes
+// iguales entre sus días, igual que un archivo con el total de un periodo (leerPeriodo). Así el
+// promedio la cuenta en las semanas en que de verdad se vendió y no toda en el último día.
 function ventasDeMovimientos(movimientos) {
-  return movimientos
-    .filter((m) => m.tipo === 'venta' || m.tipo === 'devolucion')
-    .map((m) => ({ codigo: m.codigo, nombre: m.nombre || '', dia: diaDeFecha(m.fecha), cantidad: (m.tipo === 'venta' ? 1 : -1) * Number(m.cantidad) }));
+  const out = [];
+  for (const m of movimientos) {
+    if (m.tipo !== 'venta' && m.tipo !== 'devolucion') continue;
+    const signo = m.tipo === 'venta' ? 1 : -1;
+    const extra = m.tipo === 'venta' && m.proyecto ? { proyecto: true } : {};
+    const fin = diaDeFecha(m.fecha);
+    const ini = m.desde ? Math.min(diaDeFecha(m.desde), fin) : fin;
+    const dias = fin - ini + 1;
+    for (let d = ini; d <= fin; d++) out.push({ codigo: m.codigo, nombre: m.nombre || '', dia: d, cantidad: (signo * Number(m.cantidad)) / dias, ...extra });
+  }
+  return out;
+}
+
+/**
+ * Una venta de un periodo que empieza el día del archivo o antes y termina después: los días que ya
+ * están en el archivo no se vuelven a contar. Queda la parte proporcional a los días que siguen
+ * (de 30 días con 10 ya en el archivo, quedan 20/30 de la cantidad, desde el día siguiente).
+ */
+function recortarAlArchivo(m, hastaBase) {
+  if (!m.desde || hastaBase === null) return m;
+  const ini = diaDeFecha(m.desde);
+  const fin = diaDeFecha(m.fecha);
+  if (ini > hastaBase || fin <= hastaBase) return m;
+  const parte = (fin - hastaBase) / (fin - ini + 1);
+  return { ...m, desde: textoDia(hastaBase + 1), cantidad: redondear(Number(m.cantidad) * parte), recortado: true };
 }
 
 /**
@@ -65,12 +93,16 @@ function ventasDeExport({ reporte, series }) {
   if (series) {
     hasta = diaDeFecha(series.hasta);
     const n = series.semanas;
-    for (const [k, s] of Object.entries(series.porProducto || {})) {
-      const f = porClave.get(k) || { codigo: k, nombre: '' };
-      s.forEach((x, i) => {
-        if (x) ventas.push({ codigo: f.codigo, nombre: f.nombre, dia: hasta - (n - i) * 7 + 1, cantidad: x });
-      });
-    }
+    const rearmar = (porProducto, extra) => {
+      for (const [k, s] of Object.entries(porProducto || {})) {
+        const f = porClave.get(k) || { codigo: k, nombre: '' };
+        s.forEach((x, i) => {
+          if (x) ventas.push({ codigo: f.codigo, nombre: f.nombre, dia: hasta - (n - i) * 7 + 1, cantidad: x, ...extra });
+        });
+      }
+    };
+    rearmar(series.porProducto, {});
+    rearmar(series.proyecto, { proyecto: true });
   } else {
     const desde = diaDeFecha(reporte.periodo.desde);
     hasta = diaDeFecha(reporte.periodo.hasta);
@@ -78,6 +110,9 @@ function ventasDeExport({ reporte, series }) {
     for (const f of filas) {
       if (!(f.vendido > 0)) continue;
       for (let i = 0; i < semanas; i++) ventas.push({ codigo: f.codigo, nombre: f.nombre, dia: hasta - (semanas - i) * 7 + 1, cantidad: f.vendido / semanas });
+    }
+    for (const f of filas) {
+      if (f.vendidoProyecto > 0) ventas.push({ codigo: f.codigo, nombre: f.nombre, dia: hasta, cantidad: f.vendidoProyecto, proyecto: true });
     }
   }
   const existencias = filas.map((f) => ({ codigo: f.codigo, nombre: f.nombre, existencias: f.existencias }));
@@ -99,7 +134,11 @@ function combinar({ base = null, movimientos }) {
   const hastaBase = base ? base.hasta : null;
   const usados = [];
   const ignorados = [];
-  for (const m of movimientos) (hastaBase !== null && diaDeFecha(m.fecha) <= hastaBase ? ignorados : usados).push(m);
+  for (const m of movimientos) {
+    if (hastaBase !== null && diaDeFecha(m.fecha) <= hastaBase) ignorados.push(m);
+    else usados.push(recortarAlArchivo(m, hastaBase));
+  }
+  const recortados = usados.filter((m) => m.recortado).length;
 
   const nombres = new Map();
   const codigos = new Map();
@@ -122,10 +161,13 @@ function combinar({ base = null, movimientos }) {
   for (const m of usados) hasta = hasta === null ? diaDeFecha(m.fecha) : Math.max(hasta, diaDeFecha(m.fecha));
 
   const avisos = [];
-  if (base && usados.length) avisos.push(`Este inventario combina tu archivo con ventas hasta el ${fechaTexto(hastaBase)} y ${usados.length === 1 ? '1 movimiento registrado' : `${usados.length} movimientos registrados`} hasta el ${fechaTexto(hasta)}.`);
+  if (base && usados.length) avisos.push(`Este inventario combina su archivo con ventas hasta el ${fechaTexto(hastaBase)} y ${usados.length === 1 ? '1 movimiento registrado' : `${usados.length} movimientos registrados`} hasta el ${fechaTexto(hasta)}.`);
   if (!base && usados.length) avisos.push(`Este inventario sale solo de los movimientos registrados hasta el ${fechaTexto(hasta)}.`);
   if (ignorados.length) {
-    avisos.push(`${ignorados.length === 1 ? 'Hay 1 movimiento' : `Hay ${ignorados.length} movimientos`} del ${fechaTexto(hastaBase)} o antes: ese día ya está en tu archivo, así que no se ${ignorados.length === 1 ? 'sumó' : 'sumaron'}.`);
+    avisos.push(`${ignorados.length === 1 ? 'Hay 1 movimiento' : `Hay ${ignorados.length} movimientos`} del ${fechaTexto(hastaBase)} o antes: ese día ya está en su archivo, así que no se ${ignorados.length === 1 ? 'sumó' : 'sumaron'}.`);
+  }
+  if (recortados) {
+    avisos.push(`${recortados === 1 ? '1 venta de un periodo empieza' : `${recortados} ventas de un periodo empiezan`} el ${fechaTexto(hastaBase)} o antes: se ${recortados === 1 ? 'contó' : 'contaron'} solo los días después de su archivo, en proporción.`);
   }
   const negativos = existencias.filter((e) => e.existencias < 0);
   if (negativos.length) {
@@ -143,7 +185,8 @@ function kardex({ inicial = null, movimientos }) {
   const filas = [];
   for (const m of ordenar(movimientos)) {
     const cuenta = !m.anulado && !(inicial && diaDeFecha(m.fecha) <= inicial.dia);
-    if (cuenta) saldo = redondear(m.tipo === 'conteo' ? Number(m.cantidad) : saldo + SIGNO[m.tipo] * Number(m.cantidad));
+    const cantidad = Number(recortarAlArchivo(m, inicial ? inicial.dia : null).cantidad);
+    if (cuenta) saldo = redondear(m.tipo === 'conteo' ? cantidad : saldo + SIGNO[m.tipo] * cantidad);
     filas.push({ ...m, cuenta, saldo: cuenta ? saldo : null });
   }
   return { filas, saldo };

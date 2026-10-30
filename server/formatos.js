@@ -118,6 +118,24 @@ const CAMPOS = {
       'tercero proveedor', 'supplier', 'vendor',
     ],
   },
+  // Opcional: la familia del producto (línea, grupo o categoría del programa contable). Sirve para
+  // filtrar en Productos y en el pedido.
+  familia: {
+    nombre: 'familia o línea',
+    sinonimos: [
+      'familia', 'linea', 'grupo', 'categoria', 'sublinea', 'linea producto', 'grupo producto',
+      'grupo inventario', 'familia producto', 'categoria producto', 'subgrupo', 'nombre linea', 'nombre grupo',
+    ],
+  },
+  // Opcional: de dónde vino cada venta (D12 de docs/PLAN_ALPHA_02.md). Si trae pocos valores, el
+  // usuario marca cuáles son de proyecto: esas ventas bajan existencias pero no cuentan en el promedio.
+  canal: {
+    nombre: 'centro de costo, proyecto o cliente',
+    sinonimos: [
+      'centro costo', 'centro costos', 'ot', 'orden trabajo', 'numero ot', 'proyecto', 'nombre proyecto',
+      'codigo proyecto', 'cotizacion', 'canal', 'canal venta', 'cliente', 'nombre cliente',
+    ],
+  },
   // Cantidad en la lista de pedido (la hoja con la que arman el pedido).
   pedir: {
     nombre: 'cantidad a pedir',

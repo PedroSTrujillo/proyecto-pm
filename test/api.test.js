@@ -81,14 +81,13 @@ test('flujo completo con las reglas del documento', async () => {
   assert.equal((await ana.subir(`/api/pedidos/${id}/export`, [['export.xlsx', (await plantillaExport())]])).estado, 403);
 
   // Borrador y validación
-  assert.equal((await ana.put(`/api/pedidos/${id}/lista-inicial`, { lineas: INICIAL, tipo: 'real' })).estado, 200);
-  const sinTipo = await ana.post(`/api/pedidos/${id}/lista-inicial`, { lineas: INICIAL });
-  assert.equal(sinTipo.estado, 400);
-  assert.match(sinTipo.error, /real o simulado/);
+  assert.equal((await ana.put(`/api/pedidos/${id}/lista-inicial`, { lineas: INICIAL })).estado, 200);
 
-  const guardada = await ana.post(`/api/pedidos/${id}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
+  // "Real o simulado" ya no se pregunta (desde el 2026-10-29): si no viene, es real.
+  const guardada = await ana.post(`/api/pedidos/${id}/lista-inicial`, { lineas: INICIAL });
   assert.equal(guardada.estado, 200);
   assert.equal(guardada.pedido.paso, 2);
+  assert.equal(guardada.pedido.tipo, 'real');
 
   // La lista inicial queda fija
   assert.equal((await ana.put(`/api/pedidos/${id}/lista-inicial`, { lineas: [] })).estado, 409);
@@ -324,11 +323,11 @@ test('demo sin cuenta: lista de negocios y el inventario de ejemplo, con tiempos
   assert.equal((await c.get('/api/demo/no-existe')).estado, 404);
 });
 
-test('inventario guardado: no se ve antes de la lista inicial, con sugerido desde el primer día y se reusa en otro pedido', async () => {
+test('inventario guardado: se sube desde el comienzo, con sugerido desde el primer día y se reusa en otro pedido', async () => {
   const beto = await nuevoUsuario('Beto', 'beto.inventario@prueba.co');
   const antes = await beto.get('/api/inventario');
-  assert.deepEqual([antes.inventario, antes.puedeSubir], [null, false]);
-  assert.equal((await beto.subir('/api/inventario/export', [['e.xlsx', (await plantillaExport())]])).estado, 403, 'sin lista inicial no puede ver su inventario');
+  // Desde el 2026-10-29 (D9 y D10) se sube sin la lista inicial de un pedido de 5 pasos.
+  assert.deepEqual([antes.inventario, antes.puedeSubir], [null, true]);
 
   const { pedido } = await beto.post('/api/pedidos');
   await beto.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: INICIAL, tipo: 'simulado' });
@@ -354,6 +353,7 @@ test('inventario guardado: no se ve antes de la lista inicial, con sugerido desd
   assert.equal(reporte.archivos[0], 'nuevo.xlsx');
   const { cargas } = await beto.get('/api/inventario/cargas');
   assert.equal(cargas.length, 2);
+  assert.equal((await beto.subir('/api/inventario/export', [['primero.xlsx', (await plantillaExport())]])).ok, true, 'sin lista inicial también');
   assert.equal(cargas[0].pedidoId, null, 'la de Datos no es de ningún pedido');
 
   // El equipo sí ve el sugerido.
@@ -628,12 +628,11 @@ test('cada tipo de usuario ve lo que le toca: visitante, probador nuevo, en prue
     assert.equal((await visita.get(ruta)).estado, 401, ruta);
   }
 
-  // Probador nuevo: sin lista inicial no ve inventario ni puede subirlo; nada del equipo.
+  // Usuario nuevo: todavía sin inventario, pero lo puede subir desde el comienzo; nada del equipo.
   const tito = await nuevoUsuario('Tito', 'tito.tipos@prueba.co');
   const nuevo = await tito.get('/api/inventario');
   assert.equal(nuevo.inventario, null);
-  assert.equal(nuevo.puedeSubir, false);
-  assert.equal((await tito.subir('/api/inventario/export', [['e.xlsx', await plantillaExport()]])).estado, 403);
+  assert.equal(nuevo.puedeSubir, true);
   assert.equal((await tito.get('/api/equipo/ejemplos')).estado, 403);
 
   // En prueba: ya ve todo (desde el 2026-10-14).

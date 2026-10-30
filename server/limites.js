@@ -19,7 +19,7 @@ function limitar({ max, minutos, clave = () => '', mensaje }) {
     const k = `${req.ip}|${String(clave(req) || '').toLowerCase()}`;
     const lista = (intentos.get(k) || []).filter((t) => ahora - t < ventana);
     if (lista.length >= max) {
-      return next(new ErrorUsuario(mensaje || `Demasiados intentos. Espera ${minutos} minutos y vuelve a intentarlo.`, 429));
+      return next(new ErrorUsuario(mensaje || `Demasiados intentos. Espere ${minutos} minutos y vuelva a intentarlo.`, 429));
     }
     lista.push(ahora);
     intentos.set(k, lista);

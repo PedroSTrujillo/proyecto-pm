@@ -24,12 +24,12 @@ export type Sistema = {
 
 export const GENERICA: { ventas: string[]; existencias: string[] } = {
   ventas: [
-    'Abre el informe de ventas por producto. Según el programa se llama "ventas por producto", "movimiento de productos" o "kardex".',
-    'Elige el último año y expórtalo a Excel.',
+    'Abra el informe de ventas por producto. Según el programa se llama "ventas por producto", "movimiento de productos" o "kardex".',
+    'Elija el último año y expórtelo a Excel.',
   ],
   existencias: [
-    'Abre el informe de existencias o saldos por producto, con fecha de hoy.',
-    'Expórtalo a Excel.',
+    'Abra el informe de existencias o saldos por producto, con fecha de hoy.',
+    'Expórtelo a Excel.',
   ],
 };
 
@@ -42,9 +42,9 @@ export const SISTEMAS: Sistema[] = [
     unInforme: [
       'Reportes › Productos y servicios › Saldos y movimientos › Movimiento de productos.',
       'Fecha de elaboración: del último año hasta hoy. Tipo: Producto.',
-      'Clic en "Exportar datos". Si lo sacas por partes (por ejemplo, por trimestres), sube todos los archivos juntos.',
+      'Clic en "Exportar datos". Si lo saca por partes (por ejemplo, por trimestres), suba todos los archivos juntos.',
     ],
-    unInformeNota: 'Trae cada factura y remisión con su fecha y la cantidad que salió, y el saldo de cada producto. Al subirlo te preguntamos qué documentos son ventas.',
+    unInformeNota: 'Trae cada factura y remisión con su fecha y la cantidad que salió, y el saldo de cada producto. Al subirlo le preguntamos qué documentos son ventas.',
     dosInformesTitulo: 'Otra forma: las ventas y los saldos en dos informes',
     ventas: [
       'Reportes › Productos y servicios › Saldos y movimientos › Movimiento de productos.',
@@ -53,7 +53,7 @@ export const SISTEMAS: Sistema[] = [
     ],
     existencias: [
       'Reportes › Productos y servicios › Saldos y movimientos › Saldos de productos.',
-      'Fecha de corte: hoy. Deja Bodega vacía para incluir todas.',
+      'Fecha de corte: hoy. Deje Bodega vacía para incluir todas.',
       'Clic en "Buscar" y luego en "Exportar datos".',
     ],
     fuentes: [
@@ -67,7 +67,7 @@ export const SISTEMAS: Sistema[] = [
     unInforme: [
       'Inventarios › Saldos de inventarios › Balance de inventarios.',
       'Rango: los últimos 12 meses y todos los productos.',
-      'En presentación elige "Impreso" y como destino, Excel.',
+      'En presentación elija "Impreso" y como destino, Excel.',
     ],
     unInformeNota: 'Trae, por producto, el saldo anterior, las entradas, las salidas y el nuevo saldo.',
     fuentes: [
@@ -79,12 +79,12 @@ export const SISTEMAS: Sistema[] = [
     nombre: 'Alegra',
     ventas: [
       'Reportes › Ventas › Ventas por ítems.',
-      'Rango: el último año. Anótalo, te lo preguntamos al subirlo.',
-      'Clic en "Generar reporte" y descárgalo en Excel.',
+      'Rango: el último año. Anótelo: se lo preguntamos al subirlo.',
+      'Clic en "Generar reporte" y descárguelo en Excel.',
     ],
     existencias: [
       'Reportes › Reportes administrativos › Inventario valorizado.',
-      'Fecha de corte: hoy. Clic en "Generar reporte" y expórtalo a Excel.',
+      'Fecha de corte: hoy. Clic en "Generar reporte" y expórtelo a Excel.',
     ],
     fuentes: [
       { texto: 'Ayuda de Alegra: Ventas por ítems', url: 'https://ayuda.alegra.com/int/reporte-de-ventas-por-items-int' },
@@ -97,8 +97,8 @@ export const SISTEMAS: Sistema[] = [
     ventas: null, // sin una ruta confirmada: pasos generales
     existencias: [
       'Informes › Inventarios › Inventarios por ubicación.',
-      'Marca todas las bodegas y haz clic en "Vista Previa".',
-      'Expórtalo a Excel. Antes, cierra los Excel que tengas abiertos.',
+      'Marque todas las bodegas y haga clic en "Vista Previa".',
+      'Expórtelo a Excel. Antes, cierre los Excel que tenga abiertos.',
     ],
     fuentes: [
       { texto: 'Guía de un usuario: existencias por bodega', url: 'http://mhhwoffice.blogspot.com/p/informe-de-existencias-para-vendedores.html' },
@@ -111,15 +111,15 @@ export const SISTEMAS: Sistema[] = [
     // Sin guía pública: los nombres salen de exports reales (Movimiento detalle y listado de
     // inventario), y el Movimiento detalle se probó con uno real de 35.000 filas (2026-10-14).
     ventas: [
-      'En Inventarios, saca el informe "Movimiento detalle". Meses: desde este mes del año pasado hasta hoy.',
-      'Expórtalo a Excel y súbelo tal como sale, con títulos y totales. Al subirlo te preguntamos qué documentos son ventas (FCA suele serlo).',
+      'En Inventarios, saque el informe "Movimiento detalle". Meses: desde este mes del año pasado hasta hoy.',
+      'Expórtelo a Excel y súbalo tal como sale, con títulos y totales. Al subirlo le preguntamos qué documentos son ventas (FCA suele serlo).',
     ],
     existencias: [
-      'Saca el listado de inventario con la existencia de cada producto a hoy, de todas las bodegas.',
-      'Expórtalo a Excel y súbelo junto con el Movimiento detalle.',
+      'Saque el listado de inventario con la existencia de cada producto a hoy, de todas las bodegas.',
+      'Expórtelo a Excel y súbalo junto con el Movimiento detalle.',
     ],
     fuentes: [],
-    aviso: 'Los nombres de los informes pueden variar un poco según cómo esté configurado tu Helisa. Un listado de inventario con la columna de salidas del periodo también sirve, solo.',
+    aviso: 'Los nombres de los informes pueden variar un poco según cómo esté configurado su Helisa. Un listado de inventario con la columna de salidas del periodo también sirve, solo.',
   },
   {
     id: 'sap-b1',
@@ -127,12 +127,12 @@ export const SISTEMAS: Sistema[] = [
     ventas: [
       'Ventas - Clientes › Informes de ventas › Análisis de ventas.',
       'Pestaña "Artículos", fechas del último año y clic en "OK".',
-      'Exporta el resultado con el botón de Excel de la barra de herramientas. Anota las fechas: te las preguntamos al subirlo.',
+      'Exporte el resultado con el botón de Excel de la barra de herramientas. Anote las fechas: se las preguntamos al subirlo.',
     ],
     existencias: [
       'Inventario › Informes de inventario › Status de inventario.',
       'Todos los artículos y almacenes, y clic en "OK".',
-      'Exporta el resultado con el botón de Excel de la barra de herramientas.',
+      'Exporte el resultado con el botón de Excel de la barra de herramientas.',
     ],
     aviso: 'En versiones anteriores, el módulo Inventario se llama "Gestión de stocks".',
     fuentes: [
@@ -146,9 +146,9 @@ export const SISTEMAS: Sistema[] = [
     nombre: 'Siesa (Enterprise o CGUNO)',
     ventas: null,
     existencias: [
-      'En Inventarios, abre el reporte "Existencias a la fecha por bodega".',
+      'En Inventarios, abra el reporte "Existencias a la fecha por bodega".',
       'Fecha: hoy, con todas las bodegas.',
-      'Expórtalo a Excel.',
+      'Expórtelo a Excel.',
     ],
     fuentes: [{ texto: 'Manuales de Siesa', url: 'https://www.siesacustomersupport.com/manuales-2/' }],
   },
@@ -158,8 +158,8 @@ export const SISTEMAS: Sistema[] = [
     ventas: null,
     existencias: [
       'Reportes › Exploradores › Saldos al Día por Bodega.',
-      'Deja Bodega e Ítem en blanco para ver todo y haz clic en "Buscar".',
-      'Haz clic en "Exportar".',
+      'Deje Bodega e Ítem en blanco para ver todo y haga clic en "Buscar".',
+      'Haga clic en "Exportar".',
     ],
     fuentes: [{ texto: 'Universidad Loggro: Saldos al día por bodega', url: 'https://universidad.loggro.com/loggro-pymes/c%C3%B3mo-consultar-los-saldos-al-d%C3%ADa-por-bodega' }],
   },
@@ -167,13 +167,13 @@ export const SISTEMAS: Sistema[] = [
     id: 'contapyme',
     nombre: 'ContaPyme',
     ventas: [
-      'En los informes de inventarios, abre "Movimiento detallado de elementos".',
-      'Periodo: el último año. Expórtalo a Excel.',
-      'Si mezcla compras y ventas, al subirlo te preguntamos cuáles son ventas.',
+      'En los informes de inventarios, abra "Movimiento detallado de elementos".',
+      'Periodo: el último año. Expórtelo a Excel.',
+      'Si mezcla compras y ventas, al subirlo le preguntamos cuáles son ventas.',
     ],
     existencias: [
-      'En los informes de inventarios, abre "Saldos de inventario" con fecha de hoy.',
-      'Expórtalo a Excel.',
+      'En los informes de inventarios, abra "Saldos de inventario" con fecha de hoy.',
+      'Expórtelo a Excel.',
     ],
     fuentes: [{ texto: 'ContaPyme: informes de inventario', url: 'https://www.contapyme.com/programa-contable/informes-contables/' }],
   },

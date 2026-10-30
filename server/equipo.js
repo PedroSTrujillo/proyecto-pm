@@ -17,6 +17,7 @@ const { pasoDe, filasDelReporte } = require('./pedidos');
 const { compararListas, coherenciaConReporte } = require('./listas');
 const { fechaBogota, urlApp } = require('./recordatorios');
 const { construirInventario, leerAjustes } = require('./inventario');
+const { claveCodigo } = require('./valores');
 
 const DIAS_PRUEBA = 14;
 const META_LINEAS = 5;
@@ -27,6 +28,21 @@ const USUARIOS_ESPERADOS = 5;
 // Apoyo para el segundo criterio de pivote, no cambia el veredicto: de los que cumplen,
 // cuántos movieron la mayoría de sus líneas en la dirección que indica el reporte.
 const COHERENCIA_MAYORIA = 0.5;
+
+// --- Piloto de Alpha 0.2 (SP3 de docs/PLAN_ALPHA_02.md) ------------------------------------------
+// Hipótesis: si SINESC permite registrar entradas y salidas a diario, X de Y usuarios califican su
+// satisfacción con 4 o más sobre 5 y aceptan el pedido sugerido sin cambios en Z % de las líneas.
+// X, Y y Z son provisionales: el equipo las fija antes de empezar el piloto (D16). Cambiarlas
+// cambia el resultado del piloto, así que va también en el Entregable.
+const PILOTO_DIAS = 30;
+const META_PILOTO_USUARIOS = 3; // X
+const TOTAL_PILOTO = 5; // Y
+const META_SATISFACCION = 4;
+const META_ACEPTACION_PCT = 0.7; // Z
+// La aceptación no se le muestra a nadie durante el piloto (D16). Después se podría mostrar al
+// administrador; hoy ninguna pantalla ni ruta la devuelve (vistaPedido la quita).
+const ACEPTACION_VISIBLE = false;
+const MS_DIA = 86400000;
 
 function evaluarUsuario(pedidos) {
   const iniciales = pedidos.filter((p) => p.inicialGuardadaEn).map((p) => new Date(p.inicialGuardadaEn).getTime());
@@ -89,11 +105,12 @@ function resumirPrueba(usuarios) {
 }
 
 // Los pedidos guardados antes de que existieran la coherencia y la magnitud se completan
-// con los datos que ya están en la base (las dos listas y el reporte que vio el usuario).
+// con los datos que ya están en la base (las dos listas y el reporte que vio el usuario). Solo los
+// de 5 pasos: los que salen de lo sugerido no tienen lista inicial (su medida es la aceptación).
 async function completarComparaciones() {
   const viejos = await db.query(
     `SELECT id, export_id, semanas_agota, lista_inicial, lista_final FROM pedidos
-      WHERE comparacion IS NOT NULL AND lista_final IS NOT NULL
+      WHERE comparacion IS NOT NULL AND lista_final IS NOT NULL AND modo = 'lista'
         AND (comparacion->'coherencia' IS NULL OR comparacion->'magnitud' IS NULL)`,
   );
   for (const p of viejos) {
@@ -126,7 +143,7 @@ async function resultados() {
        FROM usuarios u LEFT JOIN empresas e ON e.id = u.empresa_id WHERE u.rol = 'usuario' ORDER BY u.creado_en`,
   );
   const pedidos = await db.query(
-    `SELECT p.id, p.usuario_id, p.proveedor, p.tipo, p.creado_en, p.inicial_guardada_en, p.export_id,
+    `SELECT p.id, p.usuario_id, p.proveedor, p.tipo, p.modo, p.creado_en, p.inicial_guardada_en, p.export_id,
             p.reporte_visto_en, p.final_guardada_en, p.terminado_en, p.por_que, p.clasificacion, p.borrado_en,
             p.anulado_en, p.anulado_motivo,
             p.comparacion->'conteo' AS conteo, p.comparacion->'magnitud' AS magnitud,
@@ -134,7 +151,7 @@ async function resultados() {
             CASE WHEN p.lista_final IS NULL THEN NULL ELSE jsonb_array_length(p.lista_final) END AS lineas_final,
             COALESCE(p.semanas_agota, (x.reporte->'umbrales'->>'seAgota')::int) AS se_agota
        FROM pedidos p JOIN usuarios u ON u.id = p.usuario_id LEFT JOIN exports x ON x.id = p.export_id
-      WHERE u.rol = 'usuario' ORDER BY p.creado_en`,
+      WHERE u.rol = 'usuario' AND p.modo = 'lista' ORDER BY p.creado_en`,
   );
   const eventos = await db.query(
     `SELECT e.usuario_id, e.tipo, e.pedido_id, e.detalle, e.creado_en
@@ -225,6 +242,178 @@ async function resultados() {
   return { resumen: resumirPrueba(lista), usuarios: lista, generadoEn: new Date() };
 }
 
+// --- Piloto de Alpha 0.2 ------------------------------------------------------------------------
+
+// Día (número de días desde 1970) en hora de Bogotá.
+const diaDe = (instante) => Math.floor(Date.parse(fechaBogota(instante)) / MS_DIA);
+const esHabil = (dia) => {
+  const s = new Date(dia * MS_DIA).getUTCDay();
+  return s !== 0 && s !== 6;
+};
+// Días de lunes a viernes entre dos días, los dos incluidos. Los festivos cuentan como hábiles.
+function diasHabiles(desde, hasta) {
+  let n = 0;
+  for (let d = desde; d <= hasta; d++) if (esHabil(d)) n++;
+  return n;
+}
+
+/**
+ * Un usuario en el piloto. La ventana de PILOTO_DIAS empieza el día de su primer pedido desde lo
+ * sugerido.
+ *   pedidos: [{ modo, creadoEn, terminadoEn, anulado, borrado, aceptacion }]
+ *   encuestas: [{ puntaje, respondidaEn }] (puntaje null = "Ahora no")
+ *   diasConMovimientos: días (diaDe) en que su empresa registró movimientos
+ */
+function evaluarPiloto({ pedidos, encuestas = [], diasConMovimientos = [], hoy = diaDe(new Date()) }) {
+  const sugeridos = pedidos.filter((p) => p.modo === 'sugerido' && !p.borrado);
+  const respuesta = encuestas.filter((e) => e.puntaje !== null && e.puntaje !== undefined).sort((a, b) => new Date(b.respondidaEn) - new Date(a.respondidaEn))[0];
+  const satisfaccion = respuesta ? respuesta.puntaje : null;
+  if (!sugeridos.length) {
+    return { inicio: null, fin: null, terminoVentana: false, pedidos: 0, sugeridas: 0, sinCambio: 0, aceptacion: null, satisfaccion, uso: null, categoria: 'sin_pedido' };
+  }
+  const inicio = Math.min(...sugeridos.map((p) => diaDe(p.creadoEn)));
+  const fin = inicio + PILOTO_DIAS - 1;
+  const cerrados = sugeridos.filter((p) => !p.anulado && p.terminadoEn && p.aceptacion && diaDe(p.terminadoEn) <= fin);
+  const sugeridas = cerrados.reduce((s, p) => s + p.aceptacion.sugeridas, 0);
+  const sinCambio = cerrados.reduce((s, p) => s + p.aceptacion.sinCambio, 0);
+  const aceptacion = sugeridas ? sinCambio / sugeridas : null;
+  // Uso: días hábiles con movimientos sobre los días hábiles de la ventana que ya pasaron.
+  const hasta = Math.min(hoy, fin);
+  const habiles = diasHabiles(inicio, hasta);
+  const conMovimientos = new Set(diasConMovimientos.filter((d) => d >= inicio && d <= hasta && esHabil(d))).size;
+  const uso = habiles ? conMovimientos / habiles : null;
+  const terminoVentana = hoy > fin;
+  let categoria;
+  if (aceptacion !== null && satisfaccion !== null && satisfaccion >= META_SATISFACCION && aceptacion >= META_ACEPTACION_PCT) categoria = 'cumple';
+  else if (!terminoVentana) categoria = 'en_curso';
+  else if (aceptacion === null || satisfaccion === null) categoria = 'incompleto';
+  else categoria = 'no_cumple';
+  return { inicio: new Date(inicio * MS_DIA), fin: new Date(fin * MS_DIA), terminoVentana, pedidos: cerrados.length, sugeridas, sinCambio, aceptacion, satisfaccion, uso, diasHabiles: habiles, diasConMovimientos: conMovimientos, categoria };
+}
+
+function resumirPiloto(usuarios) {
+  const con = usuarios.filter((u) => u.piloto.categoria !== 'sin_pedido');
+  const cumplen = con.filter((u) => u.piloto.categoria === 'cumple').length;
+  const terminaron = con.filter((u) => u.piloto.terminoVentana).length;
+  let veredicto = 'en_curso';
+  if (cumplen >= META_PILOTO_USUARIOS) veredicto = 'meta_cumplida';
+  // Ya cerraron su ventana todos los que se esperaban y no se llegó a la meta.
+  else if (terminaron >= TOTAL_PILOTO) veredicto = 'meta_no_cumplida';
+  const promedio = (xs) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : null);
+  const sugeridas = con.reduce((s, u) => s + u.piloto.sugeridas, 0);
+  return {
+    usuarios: con.length,
+    esperados: TOTAL_PILOTO,
+    cumplen,
+    terminaron,
+    veredicto,
+    // De todas las líneas sugeridas en los pedidos cerrados, cuántas quedaron tal cual.
+    aceptacion: sugeridas ? con.reduce((s, u) => s + u.piloto.sinCambio, 0) / sugeridas : null,
+    satisfaccionPromedio: promedio(con.map((u) => u.piloto.satisfaccion).filter((x) => x !== null)),
+    usoPromedio: promedio(con.map((u) => u.piloto.uso).filter((x) => x !== null)),
+    reglas: { dias: PILOTO_DIAS, metaUsuarios: META_PILOTO_USUARIOS, total: TOTAL_PILOTO, metaSatisfaccion: META_SATISFACCION, metaAceptacion: META_ACEPTACION_PCT, aceptacionVisible: ACEPTACION_VISIBLE },
+  };
+}
+
+/**
+ * Sugerido contra decidido contra ocurrido, para un pedido desde lo sugerido ya cerrado: por cada
+ * línea de la foto, lo que se sugirió, lo que la persona decidió pedir y lo que se vendió de verdad
+ * en las semanas que cubría el pedido (entrega + cada cuánto pide), frente al rango del pronóstico
+ * (de bajo a alto cae lo vendido en 8 de cada 10 casos). Es la misma prueba de medirAcierto
+ * (server/pronostico.js), con lo que pasó después del pedido. Las semanas de la serie son de 7 días
+ * desde su último día: se cuentan las que empiezan dentro del horizonte.
+ *   foto: pedidos.sugerido · final: la lista final · series: las del último inventario de la empresa
+ */
+function compararConLoOcurrido({ foto = [], final = [], terminadoEn, series }) {
+  if (!series || !series.porProducto || !series.hasta) return { estado: 'sin_datos' };
+  const dia0 = diaDe(terminadoEn);
+  const ultimo = Math.floor(Date.parse(series.hasta) / MS_DIA);
+  const primero = ultimo - series.semanas * 7 + 1;
+  const decididas = new Map(final.map((l) => [claveCodigo(l.codigo), Number(l.cantidad) || 0]));
+  const lineas = [];
+  let pendientes = 0;
+  for (const l of foto) {
+    if (!l.rango || !l.cubre || l.rango.bajo === null || l.rango.bajo === undefined) continue;
+    const finHorizonte = dia0 + Math.round(l.cubre * 7) - 1;
+    if (finHorizonte > ultimo) { pendientes++; continue; }
+    const serie = series.porProducto[claveCodigo(l.codigo)] || [];
+    let vendido = 0;
+    let semanas = 0;
+    for (let i = 0; i < series.semanas; i++) {
+      const inicioSemana = primero + i * 7;
+      if (inicioSemana >= dia0 && inicioSemana <= finHorizonte) { vendido += serie[i] || 0; semanas++; }
+    }
+    if (!semanas) continue;
+    vendido = Math.round(vendido * 100) / 100;
+    const clase = vendido < l.rango.bajo ? 'debajo' : vendido > l.rango.alto ? 'encima' : 'dentro';
+    lineas.push({ codigo: l.codigo, sugerido: l.cantidad, decidido: decididas.get(claveCodigo(l.codigo)) ?? 0, vendido, bajo: l.rango.bajo, alto: l.rango.alto, clase });
+  }
+  if (!lineas.length) return { estado: pendientes ? 'pendiente' : 'sin_datos', pendientes };
+  const cuenta = (c) => lineas.filter((x) => x.clase === c).length;
+  return { estado: 'medido', productos: lineas.length, dentro: cuenta('dentro'), debajo: cuenta('debajo'), encima: cuenta('encima'), pendientes, lineas };
+}
+
+async function piloto() {
+  const usuarios = await db.query(
+    `SELECT u.id, u.nombre, u.email, u.empresa_id, e.nombre AS empresa
+       FROM usuarios u LEFT JOIN empresas e ON e.id = u.empresa_id WHERE u.rol = 'usuario' ORDER BY u.creado_en`,
+  );
+  const pedidos = await db.query(
+    `SELECT p.id, p.usuario_id, p.empresa_id, p.creado_en, p.terminado_en, p.anulado_en, p.borrado_en, p.sugerido, p.lista_final,
+            (p.comparacion->'aceptacion') - 'cambios'::text AS aceptacion
+       FROM pedidos p JOIN usuarios u ON u.id = p.usuario_id
+      WHERE u.rol = 'usuario' AND p.modo = 'sugerido' ORDER BY p.creado_en`,
+  );
+  const encuestas = await db.query('SELECT usuario_id, puntaje, comentario, respondida_en FROM encuestas ORDER BY respondida_en');
+  const movimientos = await db.query(
+    `SELECT DISTINCT empresa_id, to_char(creado_en AT TIME ZONE 'America/Bogota', 'YYYY-MM-DD') AS dia FROM movimientos`,
+  );
+  const series = await db.query(
+    `SELECT DISTINCT ON (empresa_id) empresa_id, series FROM exports
+      WHERE estado = 'ok' AND series IS NOT NULL AND empresa_id IS NOT NULL AND ${db.EXPORT_VIGENTE}
+      ORDER BY empresa_id, subido_en DESC, id DESC`,
+  );
+  const lista = usuarios.map((u) => {
+    const suyos = pedidos.filter((p) => p.usuario_id === u.id);
+    const respuestas = encuestas.filter((e) => e.usuario_id === u.id).map((e) => ({ puntaje: e.puntaje, comentario: e.comentario, respondidaEn: e.respondida_en }));
+    const diasMov = movimientos.filter((m) => m.empresa_id === u.empresa_id).map((m) => Math.floor(Date.parse(m.dia) / MS_DIA));
+    const serie = (series.find((s) => s.empresa_id === u.empresa_id) || {}).series || null;
+    return {
+      id: u.id,
+      nombre: u.nombre,
+      email: u.email,
+      empresa: u.empresa || '',
+      piloto: evaluarPiloto({
+        pedidos: suyos.map((p) => ({ modo: 'sugerido', creadoEn: p.creado_en, terminadoEn: p.terminado_en, anulado: Boolean(p.anulado_en), borrado: Boolean(p.borrado_en), aceptacion: p.aceptacion })),
+        encuestas: respuestas,
+        diasConMovimientos: diasMov,
+      }),
+      comentarios: respuestas.filter((r) => r.comentario).map((r) => ({ puntaje: r.puntaje, comentario: r.comentario, en: r.respondidaEn })),
+      pedidos: suyos.map((p) => ({
+        id: p.id,
+        creadoEn: p.creado_en,
+        terminadoEn: p.terminado_en,
+        anulado: Boolean(p.anulado_en),
+        borrado: Boolean(p.borrado_en),
+        aceptacion: p.aceptacion,
+        ocurrido: p.terminado_en && !p.anulado_en ? compararConLoOcurrido({ foto: p.sugerido || [], final: p.lista_final || [], terminadoEn: p.terminado_en, series: serie }) : null,
+      })),
+    };
+  });
+  return { resumen: resumirPiloto(lista), usuarios: lista, generadoEn: new Date() };
+}
+
+// El equipo abre la encuesta para todos los usuarios o para uno (por correo).
+async function abrirEncuesta(email = null) {
+  if (email) {
+    const u = await usuarioPorEmail(email);
+    await db.query('UPDATE usuarios SET encuesta_pedida_en = now() WHERE id = $1', [u.id]);
+    return 1;
+  }
+  const filas = await db.query("UPDATE usuarios SET encuesta_pedida_en = now() WHERE rol = 'usuario' RETURNING id");
+  return filas.length;
+}
+
 // Las acciones quedan en la actividad del dueño del pedido o de la cuenta, marcadas como del equipo.
 
 // El equipo lee el "¿por qué cambió?" y lo clasifica (criterio de pivote del plan de prueba).
@@ -287,4 +476,7 @@ async function erroresRecientes(limite = 50) {
   return filas.map((f) => ({ id: f.id, origen: f.origen, mensaje: f.mensaje, ruta: f.ruta, en: f.creado_en, email: f.email }));
 }
 
-module.exports = { resultados, clasificar, anular, reactivar, marcarEquipo, enlaceRestablecer, erroresRecientes, evaluarUsuario, resumirPrueba, DIAS_PRUEBA };
+module.exports = {
+  resultados, clasificar, anular, reactivar, marcarEquipo, enlaceRestablecer, erroresRecientes, evaluarUsuario, resumirPrueba, DIAS_PRUEBA,
+  piloto, abrirEncuesta, evaluarPiloto, resumirPiloto, compararConLoOcurrido, diasHabiles, PILOTO_DIAS, META_ACEPTACION_PCT, META_SATISFACCION,
+};

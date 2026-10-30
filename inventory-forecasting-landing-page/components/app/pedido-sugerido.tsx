@@ -1,7 +1,7 @@
 'use client'
 
-// Preparar el pedido con la cantidad sugerida: por proveedor, editable, y para mandar
-// (Excel, WhatsApp o PDF para que gerencia lo apruebe).
+// El pedido de la demo (sin cuenta): la cantidad sugerida por proveedor, editable, en este navegador
+// y para mandar (Excel, WhatsApp o PDF). En una cuenta, el pedido se guarda: pedido-preparar.tsx.
 
 import { useMemo, useState } from 'react'
 import { Copy, Download, FileText, Minus, Plus, RotateCcw } from 'lucide-react'
@@ -17,18 +17,18 @@ export function PedidoSugerido({ encabezado = true }: { encabezado?: boolean }) 
   const { inventario, cargando, error, respuesta } = useInventario()
   if (cargando) return <Cargando texto="Cargando el pedido…" />
   if (error) return <ErrorLista mensaje={error} />
-  if (!inventario) return <SinInventario puedeSubir={Boolean(respuesta?.puedeSubir)} />
+  if (!inventario) return <SinInventario />
   if (!inventario.sugerencias) {
     return (
       <Aviso titulo="La cantidad sugerida todavía no está activa">
-        Se activa{respuesta?.finPrueba ? ` el ${fecha(respuesta.finPrueba)}` : ' más adelante'}. Mientras tanto, prepara tus pedidos desde &quot;Pedidos&quot;: el reporte te muestra las semanas de inventario de cada producto.
+        Se activa{respuesta?.finPrueba ? ` el ${fecha(respuesta.finPrueba)}` : ' más adelante'}. Mientras tanto, prepare sus pedidos desde &quot;Pedidos&quot;: el reporte le muestra las semanas de inventario de cada producto.
       </Aviso>
     )
   }
   return <PedidoCon inv={inventario} encabezado={encabezado} />
 }
 
-const nombreProveedor = (p: string) => (p === 'Sin proveedor' ? 'tu proveedor' : p)
+const nombreProveedor = (p: string) => (p === 'Sin proveedor' ? 'su proveedor' : p)
 
 function mensajeWhatsapp(proveedor: string, lineas: { p: Producto; cantidad: number }[], empresa?: string) {
   const items = lineas.map(({ p, cantidad }) => `• ${numero(cantidad)} × ${p.nombre} (${p.codigo})`).join('\n')
@@ -106,9 +106,9 @@ function PedidoCon({ inv, encabezado }: { inv: Inventario; encabezado: boolean }
     const texto = mensajeWhatsapp(delMensaje, lineasMensaje, inv.fuente.empresa)
     try {
       await navigator.clipboard.writeText(texto)
-      setAviso(`Copiado el mensaje para ${nombreProveedor(delMensaje)}. Pégalo en WhatsApp.`)
+      setAviso(`Copiado el mensaje para ${nombreProveedor(delMensaje)}. Péguelo en WhatsApp.`)
     } catch {
-      setAviso('Tu navegador no dejó copiar. Selecciona el mensaje de abajo y cópialo a mano.')
+      setAviso('Su navegador no dejó copiar. Seleccione el mensaje de abajo y cópielo a mano.')
     }
   }
 
@@ -125,7 +125,7 @@ function PedidoCon({ inv, encabezado }: { inv: Inventario; encabezado: boolean }
   return (
     <>
       {encabezado && (
-        <Titulo sub={`Cubre la entrega de cada proveedor más ${duracion(inv.ajustes.cadaCuanto)}, en 9 de cada 10 casos. Ajusta lo que necesites.`}>
+        <Titulo sub={`Cubre la entrega de cada proveedor más ${duracion(inv.ajustes.cadaCuanto)}, en 9 de cada 10 casos. Ajuste lo que necesite.`}>
           Pedido de la semana
         </Titulo>
       )}
@@ -133,7 +133,7 @@ function PedidoCon({ inv, encabezado }: { inv: Inventario; encabezado: boolean }
       <div className="flex flex-col gap-5 2xl:flex-row 2xl:items-start">
         <Tarjeta aria-labelledby="t-lista" className="no-imprimir order-2 min-w-0 flex-1 p-5 2xl:order-1">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h2 id="t-lista" className="text-xl font-bold">Lo que vas a pedir</h2>
+            <h2 id="t-lista" className="text-xl font-bold">Lo que va a pedir</h2>
             {proveedores.length > 1 && (
               <Pildoras
                 etiqueta="Filtrar por proveedor"
@@ -143,15 +143,15 @@ function PedidoCon({ inv, encabezado }: { inv: Inventario; encabezado: boolean }
               />
             )}
           </div>
-          <p className="mb-3 text-[0.95rem] text-muted-foreground">Incluye lo que se agota y lo que hay que pedir ya. Para sumar otro producto, toca su número sugerido.</p>
+          <p className="mb-3 text-cuerpo text-muted-foreground">Incluye lo que se agota y lo que hay que pedir ya. Para sumar otro producto, toque su número sugerido.</p>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] border-collapse">
               <thead>
-                <tr className="text-left text-[0.82rem] text-muted-foreground">
+                <tr className="text-left text-nota text-muted-foreground">
                   <th scope="col" className="border-b border-border px-2 py-2.5 font-semibold">Producto</th>
-                  <th scope="col" className="border-b border-border px-2 py-2.5 text-right font-semibold">Te alcanza</th>
+                  <th scope="col" className="border-b border-border px-2 py-2.5 text-right font-semibold">Alcanza para</th>
                   <th scope="col" className="border-b border-border px-2 py-2.5 text-right font-semibold">Sugerido</th>
-                  <th scope="col" className="border-b border-border px-2 py-2.5 text-center font-semibold"><span className="rounded-md bg-primary px-2 py-1 text-primary-foreground">Tu cantidad</span></th>
+                  <th scope="col" className="border-b border-border px-2 py-2.5 text-center font-semibold"><span className="rounded-md bg-primary px-2 py-1 text-primary-foreground">Cantidad</span></th>
                   {conCostos && <th scope="col" className="border-b border-border px-2 py-2.5 text-right font-semibold">Valor</th>}
                 </tr>
               </thead>
@@ -162,7 +162,7 @@ function PedidoCon({ inv, encabezado }: { inv: Inventario; encabezado: boolean }
                   return (
                     <tr key={p.codigo} className={cn(c === 0 && 'text-muted-foreground')}>
                       <td className="border-b border-[#f0f1ee] px-2 py-2.5">
-                        <span className="block text-xs text-muted-foreground">{p.codigo} · {p.proveedor}</span>
+                        <span className="block text-nota text-muted-foreground">{p.codigo} · {p.proveedor}</span>
                         <span className={cn('font-semibold', c > 0 && 'text-foreground')}>{p.nombre}</span>
                         <span className="mt-1 block"><ChipEstado estado={p.estado} existencias={p.existencias} /></span>
                       </td>
@@ -175,7 +175,7 @@ function PedidoCon({ inv, encabezado }: { inv: Inventario; encabezado: boolean }
                           type="button"
                           title="Usar lo sugerido"
                           onClick={() => cambiar(p, p.sugerido ?? 0)}
-                          className={cn('presionable min-h-9 rounded-lg border border-dashed px-2.5 text-[0.95rem] font-bold tabular-nums', distinto ? 'border-highlight bg-[#f2faf8] text-secondary-foreground hover:bg-secondary' : 'border-transparent text-muted-foreground')}
+                          className={cn('presionable min-h-9 rounded-lg border border-dashed px-2.5 text-cuerpo font-bold tabular-nums', distinto ? 'border-highlight bg-[#f2faf8] text-secondary-foreground hover:bg-secondary' : 'border-transparent text-muted-foreground')}
                         >
                           {numero(p.sugerido)}
                         </button>
@@ -216,7 +216,7 @@ function PedidoCon({ inv, encabezado }: { inv: Inventario; encabezado: boolean }
                   {opcionesAgregar.map((p) => (
                     <li key={p.codigo}>
                       <button type="button" className="flex w-full items-center justify-between gap-3 px-3.5 py-2.5 text-left hover:bg-muted" onClick={() => { cambiar(p, Math.max(p.sugerido ?? 0, 1)); setBusca('') }}>
-                        <span><span className="block text-xs text-muted-foreground">{p.codigo}</span>{p.nombre}</span>
+                        <span><span className="block text-nota text-muted-foreground">{p.codigo}</span>{p.nombre}</span>
                         <span className="text-sm whitespace-nowrap text-muted-foreground">{alcance(p.semanas, true)}</span>
                       </button>
                     </li>
@@ -233,21 +233,21 @@ function PedidoCon({ inv, encabezado }: { inv: Inventario; encabezado: boolean }
             <h2 id="t-resumen" className="text-lg font-bold">Resumen</h2>
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-xl bg-secondary p-3">
-                <span className="block text-[0.82rem] font-semibold text-secondary-foreground">Líneas</span>
+                <span className="block text-nota font-semibold text-secondary-foreground">Líneas</span>
                 <strong className="font-display text-[1.8rem] tabular-nums text-secondary-foreground">{numero(enPedido.length)}</strong>
               </div>
               <div className="rounded-xl bg-muted p-3">
-                <span className="block text-[0.82rem] font-semibold text-muted-foreground">{conCostos ? 'Valor a costo' : 'Unidades'}</span>
+                <span className="block text-nota font-semibold text-muted-foreground">{conCostos ? 'Valor a costo' : 'Unidades'}</span>
                 <strong className="font-display text-[1.5rem] whitespace-nowrap tabular-nums">{conCostos ? plata(total) : numero(unidades)}</strong>
               </div>
             </div>
-            <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1.5 text-[0.93rem]">
+            <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1.5 text-chico">
               {proveedores.map((pr) => {
                 const ls = enPedido.filter((x) => x.p.proveedor === pr)
                 if (!ls.length) return null
                 return (
                   <div key={pr} className="contents">
-                    <dt className="text-muted-foreground">{pr} <span className="text-[0.82rem]">({ls.length})</span></dt>
+                    <dt className="text-muted-foreground">{pr} <span className="text-nota">({ls.length})</span></dt>
                     <dd className="text-right font-semibold tabular-nums">{conCostos ? plata(ls.reduce((s, x) => s + x.cantidad * (x.p.costo ?? 0), 0)) : numero(ls.reduce((s, x) => s + x.cantidad, 0))}</dd>
                   </div>
                 )
@@ -263,7 +263,7 @@ function PedidoCon({ inv, encabezado }: { inv: Inventario; encabezado: boolean }
           {lineasMensaje.length > 0 && (
             <Tarjeta aria-labelledby="t-mensaje" className="flex flex-col gap-2.5 p-5">
               <h2 id="t-mensaje" className="text-base font-bold">Mensaje para {nombreProveedor(delMensaje)}</h2>
-              <p className="max-h-80 overflow-y-auto rounded-xl border border-[#d5ede9] bg-[#f2faf8] px-3.5 py-3 text-[0.9rem] whitespace-pre-line">{mensajeWhatsapp(delMensaje, lineasMensaje, inv.fuente.empresa)}</p>
+              <p className="max-h-80 overflow-y-auto rounded-xl border border-[#d5ede9] bg-[#f2faf8] px-3.5 py-3 text-chico whitespace-pre-line">{mensajeWhatsapp(delMensaje, lineasMensaje, inv.fuente.empresa)}</p>
             </Tarjeta>
           )}
         </aside>

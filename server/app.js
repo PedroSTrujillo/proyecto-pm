@@ -11,6 +11,7 @@ const exportar = require('./exportar');
 const empresas = require('./empresas');
 const movimientos = require('./movimientos');
 const boletin = require('./boletin');
+const encuesta = require('./encuesta');
 const { limitar, comprimirJson } = require('./limites');
 const errores = require('./errores');
 const { plantillaExport, plantillaLista, plantillaInventario } = require('./plantillas');
@@ -56,7 +57,7 @@ function crearApp({ web = null, dev = false } = {}) {
   app.use('/api', comprimirJson);
   // Contra quien prueba contraseñas a la fuerza: la app queda pública desde la página.
   const porCorreo = (req) => req.body && req.body.email;
-  app.use('/api/cuenta/entrar', limitar({ max: 8, minutos: 15, clave: porCorreo, mensaje: 'Demasiados intentos para entrar. Espera 15 minutos o pide un enlace para cambiar tu contraseña.' }));
+  app.use('/api/cuenta/entrar', limitar({ max: 8, minutos: 15, clave: porCorreo, mensaje: 'Demasiados intentos para entrar. Espere 15 minutos o pida un enlace para cambiar su contraseña.' }));
   app.use('/api/cuenta/crear', limitar({ max: 10, minutos: 60 }));
   app.use('/api/cuenta/olvide', limitar({ max: 5, minutos: 60, clave: porCorreo }));
   app.use('/api/cuenta/restablecer', limitar({ max: 10, minutos: 15 }));
@@ -77,6 +78,7 @@ function crearApp({ web = null, dev = false } = {}) {
   app.use('/api/tareas', boletin.tareas);
   app.use('/api/boletin', boletin.baja);
   app.use('/api/exportar', exportar.rutas);
+  app.use('/api/encuesta', encuesta.rutas);
   app.use('/api/errores', errores.rutas);
 
   const enviarXlsx = (nombre, generar) => async (_req, res) => {
@@ -106,17 +108,17 @@ function crearApp({ web = null, dev = false } = {}) {
     }
     if (err instanceof multer.MulterError) {
       const mensaje = err.code === 'LIMIT_FILE_SIZE'
-        ? 'El archivo es muy grande (máximo 40 MB). Si es un Excel, prueba guardarlo como CSV.'
+        ? 'El archivo es muy grande (máximo 40 MB). Si es un Excel, pruebe guardarlo como CSV.'
         : err.code === 'LIMIT_FILE_COUNT' || err.code === 'LIMIT_UNEXPECTED_FILE'
-          ? 'Sube como máximo 24 archivos a la vez (por ejemplo, dos años mes por mes).'
-          : 'No pudimos recibir el archivo. Intenta de nuevo.';
+          ? 'Suba como máximo 24 archivos a la vez (por ejemplo, dos años mes por mes).'
+          : 'No pudimos recibir el archivo. Intente de nuevo.';
       return res.status(400).json({ error: mensaje });
     }
     if (err.type === 'entity.too.large') return res.status(413).json({ error: 'La lista es demasiado grande.' });
     if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'No entendimos los datos enviados.' });
     console.error(err);
     errores.registrarError({ usuarioId: req.usuario ? req.usuario.id : null, origen: 'servidor', mensaje: err.message, ruta: `${req.method} ${req.originalUrl}`, detalle: err.stack });
-    res.status(500).json({ error: 'Algo salió mal de nuestro lado. Intenta de nuevo en un momento.' });
+    res.status(500).json({ error: 'Algo salió mal de nuestro lado. Intente de nuevo en un momento.' });
   });
 
   return app;

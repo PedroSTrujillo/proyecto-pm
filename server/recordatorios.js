@@ -98,11 +98,11 @@ function tituloGrupo(g) {
 
 function textoGrupo(g, fechaReporte, url) {
   return [
-    `Según tu reporte del ${diaLargo(fechaReporte)}, ${g.productos.length === 1 ? 'este producto va' : 'estos productos van'} a quedar con menos de ${umbralDe(g)} semanas de inventario:`,
+    `Según su reporte del ${diaLargo(fechaReporte)}, ${g.productos.length === 1 ? 'este producto va' : 'estos productos van'} a quedar con menos de ${umbralDe(g)} semanas de inventario:`,
     '',
     ...g.productos.map((a) => `- ${a.codigo}${a.nombre ? ` (${a.nombre})` : ''}: hacia el ${diaLargo(a.fechaUmbral)}`),
     '',
-    'La cuenta supone que sigues vendiendo al mismo ritmo de ese reporte. Para confirmarlo, sube tu export más reciente:',
+    'La cuenta supone que sigue vendiendo al mismo ritmo de ese reporte. Para confirmarlo, suba su export más reciente:',
     url,
   ].join('\n');
 }
@@ -187,15 +187,15 @@ async function responder({ usuario, pedidoId, activo, avisos, fechaReporte }) {
     await enviarCorreo({
       para: usuario.email,
       nombre: usuario.nombre,
-      asunto: 'Tus recordatorios de inventario',
+      asunto: 'Sus recordatorios de inventario',
       texto: [
         `Hola, ${usuario.nombre}:`,
         '',
-        `Adjuntamos los recordatorios para tu calendario. El primero es el ${diaLargo(primero.fecha)}:`,
+        `Adjuntamos los recordatorios para su calendario. El primero es el ${diaLargo(primero.fecha)}:`,
         '',
         textoGrupo(primero, fechaReporte, url),
         '',
-        'Abre el archivo adjunto para agregarlos a tu calendario.',
+        'Abra el archivo adjunto para agregarlos a su calendario.',
       ].join('\n'),
       adjuntos: [{ nombre: 'recordatorios-inventario.ics', contenido: ics }],
     });

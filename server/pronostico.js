@@ -155,9 +155,11 @@ function loteDe(serie) {
   return lote >= 2 && lote <= 1000 ? lote : 1;
 }
 
-// Redondea hacia arriba al paquete (0 se queda en 0).
+// Redondea hacia arriba al paquete (0 se queda en 0). El paquete puede ser decimal si viene del
+// catálogo (bultos de 2,5 kg); el que se deduce de las ventas siempre es entero.
 function aLote(cantidad, lote) {
-  return lote > 1 && cantidad > 0 ? Math.ceil(cantidad / lote) * lote : cantidad;
+  if (!(lote > 0) || lote === 1 || !(cantidad > 0)) return cantidad;
+  return Math.round(Math.ceil(cantidad / lote - 1e-9) * lote * 1000) / 1000;
 }
 
 // --- Temporada ------------------------------------------------------------------------

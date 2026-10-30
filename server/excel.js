@@ -34,17 +34,24 @@ function nuevoLibro() {
   return libro;
 }
 
+// El tipo de imagen para ExcelJS a partir de los primeros bytes (PNG o JPG).
+const tipoImagen = (b) => (b[0] === 0x89 && b[1] === 0x50 ? 'png' : 'jpeg');
+
 /**
  * Hoja con la franja de marca arriba: monograma, título y subtítulo. Devuelve la hoja y la fila
- * donde empieza la tabla. anchos: el ancho de cada columna (en caracteres).
+ * donde empieza la tabla. anchos: el ancho de cada columna (en caracteres). logo: el de la empresa
+ * ({ buffer, ancho, alto }, de abrirImagen en pdf.js) en vez del monograma de SINESC.
  */
-function hojaConMarca(libro, nombre, { titulo, subtitulo, anchos }) {
+function hojaConMarca(libro, nombre, { titulo, subtitulo, anchos, logo = null }) {
   const hoja = libro.addWorksheet(nombre, { views: [{ showGridLines: false }] });
   hoja.columns = anchos.map((width) => ({ width }));
   hoja.getRow(1).height = 26;
   hoja.getRow(2).height = 18;
-  const logo = libro.addImage({ buffer: LOGO, extension: 'png' });
-  hoja.addImage(logo, { tl: { col: 0.15, row: 0.2 }, ext: { width: 38, height: 38 }, editAs: 'absolute' });
+  const imagen = logo ? libro.addImage({ buffer: logo.buffer, extension: tipoImagen(logo.buffer) }) : libro.addImage({ buffer: LOGO, extension: 'png' });
+  // El logo de la empresa cabe en el alto de la franja sin deformarse (y no tapa el título).
+  const alto = 38;
+  const ancho = logo ? Math.min(Math.round((alto * logo.ancho) / logo.alto), 110) : 38;
+  hoja.addImage(imagen, { tl: { col: 0.15, row: 0.2 }, ext: { width: ancho, height: logo ? Math.round((ancho * logo.alto) / logo.ancho) : alto }, editAs: 'absolute' });
   const t = hoja.getCell('B1');
   t.value = titulo;
   t.font = { name: FUENTE, size: 15, bold: true, color: { argb: C.primarioOscuro } };
@@ -132,8 +139,9 @@ async function aBuffer(libro) {
   return Buffer.from(await libro.xlsx.writeBuffer());
 }
 
-function fechaHoy() {
-  return new Date().toLocaleDateString('es-CO', { timeZone: 'America/Bogota', day: 'numeric', month: 'long', year: 'numeric' });
+// La fecha en palabras ("29 de octubre de 2026"), por defecto la de hoy.
+function fechaHoy(d = new Date()) {
+  return new Date(d).toLocaleDateString('es-CO', { timeZone: 'America/Bogota', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 module.exports = { nuevoLibro, hojaConMarca, tabla, filaTotal, parrafos, hojaPlantilla, aBuffer, fechaHoy, COLORES: C };

@@ -168,7 +168,7 @@ export function GraficoVentas({
       </svg>
       {foco !== null && puntoFoco && (
         <div
-          className="pointer-events-none absolute top-0 z-10 w-max max-w-56 -translate-x-1/2 rounded-lg bg-foreground px-2.5 py-1.5 text-[0.85rem] leading-snug text-background shadow-lg"
+          className="pointer-events-none absolute top-0 z-10 w-max max-w-56 -translate-x-1/2 rounded-lg bg-foreground px-2.5 py-1.5 text-nota leading-snug text-background shadow-lg"
           style={{ left: `${Math.min(85, Math.max(15, (geo.x(foco) / ancho) * 100))}%` }}
         >
           <span className="block text-background/70">Semana del {fechaCorta(puntoFoco.p.inicio)}</span>

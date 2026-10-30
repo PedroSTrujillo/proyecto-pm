@@ -7,24 +7,27 @@ import { useEffect, useId, useMemo, useState } from 'react'
 import { Download, Search, X } from 'lucide-react'
 import { descargar } from '@/lib/descargar'
 import { cn } from '@/lib/utils'
-import { alcance, alcancePartes, claveCodigo, duracion, fecha, horizonteTexto, mesAnio, numero, plata, porcentaje, ventasSemana } from '@/lib/formato'
-import type { Estado, Inventario, Producto } from '@/lib/tipos'
+import { alcance, alcancePartes, claveCodigo, duracion, fecha, horizonteTexto, mesAnio, numero, plata, plural, porcentaje, ventasSemana } from '@/lib/formato'
+import type { Clase, Estado, Inventario, Producto } from '@/lib/tipos'
 import { useInventario } from './contexto'
 import { BarraRiesgo, GraficoVentas, LeyendaVentas, Sparkline } from './graficos'
-import { Boton, Cargando, ChipEstado, ESTADOS, ErrorLista, Pildoras, Tarjeta, Titulo, claseEntrada } from './ui'
+import { Boton, BotonEnlace, CLASES, Cargando, ChipEstado, ChipsProducto, ESTADOS, ErrorLista, Pildoras, Tarjeta, Titulo, claseEntrada, diasDesde } from './ui'
+import { CatalogoEnLote, ComoSeCalcula, EditarCatalogo } from './catalogo'
 import { SelectorTiempo } from './vista'
 import { SinInventario } from './sin-inventario'
 import { VentaUnica } from './pedido-flujo'
 
 type Filtro = 'todos' | Estado
+// Cómo se vende (server/inventario.js, clasificar), más "venta alta" y "pedido hace poco".
+type FiltroClase = 'todas' | Clase | 'ventaAlta' | 'reciente'
 type Orden = 'semanas' | 'riesgo' | 'valor' | 'ventas'
 const POR_PAGINA = 60
 
 export function Productos() {
   const { inventario, cargando, error, respuesta } = useInventario()
-  if (cargando) return <Cargando texto="Cargando tus productos…" />
+  if (cargando) return <Cargando texto="Cargando sus productos…" />
   if (error) return <ErrorLista mensaje={error} />
-  if (!inventario) return <SinInventario puedeSubir={Boolean(respuesta?.puedeSubir)} />
+  if (!inventario) return <SinInventario />
   return <ProductosCon inv={inventario} />
 }
 
@@ -39,17 +42,26 @@ function ordenar(lista: Producto[], orden: Orden) {
 }
 
 function ProductosCon({ inv }: { inv: Inventario }) {
+  const { fuente } = useInventario()
   const params = useSearchParams()!
   const router = useRouter()
   const ruta = usePathname()!
   const [q, setQ] = useState('')
-  const [filtro, setFiltro] = useState<Filtro>((params.get('filtro') as Filtro) || 'todos')
+  // ?estado= viene de los enlaces del boletín (/productos?estado=pide); ?filtro=, de las pantallas.
+  const [filtro, setFiltro] = useState<Filtro>(() => {
+    const pedido = params.get('estado') || params.get('filtro')
+    return pedido && (pedido === 'todos' || pedido in ESTADOS) ? (pedido as Filtro) : 'todos'
+  })
   const [proveedor, setProveedor] = useState('todos')
+  const [familia, setFamilia] = useState('todas')
+  const [clase, setClase] = useState<FiltroClase>('todas')
   const [orden, setOrden] = useState<Orden>('semanas')
   const [mostrar, setMostrar] = useState(POR_PAGINA)
   const seleccionado = params.get('p')
+  const familias = useMemo(() => [...new Set(inv.productos.map((p) => p.familia).filter((f): f is string => Boolean(f)))].sort((a, b) => a.localeCompare(b, 'es')), [inv])
+  const hayClases = inv.productos.some((p) => p.clase)
 
-  useEffect(() => setMostrar(POR_PAGINA), [q, filtro, proveedor, orden])
+  useEffect(() => setMostrar(POR_PAGINA), [q, filtro, proveedor, familia, clase, orden])
 
   // Escape cierra la ficha.
   useEffect(() => {
@@ -76,7 +88,9 @@ function ProductosCon({ inv }: { inv: Inventario }) {
 
   const buscado = q.trim().toLowerCase()
   const coincide = (p: Producto) =>
-    (!buscado || p.codigo.toLowerCase().includes(buscado) || p.nombre.toLowerCase().includes(buscado)) && (proveedor === 'todos' || p.proveedor === proveedor)
+    (!buscado || p.codigo.toLowerCase().includes(buscado) || p.nombre.toLowerCase().includes(buscado)) && (proveedor === 'todos' || p.proveedor === proveedor) &&
+    (familia === 'todas' || p.familia === familia) &&
+    (clase === 'todas' || (clase === 'ventaAlta' ? p.ventaAlta : clase === 'reciente' ? Boolean(p.pedidoReciente) : p.clase === clase))
   const base = inv.productos.filter(coincide)
   const lista = useMemo(() => ordenar(base.filter((p) => filtro === 'todos' || p.estado === filtro), orden), [base, filtro, orden])
   const cuenta = (e: Estado) => base.filter((p) => p.estado === e).length
@@ -96,7 +110,7 @@ function ProductosCon({ inv }: { inv: Inventario }) {
   const opciones: { id: Filtro; texto: string; cuenta: number }[] = [
     { id: 'todos', texto: 'Todos', cuenta: base.length },
     { id: 'agota', texto: 'Agotados o por agotarse', cuenta: cuenta('agota') },
-    { id: 'pide', texto: 'Pide ya', cuenta: cuenta('pide') },
+    { id: 'pide', texto: 'Pedir ya', cuenta: cuenta('pide') },
     { id: 'normal', texto: 'Bien', cuenta: cuenta('normal') },
     { id: 'sobra', texto: 'Sobrestock', cuenta: cuenta('sobra') },
   ]
@@ -106,7 +120,7 @@ function ProductosCon({ inv }: { inv: Inventario }) {
 
   return (
     <>
-      <Titulo sub="Ordenados por lo que se acaba primero. Toca un producto para ver su ficha." acciones={inv.sugerencias && inv.vista !== 'operador' ? <DescargarMinimos inv={inv} /> : undefined}>Productos</Titulo>
+      <Titulo sub="Ordenados por lo que se acaba primero. Toque un producto para ver su ficha." acciones={inv.sugerencias && inv.vista !== 'operador' ? <DescargarMinimos inv={inv} /> : undefined}>Productos</Titulo>
       <SelectorTiempo conHorizonte={pronostica} className="-mt-3" />
 
       <div className="flex flex-col gap-3">
@@ -119,15 +133,35 @@ function ProductosCon({ inv }: { inv: Inventario }) {
           {inv.proveedores.length > 1 && (
             <label className="flex w-full min-w-0 flex-col gap-1 text-sm font-semibold text-muted-foreground sm:w-auto sm:flex-row sm:items-center sm:gap-2">
               Proveedor
-              <select className={cn(claseEntrada, 'text-[0.95rem] sm:w-auto sm:max-w-64')} value={proveedor} onChange={(e) => setProveedor(e.target.value)}>
+              <select className={cn(claseEntrada, 'text-cuerpo sm:w-auto sm:max-w-64')} value={proveedor} onChange={(e) => setProveedor(e.target.value)}>
                 <option value="todos">Todos</option>
                 {inv.proveedores.map((p) => <option key={p.nombre} value={p.nombre}>{p.nombre}</option>)}
               </select>
             </label>
           )}
+          {familias.length > 0 && (
+            <label className="flex w-full min-w-0 flex-col gap-1 text-sm font-semibold text-muted-foreground sm:w-auto sm:flex-row sm:items-center sm:gap-2">
+              Familia
+              <select className={cn(claseEntrada, 'text-cuerpo sm:w-auto sm:max-w-56')} value={familia} onChange={(e) => setFamilia(e.target.value)}>
+                <option value="todas">Todas</option>
+                {familias.map((f) => <option key={f} value={f}>{f}</option>)}
+              </select>
+            </label>
+          )}
+          {hayClases && (
+            <label className="flex w-full min-w-0 flex-col gap-1 text-sm font-semibold text-muted-foreground sm:w-auto sm:flex-row sm:items-center sm:gap-2">
+              Cómo se vende
+              <select className={cn(claseEntrada, 'text-cuerpo sm:w-auto')} value={clase} onChange={(e) => setClase(e.target.value as FiltroClase)}>
+                <option value="todas">Todos</option>
+                {(Object.keys(CLASES) as Clase[]).map((c) => <option key={c} value={c}>{CLASES[c].texto}</option>)}
+                <option value="ventaAlta">Venta alta</option>
+                <option value="reciente">Pedidos en las últimas 2 semanas</option>
+              </select>
+            </label>
+          )}
           <label className="flex w-full min-w-0 flex-col gap-1 text-sm font-semibold text-muted-foreground sm:w-auto sm:flex-row sm:items-center sm:gap-2">
             Ordenar
-            <select className={cn(claseEntrada, 'text-[0.95rem] sm:w-auto')} value={orden} onChange={(e) => setOrden(e.target.value as Orden)}>
+            <select className={cn(claseEntrada, 'text-cuerpo sm:w-auto')} value={orden} onChange={(e) => setOrden(e.target.value as Orden)}>
               <option value="semanas">Lo que se acaba primero</option>
               {inv.alcance !== 'prueba' && <option value="riesgo">Mayor riesgo</option>}
               <option value="valor">{inv.resumen.tieneCostos ? 'Más plata en inventario' : 'Más unidades'}</option>
@@ -143,13 +177,13 @@ function ProductosCon({ inv }: { inv: Inventario }) {
           <div className="overflow-x-auto">
             <table className={cn('w-full border-collapse', producto ? 'sm:min-w-[500px]' : 'sm:min-w-[620px]')}>
               <thead>
-                <tr className="text-left text-[0.82rem] text-muted-foreground">
+                <tr className="text-left text-nota text-muted-foreground">
                   <th scope="col" className="border-b border-border px-2 py-3 font-semibold">Producto</th>
                   <th scope="col" className={cn('border-b border-border px-2 py-3 font-semibold', claseSerie)}>Últimas 16 semanas</th>
                   <th scope="col" className="hidden border-b border-border px-2 py-3 text-right font-semibold sm:table-cell">Ventas/semana</th>
-                  <th scope="col" className="hidden border-b border-border px-2 py-3 text-right font-semibold sm:table-cell">Tienes</th>
-                  <th scope="col" className="border-b border-border px-2 py-3 text-right font-semibold">Te alcanza</th>
-                  {pronostica && <th scope="col" className={cn('border-b border-border px-2 py-3 text-right leading-tight font-semibold', claseExtra)}>Venderás en<br />{horizonteTexto(inv.horizonte ?? 4)}</th>}
+                  <th scope="col" className="hidden border-b border-border px-2 py-3 text-right font-semibold sm:table-cell">Existencias</th>
+                  <th scope="col" className="border-b border-border px-2 py-3 text-right font-semibold">Alcanza para</th>
+                  {pronostica && <th scope="col" className={cn('border-b border-border px-2 py-3 text-right leading-tight font-semibold', claseExtra)}>Venta en<br />{horizonteTexto(inv.horizonte ?? 4)}</th>}
                   {inv.sugerencias && <th scope="col" className={cn('border-b border-border px-2 py-3 text-right font-semibold', claseExtra)}>Pedir</th>}
                 </tr>
               </thead>
@@ -165,9 +199,10 @@ function ProductosCon({ inv }: { inv: Inventario }) {
                     className={cn('cursor-pointer transition-colors duration-100 hover:bg-[#f8faf7] focus-visible:bg-[#f8faf7]', p.codigo === seleccionado && 'bg-secondary hover:bg-secondary')}
                   >
                     <td className="border-b border-[#f0f1ee] px-2 py-3">
-                      <span className="block text-xs tracking-wide text-muted-foreground">{p.codigo}{p.proveedor !== 'Sin proveedor' ? ` · ${p.proveedor}` : ''}</span>
+                      <span className="block text-nota tracking-wide text-muted-foreground">{p.codigo}{p.proveedor !== 'Sin proveedor' ? ` · ${p.proveedor}` : ''}</span>
                       <span className="font-semibold">{p.nombre}</span>
-                      <span className="block text-[0.82rem] text-muted-foreground sm:hidden">Vende {ventasSemana(p.ventasSemana)} por semana · tienes {numero(p.existencias)}</span>
+                      <span className="block text-nota text-muted-foreground sm:hidden">Vende {ventasSemana(p.ventasSemana)} por semana · hay {numero(p.existencias)}</span>
+                      <ChipsProducto p={p} className="mt-1" />
                     </td>
                     <td className={cn('border-b border-[#f0f1ee] px-2 py-3', claseSerie)}>
                       {p.serie ? <Sparkline valores={p.serie.slice(-16)} color={p.estado === 'sobra' || p.estado === 'sin_ventas' ? '#6b8bb8' : undefined} /> : <span className="text-muted-foreground">—</span>}
@@ -191,7 +226,7 @@ function ProductosCon({ inv }: { inv: Inventario }) {
                           <>
                             {/* El rango sale de la venta del horizonte completo, no de sumar los rangos de cada semana. */}
                             <span className="font-semibold">{numero(Math.round(p.ventaHorizonte?.media ?? p.pronostico.slice(0, 4).reduce((s, x) => s + x.media, 0)))}</span>
-                            {p.ventaHorizonte && <span className="block text-xs text-muted-foreground">entre {numero(Math.round(p.ventaHorizonte.bajo))} y {numero(Math.round(p.ventaHorizonte.alto))}</span>}
+                            {p.ventaHorizonte && <span className="block text-nota text-muted-foreground">entre {numero(Math.round(p.ventaHorizonte.bajo))} y {numero(Math.round(p.ventaHorizonte.alto))}</span>}
                           </>
                         ) : <span className="text-muted-foreground">—</span>}
                       </td>
@@ -207,7 +242,7 @@ function ProductosCon({ inv }: { inv: Inventario }) {
                 ))}
               </tbody>
             </table>
-            {lista.length === 0 && <p className="px-2 py-10 text-center text-muted-foreground">No hay productos con ese filtro. Prueba buscando por código.</p>}
+            {lista.length === 0 && <p className="px-2 py-10 text-center text-muted-foreground">No hay productos con ese filtro. Busque por código.</p>}
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3 px-2 py-3 text-sm text-muted-foreground">
             <span>Mostrando {numero(Math.min(mostrar, lista.length))} de {numero(lista.length)}{lista.length !== inv.productos.length ? ` (de ${numero(inv.productos.length)} en total)` : ''}.</span>
@@ -231,6 +266,8 @@ function ProductosCon({ inv }: { inv: Inventario }) {
           </>
         )}
       </div>
+
+      {fuente.tipo === 'cuenta' && inv.vista !== 'operador' && <CatalogoEnLote />}
     </>
   )
 }
@@ -238,19 +275,19 @@ function ProductosCon({ inv }: { inv: Inventario }) {
 function consejo(p: Producto, inv: Inventario) {
   const u = inv.umbrales.seAgota
   if (p.ventaUnica) return `Venta única: ${numero(p.ventaUnica.vendido)} en la semana del ${fecha(p.ventaUnica.desde)} y nada más. Parece un proyecto; no se sugiere pedirlo.`
-  if (p.existencias <= 0 && p.ventasSemana > 0) return `Agotado. Vende unas ${ventasSemana(p.ventasSemana)} por semana. ${inv.sugerencias && p.sugerido ? `Sugerido para este pedido: ${numero(p.sugerido)}.` : 'Inclúyelo en este pedido.'}`
-  if (p.estado === 'agota' && (inv.alcance === 'prueba' || inv.vista === 'operador')) return `Se agota en menos de ${duracion(u)} al ritmo actual. Revísalo en tu pedido.`
-  if (p.estado === 'agota' && inv.sugerencias && !p.sugerido) return `Se agota en menos de ${duracion(u)}, pero cubre la entrega de ${p.proveedor === 'Sin proveedor' ? 'tu proveedor' : p.proveedor} hasta el próximo pedido.`
-  if (p.estado === 'agota') return `Se agota en menos de ${duracion(u)}${p.entrega > 0 ? ` y ${p.proveedor === 'Sin proveedor' ? 'tu proveedor' : p.proveedor} tarda ${duracion(p.entrega)}` : ''}. Inclúyelo en este pedido.`
-  if (p.estado === 'pide' && p.semanas !== null && p.semanas < p.entrega) return `Alcanza para ${alcance(p.semanas)} y el proveedor tarda ${duracion(p.entrega)}. Pídelo ya.`
-  if (p.estado === 'pide') return `Alcanza para ${alcance(p.semanas)} y el proveedor tarda ${duracion(p.entrega)}. Si esperas al próximo pedido, llega tarde.`
-  if (p.estado === 'sobra') return `Alcanza para ${alcance(p.semanas)}. No lo pidas por ahora${p.ventasSemana < 1 ? '; se vende muy poco: evalúa si se sigue trayendo' : ''}.`
+  if (p.existencias <= 0 && p.ventasSemana > 0) return `Agotado. Vende unas ${ventasSemana(p.ventasSemana)} por semana. ${inv.sugerencias && p.sugerido ? `Sugerido para este pedido: ${numero(p.sugerido)}.` : 'Inclúyalo en este pedido.'}`
+  if (p.estado === 'agota' && (inv.alcance === 'prueba' || inv.vista === 'operador')) return `Se agota en menos de ${duracion(u)} al ritmo actual. Revíselo en su pedido.`
+  if (p.estado === 'agota' && inv.sugerencias && !p.sugerido) return `Se agota en menos de ${duracion(u)}, pero cubre la entrega de ${p.proveedor === 'Sin proveedor' ? 'su proveedor' : p.proveedor} hasta el próximo pedido.`
+  if (p.estado === 'agota') return `Se agota en menos de ${duracion(u)}${p.entrega > 0 ? ` y ${p.proveedor === 'Sin proveedor' ? 'su proveedor' : p.proveedor} tarda ${duracion(p.entrega)}` : ''}. Inclúyalo en este pedido.`
+  if (p.estado === 'pide' && p.semanas !== null && p.semanas < p.entrega) return `Alcanza para ${alcance(p.semanas)} y el proveedor tarda ${duracion(p.entrega)}. Pídalo ya.`
+  if (p.estado === 'pide') return `Alcanza para ${alcance(p.semanas)} y el proveedor tarda ${duracion(p.entrega)}. Si espera al próximo pedido, llega tarde.`
+  if (p.estado === 'sobra') return `Alcanza para ${alcance(p.semanas)}. No lo pida por ahora${p.ventasSemana < 1 ? '; se vende muy poco: evalúe si se sigue trayendo' : ''}.`
   if (p.estado === 'sin_ventas') return 'Sin ventas en el periodo del archivo. Candidato a promoción o a salir del catálogo.'
-  return `Bien surtido. ${inv.sugerencias && p.sugerido ? 'Si pides esta semana, usa lo sugerido.' : 'Revísalo en el próximo pedido.'}`
+  return `Bien surtido. ${inv.sugerencias && p.sugerido ? 'Si pide esta semana, use lo sugerido.' : 'Revíselo en el próximo pedido.'}`
 }
 
 function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: () => void }) {
-  const { pedido, ponerEnPedido } = useInventario()
+  const { pedido, ponerEnPedido, rutas, fuente } = useInventario()
   const e = ESTADOS[p.estado]
   const horizonte = Math.max(p.entrega, inv.umbrales.seAgota)
   const prox4 = p.pronostico?.slice(0, 4) ?? []
@@ -263,7 +300,7 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
     <div className="flex flex-col gap-5 p-5 sm:p-6">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <span className="text-[0.82rem] tracking-wide text-muted-foreground">{p.codigo}{p.proveedor !== 'Sin proveedor' ? ` · ${p.proveedor}` : ''}</span>
+          <span className="text-nota tracking-wide text-muted-foreground">{p.codigo}{p.proveedor !== 'Sin proveedor' ? ` · ${p.proveedor}` : ''}</span>
           <h2 className="text-[1.35rem] leading-snug font-bold">{p.nombre}</h2>
         </div>
         <button type="button" onClick={alCerrar} className="presionable -mr-1 inline-flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-muted" aria-label="Cerrar la ficha">
@@ -273,74 +310,85 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
 
       <div className="grid grid-cols-2 gap-3">
         <div className={cn('rounded-2xl p-4', e.chip)}>
-          <span className="block text-[0.82rem] font-semibold">Te alcanza para</span>
+          <span className="block text-nota font-semibold">Alcanza para</span>
           {p.semanas === null ? (
             <strong className="font-display text-2xl">Sin ventas</strong>
           ) : (
             <>
               <strong className={cn('font-display text-[2.3rem] leading-none font-extrabold tabular-nums', e.numero)}>{alcancePartes(p.semanas).valor}</strong>
-              <span className="text-[0.95rem]"> {alcancePartes(p.semanas).unidad}</span>
+              <span className="text-cuerpo"> {alcancePartes(p.semanas).unidad}</span>
             </>
           )}
         </div>
         {p.existencias <= 0 && p.ventasSemana > 0 && !p.ventaUnica ? (
           <div className="rounded-2xl border border-rojo-borde bg-rojo-fondo p-4">
-            <span className="block text-[0.82rem] font-semibold text-rojo-texto">Ya está en cero</span>
+            <span className="block text-nota font-semibold text-rojo-texto">Ya está en cero</span>
             <strong className="font-display text-[1.8rem] leading-tight tabular-nums">{ventasSemana(p.ventasSemana)}</strong>
-            <span className="block text-[0.85rem] text-rojo-texto">por semana que no puedes vender</span>
+            <span className="block text-nota text-rojo-texto">por semana que no se pueden vender</span>
           </div>
         ) : p.riesgo !== null ? (
           <div className="rounded-2xl border border-border p-4">
-            <span className="block text-[0.82rem] font-semibold text-muted-foreground">Riesgo de agotarse en {duracion(horizonte)}</span>
+            <span className="block text-nota font-semibold text-muted-foreground">Riesgo de agotarse en {duracion(horizonte)}</span>
             <strong className="font-display text-[1.8rem] leading-tight tabular-nums">{`${Math.round(p.riesgo * 100)} %`}</strong>
             <BarraRiesgo valor={p.riesgo} className="mt-1 [&>span:last-child]:hidden" />
           </div>
         ) : (
           <div className="rounded-2xl border border-border p-4">
-            <span className="block text-[0.82rem] font-semibold text-muted-foreground">Vendes por semana</span>
+            <span className="block text-nota font-semibold text-muted-foreground">Venta por semana</span>
             <strong className="font-display text-[1.8rem] leading-tight tabular-nums">{ventasSemana(p.ventasSemana)}</strong>
-            <span className="block text-[0.85rem] text-muted-foreground">tienes {numero(p.existencias)}</span>
+            <span className="block text-nota text-muted-foreground">existencias: {numero(p.existencias)}</span>
           </div>
         )}
       </div>
 
-      <p className="rounded-xl bg-muted px-4 py-3 text-[0.95rem]">{consejo(p, inv)}</p>
+      <p className="rounded-xl bg-muted px-4 py-3 text-cuerpo">{consejo(p, inv)}</p>
+      <ChipsProducto p={p} className="-mt-2" />
+      {p.enCamino && (
+        <p className="-mt-2 text-chico text-ambar-texto">
+          Ya pedido el {fecha(p.enCamino.fecha)}: {numero(p.enCamino.cantidad, 2)} que no han llegado. Lo sugerido ya los cuenta; cuando lleguen, registre la llegada en Pedidos.
+        </p>
+      )}
+      {p.pedidoReciente && !p.enCamino && (
+        <p className="-mt-2 text-chico text-muted-foreground">
+          Ya se pidió {diasDesde(p.pedidoReciente.fecha) === 0 ? 'hoy' : `hace ${plural(diasDesde(p.pedidoReciente.fecha), 'día', 'días')}`}: {numero(p.pedidoReciente.cantidad, 2)} en el pedido {p.pedidoReciente.numero}{p.pedidoReciente.por ? ` de ${p.pedidoReciente.por}` : ''}. Si todavía no ha llegado, téngalo en cuenta antes de pedir otra vez.
+        </p>
+      )}
 
       {p.serie && p.serie.length > 4 && (
         <div className="flex flex-col gap-2">
           <h3 className="text-base font-bold">Ventas por semana y pronóstico</h3>
           <GraficoVentas historia={historia} pronostico={pronostico} marcas={p.semanasPico} alto={200} descripcion={`Ventas semanales de ${p.nombre} y pronóstico de las próximas 8 semanas`} />
           {p.pico && (
-            <p className="text-[0.88rem] text-ambar-texto">
+            <p className="text-chico text-ambar-texto">
               En {mesAnio(p.pico.mes)} vendió {numero(p.pico.vendido)}, mucho más de lo normal (un proyecto o un cliente puntual). Para el promedio se contaron {numero(p.pico.contado)}.
             </p>
           )}
           {p.ventaHorizonte ? (
-            <p className="text-[0.92rem] text-muted-foreground">
+            <p className="text-chico text-muted-foreground">
               Próximas {horizonteTexto(inv.horizonte ?? 4)}: lo más probable es vender {numero(Math.round(p.ventaHorizonte.media))} (entre {numero(Math.round(p.ventaHorizonte.bajo))} y {numero(Math.round(p.ventaHorizonte.alto))}).
             </p>
           ) : prox4.length > 0 && (
-            <p className="text-[0.92rem] text-muted-foreground">
+            <p className="text-chico text-muted-foreground">
               Próximas 4 semanas: lo más probable es vender {numero(Math.round(media4))}.
             </p>
           )}
         </div>
       )}
 
-      <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-2 text-[0.95rem]">
+      <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-2 text-cuerpo">
         <dt className="text-muted-foreground">Ventas por semana</dt>
         <dd className="text-right font-semibold tabular-nums">{ventasSemana(p.ventasSemana)}</dd>
-        <dt className="text-muted-foreground">Tienes hoy</dt>
+        <dt className="text-muted-foreground">Existencias hoy</dt>
         <dd className="text-right font-semibold tabular-nums">{numero(p.existencias)}</dd>
         {inv.alcance !== 'prueba' && (
           <>
             <dt className="text-muted-foreground">El proveedor tarda</dt>
-            <dd className="text-right font-semibold tabular-nums">{duracion(p.entrega)}</dd>
+            <dd className="text-right font-semibold tabular-nums">{p.entregaDias != null ? plural(p.entregaDias, 'día hábil', 'días hábiles') : duracion(p.entrega)}</dd>
           </>
         )}
         {p.minimo !== null && p.maximo !== null && (
           <>
-            <dt className="text-muted-foreground">Mínimo · máximo <span className="text-[0.82rem]">(para tu programa contable)</span></dt>
+            <dt className="text-muted-foreground">Mínimo · máximo <span className="text-nota">(para su programa contable)</span></dt>
             <dd className="text-right font-semibold tabular-nums">{numero(p.minimo)} · {numero(p.maximo)}</dd>
           </>
         )}
@@ -361,43 +409,34 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
       </dl>
 
       {inv.alcance !== 'prueba' && <CambiarProveedor p={p} inv={inv} />}
+      {fuente.tipo === 'cuenta' && inv.vista !== 'operador' && <EditarCatalogo p={p} />}
 
-      <details className="group border-t border-border pt-3">
-        <summary className="cursor-pointer font-semibold text-primary">¿De dónde sale el número?</summary>
-        <div className="mt-2 flex flex-col gap-2 text-[0.93rem] text-foreground/85">
-          {p.semanas !== null ? (
-            <p>Tienes {numero(p.existencias)} y vendes {ventasSemana(p.ventasSemana)} por semana: {numero(p.existencias)} ÷ {ventasSemana(p.ventasSemana)} = <strong>{alcance(p.semanas)}</strong>.</p>
-          ) : (
-            <p>No tiene ventas en el periodo del archivo, así que no se puede saber para cuántas semanas alcanza.</p>
-          )}
-          {!inv.fuente.totales && p.semanas !== null && (
-            <p className="text-muted-foreground">
-              Las ventas por semana salen de tu archivo: lo de los últimos 3 meses cuenta doble
-              {p.pico ? ', el mes del proyecto se contó como 3 veces lo normal' : ''}
-              {p.senales.includes('producto_nuevo') ? `, y como empezó a venderse hace poco se promedia desde su primera venta (${numero(p.explicacion.semanasProducto)} semanas)` : ''}.
-            </p>
-          )}
+      <ComoSeCalcula p={p} inv={inv}>
+        <div className="mt-3 flex flex-col gap-2 text-chico text-muted-foreground">
           {p.minimo !== null && p.maximo !== null && (
-            <p className="text-muted-foreground">Mínimo: lo que se vende mientras llega un pedido, en 9 de cada 10 casos ({numero(p.minimo)}). Cuando tengas eso o menos, pide hasta llegar al máximo ({numero(p.maximo)}), que cubre la entrega y {duracion(inv.ajustes.cadaCuanto)} más.</p>
+            <p>Mínimo y máximo para su programa contable: el mínimo es lo que se vende mientras llega un pedido, en 9 de cada 10 casos ({numero(p.minimo)}). Cuando tenga eso o menos, pida hasta llegar al máximo ({numero(p.maximo)}), que cubre la entrega y {duracion(inv.ajustes.cadaCuanto)} más.</p>
           )}
           {p.riesgo !== null && (
-            <p className="text-muted-foreground">El riesgo y el rango salen de lo que vende este producto y de cuánto varían sus ventas cada semana{inv.temporada ? ' y la temporada de tu negocio' : ''}.</p>
+            <p>El riesgo y el rango salen de lo que vende este producto y de cuánto varían sus ventas cada semana{inv.temporada ? ' y la temporada de su negocio' : ''}.</p>
           )}
         </div>
-      </details>
+      </ComoSeCalcula>
 
       {inv.sugerencias && p.ventaUnica && <VentaUnica v={p.ventaUnica} existencias={p.existencias} />}
       {inv.sugerencias && p.sugerido !== null && !p.ventaUnica && (
         <div className="flex flex-col gap-3 rounded-2xl border border-[#cfe5e1] bg-secondary p-4">
-          <p className="text-[0.95rem] text-[#0b3f3b]">
+          <p className="text-cuerpo text-[#0b3f3b]">
             {p.sugerido > 0
-              ? <>Sugerido: <strong>{numero(p.sugerido)}</strong>. Cubre la entrega ({duracion(p.entrega)}) y {duracion(inv.ajustes.cadaCuanto)} más hasta el próximo pedido.{p.lote > 1 ? ` Va en paquetes de ${numero(p.lote)}, como se vende.` : ''}</>
-              : <>Con lo que tienes cubres la entrega y {duracion(inv.ajustes.cadaCuanto)} más: no hace falta pedir.</>}
+              ? <>Sugerido: <strong>{numero(p.sugerido, 2)}</strong>. Cubre la entrega ({duracion(p.entrega)}) y {duracion(inv.ajustes.cadaCuanto)} más hasta el próximo pedido.{p.multiplo ? ` Va en cajas de ${numero(p.multiplo, 2)}.` : p.lote > 1 ? ` Va en paquetes de ${numero(p.lote)}, como se vende.` : ''}{p.detalleSugerido?.minimoPedido ? ` Subió al mínimo de pedido (${numero(p.detalleSugerido.minimoPedido, 2)}).` : ''}</>
+              : <>Con lo que hay se cubre la entrega y {duracion(inv.ajustes.cadaCuanto)} más: no hace falta pedir.</>}
           </p>
           {enPedido ? (
-            <Boton onClick={() => ponerEnPedido(p.codigo, 0)}>En tu pedido: {numero(enPedido)} · quitar</Boton>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <BotonEnlace href={fuente.tipo === 'cuenta' ? '/pedidos/sugerido' : rutas.pedido} variante="primario">Ver el pedido</BotonEnlace>
+              <Boton onClick={() => ponerEnPedido(p.codigo, 0)}>En su pedido: {numero(enPedido)} · quitar</Boton>
+            </div>
           ) : (
-            <Boton variante="primario" onClick={() => ponerEnPedido(p.codigo, Math.max(p.sugerido ?? 0, 1))}>Agregar al pedido{p.sugerido ? ` (${numero(p.sugerido)})` : ''}</Boton>
+            <Boton variante="primario" className="self-start" onClick={() => ponerEnPedido(p.codigo, Math.max(p.sugerido ?? 0, 1))}>Agregar al pedido{p.sugerido ? ` (${numero(p.sugerido)})` : ''}</Boton>
           )}
         </div>
       )}
@@ -435,8 +474,8 @@ function CambiarProveedor({ p, inv }: { p: Producto; inv: Inventario }) {
 
   if (!abierto) {
     return (
-      <p className="-mt-2 text-[0.9rem] text-muted-foreground">
-        {p.proveedor === 'Sin proveedor' ? 'Tu archivo no dice quién te lo vende.' : `Proveedor: ${p.proveedor}${p.origenProveedor === 'prefijo' ? ' (por el comienzo del código)' : ''}.`}{' '}
+      <p className="-mt-2 text-chico text-muted-foreground">
+        {p.proveedor === 'Sin proveedor' ? 'Su archivo no dice quién se lo vende.' : `Proveedor: ${p.proveedor}${p.origenProveedor === 'prefijo' ? ' (por el comienzo del código)' : ''}.`}{' '}
         <button type="button" className="font-semibold text-primary hover:text-primary-hover" onClick={() => setAbierto(true)}>
           {p.proveedor === 'Sin proveedor' ? 'Decir el proveedor' : 'Cambiar'}
         </button>
@@ -452,11 +491,11 @@ function CambiarProveedor({ p, inv }: { p: Producto; inv: Inventario }) {
       }}
     >
       <label className="flex flex-col gap-1 text-sm font-semibold">
-        ¿Quién te vende {p.nombre}?
+        ¿Quién le vende {p.nombre}?
         <input className={claseEntrada} list={listaId} value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre del proveedor" autoFocus />
         <datalist id={listaId}>{conocidos.map((c) => <option key={c} value={c} />)}</datalist>
       </label>
-      <p className="text-[0.82rem] text-muted-foreground">El tiempo de entrega y la asignación por comienzo de código se cambian en Datos.</p>
+      <p className="text-nota text-muted-foreground">El tiempo de entrega y la asignación por comienzo de código se cambian en Datos.</p>
       <div className="flex flex-wrap gap-2">
         <Boton type="submit" tamano="chico" variante="primario" disabled={guardando || !nombre.trim()}>{guardando ? 'Guardando…' : 'Guardar'}</Boton>
         {p.origenProveedor === 'producto' && <Boton tamano="chico" onClick={() => guardar(null)} disabled={guardando}>Quitar</Boton>}
@@ -481,7 +520,7 @@ function DescargarMinimos({ inv }: { inv: Inventario }) {
   }
   return (
     <span className="flex flex-col items-end gap-1">
-      <Boton onClick={bajar} title="Para cargarlos en tu programa contable"><Download /> Mínimos y máximos en Excel</Boton>
+      <Boton onClick={bajar} title="Para cargarlos en su programa contable"><Download /> Mínimos y máximos en Excel</Boton>
       {estado && <span className="text-sm text-muted-foreground">{estado}</span>}
     </span>
   )

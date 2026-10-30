@@ -47,16 +47,16 @@ export function useConfirmar() {
       <button type="button" aria-label="Cancelar" className="velo absolute inset-0 bg-foreground/40" onClick={() => cerrar(false)} />
       <div className="aparecer relative flex w-full max-w-lg flex-col gap-4 rounded-2xl bg-card p-6 shadow-2xl">
         <h2 id="confirmar-titulo" className="text-xl font-bold">{p.titulo}</h2>
-        <div className="text-[0.97rem] text-foreground/85">{p.cuerpo}</div>
+        <div className="text-cuerpo text-foreground/85">{p.cuerpo}</div>
         {p.campo && (
           <label className="flex flex-col gap-1.5 text-sm font-semibold">
             {p.campo}
-            <input autoFocus className="h-11 rounded-xl border border-input bg-card px-3.5 text-[0.97rem] font-normal focus:border-primary focus:outline-3 focus:outline-ring" value={texto} maxLength={300} onChange={(e) => setTexto(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') cerrar(true) }} />
+            <input autoFocus className="h-11 rounded-xl border border-input bg-card px-3.5 text-cuerpo font-normal focus:border-primary focus:outline-3 focus:outline-ring" value={texto} maxLength={300} onChange={(e) => setTexto(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') cerrar(true) }} />
           </label>
         )}
-        <div className="flex flex-wrap justify-end gap-2.5">
-          <Boton onClick={() => cerrar(false)}>{p.peligro ? 'No, dejarlo' : 'Revisar otra vez'}</Boton>
+        <div className="flex flex-wrap gap-2.5">
           <Boton ref={boton} variante={p.peligro ? 'peligro' : 'primario'} onClick={() => cerrar(true)}>{p.si}</Boton>
+          <Boton onClick={() => cerrar(false)}>{p.peligro ? 'No, dejarlo' : 'Revisar otra vez'}</Boton>
         </div>
       </div>
     </div>

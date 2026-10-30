@@ -8,12 +8,20 @@
 //   PUT    /api/empresa                       nombre y NIT (quien administra)
 //   POST   /api/empresa/invitaciones          enlace de un solo uso para unirse (quien administra)
 //   GET    /api/empresa/invitaciones/:token   de qué empresa es un enlace (sin sesión)
+//   PUT    /api/empresa/miembros/:id          quién aprueba pedidos y el cargo de cada uno (quien administra)
 //   DELETE /api/empresa/miembros/:id          sacar a alguien (quien administra)
+//   GET    /api/empresa/logo                  el logo de la empresa (para la pantalla)
+//   PUT    /api/empresa/logo                  subir el logo: { tipo, datos en base64 } (quien administra)
+//   DELETE /api/empresa/logo                  quitarlo (quien administra)
 
 const crypto = require('crypto');
 const express = require('express');
 const db = require('./db');
-const { requiereUsuario, requiereAdminEmpresa, registrarEvento, ErrorUsuario, hashToken, baseDe, DIAS_INVITACION } = require('./cuentas');
+const { requiereUsuario, requiereAdminEmpresa, registrarEvento, ErrorUsuario, hashToken, baseDe, leerCargo, DIAS_INVITACION } = require('./cuentas');
+const { abrirImagen } = require('./pdf');
+
+// El logo va en el PDF y el Excel del pedido: PNG o JPG pequeño, para que el archivo no pese.
+const MAX_LOGO_KB = 300;
 const { enviarCorreo, correoConfigurado } = require('./correo');
 
 // --- Ajustes de inventario de la empresa ----------------------------------------------------
@@ -40,15 +48,15 @@ rutas.get('/invitaciones/:token', async (req, res) => {
       WHERE i.token_hash = $1 AND i.usada_en IS NULL AND i.expira_en > now()`,
     [hashToken(String(req.params.token))],
   );
-  if (!inv) throw new ErrorUsuario('Este enlace de invitación ya se usó o se venció. Pide uno nuevo a quien te invitó.', 404);
+  if (!inv) throw new ErrorUsuario('Este enlace de invitación ya se usó o se venció. Pida uno nuevo a quien lo invitó.', 404);
   res.json({ empresa: inv.nombre, email: inv.email || null });
 });
 
 rutas.use(requiereUsuario);
 
 async function vistaEmpresa(empresaId) {
-  const e = await db.uno('SELECT id, nombre, nit, vacia, creado_en FROM empresas WHERE id = $1', [empresaId]);
-  const miembros = await db.query('SELECT id, nombre, email, perfil, admin_empresa, creado_en FROM usuarios WHERE empresa_id = $1 ORDER BY creado_en', [empresaId]);
+  const e = await db.uno('SELECT id, nombre, nit, vacia, creado_en, logo IS NOT NULL AS con_logo FROM empresas WHERE id = $1', [empresaId]);
+  const miembros = await db.query('SELECT aprueba, id, nombre, email, perfil, admin_empresa, cargo, creado_en FROM usuarios WHERE empresa_id = $1 ORDER BY creado_en', [empresaId]);
   const invitaciones = await db.query(
     'SELECT email, creada_en, expira_en FROM invitaciones WHERE empresa_id = $1 AND usada_en IS NULL AND expira_en > now() ORDER BY creada_en DESC',
     [empresaId],
@@ -59,7 +67,8 @@ async function vistaEmpresa(empresaId) {
     nit: e.nit,
     vacia: e.vacia,
     creadoEn: e.creado_en,
-    miembros: miembros.map((m) => ({ id: m.id, nombre: m.nombre, email: m.email, perfil: m.perfil, admin: m.admin_empresa, desde: m.creado_en })),
+    logo: Boolean(e.con_logo),
+    miembros: miembros.map((m) => ({ id: m.id, nombre: m.nombre, email: m.email, perfil: m.perfil, admin: m.admin_empresa, aprueba: m.aprueba, cargo: m.cargo || '', desde: m.creado_en })),
     invitacionesAbiertas: invitaciones.map((i) => ({ email: i.email, creadaEn: i.creada_en, expiraEn: i.expira_en })),
   };
 }
@@ -71,16 +80,16 @@ rutas.get('/', async (req, res) => {
 rutas.put('/', requiereAdminEmpresa, async (req, res) => {
   const nombre = String(req.body?.nombre || '').trim().slice(0, 120);
   const nit = String(req.body?.nit || '').trim().slice(0, 30) || null;
-  if (!nombre) throw new ErrorUsuario('Escribe el nombre de la empresa.');
+  if (!nombre) throw new ErrorUsuario('Escriba el nombre de la empresa.');
   await db.query('UPDATE empresas SET nombre = $1, nit = $2, vacia = false WHERE id = $3', [nombre, nit, req.usuario.empresa_id]);
   await registrarEvento(req.usuario.id, 'empresa_actualizada');
   res.json({ empresa: await vistaEmpresa(req.usuario.empresa_id) });
 });
 
 rutas.post('/invitaciones', requiereAdminEmpresa, async (req, res) => {
-  if (req.usuario.empresa_vacia) throw new ErrorUsuario('Ponle nombre a tu empresa antes de invitar a alguien: así sabrá a qué se une.');
+  if (req.usuario.empresa_vacia) throw new ErrorUsuario('Póngale nombre a su empresa antes de invitar a alguien: así sabrá a qué se une.');
   const email = String(req.body?.email || '').trim().toLowerCase() || null;
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new ErrorUsuario('Escribe un correo válido, o déjalo vacío para un enlace que sirva a cualquiera.');
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new ErrorUsuario('Escriba un correo válido, o déjelo vacío para un enlace que sirva a cualquiera.');
   if (email && (await db.uno('SELECT id FROM usuarios WHERE email = $1', [email]))) {
     throw new ErrorUsuario('Ya hay una cuenta con ese correo. Por ahora una cuenta no se puede pasar de una empresa a otra.');
   }
@@ -96,8 +105,8 @@ rutas.post('/invitaciones', requiereAdminEmpresa, async (req, res) => {
     await enviarCorreo({
       para: email,
       nombre: email,
-      asunto: `${req.usuario.nombre} te invitó a ${req.usuario.empresa_nombre} en SINESC`,
-      texto: `Hola:\n\n${req.usuario.nombre} te invitó a llevar el inventario de ${req.usuario.empresa_nombre} en SINESC.\n\nPara crear tu cuenta, abre este enlace. Sirve una sola vez y durante ${DIAS_INVITACION} días:\n${enlace}\n\nSi no esperabas este correo, ignóralo.`,
+      asunto: `${req.usuario.nombre} lo invitó a ${req.usuario.empresa_nombre} en SINESC`,
+      texto: `Hola:\n\n${req.usuario.nombre} lo invitó a llevar el inventario de ${req.usuario.empresa_nombre} en SINESC.\n\nPara crear su cuenta, abra este enlace. Sirve una sola vez y durante ${DIAS_INVITACION} días:\n${enlace}\n\nSi no esperaba este correo, ignórelo.`,
     })
       .then(() => { enviado = true; })
       .catch((e) => console.error('No se pudo enviar la invitación:', e.message));
@@ -106,16 +115,56 @@ rutas.post('/invitaciones', requiereAdminEmpresa, async (req, res) => {
   res.status(201).json({ enlace, dias: DIAS_INVITACION, enviado, empresa: await vistaEmpresa(req.usuario.empresa_id) });
 });
 
+// Quién aprueba pedidos (D11) y el cargo de cada persona. Solo cambia lo que viene.
+rutas.put('/miembros/:id', requiereAdminEmpresa, async (req, res) => {
+  const m = await db.uno('SELECT aprueba, id, nombre, cargo FROM usuarios WHERE id = $1 AND empresa_id = $2', [Number(req.params.id), req.usuario.empresa_id]);
+  if (!m) throw new ErrorUsuario('Esa persona no está en su empresa.', 404);
+  const aprueba = typeof req.body?.aprueba === 'boolean' ? req.body.aprueba : m.aprueba;
+  const cargo = req.body?.cargo === undefined ? m.cargo : leerCargo(req.body.cargo);
+  await db.query('UPDATE usuarios SET aprueba = $1, cargo = $2 WHERE id = $3', [aprueba, cargo, m.id]);
+  await registrarEvento(req.usuario.id, 'miembro_editado', { detalle: { usuario: m.id, antes: { aprueba: m.aprueba, cargo: m.cargo }, despues: { aprueba, cargo } } });
+  res.json({ empresa: await vistaEmpresa(req.usuario.empresa_id) });
+});
+
+rutas.get('/logo', async (req, res) => {
+  const e = await db.uno('SELECT logo, logo_tipo FROM empresas WHERE id = $1', [req.usuario.empresa_id]);
+  if (!e || !e.logo) throw new ErrorUsuario('Su empresa no tiene logo.', 404);
+  res.setHeader('Content-Type', e.logo_tipo || 'image/png');
+  res.setHeader('Cache-Control', 'private, no-cache');
+  res.send(Buffer.from(e.logo));
+});
+
+rutas.put('/logo', requiereAdminEmpresa, async (req, res) => {
+  const datos = String(req.body?.datos || '').replace(/^data:[^,]*,/, '');
+  if (!datos) throw new ErrorUsuario('Elija la imagen del logo.');
+  const buffer = Buffer.from(datos, 'base64');
+  const kb = Math.ceil(buffer.length / 1024);
+  if (kb > MAX_LOGO_KB) throw new ErrorUsuario(`El logo pesa ${kb} KB y el máximo es ${MAX_LOGO_KB} KB. Guárdelo más pequeño (por ejemplo, de 600 píxeles de ancho) y vuelva a subirlo.`, 413);
+  const png = buffer[0] === 0x89 && buffer.slice(1, 4).toString('latin1') === 'PNG';
+  const jpg = buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  if (!png && !jpg) throw new ErrorUsuario('El logo tiene que ser una imagen PNG o JPG.');
+  if (!abrirImagen(buffer)) throw new ErrorUsuario('No pudimos leer esa imagen. Ábrala y guárdela otra vez como PNG o JPG.');
+  await db.query('UPDATE empresas SET logo = $1, logo_tipo = $2 WHERE id = $3', [buffer, png ? 'image/png' : 'image/jpeg', req.usuario.empresa_id]);
+  await registrarEvento(req.usuario.id, 'logo_subido', { detalle: { kb } });
+  res.json({ empresa: await vistaEmpresa(req.usuario.empresa_id) });
+});
+
+rutas.delete('/logo', requiereAdminEmpresa, async (req, res) => {
+  await db.query('UPDATE empresas SET logo = NULL, logo_tipo = NULL WHERE id = $1', [req.usuario.empresa_id]);
+  await registrarEvento(req.usuario.id, 'logo_quitado');
+  res.json({ empresa: await vistaEmpresa(req.usuario.empresa_id) });
+});
+
 // Quien sale de la empresa conserva su cuenta y sus pedidos, pero ya no ve el inventario de esta:
 // queda con una empresa vacía nueva.
 rutas.delete('/miembros/:id', requiereAdminEmpresa, async (req, res) => {
   const id = Number(req.params.id);
-  if (id === req.usuario.id) throw new ErrorUsuario('No te puedes sacar a ti mismo de la empresa.');
+  if (id === req.usuario.id) throw new ErrorUsuario('Usted no puede sacarse de la empresa.');
   const m = await db.uno('SELECT id FROM usuarios WHERE id = $1 AND empresa_id = $2', [id, req.usuario.empresa_id]);
-  if (!m) throw new ErrorUsuario('Esa persona no está en tu empresa.', 404);
+  if (!m) throw new ErrorUsuario('Esa persona no está en su empresa.', 404);
   await db.tx(async (t) => {
     const { rows } = await t.query('INSERT INTO empresas (vacia) VALUES (true) RETURNING id');
-    await t.query('UPDATE usuarios SET empresa_id = $1, admin_empresa = true WHERE id = $2', [rows[0].id, id]);
+    await t.query('UPDATE usuarios SET aprueba = false, empresa_id = $1, admin_empresa = true WHERE id = $2', [rows[0].id, id]);
   });
   await registrarEvento(req.usuario.id, 'miembro_retirado', { detalle: { usuario: id } });
   res.json({ empresa: await vistaEmpresa(req.usuario.empresa_id) });
