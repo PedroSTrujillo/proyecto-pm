@@ -27,6 +27,17 @@
 
 ---
 
+## 2026-10-29 (46) — Claude — Prueba local del boletín por correo y guía para configurarlo en Vercel
+- **Rama:** `empresas-inventario-diario`, solo en local; los cambios de esta entrada no tienen commit.
+- **Estado:** el boletín llegó bien por Brevo desde local (`npm run boletin -- --email …`). Se corrigió un error de `enviarBoletines`: con `--email` la consulta pasaba `hoy` como `$1` sin usarlo y Postgres respondía `could not determine data type of parameter $1`; ahora solo se pasan los parámetros que la consulta usa. Guía nueva para quien tenga acceso a Vercel: `docs/CONFIGURAR_CORREO_VERCEL.md`.
+- **Archivos tocados:** `server/boletin.js` (arma `params` según `soloUsuario` y `forzar`), `docs/CONFIGURAR_CORREO_VERCEL.md` (nuevo), `docs/HANDOFF.md`.
+- **Base de datos:** sin cambios.
+- **Verificación:** `boletin.test.js` y `alertas.test.js` pasan. En `empresas.test.js` fallan 2 pruebas (línea 251, "movimientos del día…", y línea 339, resultados del equipo) que ya fallaban sin este cambio; no se investigaron. Simulación con el `fetch` de Brevo interceptado: dos correos (un miércoles y un lunes) con `List-Unsubscribe` y enlace de baja. Envío real a un Hotmail en local: llegó. No se corrió `npm test` completo.
+- **Siguiente paso exacto:** que quien tenga Vercel siga `docs/CONFIGURAR_CORREO_VERCEL.md` (4 variables, redeploy, **Run** del Cron). Antes, revisar las 2 pruebas rotas de `empresas.test.js` y hacer commit.
+- **Notas y bloqueos:** falla típica de Brevo si el remitente no coincide con el verificado: `400 valid sender email required` (queda en `boletines.error`). El `ignoreCommand` de `vercel.json` cancela los despliegues si el dueño del repo no es `DavidAlvarez26`.
+
+---
+
 ## 2026-10-29 (45) — Claude — SP8 de PLAN_ALPHA_02: cierre de documentos, Entregable y uso de IA
 - **Rama:** `empresas-inventario-diario`, solo en local y sin commit (encima del SP7, entrada 44, que tampoco tiene commit).
 - **Estado:** SP8 completo; con esto, SP1 a SP8 están hechos. Solo documentos, sin código.

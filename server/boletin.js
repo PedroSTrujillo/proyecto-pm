@@ -123,12 +123,16 @@ async function enviarBoletines({ hoy = fechaBogota(), soloUsuario = null, forzar
   const inicio = Date.now();
   const r = { enviados: 0, sinDatos: 0, sinNovedad: 0, errores: 0, pendientes: 0 };
   if (!correoConfigurado()) return { ...r, motivo: 'sin correo' };
+  // Postgres rechaza un parámetro que la consulta no usa: solo se pasan los que entran.
+  const params = [];
+  const filtro = soloUsuario ? (params.push(soloUsuario), `u.id = $${params.length}`) : 'u.boletin';
+  const noRepetir = forzar ? '' : (params.push(hoy), `AND NOT EXISTS (SELECT 1 FROM boletines b WHERE b.usuario_id = u.id AND b.fecha = $${params.length})`);
   const usuarios = await db.query(
     `SELECT u.id, u.nombre, u.email, u.perfil, u.preferencias, u.empresa_id, u.aprueba, u.admin_empresa FROM usuarios u
-      WHERE u.empresa_id IS NOT NULL AND ${soloUsuario ? 'u.id = $2' : 'u.boletin'}
-        ${forzar ? '' : 'AND NOT EXISTS (SELECT 1 FROM boletines b WHERE b.usuario_id = u.id AND b.fecha = $1)'}
+      WHERE u.empresa_id IS NOT NULL AND ${filtro}
+        ${noRepetir}
       ORDER BY u.empresa_id, u.id`,
-    soloUsuario ? [hoy, soloUsuario] : [hoy],
+    params,
   );
   const porEmpresa = new Map();
   for (const u of usuarios) {
