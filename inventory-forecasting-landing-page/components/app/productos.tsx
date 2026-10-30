@@ -47,7 +47,11 @@ function ProductosCon({ inv }: { inv: Inventario }) {
   const router = useRouter()
   const ruta = usePathname()!
   const [q, setQ] = useState('')
-  const [filtro, setFiltro] = useState<Filtro>((params.get('filtro') as Filtro) || 'todos')
+  // ?estado= viene de los enlaces del boletín (/productos?estado=pide); ?filtro=, de las pantallas.
+  const [filtro, setFiltro] = useState<Filtro>(() => {
+    const pedido = params.get('estado') || params.get('filtro')
+    return pedido && (pedido === 'todos' || pedido in ESTADOS) ? (pedido as Filtro) : 'todos'
+  })
   const [proveedor, setProveedor] = useState('todos')
   const [familia, setFamilia] = useState('todas')
   const [clase, setClase] = useState<FiltroClase>('todas')

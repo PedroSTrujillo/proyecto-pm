@@ -32,6 +32,7 @@ export type Producto = {
   familia?: string | null
   multiplo?: number | null // múltiplo de empaque escrito en el catálogo
   minimoPedido?: number | null
+  sobraSemanas?: number | null // desde cuántas semanas sobra, si la empresa lo escribió (si no, umbrales.sobra)
   clase?: Clase | null
   ventaAlta?: boolean // el 20 % de productos que más vende
   // Lo pedido en las últimas 2 semanas por alguien de la empresa.
@@ -151,6 +152,9 @@ export type RespuestaInventario = {
 
 export type Perfil = 'analista' | 'operador'
 
+export type TipoAlerta = 'pideYa' | 'seAgota' | 'enCero' | 'porRecibir' | 'porAprobar' | 'dineroQuieto' | 'sobran' | 'sinDatos'
+export type Frecuencia = 'diario' | 'semanal' | 'mensual' | 'nunca'
+
 export type Usuario = {
   id: number
   email: string
@@ -158,7 +162,8 @@ export type Usuario = {
   rol: 'usuario' | 'equipo'
   sistema: string | null
   perfil: Perfil
-  preferencias: { unidad: 'dias' | 'semanas' | 'meses'; horizonte: number }
+  // alertas: la tabla completa del boletín (lo que eligió encima de lo de su perfil, server/alertas.js).
+  preferencias: { unidad: 'dias' | 'semanas' | 'meses'; horizonte: number; alertas: Record<TipoAlerta, Frecuencia>; alertasPropias: boolean }
   boletin: boolean
   cargo: string
   aprueba: boolean // aprueba los pedidos de su empresa (lo marca quien administra)
@@ -194,7 +199,7 @@ export type Movimiento = {
   anulado: boolean
 }
 
-export type ProductoCatalogo = { id: number; codigo: string; nombre: string; unidad: string | null; costo: number | null; proveedor: string | null; familia: string | null; multiplo: number | null; minimoPedido: number | null; activo: boolean }
+export type ProductoCatalogo = { id: number; codigo: string; nombre: string; unidad: string | null; costo: number | null; proveedor: string | null; familia: string | null; multiplo: number | null; minimoPedido: number | null; sobraSemanas: number | null; activo: boolean }
 
 export type Existencias = {
   base: { exportId: number; hasta: string; subidoEn: string } | null

@@ -2,6 +2,22 @@
 
 Revisión del 2026-10-11 contra `(Corrección) Entregable 2 - Grupo 1.xlsx` (el Excel no se edita: esto dice qué de lo declarado hace la app, dónde, y en qué se aparta). Lo que se aparta necesita su fila en "4 · Cambios y Reflexión" para que la rúbrica no lo cuente como desconexión.
 
+Actualizado el 2026-10-29 con Alpha 0.2 (`docs/PLAN_ALPHA_02.md`, SP1 a SP7): la hipótesis del piloto va abajo, en su propia tabla, y cada sub-plan tiene su fila en la lista de "Cambios" (filas 9 a 14) y en el resumen del final. Las tablas de la pestaña 2 que siguen son de Alpha 0.1, cuya prueba cerró (D10).
+
+## Hipótesis del piloto (Alpha 0.2)
+
+| Lo que dice la hipótesis | En la app | Dónde |
+|---|---|---|
+| "Si SINESC permite registrar entradas y salidas a diario" | Movimientos del día (entrada, venta, devolución, salida, conteo), ventas de un periodo, llegada de pedidos e inventario al día. El uso se mide como días hábiles con movimientos sobre días hábiles de la ventana | `server/movimientos.js`, `server/recepcion.js`, `evaluarPiloto` en `server/equipo.js` |
+| "X de Y usuarios" | X = 3, Y = 5, provisionales; el equipo las fija antes de empezar | `META_PILOTO_USUARIOS`, `TOTAL_PILOTO` en `server/equipo.js` |
+| "califican su satisfacción con 4 o más sobre 5" | Encuesta de una pregunta en el panel: "¿Qué tan útil le ha resultado SINESC para preparar sus pedidos?" y un "¿Qué mejoraría?" opcional. Aparece cuando el equipo la abre o a los 21 días del primer pedido cerrado | `server/encuesta.js`, `components/app/encuesta.tsx` |
+| "aceptan el pedido sugerido sin cambios en Z % de las líneas" | Z = 70 %, provisional. Al cerrar (o enviar) un pedido desde lo sugerido se guarda cuántas líneas sugeridas quedaron igual; se suman las de todos sus pedidos en 30 días. Nadie lo ve en la app (D16) | `medirAceptacion` en `server/listas.js`, `comparacion.aceptacion`; §4.4 de `docs/modelo-rotacion.md` |
+| Piloto de cerca de un mes | Ventana de 30 días desde el primer pedido desde lo sugerido de cada usuario. **Fecha de inicio: por fijar** | `PILOTO_DIAS` |
+| Sugerido contra decidido contra ocurrido (Hito 7) | Solo para el equipo: lo vendido en las semanas que cubría cada línea contra el rango del pronóstico guardado | `compararConLoOcurrido`, `npm run resultados -- --piloto` |
+| Veredicto | Meta cumplida con X usuarios que cumplen las dos condiciones; no cumplida si terminaron Y sin llegar | `resumirPiloto`, `npm run resultados -- --piloto` |
+
+**Qué falta para empezar:** el equipo fija X, Y y Z, hace el SP0 (rama de Neon para *Preview*, `CRON_SECRET` y `BOLETIN_SECRETO`) y publica. Lo que se publique después del inicio va con su fecha en el resumen de abajo, y `npm run resultados` separa los pedidos de antes y de después con `creado_en`.
+
 ## Pestaña 2 · Hipótesis MVP
 
 | Lo que declara el Entregable | En la app | Dónde |
@@ -12,7 +28,7 @@ Revisión del 2026-10-11 contra `(Corrección) Entregable 2 - Grupo 1.xlsx` (el 
 | Resultado: 3 de 5 cambian 5 o más líneas en 14 días | Veredicto automático con `npm run resultados` (fuera de la aplicación) | `server/equipo.js` (`META_*`, `DIAS_PRUEBA`) |
 | "No dice cuánto pedir, no se conecta con el proveedor, no proyecta por temporada" y "lo que dejamos por fuera es el ajuste por temporada y el tiempo de entrega" | **Cambió el 2026-10-14:** el probador ve todo desde el primer día, y en la lista final (paso 4) la cantidad sugerida de cada producto al lado de la suya. La lista la sigue escribiendo él | `permisos` en `server/inventario-rutas.js`; `GET /api/pedidos/:id/sugerido`; `RecuadroSugerido` en `pedido-flujo.tsx` |
 | Sin conexión al software contable; el archivo se sube a mano con una plantilla de ejemplo | Igual. Además lee casi cualquier formato y pregunta lo que falta | `server/lector.js`, `/plantillas/*.xlsx` |
-| Se prueba con 5 usuarios; los simulados se anotan aparte | Cada pedido se marca real o simulado y `npm run resultados` lo separa | Paso 1, `equipo.js` |
+| Se prueba con 5 usuarios; los simulados se anotan aparte | Cada pedido se marcaba real o simulado en el paso 1 y `npm run resultados` lo separa. **Desde el 2026-10-29 ya no se pregunta** (fila 9): el servidor guarda real | `tipoValido` en `server/pedidos.js`, `equipo.js` |
 | Plan: aplicación web en Next.js con Postgres y autenticación, con acceso público | Next.js (interfaz) + Express (API) en un solo servidor, PostgreSQL (Neon), cuentas con contraseña | `server/index.js`, `inventory-forecasting-landing-page/` |
 | Pantalla del reporte: sube CSV o Excel con 1–2 años de ventas y existencias; tabla con producto, ventas por semana, existencias y semanas; de menor a mayor; filtros; resaltados los de menos de 2 semanas | Igual, con búsqueda y filtros "se agotan" y "sobran". **Diferencia (2026-10-13):** en el paso 2 de cada pedido (y en Datos) el usuario puede cambiar las 2 semanas; sin cambiarlo siguen siendo 2, y queda fijo al ver el reporte (ver Cambios) | `components/app/reporte.tsx`, `server/rotacion.js` (`semanasAgota`) |
 | Pantalla de medición: antes de abrir el reporte escribe la lista que iba a pedir, **la importa o adjunta una imagen**; después escribe la lista final; la app guarda las dos y cuenta | Escribir, pegar desde Excel o importar el archivo. **No se adjunta imagen** (ver Cambios) | `components/app/pedido-flujo.tsx`, `components/app/hoja.tsx` |
@@ -55,7 +71,8 @@ Fuera de la prueba (el equipo, la demo y cada probador cuando terminan sus 14 d�
    - **Hipótesis nueva para el piloto de un mes:** si SINESC permite registrar entradas y salidas a diario, X de Y usuarios califican su satisfacción con 4 o más sobre 5 y aceptan el pedido sugerido sin cambios en Z % de las líneas. La de Alpha 0.1 queda como antecedente (su prueba cerró, D10). X, Y y Z son provisionales (3 de 5 y 70 %, en `server/equipo.js`) y el equipo las fija antes de empezar; `npm run resultados -- --piloto` da el veredicto. La aceptación no se le muestra a nadie durante el piloto (D16).
    - **Dos flujos de pedido (D9):** "Preparar pedido" arranca con todas las líneas sugeridas, agrupadas por proveedor; la persona quita, ajusta, agrega y lo cierra, y sale en PDF o Excel con el nombre de la empresa, el número y la fecha del pedido, quién lo preparó, observaciones y notas por línea. Los 5 pasos quedan como "Comparar con mi propia lista". Desde ese día el inventario se sube sin la lista inicial de un pedido de 5 pasos. Evidencia: Hito 1.2 (quitar la carga manual del pedido) y Hito 3 (repartir y editar el pedido por proveedor).
    - **Encuesta de satisfacción dentro de la app (D15):** una pregunta de 1 a 5 ("¿Qué tan útil le ha resultado SINESC para preparar sus pedidos?") y un "¿Qué mejoraría?" opcional. Aparece cuando el equipo la abre o a los 21 días del primer pedido cerrado; no menciona la prueba.
-   - **"Real o simulado" se quitó** de la pantalla (Hito 4). El servidor guarda "real" si no viene; la columna sigue para los pedidos de Alpha 0.1. También "usted" en toda la app, los correos y los documentos (D13), letra más grande y lo obligatorio arriba a la izquierda (SP1).
+   - **"Real o simulado" se quitó** de la pantalla (Hito 4, María Luisa: para el usuario todo pedido es real). El servidor guarda "real" si no viene; la columna sigue para los pedidos de Alpha 0.1.
+   - El SP1 ("usted", letra, desplegables, orden de las acciones) va aparte, en la fila 14.
 10. Catálogo y motor de reabastecimiento (2026-10-29, SP4 de `docs/PLAN_ALPHA_02.md`, §9 de `docs/modelo-rotacion.md`). Evidencia: Hito 2 de `docs/Retroalimentación Pruebas.md`. Cinco filas:
    - **Múltiplo de empaque y mínimo de pedido** por producto: lo sugerido se redondea a cajas completas y sube al mínimo del proveedor. Antes el paquete solo se deducía de las ventas.
    - **Tiempo de entrega en días hábiles** por proveedor (Orlando: Bogotá 1, Cali 2, Barranquilla 3 o 4, casi nunca más de 8). El modelo sigue en semanas (días ÷ 5). "Cada cuánto pide" y el umbral se escriben en la unidad elegida.
@@ -75,3 +92,30 @@ Fuera de la prueba (el equipo, la demo y cada probador cuando terminan sus 14 d�
    - **Historial del pedido:** quién agregó, quitó o cambió cada línea, de cuánto a cuánto y con qué nota, más cuándo se envió, devolvió (con el motivo) y aprobó. Los cambios de una persona sobre el mismo producto en 10 minutos son una sola fila. Las ediciones del catálogo guardan el antes y el después.
    - **PDF y Excel de la empresa:** su logo (PNG o JPG de hasta 300 KB) arriba y SINESC pequeño al pie; "Preparado por" y "Aprobado por" con nombre, cargo y fecha ya escritos. El cargo se escribe al crear la cuenta, en Mi cuenta o en Mi empresa.
    - Fecha de publicación: por fijar.
+13. Alertas configurables (2026-10-29, SP7 de `docs/PLAN_ALPHA_02.md`, §11 de `docs/modelo-rotacion.md`). Evidencia: Hito 6 de `docs/Retroalimentación Pruebas.md` (notificaciones para crear hábito; alertas por tipo, frecuencia y rol; "información no cargada") y Claudia Mueces (alertas en vez de informes que hay que descargar, vacío 15). Tres filas:
+   - **El boletín diario trae solo lo que toca ese día:** ocho tipos de aviso (pedir ya, se van a agotar, en cero, entregas atrasadas, pedidos por aprobar, dinero quieto, sobrestock y datos sin actualizar), cada uno a diario, los lunes, el primer día hábil del mes o nunca, con valores de partida según el perfil. Si no hay nada que decir, ese día no llega. Cada sección dice qué es nuevo desde la última vez. Sigue siendo el único canal y la única tarea programada; el interruptor de Mi cuenta y el enlace de baja siguen apagándolo todo.
+   - **Entregas atrasadas y datos sin actualizar:** el boletín avisa cuando un proveedor ya pasó su tiempo de entrega y el pedido no se ha recibido, y cuando pasan más de 3 días hábiles sin movimientos ni archivos (a quien administra y a los operadores).
+   - **Sobrestock con umbral por producto:** las 12 semanas siguen siendo el valor general, pero cada producto puede tener el suyo (en la ficha o pegado con los demás datos del catálogo). Cambia lo que se ve como sobrestock en Productos, el panel y el boletín, y el sugerido de ese producto. El reporte de los 5 pasos sigue con 12 (vacío 9: el 12 sigue sin validar con usuarios, ahora cada empresa lo ajusta).
+   - Fecha de publicación: por fijar. Si se publica durante el piloto, cambia lo que la persona ve por correo, no el pedido sugerido (salvo los productos con umbral propio de sobrestock).
+14. Experiencia y tono (2026-10-29, SP1 de `docs/PLAN_ALPHA_02.md`, D13). Evidencia: Hito 4 de `docs/Retroalimentación Pruebas.md`. Cuatro filas:
+   - **"Usted" en vez de "tú"** en toda la aplicación, los mensajes de error, los correos (invitación, contraseña, boletín, recordatorios), el PDF y las plantillas de Excel (Jose: "mucha gente no toma bien el tuteo"). La página principal no se tocó. Los encabezados de las tablas pasaron a ser impersonales ("Existencias", "Alcanza para") y el estado "Pide ya" ahora dice **"Pedir ya"**. `npm run texto` revisa que no vuelva el tuteo.
+   - **Letra más grande** (María Luisa): nada por debajo de 0,875 rem salvo las etiquetas en mayúsculas (0,8 rem), y títulos un paso más grandes.
+   - **Desplegables visibles y explicar antes de usar** (Jose): cada sección plegable tiene borde y una flecha que gira, y las pantallas que se usan por primera vez (Existencias, Movimientos, Proveedores, Mi empresa) dicen para qué sirven debajo del título.
+   - **Lo obligatorio arriba a la izquierda** (profesor): la acción principal va primero, a la izquierda y debajo del título; "Volver" y lo opcional, a su derecha.
+   - Fecha de publicación: por fijar. No cambia lo que se mide, pero cambia el tono con que el usuario lee lo sugerido.
+
+## Resumen por sub-plan
+
+Todos se implementaron el 2026-10-29 en la rama `empresas-inventario-diario`. "Publicado" es la fecha en que llegó a producción (https://sinesc.vercel.app); mientras diga "por fijar", ningún usuario lo ha visto.
+
+| SP | Qué | Fila | Quién lo pidió | Publicado |
+|---|---|---|---|---|
+| 1 | "Usted", letra, desplegables, acciones a la izquierda | 14 | Jose, María Luisa, profesor (Hito 4) | por fijar |
+| 2 | Pedido desde lo sugerido, por proveedor; PDF de la empresa; sin "real o simulado" | 9 | Jose (Hitos 1.2, 3 y 4.6), María Luisa (4.5) | por fijar |
+| 3 | Medición del piloto, encuesta en la app | 9 | Claudia (Hito 7), reunión del 27 oct. | por fijar |
+| 4 | Familia, múltiplo y mínimo; días hábiles; ventas de proyecto; clasificación; pedido reciente; "Cómo se calcula" | 10 | Jose, Orlando, Claudia (Hito 2) | por fijar |
+| 5 | Llegada de pedidos y en camino; ventas de un periodo; códigos que no coinciden; datos al día | 11 | Jose, Claudia (Hito 1) | por fijar |
+| 6 | Aprobación, historial de cambios, logo y cargo en el PDF | 12 | Claudia, Jose (Hitos 3, 5 y 8) | por fijar |
+| 7 | Alertas del boletín por tipo y frecuencia; entregas atrasadas; sobrestock por producto | 13 | Claudia, reunión de equipo (Hito 6) | por fijar |
+
+Quedó fuera (D14 y decisiones del equipo): los Hitos 9 y 10, y del Hito 8 los mensajes por perfil, el segmento y el eslogan (la página principal no se toca). Del Hito 6.4 no se hizo "Ventas que se escapan", y del Hito 7 no se muestra el porcentaje aceptado (D16). El backlog está al final de `docs/PLAN_ALPHA_02.md`.

@@ -1,6 +1,6 @@
-# Modelo de rotación de inventario · Alpha 0.1
+# Modelo de rotación de inventario · Alpha 0.1 y 0.2
 
-Este documento explica el modelo matemático que usa el producto, por qué se eligió y cómo se mide la hipótesis. El código está en [`server/rotacion.js`](../server/rotacion.js) (cálculo), [`server/listas.js`](../server/listas.js) (comparación de listas) y [`server/equipo.js`](../server/equipo.js) (resultados de la prueba).
+Este documento explica el modelo matemático que usa el producto, por qué se eligió y cómo se miden las hipótesis: la de Alpha 0.1 (§4.1 a §4.3, ya cerrada) y la del piloto de Alpha 0.2 (§4.4). El código está en [`server/rotacion.js`](../server/rotacion.js) (cálculo), [`server/listas.js`](../server/listas.js) (comparación de listas) y [`server/equipo.js`](../server/equipo.js) (resultados de la prueba y del piloto).
 
 > Regla de diseño: el documento del MVP manda sobre cualquier decisión técnica. El modelo implementa exactamente las dos fórmulas de la sección 3.5 del contexto. La investigación sirve para justificarlas, fijar los detalles que el documento deja abiertos (cómo se cuentan las semanas, qué es "muchas semanas", casos borde) y dejar escrito cómo se extendería después, sin construirlo ahora.
 
@@ -103,7 +103,7 @@ El documento fija el umbral de "se agota" (menos de 2 semanas), pero no dice cu�
 - Los distribuidores de ferretería, herramientas y suministro industrial rotan entre 4 y 8 veces al año, lo que equivale a mantener entre 45 y 90 días de inventario (unas 6,5 a 13 semanas).
 - El comercio mayorista en general rota entre 5 y 10 veces al año.
 
-Un producto con más de 12 semanas de inventario rota menos de 52 ÷ 12 ≈ 4,3 veces al año, por debajo de lo normal incluso para los distribuidores que rotan más lento. Es una constante en el código (`SEMANAS_SOBRA`), no algo que el usuario tenga que configurar. Si el equipo quiere cambiarla después de la prueba, se cambia en una línea.
+Un producto con más de 12 semanas de inventario rota menos de 52 ÷ 12 ≈ 4,3 veces al año, por debajo de lo normal incluso para los distribuidores que rotan más lento. Es una constante en el código (`SEMANAS_SOBRA`), no algo que el usuario tenga que configurar. Si el equipo quiere cambiarla después de la prueba, se cambia en una línea. *Desde el 2026-10-29 (SP7)* cada producto puede tener su propio umbral; 12 sigue siendo el valor general (§11.1).
 
 ### 3.4.1 El umbral de "se agota": 2 semanas, o el que elija el usuario
 
@@ -149,6 +149,8 @@ Lo que no se ajustó a propósito: la demanda que no se pudo vender porque el pr
 **Efecto en los archivos de ejemplo** (`ejemplos/`): cambian de estado (se agota, normal, sobra) entre 0 % y 3 % de los productos. Son datos inventados, sin tendencias ni proyectos, así que el efecto real solo se verá con los exports de los probadores.
 
 ## 4. La métrica de la prueba
+
+§4.1 a §4.3 son la métrica de Alpha 0.1, que se mide en el flujo de 5 pasos (modo `'lista'`). Esa prueba cerró el 2026-10-29 (D10 de `docs/PLAN_ALPHA_02.md`); el veredicto se sigue calculando igual. §4.4 es la del piloto de Alpha 0.2.
 
 ### 4.1 Comparación de listas (por código de producto)
 
@@ -196,6 +198,39 @@ Magnitud   = Σ |qᶠ(c) − qᴵ(c)| ÷ Σ qᴵ(c)          (una línea agregad
 En el ejemplo de §4.1, con un reporte donde F se agota, G y D sobran, B está normal y E no aparece: coherentes = 2 (F y D), contrarias = 1 (G), neutras = 2, **coherencia = 2 ÷ 5 = 40 %**; magnitud = 16 ÷ 27 = **59 %**. Lo verifica `test/listas.test.js`.
 
 El resumen dice cuántos de los que cumplen movieron **la mayoría** (≥ 50 %) de sus líneas en la dirección del reporte (`COHERENCIA_MAYORIA` en `server/equipo.js`). Es una ayuda para leer los "¿por qué?", no un criterio nuevo: el veredicto sigue siendo el de §4.2. Al usuario no se le muestra, para no sugerirle qué responder en el paso 5. Los pedidos guardados antes del 2026-10-11 se completan solos la primera vez que se abre `npm run resultados`, con las listas y el reporte que ya están en la base.
+
+### 4.4 Piloto de Alpha 0.2: aceptación, satisfacción y uso (SP3, 2026-10-29)
+
+Hipótesis: *si SINESC permite registrar entradas y salidas a diario, X de Y usuarios califican su satisfacción con 4 o más sobre 5 y aceptan el pedido sugerido sin cambios en Z % de las líneas.* Código: `evaluarPiloto`, `resumirPiloto` y `compararConLoOcurrido` en `server/equipo.js`, `medirAceptacion` en `server/listas.js`. Pruebas: `test/piloto.test.js` y `test/pedidos-sugerido.test.js`.
+
+**Aceptación de un pedido.** Al preparar un pedido desde lo sugerido (modo `'sugerido'`) se guarda la foto S de lo sugerido (`pedidos.sugerido`): las líneas con sugerido mayor que 0 y estado "se agota", "pedir ya" o normal. La lista final F la escribe la persona. Con la misma comparación por código de §4.1 (I = S):
+
+```
+Sugeridas    s = |S|
+Sin cambio   k = |{ c ∈ S ∩ F : qˢ(c) = qᶠ(c) }|          líneas sugeridas que quedaron igual
+Ajustadas, quitadas y agregadas: C, Q y A de §4.1
+Aceptación del pedido = k ÷ s
+```
+
+Se guarda en `comparacion.aceptacion` al guardar la lista final. Si en la empresa alguien aprueba pedidos (SP6), se mide cuando quien prepara **envía** el pedido, porque es su decisión; lo que cambia después quien aprueba va aparte (`comparacion.aprobacion`, contra `pedidos.lista_enviada`) y no entra en la meta. Una línea agregada no baja k pero queda contada en A.
+
+**Por usuario**, en una ventana de 30 días (`PILOTO_DIAS`) desde el día de su primer pedido desde lo sugerido:
+
+```
+Aceptación   = Σ k ÷ Σ s       sobre sus pedidos cerrados dentro de la ventana (sin borrados ni anulados)
+Satisfacción = su última respuesta de 1 a 5 a "¿Qué tan útil le ha resultado SINESC para preparar sus pedidos?"
+Uso          = días hábiles con movimientos de su empresa ÷ días hábiles de la ventana que ya pasaron
+```
+
+Se suman las líneas de todos los pedidos (no se promedian porcentajes), así un pedido de 3 líneas no pesa lo mismo que uno de 200. Los días hábiles son de lunes a viernes, en hora de Bogotá, sin descontar festivos. El uso es la condición de la hipótesis ("si permite registrar a diario"): se reporta al lado, no decide el veredicto.
+
+- **Cumple:** satisfacción ≥ 4 y aceptación ≥ Z. **En curso:** no cumple y su ventana no ha terminado. **Incompleto:** terminó la ventana sin pedido cerrado o sin respuesta a la encuesta. **No cumple:** terminó con las dos y no llega.
+- **Veredicto:** meta cumplida si X o más usuarios cumplen; meta no cumplida si ya terminaron su ventana Y usuarios y no se llegó. X = 3, Y = 5 y Z = 70 % son provisionales (`META_PILOTO_USUARIOS`, `TOTAL_PILOTO`, `META_ACEPTACION_PCT`) y el equipo las fija antes de empezar. Cambiarlas cambia el resultado, así que va también en el Entregable.
+- **Nadie ve la aceptación durante el piloto** (D16): `vistaPedido` la quita de toda respuesta. Ver cuánto se aceptó empujaría a aceptar sin mirar.
+
+**Sugerido contra decidido contra ocurrido** (solo para el equipo, Hito 7). Para cada línea de la foto cuyo horizonte (entrega + cada cuánto pide, `cubre`) ya pasó, se compara lo vendido de verdad en las semanas que cubría el pedido con el rango del pronóstico guardado en la foto (del 10 % al 90 %, §7.4). Es la misma prueba de §7.5, con lo que pasó después del pedido: si el modelo está bien calibrado, unos 8 de cada 10 caen dentro. Las semanas vienen de la serie del último inventario de la empresa y se cuentan las que empiezan dentro del horizonte (aproximado).
+
+**Encuesta** (`server/encuesta.js`, D15). Aparece en el panel cuando el equipo la abre (`npm run resultados -- --encuesta abrir`) o a los 21 días del primer pedido cerrado. "Ahora no" la pospone 3 días, como máximo dos veces. No menciona la prueba.
 
 ## 5. Recordatorio antes de que se agote (stickiness)
 
@@ -265,7 +300,7 @@ Con 18 meses o más de ventas, se suma todo el catálogo (sin picos de proyectos
 | Para cuánto dura una cantidad | (existencias + cantidad) ÷ venta esperada por semana, con la venta esperada = media de X con h = entrega + cada cuánto pide, dividida por esas semanas (lleva la temporada). Es al ritmo normal: en productos que se venden de golpe dura más que las semanas que cubre el pedido, porque el sugerido trae margen. Se muestra en el paso 4 para el sugerido, para lo que va a pedir y para lo que iba a pedir. |
 | Paquete | Si en 12 semanas o más todas las ventas del producto son múltiplos de un mismo número (cajas de 10, bultos de 4), ese es el paquete, y la cantidad sugerida y el máximo se redondean hacia arriba a paquetes completos. Una sola semana que no sea múltiplo, o ventas con decimales (mensuales repartidas), y no hay paquete. |
 | Mínimo y máximo | Mínimo = ⌈cuantil 90 % de X con h = entrega⌉ (lo que se vende mientras llega un pedido); máximo = ⌈cuantil 90 % de X con h = entrega + cada cuánto pide⌉. Así, sugerido = máx(0, máximo − existencias). Se descargan en Excel para cargarlos en el programa contable, que casi siempre tiene esos dos campos. |
-| Dinero quieto | Lo que hay por encima de 12 semanas de venta (o todo, si no se vendió), a costo. Solo si el archivo trae el costo. |
+| Dinero quieto | Lo que hay por encima de 12 semanas de venta (o del umbral propio del producto, §11.1), o todo si no se vendió, a costo. Solo si el archivo trae el costo. |
 | Total del catálogo | La suma de las medias; el rango suma las varianzas, pero nunca es más angosto que lo que varió el total en el último semestre (las ventas de un catálogo no suben y bajan cada una por su lado). |
 
 Costo y proveedor se leen del archivo si vienen (columnas opcionales en `formatos.js`); el tiempo de entrega de cada proveedor y cada cuánto pide los escribe el usuario en "Datos" (`usuarios.inventario`). Como casi ningún export trae el proveedor, el usuario también puede decirlo: producto por producto desde la ficha, o por el comienzo del código ("TOR-" → Tornillería Central) en Datos. Manda lo asignado a mano, después el archivo y después el comienzo de código más largo que coincida.
@@ -276,7 +311,24 @@ Se esconden las últimas 8 semanas del archivo, se pronostican con lo anterior (
 
 ### 7.6 La prueba con los probadores
 
-Durante los 14 días de prueba de cada probador (desde su primera lista inicial) la app muestra solo lo que declara el plan de prueba del Entregable 2: las semanas de inventario, "se agota" y "sobra". Nada de esta sección (ni pronóstico, ni temporada, ni tiempo de entrega, ni riesgo, ni cantidad sugerida, ni mínimos y máximos): si lo vieran, M ya no mediría el efecto del reporte de semanas. Y su inventario solo se ve después de guardar la primera lista inicial (`alcance` y `permisos` en `server/inventario-rutas.js`). Ver `docs/ENTREGABLE_Y_APP.md`.
+Al comienzo, durante los 14 días de prueba de cada probador, la app mostraba solo lo que declara el plan de prueba del Entregable 2: semanas de inventario, "se agota" y "sobra". **Desde el 2026-10-14** (decisión del equipo) ven todo desde el primer día, también la cantidad sugerida en la lista final del paso 4, y la prueba mide cuántas líneas cambian con el reporte y el sugerido al lado (`permisos` en `server/inventario-rutas.js` devuelve siempre `alcance: 'completo'`). Desde el 2026-10-29 (D9 y D10) tampoco hace falta guardar una lista inicial para ver el inventario. Ver `docs/ENTREGABLE_Y_APP.md`, filas 3 y 9 de "Cambios".
+
+### 7.7 La cantidad sugerida completa (Alpha 0.2)
+
+§7.4 es el núcleo. Alpha 0.2 le agregó lo que pidieron las pruebas, en este orden:
+
+```
+entrega (semanas)  = días hábiles del proveedor ÷ 5                        (§9.2; si no hay días, las semanas guardadas)
+necesidad          = cuantil 90 % de X con h = entrega + cada cuánto pide   (§7.2; sin las ventas de proyecto, §9.3)
+falta              = ⌈necesidad − existencias − en camino⌉                  (posición de inventario, §10.1)
+paquete            = múltiplo del catálogo, o el que se deduce de las ventas (§9.1, §7.4)
+sugerido           = 0                                si falta ≤ 0, el producto sobra (12 semanas o su umbral, §11.1) o fue venta única
+                   = máx(⌈falta ÷ paquete⌉, ⌈mínimo ÷ paquete⌉) · paquete    en otro caso (§9.1)
+```
+
+- "Pedir ya" usa (existencias + en camino) ÷ ventas por semana; "se agota" y el riesgo siguen con las existencias de hoy (§10.1).
+- Las ventas de proyecto (por tipo de documento, por columna de canal o por la casilla de Movimientos) bajan existencias pero no entran en el promedio ni en la serie del pronóstico (§9.3).
+- `detalleSugerido` guarda cada paso (falta, en camino, paquete y de dónde salió, mínimo) y "Cómo se calcula" lo explica con los números del producto (§9.6).
 
 ## 8. Alpha 0.2: inventario desde movimientos y unidades al mostrar (2026-10-28)
 
@@ -365,6 +417,33 @@ Cada reporte trae `codigos`: cuántos códigos vendidos aparecen en las existenc
 ### 10.4 Datos al día
 
 El panel muestra "Datos de hoy", "de ayer" o "de hace N días" según el último día con datos (`fuente.hasta`), en verde hasta 1 día hábil, en ámbar hasta 3 y en rojo después. Lo sugerido es tan bueno como esos datos (Claudia).
+
+## 11. Alertas del boletín y sobrestock por producto (SP7, 2026-10-29)
+
+Código: `server/alertas.js`, `server/boletin.js`, `server/boletin-correo.js`, `server/recepcion.js` (`atrasadosDe`) y `server/inventario.js` (`conSobraPropia`). Pruebas: `test/boletin.test.js` y `test/alertas.test.js`. Pedido de la retroalimentación de las pruebas (Hito 6).
+
+### 11.1 Sobrestock con umbral por producto
+
+El umbral de "sobra" (§3.4) sigue en 12 semanas, pero cada producto puede tener el suyo (`productos.sobra_semanas`, de 1 a 104). Se aplica sobre la fila del reporte guardado, sin recalcularla: con S semanas de inventario y U el umbral del producto, sobra si S > U y no se agota. Sin ventas y con existencias sobra con cualquier umbral. Con eso cambian el estado en Productos y el panel, el sugerido (0 si sobra, §7) y el dinero quieto (lo que hay por encima de U semanas de venta, a costo). El reporte del flujo de 5 pasos sigue con 12.
+
+### 11.2 Qué trae el boletín
+
+Cada tipo de alerta es una sección del correo, con su frecuencia: a diario, los lunes, el primer día de lunes a viernes del mes o nunca. Los festivos cuentan como hábiles. Si el Cron falla un día, la sección espera a su siguiente turno.
+
+| Tipo | Qué dice | Cuándo tiene algo que decir |
+|---|---|---|
+| `enCero` | Productos en cero | Se agota y existencias ≤ 0 |
+| `pideYa` | Pedir ya, por proveedor | Estado "pide" (§7, con lo que viene en camino) |
+| `seAgota` | Se van a agotar | Se agota y existencias > 0 |
+| `porAprobar` | Pedidos por aprobar | Pedidos enviados sin aprobar ni devolver (solo a quien aprueba) |
+| `porRecibir` | Entregas atrasadas | Un proveedor de un pedido en camino pasó su fecha: día del pedido + lo que tarda ese proveedor, en días hábiles (sus días escritos o sus semanas × 5) |
+| `sinDatos` | Datos sin actualizar | Más de 3 días hábiles desde el último movimiento registrado o el último archivo subido (solo a quien administra la empresa y a los operadores) |
+| `sobran` | Sobrestock | Estado "sobra" o sin ventas con existencias (§11.1) |
+| `dineroQuieto` | Dinero quieto | El archivo trae costos y hay dinero quieto |
+
+Valores por defecto: el analista recibe a diario `pideYa`, `seAgota` y `porAprobar`; los lunes `enCero`, `porRecibir`, `dineroQuieto` y `sinDatos`; `sobran` el primer día hábil del mes. El operador recibe todo a diario menos `dineroQuieto` y `sobran` (nunca). Lo que la persona cambia en Mi cuenta manda sobre su perfil.
+
+Si ese día no toca ninguna sección con algo que decir, no se manda nada. El asunto es la sección más urgente en el orden de la tabla. Cada sección dice qué es nuevo desde la última vez que se revisó (no desde ayer): `boletines.resumen.tipos` guarda, por tipo, la fecha y lo que había.
 
 ## Fuentes
 

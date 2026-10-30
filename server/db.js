@@ -289,6 +289,10 @@ const ESQUEMA = [
     creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
   'CREATE INDEX IF NOT EXISTS pedido_cambios_pedido ON pedido_cambios(pedido_id, creado_en)',
+  // SP7: desde cuántas semanas de inventario sobra cada producto (NULL = las 12 de siempre). Se
+  // aplica encima del reporte guardado, sin recalcularlo (server/inventario.js, conSobraPropia).
+  // Las alertas del boletín van en usuarios.preferencias.alertas (server/alertas.js), sin columna.
+  'ALTER TABLE productos ADD COLUMN IF NOT EXISTS sobra_semanas NUMERIC',
   'CREATE INDEX IF NOT EXISTS pedidos_empresa ON pedidos(empresa_id)',
   'CREATE INDEX IF NOT EXISTS usuarios_empresa ON usuarios(empresa_id)',
   'CREATE INDEX IF NOT EXISTS exports_empresa ON exports(empresa_id, subido_en)',

@@ -195,19 +195,20 @@ function vistaProducto(p) {
     familia: p.familia || null,
     multiplo: numeroONulo(p.multiplo),
     minimoPedido: numeroONulo(p.minimo_pedido),
+    sobraSemanas: numeroONulo(p.sobra_semanas),
     activo: p.activo,
   };
 }
 
 /**
  * Lo que la empresa escribió en el catálogo y cambia el sugerido o los filtros: familia, múltiplo de
- * empaque y mínimo de pedido. { clave: { familia?, multiplo?, minimoPedido? } }, para ponerlo encima
- * del catálogo del archivo (server/inventario-rutas.js).
+ * empaque, mínimo de pedido y desde cuántas semanas sobra. { clave: { familia?, multiplo?,
+ * minimoPedido?, sobraSemanas? } }, para ponerlo encima del catálogo del archivo (server/inventario-rutas.js).
  */
 async function catalogoEscrito(empresaId) {
   const filas = await db.query(
-    `SELECT clave, familia, multiplo::float AS multiplo, minimo_pedido::float AS minimo FROM productos
-      WHERE empresa_id = $1 AND (familia IS NOT NULL OR multiplo IS NOT NULL OR minimo_pedido IS NOT NULL)`,
+    `SELECT clave, familia, multiplo::float AS multiplo, minimo_pedido::float AS minimo, sobra_semanas::float AS sobra FROM productos
+      WHERE empresa_id = $1 AND (familia IS NOT NULL OR multiplo IS NOT NULL OR minimo_pedido IS NOT NULL OR sobra_semanas IS NOT NULL)`,
     [empresaId],
   );
   const out = {};
@@ -216,12 +217,13 @@ async function catalogoEscrito(empresaId) {
       ...(f.familia ? { familia: f.familia } : {}),
       ...(f.multiplo > 0 ? { multiplo: f.multiplo } : {}),
       ...(f.minimo > 0 ? { minimoPedido: f.minimo } : {}),
+      ...(f.sobra > 0 ? { sobraSemanas: f.sobra } : {}),
     };
   }
   return out;
 }
 
-// El catálogo del archivo con lo que la empresa escribió encima (familia, múltiplo y mínimo).
+// El catálogo del archivo con lo que la empresa escribió encima (familia, múltiplo, mínimo y sobra).
 async function catalogoConEscrito(empresaId, delArchivo) {
   const escrito = await catalogoEscrito(empresaId);
   const out = { ...(delArchivo || {}) };
@@ -236,6 +238,15 @@ function leerCantidadCatalogo(v, nombre, donde = '') {
   if (n === null || !(n > 0)) throw new ErrorUsuario(`${donde}${nombre} tiene que ser un número mayor que 0, o quedar vacío.`);
   if (n > 1e6) throw new ErrorUsuario(`${donde}${nombre} es demasiado grande.`);
   return n;
+}
+
+// Desde cuántas semanas sobra: vacío = las 12 de siempre. Entre 1 y 104 (dos años).
+const MAX_SOBRA_SEMANAS = 104;
+function leerSobraSemanas(v, donde = '') {
+  if (v === undefined || v === null || String(v).trim() === '') return null;
+  const n = leerNumero(v);
+  if (n === null || !(n >= 1 && n <= MAX_SOBRA_SEMANAS)) throw new ErrorUsuario(`${donde}Las semanas para que sobre tienen que ser un número entre 1 y ${MAX_SOBRA_SEMANAS}, o quedar vacías.`);
+  return Math.round(n * 10) / 10;
 }
 
 catalogo.get('/', async (req, res) => {
@@ -269,6 +280,7 @@ function leerProducto(body, parcial = false) {
     familia: texto(body?.familia, 80) || null,
     multiplo: leerCantidadCatalogo(body?.multiplo, 'El múltiplo de empaque'),
     minimoPedido: leerCantidadCatalogo(body?.minimoPedido, 'El mínimo de pedido'),
+    sobraSemanas: leerSobraSemanas(body?.sobraSemanas),
   };
 }
 
@@ -281,10 +293,10 @@ async function catalogoCambio(empresaId) {
 catalogo.post('/', async (req, res) => {
   const p = leerProducto(req.body);
   const r = await db.uno(
-    `INSERT INTO productos (empresa_id, clave, codigo, nombre, costo, proveedor, unidad, familia, multiplo, minimo_pedido)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `INSERT INTO productos (empresa_id, clave, codigo, nombre, costo, proveedor, unidad, familia, multiplo, minimo_pedido, sobra_semanas)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      ON CONFLICT (empresa_id, clave) DO NOTHING RETURNING *`,
-    [req.usuario.empresa_id, claveCodigo(p.codigo), p.codigo, p.nombre, p.costo, p.proveedor, p.unidad, p.familia, p.multiplo, p.minimoPedido],
+    [req.usuario.empresa_id, claveCodigo(p.codigo), p.codigo, p.nombre, p.costo, p.proveedor, p.unidad, p.familia, p.multiplo, p.minimoPedido, p.sobraSemanas],
   );
   if (!r) throw new ErrorUsuario(`Ya hay un producto con el código ${p.codigo}.`, 409);
   await registrarEvento(req.usuario.id, 'producto_creado', { detalle: { codigo: p.codigo } });
@@ -297,19 +309,20 @@ catalogo.put('/:id', async (req, res) => {
   const antes = vistaProducto(actual);
   const p = leerProducto({ ...antes, ...req.body }, true);
   const r = await db.uno(
-    `UPDATE productos SET nombre = $1, costo = $2, proveedor = $3, unidad = $4, activo = $5, familia = $6, multiplo = $7, minimo_pedido = $8
-      WHERE id = $9 RETURNING *`,
-    [p.nombre || actual.nombre, p.costo, p.proveedor, p.unidad, typeof req.body?.activo === 'boolean' ? req.body.activo : actual.activo, p.familia, p.multiplo, p.minimoPedido, actual.id],
+    `UPDATE productos SET nombre = $1, costo = $2, proveedor = $3, unidad = $4, activo = $5, familia = $6, multiplo = $7, minimo_pedido = $8, sobra_semanas = $9
+      WHERE id = $10 RETURNING *`,
+    [p.nombre || actual.nombre, p.costo, p.proveedor, p.unidad, typeof req.body?.activo === 'boolean' ? req.body.activo : actual.activo, p.familia, p.multiplo, p.minimoPedido, p.sobraSemanas, actual.id],
   );
   await catalogoCambio(req.usuario.empresa_id);
   await registrarEvento(req.usuario.id, 'producto_editado', { detalle: { codigo: actual.codigo, antes, despues: vistaProducto(r) } });
   res.json({ producto: vistaProducto(r) });
 });
 
-// Familia, múltiplo y mínimo de varios productos a la vez: pegados de Excel (código, familia,
-// múltiplo, mínimo) o desde la ficha de un producto. Solo cambia lo que viene en cada fila: una
-// celda vacía borra ese dato; una columna que no viene lo deja como estaba. Todo o nada.
-const CAMPOS_LOTE = { familia: 'familia', multiplo: 'multiplo', minimo: 'minimo_pedido' };
+// Familia, múltiplo, mínimo y semanas para que sobre de varios productos a la vez: pegados de Excel
+// (código, familia, múltiplo, mínimo, sobra) o desde la ficha de un producto. Solo cambia lo que
+// viene en cada fila: una celda vacía borra ese dato; una columna que no viene lo deja como estaba.
+// Todo o nada.
+const CAMPOS_LOTE = { familia: 'familia', multiplo: 'multiplo', minimo: 'minimo_pedido', sobra: 'sobra_semanas' };
 
 catalogo.post('/lote', async (req, res) => {
   const filas = Array.isArray(req.body?.filas) ? req.body.filas : [];
@@ -318,7 +331,7 @@ catalogo.post('/lote', async (req, res) => {
   const empresaId = req.usuario.empresa_id;
   await asegurarCatalogo(empresaId);
   const claves = [...new Set(filas.map((f) => claveCodigo(f && f.codigo)).filter(Boolean))];
-  const existentes = new Map((await db.query('SELECT id, clave, codigo, familia, multiplo, minimo_pedido FROM productos WHERE empresa_id = $1 AND clave = ANY($2::text[])', [empresaId, claves])).map((p) => [p.clave, p]));
+  const existentes = new Map((await db.query('SELECT id, clave, codigo, familia, multiplo, minimo_pedido, sobra_semanas FROM productos WHERE empresa_id = $1 AND clave = ANY($2::text[])', [empresaId, claves])).map((p) => [p.clave, p]));
   const errores = [];
   const faltan = [];
   const cambios = [];
@@ -333,6 +346,7 @@ catalogo.post('/lote', async (req, res) => {
       if (f.familia !== undefined) valores.familia = texto(f.familia, 80) || null;
       if (f.multiplo !== undefined) valores.multiplo = leerCantidadCatalogo(f.multiplo, 'el múltiplo', `Fila ${fila}: `);
       if (f.minimo !== undefined) valores.minimo = leerCantidadCatalogo(f.minimo, 'el mínimo', `Fila ${fila}: `);
+      if (f.sobra !== undefined) valores.sobra = leerSobraSemanas(f.sobra, `Fila ${fila}: `);
       if (Object.keys(valores).length) cambios.push({ producto, valores });
     } catch (e) {
       if (!(e instanceof ErrorUsuario)) throw e;

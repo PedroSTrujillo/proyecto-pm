@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const express = require('express');
 const db = require('./db');
 const { enviarCorreo, correoConfigurado } = require('./correo');
+const { limpiarAlertas, alertasDe, TIPOS: TIPOS_ALERTA, FRECUENCIAS } = require('./alertas');
 
 const COOKIE = 'sesion';
 const HORAS_ENLACE_RESTABLECER = 24;
@@ -147,12 +148,14 @@ const HORIZONTE_MAXIMO = 26;
 
 // Cómo quiere ver el tiempo: en días, semanas o meses, y cuántas semanas pronosticar. El cálculo
 // sigue en semanas (docs/modelo-rotacion.md, "Unidades al mostrar"): esto solo cambia cómo se dice.
+// alertas: solo lo que la persona cambió de la tabla del boletín (server/alertas.js); lo demás sigue su perfil.
 function leerPreferencias(p) {
   const pref = p && typeof p === 'object' ? p : {};
   const h = Number(pref.horizonte);
   return {
     unidad: UNIDADES.includes(pref.unidad) ? pref.unidad : 'semanas',
     horizonte: Number.isFinite(h) && h >= 0.5 && h <= HORIZONTE_MAXIMO ? Math.round(h * 100) / 100 : HORIZONTE_POR_DEFECTO,
+    alertas: limpiarAlertas(pref.alertas),
   };
 }
 
@@ -164,7 +167,8 @@ function publico(u) {
     rol: u.rol,
     sistema: u.sistema || null,
     perfil: u.perfil || 'analista',
-    preferencias: leerPreferencias(u.preferencias),
+    // alertas: la tabla completa del boletín; alertasPropias: si cambió algo de lo de su perfil.
+    preferencias: { ...leerPreferencias(u.preferencias), alertas: alertasDe(u.preferencias, u.perfil || 'analista'), alertasPropias: Object.keys(leerPreferencias(u.preferencias).alertas).length > 0 },
     boletin: Boolean(u.boletin),
     cargo: u.cargo || '',
     // Aprueba los pedidos de su empresa (lo marca quien administra, D11).
@@ -312,7 +316,19 @@ rutas.put('/preferencias', requiereUsuario, async (req, res) => {
   if (cuerpo.horizonte !== undefined && !(Number(cuerpo.horizonte) >= 0.5 && Number(cuerpo.horizonte) <= HORIZONTE_MAXIMO)) {
     throw new ErrorUsuario(`El horizonte tiene que estar entre media semana y ${HORIZONTE_MAXIMO} semanas.`);
   }
-  const pref = leerPreferencias({ ...leerPreferencias(req.usuario.preferencias), ...cuerpo });
+  // alertas: { tipo: frecuencia } cambia solo esos tipos; null vuelve a los valores del perfil.
+  const guardadas = leerPreferencias(req.usuario.preferencias);
+  let alertas = guardadas.alertas;
+  if (cuerpo.alertas === null) alertas = {};
+  else if (cuerpo.alertas !== undefined) {
+    const pedidas = cuerpo.alertas && typeof cuerpo.alertas === 'object' ? cuerpo.alertas : {};
+    for (const [t, f] of Object.entries(pedidas)) {
+      if (!TIPOS_ALERTA.includes(t)) throw new ErrorUsuario('Ese tipo de alerta no existe.');
+      if (!FRECUENCIAS.includes(f)) throw new ErrorUsuario('Elija diario, semanal, mensual o nunca.');
+    }
+    alertas = { ...alertas, ...pedidas };
+  }
+  const pref = leerPreferencias({ ...guardadas, ...cuerpo, alertas });
   await db.query('UPDATE usuarios SET preferencias = $1::jsonb WHERE id = $2', [JSON.stringify(pref), req.usuario.id]);
   res.json({ usuario: await publicoPorId(req.usuario.id) });
 });

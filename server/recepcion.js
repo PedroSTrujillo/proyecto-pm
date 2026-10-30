@@ -17,7 +17,8 @@
 
 const db = require('./db');
 const { claveCodigo, leerNumero } = require('./valores');
-const { leerAjustes, proveedorDe, SIN_PROVEEDOR } = require('./inventario');
+const { leerAjustes, proveedorDe, SIN_PROVEEDOR, DIAS_HABILES_SEMANA } = require('./inventario');
+const { sumarHabiles, habilesEntre } = require('./alertas');
 
 const DIAS_EN_CAMINO = 120; // un importado puede tardar 3 o 4 meses
 
@@ -149,4 +150,39 @@ async function porRecibir(empresaId) {
   return out;
 }
 
-module.exports = { DIAS_EN_CAMINO, lineasDelPedido, sumarEnCamino, enCaminoDe, firmaEnCamino, vistaRecepcion, porRecibir, pedidosEsperando, entradasAnuladas, recibidaDe };
+// Los días hábiles que tarda un proveedor: los escritos en Datos o, si no, sus semanas × 5.
+function diasDeEntrega(proveedor, ajustes) {
+  if (ajustes.entregasDias[proveedor] !== undefined) return ajustes.entregasDias[proveedor];
+  const semanas = ajustes.entregas[proveedor] ?? ajustes.entregaPorDefecto;
+  return Math.round(semanas * DIAS_HABILES_SEMANA);
+}
+
+/**
+ * Pura: de lo que espera la empresa (porRecibir), cada proveedor de cada pedido que ya pasó la
+ * fecha en que debía llegar (el día del pedido más lo que tarda ese proveedor, en días hábiles).
+ * fechaDe: el día "YYYY-MM-DD" de un instante (en Bogotá). Del más atrasado al menos.
+ * [{ pedidoId, numero, por, proveedor, pedidoEl, esperado, diasTarde, pendientes }]
+ */
+function atrasadosDe(esperando, ajustes, hoy, fechaDe) {
+  const out = [];
+  for (const v of esperando) {
+    const pedidoEl = fechaDe(v.terminadoEn);
+    for (const g of v.proveedores) {
+      const pendientes = g.lineas.filter((l) => !l.recibido).length;
+      if (!pendientes) continue;
+      const esperado = sumarHabiles(pedidoEl, diasDeEntrega(g.proveedor, ajustes));
+      if (hoy <= esperado) continue;
+      out.push({ pedidoId: v.pedidoId, numero: v.numero, por: v.por, proveedor: g.proveedor, pedidoEl, esperado, diasTarde: habilesEntre(esperado, hoy), pendientes });
+    }
+  }
+  return out.sort((a, b) => b.diasTarde - a.diasTarde || a.esperado.localeCompare(b.esperado));
+}
+
+async function porRecibirAtrasados(empresaId, hoy, fechaDe) {
+  const esperando = await porRecibir(empresaId);
+  if (!esperando.length) return [];
+  const emp = await db.uno('SELECT inventario FROM empresas WHERE id = $1', [empresaId]);
+  return atrasadosDe(esperando, leerAjustes(emp && emp.inventario), hoy, fechaDe);
+}
+
+module.exports = { DIAS_EN_CAMINO, atrasadosDe, porRecibirAtrasados, diasDeEntrega, lineasDelPedido, sumarEnCamino, enCaminoDe, firmaEnCamino, vistaRecepcion, porRecibir, pedidosEsperando, entradasAnuladas, recibidaDe };

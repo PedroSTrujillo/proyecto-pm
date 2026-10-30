@@ -12,6 +12,10 @@
 //
 // Llega a quien lo activó (D6). La tabla boletines guarda uno por persona y día: correr la tarea
 // dos veces no manda dos correos, y si se corta por tiempo, la siguiente corrida sigue.
+//
+// Qué secciones lleva lo decide cada persona en Mi cuenta (SP7, server/alertas.js): cada tipo de
+// alerta es diario, semanal (lunes), mensual (primer día hábil) o nunca. Si ese día no toca
+// ninguna sección con algo que decir, no se manda nada y la fila queda como 'sin_novedad'.
 
 const crypto = require('crypto');
 const express = require('express');
@@ -20,9 +24,10 @@ const { registrarEvento, ErrorUsuario, leerPreferencias } = require('./cuentas')
 const { enviarCorreo, correoConfigurado } = require('./correo');
 const { fechaBogota, urlApp } = require('./recordatorios');
 const { construirInventario } = require('./inventario');
-const { enCaminoDe } = require('./recepcion');
+const { enCaminoDe, porRecibirAtrasados } = require('./recepcion');
 const { inventarioAlDia, catalogoConEscrito } = require('./movimientos');
-const { armarBoletin, resumenDelDia, cambiosDesde } = require('./boletin-correo');
+const { tiposDeHoy, habilesEntre } = require('./alertas');
+const { armarBoletin, seccionesDelDia, resumenDelDia } = require('./boletin-correo');
 
 const TANDA = 20;
 const LIMITE_MS = 50000; // se detiene antes del límite de tiempo de una función de Vercel
@@ -51,10 +56,6 @@ function firmaValida(usuarioId, f) {
 
 // --- Envío ------------------------------------------------------------------------------------
 
-function diaAnterior(dia) {
-  return new Date(Date.parse(`${dia}T12:00:00Z`) - 86400000).toISOString().slice(0, 10);
-}
-
 async function inventarioDeEmpresa(empresaId) {
   await inventarioAlDia(empresaId);
   const e = await db.uno(
@@ -63,9 +64,9 @@ async function inventarioDeEmpresa(empresaId) {
     [empresaId],
   );
   if (!e) return null;
-  const emp = await db.uno('SELECT nombre, inventario, movimientos_cambiaron_en FROM empresas WHERE id = $1', [empresaId]);
+  const emp = await db.uno('SELECT nombre, inventario FROM empresas WHERE id = $1', [empresaId]);
   const inv = construirInventario({ reporte: e.reporte, series: e.series, catalogo: await catalogoConEscrito(empresaId, e.catalogo), ajustes: emp.inventario, fuente: { exportId: e.id, fecha: e.subido_en }, alcance: 'completo', enCamino: await enCaminoDe(empresaId) });
-  return { inv, empresa: emp.nombre, usaMovimientos: Boolean(emp.movimientos_cambiaron_en) };
+  return { inv, empresa: emp.nombre };
 }
 
 async function guardarFila(usuarioId, fecha, empresaId, estado, { resumen = null, error = null } = {}) {
@@ -76,17 +77,54 @@ async function guardarFila(usuarioId, fecha, empresaId, estado, { resumen = null
   );
 }
 
+// Lo que una sección necesita de la base y no está en el inventario. Se calcula una vez por empresa
+// y solo si alguien de la empresa lo recibe hoy.
+async function pedidosPorAprobar(empresaId) {
+  const filas = await db.query(
+    `SELECT p.id, p.enviado_en, u.nombre AS autor, jsonb_array_length(COALESCE(p.lista_final, '[]'::jsonb)) AS lineas,
+            (SELECT count(*)::int FROM pedidos q WHERE q.usuario_id = p.usuario_id AND q.id <= p.id AND q.borrado_en IS NULL) AS numero
+       FROM pedidos p JOIN usuarios u ON u.id = p.usuario_id
+      WHERE p.empresa_id = $1 AND p.modo = 'sugerido' AND p.enviado_en IS NOT NULL AND p.terminado_en IS NULL
+        AND p.anulado_en IS NULL AND p.borrado_en IS NULL
+      ORDER BY p.enviado_en`,
+    [empresaId],
+  );
+  return filas.map((p) => ({ id: p.id, numero: p.numero, preparadoPor: p.autor, lineas: p.lineas, enviadoDia: fechaBogota(p.enviado_en) }));
+}
+
+// Días hábiles desde el último movimiento registrado o el último archivo subido.
+async function sinDatosDe(empresaId, hoy) {
+  const r = await db.uno(
+    `SELECT GREATEST(
+        (SELECT max(creado_en) FROM movimientos WHERE empresa_id = $1 AND anulado_en IS NULL),
+        (SELECT max(subido_en) FROM exports WHERE empresa_id = $1 AND origen = 'archivo' AND estado = 'ok')) AS ultimo`,
+    [empresaId],
+  );
+  return { dias: r && r.ultimo ? habilesEntre(fechaBogota(r.ultimo), hoy) : 0 };
+}
+
+function contextoDeEmpresa(empresaId, inv, hoy) {
+  const memo = {};
+  const una = (k, fn) => (memo[k] ||= fn());
+  return async (tipos) => ({
+    inv,
+    porAprobar: tipos.includes('porAprobar') ? await una('porAprobar', () => pedidosPorAprobar(empresaId)) : null,
+    porRecibir: tipos.includes('porRecibir') ? await una('porRecibir', () => porRecibirAtrasados(empresaId, hoy, fechaBogota)) : null,
+    sinDatos: tipos.includes('sinDatos') ? await una('sinDatos', () => sinDatosDe(empresaId, hoy)) : null,
+  });
+}
+
 /**
  * Manda los boletines de hoy a quienes los activaron y todavía no lo recibieron.
  * soloUsuario + forzar: `npm run boletin -- --email` para revisarlo (aunque ya se haya mandado).
- * Devuelve cuántos se mandaron, cuántos quedaron sin datos y cuántos fallaron.
+ * Devuelve cuántos se mandaron, cuántos quedaron sin datos, cuántos sin novedad y cuántos fallaron.
  */
 async function enviarBoletines({ hoy = fechaBogota(), soloUsuario = null, forzar = false, limiteMs = LIMITE_MS, url = urlApp() } = {}) {
   const inicio = Date.now();
-  const r = { enviados: 0, sinDatos: 0, errores: 0, pendientes: 0 };
+  const r = { enviados: 0, sinDatos: 0, sinNovedad: 0, errores: 0, pendientes: 0 };
   if (!correoConfigurado()) return { ...r, motivo: 'sin correo' };
   const usuarios = await db.query(
-    `SELECT u.id, u.nombre, u.email, u.perfil, u.preferencias, u.empresa_id FROM usuarios u
+    `SELECT u.id, u.nombre, u.email, u.perfil, u.preferencias, u.empresa_id, u.aprueba, u.admin_empresa FROM usuarios u
       WHERE u.empresa_id IS NOT NULL AND ${soloUsuario ? 'u.id = $2' : 'u.boletin'}
         ${forzar ? '' : 'AND NOT EXISTS (SELECT 1 FROM boletines b WHERE b.usuario_id = u.id AND b.fecha = $1)'}
       ORDER BY u.empresa_id, u.id`,
@@ -97,7 +135,6 @@ async function enviarBoletines({ hoy = fechaBogota(), soloUsuario = null, forzar
     if (!porEmpresa.has(u.empresa_id)) porEmpresa.set(u.empresa_id, []);
     porEmpresa.get(u.empresa_id).push(u);
   }
-  const ayer = diaAnterior(hoy);
   let enTanda = 0;
   for (const [empresaId, miembros] of porEmpresa) {
     if (Date.now() - inicio > limiteMs) {
@@ -112,17 +149,29 @@ async function enviarBoletines({ hoy = fechaBogota(), soloUsuario = null, forzar
       r.sinDatos += miembros.length;
       continue;
     }
-    const resumen = resumenDelDia(datos.inv);
-    const { n: movimientosAyer } = await db.uno('SELECT count(*)::int AS n FROM movimientos WHERE empresa_id = $1 AND fecha = $2 AND anulado_en IS NULL', [empresaId, ayer]);
+    const contexto = contextoDeEmpresa(empresaId, datos.inv, hoy);
     for (const u of miembros) {
+      const tipos = tiposDeHoy({ perfil: u.perfil, preferencias: u.preferencias, aprueba: u.aprueba, admin: u.admin_empresa }, hoy);
+      const secciones = seccionesDelDia(tipos, await contexto(tipos));
+      // La última vez que se revisó cada tipo: también cuenta un día sin novedad.
+      const previo = await db.uno(
+        "SELECT resumen FROM boletines WHERE usuario_id = $1 AND fecha < $2 AND estado IN ('enviado', 'sin_novedad') AND resumen IS NOT NULL ORDER BY fecha DESC LIMIT 1",
+        [u.id, hoy],
+      );
+      const anterior = previo && previo.resumen && previo.resumen.tipos ? previo.resumen : null;
+      const resumen = resumenDelDia(tipos, secciones, hoy, anterior);
+      if (!secciones.length) {
+        await guardarFila(u.id, hoy, empresaId, 'sin_novedad', { resumen });
+        r.sinNovedad++;
+        continue;
+      }
       const baja = enlaceBaja(u.id, url);
-      const previo = await db.uno("SELECT resumen FROM boletines WHERE usuario_id = $1 AND fecha < $2 AND estado = 'enviado' ORDER BY fecha DESC LIMIT 1", [u.id, hoy]);
       const correo = armarBoletin({
         usuario: { nombre: u.nombre, perfil: u.perfil, unidad: leerPreferencias(u.preferencias).unidad },
         empresa: datos.empresa,
         inv: datos.inv,
-        cambios: cambiosDesde(previo && previo.resumen, resumen),
-        movimientos: { ayer: movimientosAyer, usaMovimientos: datos.usaMovimientos },
+        secciones,
+        previo: anterior,
         hoy,
         url,
         baja,
@@ -137,7 +186,7 @@ async function enviarBoletines({ hoy = fechaBogota(), soloUsuario = null, forzar
           encabezados: baja ? { 'List-Unsubscribe': `<${baja}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' } : null,
         });
         await guardarFila(u.id, hoy, empresaId, 'enviado', { resumen });
-        await registrarEvento(u.id, 'boletin_enviado', { detalle: { fecha: hoy } });
+        await registrarEvento(u.id, 'boletin_enviado', { detalle: { fecha: hoy, secciones: secciones.map((x) => x.tipo) } });
         r.enviados++;
       } catch (e) {
         await guardarFila(u.id, hoy, empresaId, 'error', { error: String(e.message).slice(0, 500) });
@@ -149,7 +198,6 @@ async function enviarBoletines({ hoy = fechaBogota(), soloUsuario = null, forzar
   }
   return r;
 }
-
 // --- Rutas ------------------------------------------------------------------------------------
 
 const tareas = express.Router();
@@ -171,6 +219,7 @@ tareas.post('/boletin', correrBoletin);
 const baja = express.Router();
 
 // GET: el enlace del correo. POST: el botón "Cancelar suscripción" de Gmail (List-Unsubscribe-Post).
+// Solo apaga el interruptor: las alertas que eligió en Mi cuenta quedan guardadas por si vuelve.
 const darDeBaja = async (req, res) => {
   const id = Number(req.query.u);
   if (!Number.isInteger(id) || !firmaValida(id, String(req.query.f || ''))) throw new ErrorUsuario('Este enlace no es válido. Desactive el boletín en Mi cuenta.', 400);

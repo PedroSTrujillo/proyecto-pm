@@ -2,7 +2,7 @@
 
 Escrito el 2026-10-29. Rama: `empresas-inventario-diario` (cada sub-plan puede ir en su propia rama, que sale de esta). Es el plan de trabajo de las próximas sesiones, y el estado de cada sub-plan va en `docs/HANDOFF.md`.
 
-**Estado (2026-10-29):** SP1 a SP6 hechos (entradas 38 a 42 de `HANDOFF.md`). SP0 sigue pendiente de las personas del equipo. El piloto puede empezar cuando el equipo fije X, Y y Z y publique. Siguiente: SP7. Del SP5 queda para el equipo confirmar con Claudia los informes de Siigo (1.7).
+**Estado final (2026-10-29):** SP1 a SP8 hechos (entradas 38 a 45 de `HANDOFF.md`). Queda solo lo que hacen personas: el SP0 (rama de Neon para *Preview*, variables en Vercel, copia de la base y el PR a `main`), fijar X, Y y Z en `server/equipo.js`, publicar y anotar la fecha de inicio del piloto, y confirmar con Claudia los informes de Siigo (1.7). Lo que quedó fuera está en "Backlog", al final.
 
 ## Contexto
 
@@ -291,12 +291,14 @@ Va primero porque fija las convenciones que siguen los demás sub-planes. `pedid
   - El asunto es lo más urgente: "Pide ya: 4 productos".
   - "Qué cambió" compara cada sección con su última aparición, no con el boletín de ayer: `resumen` guarda el estado de cada tipo y la fecha en que salió.
   - `porAprobar` le llega a quien tiene `aprueba`. `sinDatos` ("Hace N días hábiles que no se registran movimientos ni archivos", cuando pasan más de 3) le llega solo al administrador y a los operadores. `dineroQuieto` aparece solo si hay costos.
-  - Enlaces directos: `/productos?estado=pide` (`productos.tsx` lee `?estado`), `/pedidos/nuevo`, `/pedidos` (por aprobar y por recibir) y `/movimientos`.
+  - Enlaces directos: `/productos?estado=pide` (`productos.tsx` lee `?estado`), `/pedidos/sugerido` (la ruta que abre o crea el pedido; `/pedidos/nuevo` no existe), `/pedidos` (por aprobar y por recibir) y `/movimientos`.
   - Sigue habiendo un solo Cron (regla de `CLAUDE.md`).
 - **Web:** en Mi cuenta, una tabla con cada tipo de alerta y su frecuencia, debajo del interruptor. En la ficha del producto, el campo "Se considera que sobra desde (semanas)".
 - **Pruebas:** qué secciones salen cada día (lunes, día 1, día cualquiera), el correo sin novedad, los valores por defecto de cada perfil, que `sinDatos` no llegue a quien no corresponde, que con todo en `nunca` no salga nada, que el enlace de baja no borre la tabla, `porRecibir` con un pedido atrasado, `sobran` con un umbral propio y que no salga ningún correo dos veces.
 
 ## SP8 · Cierre: documentos y Entregable
+
+**Hecho el 2026-10-29** (entrada 45 de `HANDOFF.md`). La declaración de uso de IA quedó en `docs/USO_DE_IA.md`. Las fechas de publicación siguen "por fijar" en el resumen de `ENTREGABLE_Y_APP.md`: se llenan al publicar.
 
 - **`CLAUDE.md`:** "Qué es este proyecto" con la hipótesis de Alpha 0.2 (la de 0.1 queda como antecedente), los dos flujos, la aprobación, en camino, proyectos y alertas.
 - **`docs/modelo-rotacion.md`:** §4 con la métrica de aceptación y el uso; §7 con en camino, mínimos y múltiplos, días hábiles y proyectos.
@@ -317,3 +319,35 @@ Va primero porque fija las convenciones que siguen los demás sub-planes. `pedid
 3. Correr `npm run resultados -- --piloto` para ver la aceptación (sugeridas, sin cambios, %) y `--encuesta abrir` para ver la encuesta en el panel.
 4. Con los SP5 a SP7: recibir el pedido (las entradas aparecen en Existencias y sale de en camino), enviarlo a aprobación con un usuario sin permiso (403), aprobarlo con otro y ver el PDF, y correr `npm run boletin -- --email x` con alertas semanales un lunes simulado.
 5. En *Preview* de Vercel con la rama de Neon, antes de cada publicación en producción.
+
+## Backlog: lo que quedó fuera
+
+Ordenado por hito. Nada de esto se empieza sin decisión del equipo, y lo que vea un usuario durante el piloto necesita su fila en "Cambios".
+
+**Hito 6 y 7 (parcial):**
+- "Ventas que se escapan" (Claudia, 6.4): demanda que no se atendió por estar en cero. Requiere un dato que el archivo no trae (§6 del modelo).
+- Mostrar al administrador el porcentaje aceptado sin cambios (Claudia, Hito 7). Se apagó a propósito durante el piloto (D16, `ACEPTACION_VISIBLE`).
+
+**Hito 8 · Implementación y posicionamiento:**
+- Diagnóstico inicial por empresa (quién carga, analiza, aprueba y compra). Del SP6 quedó el cargo de cada persona y quién aprueba.
+- Mensajes por perfil, revisar el segmento (por nivel de ventas) y un eslogan: son de la página principal, que no se toca sin pedido del equipo.
+
+**Hito 9 · Analítica de negocio (D14):**
+- Margen contra rotación para depurar el catálogo; costeo completo (proveedor, transporte, bodegaje, administración) antes de mostrar rentabilidad (Luis Carlos).
+- Convertir "dinero quieto" en acciones comerciales: promociones, descuentos, uso en proyectos o bajas (Claudia).
+- Analítica comercial: clientes que más compran, que dejaron de comprar y picos de consumo (Claudia).
+
+**Hito 10 · Escenarios avanzados (D14):**
+- Varias bodegas o puntos de venta, con pedido por tienda (Luis Carlos).
+- Importados: moneda extranjera y tiempos largos; importador directo contra distribuidor (Luis Carlos, Orlando).
+- Un producto con varios proveedores: plazo de pago, convenio, costo y tiempo de entrega (Orlando, Luis Carlos).
+- Unidad de compra distinta a la de venta (granel contra bolsas) (Orlando).
+- IA para las particularidades de cada negocio y lectura de una carpeta local (Jose). La IA generativa sigue fuera de alcance (`CLAUDE.md`).
+
+**Pendientes técnicos que dejaron los sub-planes** (detalle en `HANDOFF.md`):
+- El pegado de familia, caja y mínimo es un cuadro de texto, no la hoja de `hoja.tsx` (SP4).
+- Una llegada parcial cierra la línea; lo que falte se registra a mano en Movimientos (SP5).
+- "Comparar con mi propia lista" no tiene aprobación ni historial, y quien prepara no puede retirar un pedido enviado (SP6).
+- El campo de sobrestock de la ficha va en semanas aunque la persona use días o meses (SP7).
+- No se ha probado el boletín en Gmail ni Outlook de verdad, ni un lunes real con Brevo (SP7).
+- Los festivos no se descuentan del uso ni de las alertas.

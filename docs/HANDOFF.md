@@ -27,6 +27,44 @@
 
 ---
 
+## 2026-10-29 (45) — Claude — SP8 de PLAN_ALPHA_02: cierre de documentos, Entregable y uso de IA
+- **Rama:** `empresas-inventario-diario`, solo en local y sin commit (encima del SP7, entrada 44, que tampoco tiene commit).
+- **Estado:** SP8 completo; con esto, SP1 a SP8 están hechos. Solo documentos, sin código.
+  - `CLAUDE.md`: "Qué es este proyecto" con la hipótesis del piloto de Alpha 0.2 como vigente, la de 0.1 como antecedente (cerrada, D10) y un párrafo con lo que trajo cada SP; la regla de "Cambios" pasa de "14 días del probador" a "ventana de 30 días del piloto", y los Hitos 9 y 10 quedan fuera de alcance.
+  - `modelo-rotacion.md`: título "Alpha 0.1 y 0.2"; §4 aclara qué es de 0.1; **§4.4 nueva** (aceptación por pedido y por usuario, satisfacción, uso en días hábiles, veredicto, sugerido contra ocurrido, encuesta); §7.6 corregida (decía que los probadores no veían el pronóstico; eso cambió el 2026-10-14); **§7.7 nueva** con la fórmula completa del sugerido (días hábiles, proyectos, en camino, paquete, mínimo, sobrestock).
+  - `README.md`: "Qué se está probando" con el piloto primero y los 5 pasos como antecedente (en "usted"); filas nuevas en "Cómo se cumple el documento" para SP1, SP2, SP3 y SP6 (las de SP4, SP5 y SP7 ya estaban); "Cambio de alcance" al día; enlaces a `PLAN_ALPHA_02.md` y `USO_DE_IA.md`.
+  - `ENTREGABLE_Y_APP.md`: tabla "Hipótesis del piloto (Alpha 0.2)" con dónde se mide cada parte; fila de "real o simulado" al día; **fila 14** para el SP1 (antes iba como una línea dentro de la 9); "Resumen por sub-plan" con fila, quién lo pidió y fecha de publicación (todas "por fijar").
+  - `PLAN_ALPHA_02.md`: estado final y sección "Backlog" (Hitos 6.4, 7, 8, 9 y 10, y los pendientes técnicos de cada SP).
+  - `docs/USO_DE_IA.md` (nuevo): herramientas, qué decidió el equipo y qué hizo Claude por sub-plan, dónde ayudó y dónde falló.
+- **Archivos tocados:** `CLAUDE.md`, `README.md`, `docs/{modelo-rotacion,ENTREGABLE_Y_APP,PLAN_ALPHA_02,HANDOFF}.md`, `docs/USO_DE_IA.md` (nuevo).
+- **Base de datos:** sin cambios.
+- **Verificación:** `npm test` → 194/194; `npm run texto` → 0 con tuteo. Las fórmulas de §4.4 y §7.7 se cotejaron con `evaluarPiloto`/`resumirPiloto` (`equipo.js`), `medirAceptacion` (`listas.js`) y el redondeo al mínimo de `inventario.js` (el mínimo también se redondea a la caja). Sin navegador (no hubo cambios de pantalla).
+- **Siguiente paso exacto:** revisar el diff de las entradas 44 y 45 y hacer commit. Después, lo que es de personas: SP0 (rama de Neon *Preview*, `CRON_SECRET` y `BOLETIN_SECRETO`, copia de la base), fijar X, Y y Z en `server/equipo.js`, probar en *Preview* y abrir el PR a `main` (solo con aprobación), publicar y anotar en `ENTREGABLE_Y_APP.md` la fecha de publicación de cada SP y la de inicio del piloto.
+- **Notas y bloqueos:**
+  - Copiar al Excel del Entregable, en "4 · Cambios y Reflexión", las filas 9 a 14 de `ENTREGABLE_Y_APP.md`, y la hipótesis del piloto con sus X, Y y Z definitivas.
+  - `docs/USO_DE_IA.md` es un borrador para la declaración de la entrega: el equipo debe sumar las herramientas que usó cada persona.
+  - Siigo (1.7) sigue pendiente de Claudia.
+
+## 2026-10-29 (44) — Claude — SP7 de PLAN_ALPHA_02: alertas configurables del boletín
+- **Rama:** `empresas-inventario-diario`, solo en local y sin commit (las entradas 37 a 42 ya estaban en el commit `8e2b9f0`).
+- **Estado:** SP7 completo según el plan de la entrada 43.
+  - **Alertas** (`server/alertas.js`, nuevo y sin base de datos): 8 tipos, frecuencias diario / semanal (lunes) / mensual (primer día hábil) / nunca, sin festivos, valores por perfil de la tabla del plan. `preferencias.alertas` guarda solo lo que la persona cambió; `publico()` devuelve la tabla completa y `alertasPropias`. `PUT /api/cuenta/preferencias { alertas }` valida tipo y frecuencia (400) y `alertas: null` vuelve al perfil. Si alguien cambia de perfil, cambia lo que no tocó.
+  - **Boletín** (`boletin.js`, `boletin-correo.js` reescrito por secciones): `tiposDeHoy` + `seccionesDelDia`; `porAprobar` solo a quien aprueba, `sinDatos` (más de 3 días hábiles sin movimientos ni archivos) solo a quien administra y a los operadores, `dineroQuieto` solo con costos. Sin nada que decir: no se manda y la fila queda `sin_novedad`. Asunto = la sección más urgente ("Pedir ya: 4 productos y 2 avisos más · Empresa"). "Qué cambió" compara con la última revisión de cada tipo (`resumen.tipos`, se arrastra lo que no tocaba). Enlaces por sección con `?desde=boletin`. Se quitó el aviso "Ayer no se registraron movimientos" (lo reemplaza `sinDatos`) y las cuatro cifras de arriba.
+  - **Entregas atrasadas** (`atrasadosDe` / `porRecibirAtrasados` en `recepcion.js`): por proveedor de cada pedido en camino, fecha esperada = día del pedido + días hábiles del proveedor (escritos o semanas × 5).
+  - **Sobrestock por producto:** `productos.sobra_semanas` (1 a 104) en la ficha (`EditarCatalogo`), en `PUT /api/catalogo/:id` y como quinta columna del pegado por lote (`sobra`). `conSobraPropia` en `inventario.js` lo aplica sobre la fila guardada; cambia estado, sugerido (0) y dinero quieto. `umbrales.sobra` sigue en 12.
+  - **Web:** tabla "Qué avisos trae y cada cuánto" en Mi cuenta (la tarjeta del boletín ocupa el ancho; se guarda al elegir; "Volver a los valores de su perfil"); `productos.tsx` lee `?estado=` (validado contra los estados).
+  - **`npm run boletin -- --email x --fecha AAAA-MM-DD`** para simular un día (un lunes, un primer día hábil).
+- **Archivos tocados:** server: `alertas.js` (nuevo), `boletin.js`, `boletin-correo.js`, `cuentas.js`, `recepcion.js`, `inventario.js`, `movimientos.js`, `db.js`; `scripts/enviar-boletin.js`; web: `components/app/{cuenta,catalogo,productos}.tsx`, `lib/tipos.ts`; pruebas: `test/boletin.test.js` (reescrita, 13), `test/alertas.test.js` (nueva, 5), `test/empresas.test.js` (2 aserciones al formato nuevo); docs: `CLAUDE.md`, `README.md`, `modelo-rotacion.md` (§11 y notas en §3.4 y §7), `ENTREGABLE_Y_APP.md` (fila 13), `PLAN_ALPHA_02.md`.
+- **Base de datos:** `productos.sobra_semanas NUMERIC`. Las alertas van en `usuarios.preferencias` (JSONB, sin columna). `boletines.estado` admite `sin_novedad`; `boletines.resumen` pasa a `{ tipos: { tipo: { fecha, n, claves } } }` (los resúmenes viejos se ignoran al comparar).
+- **Verificación:** `npm test` → 194/194; `tsc --noEmit` limpio; `npm run texto` → 0 con tuteo. En el navegador (`npm run dev` con PGlite en el scratchpad, Playwright con el Chromium en caché): cuenta nueva con la plantilla; Mi cuenta muestra 7 filas (sin "por aprobar" porque no aprueba); cambiar "Sobrestock" a "Los lunes" guarda y aparece "Volver a los valores de su perfil", que lo devuelve a "Primer día hábil del mes"; `/productos?estado=agota` abre filtrado (2 de 2); en la ficha de LIJ-0120 (5,4 semanas) "sobra desde 4" la pasa a sobrestock; correo de un lunes armado con ese inventario (en cero, se van a agotar, por aprobar, datos sin actualizar, sobran) revisado como imagen. Celular (390 px): Mi cuenta y el correo sin desbordes. Sin errores en la consola. No se mandó ningún correo real (Brevo no está configurado en local).
+- **No se hizo o no se verificó:**
+  - Un lunes o un primer día hábil real con Brevo: las pruebas simulan el día con `hoy` y capturan el correo.
+  - El correo no se probó en Gmail ni Outlook de verdad (solo la imagen del HTML).
+  - La ficha muestra el campo en semanas aunque la persona use días o meses (el plan dice "semanas").
+  - Una frecuencia cambiada hoy no se aplica a un boletín que ya salió hoy (sale al día siguiente según la tabla).
+- **Siguiente paso exacto:** revisar y hacer commit del SP7. Después, SP8 (cierre: documentos, Entregable y declaración de uso de IA).
+- **Notas y bloqueos:** copiar la fila 13 de `ENTREGABLE_Y_APP.md` a "Cambios" del Entregable. Diferencia con el plan: el enlace para preparar el pedido es `/pedidos/sugerido` (no existe `/pedidos/nuevo`); quedó anotado en `PLAN_ALPHA_02.md`.
+
 ## 2026-10-29 (43) — Claude — Plan del SP7 definido (solo boletín diario)
 - **Rama:** `empresas-inventario-diario`, solo en local y sin commit.
 - **Estado:** solo se reescribió la sección SP7 de `docs/PLAN_ALPHA_02.md`; no se tocó código. Decisiones del equipo: único canal el boletín diario (sin avisos inmediatos), tipo nuevo `porRecibir`, tabla de valores por defecto por perfil, sin festivos, `usuarios.boletin` sigue de interruptor general, `sobran` con umbral por producto (`productos.sobra_semanas`, 12 por defecto) y `sinDatos` solo para el administrador y los operadores.

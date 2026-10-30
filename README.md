@@ -6,30 +6,36 @@ En línea: **https://sinesc.vercel.app** (Vercel + Neon).
 
 ## Qué se está probando
 
-El MVP (Alpha 0.1, Grupo 1, Diseño de Productos, Uniandes) existe para probar una sola hipótesis:
+**Piloto de Alpha 0.2** (cerca de un mes, [`docs/PLAN_ALPHA_02.md`](docs/PLAN_ALPHA_02.md)):
+
+> Si SINESC permite registrar entradas y salidas a diario, **X de Y usuarios califican su satisfacción con 4 o más sobre 5 y aceptan el pedido sugerido sin cambios en Z % de las líneas.**
+
+X, Y y Z son provisionales (3 de 5 y 70 %, en `server/equipo.js`) y el equipo las fija antes de empezar. Por defecto, cada pedido arranca con todas las líneas que sugiere el modelo, agrupadas por proveedor ("Preparar pedido"); la persona quita, ajusta o agrega y lo cierra (o lo envía a aprobación). Al cerrarlo, el servidor guarda cuántas líneas sugeridas quedaron igual. Nadie ve ese número en la app durante el piloto. La satisfacción sale de una encuesta de una pregunta dentro de la app, y el uso, de los días hábiles con movimientos. Todo se lee con `npm run resultados -- --piloto` (§4.4 de [`docs/modelo-rotacion.md`](docs/modelo-rotacion.md)).
+
+**Antecedente: la prueba de Alpha 0.1** (cerrada el 2026-10-29). El MVP existía para probar:
 
 > Creemos que un reporte de rotación por producto calculado desde el export del software contable, para gerentes y administradores de inventario que coordinan el reabastecimiento, logrará que **3 de 5 cambien 5 o más líneas de su pedido en 14 días**, medido por las líneas que agrega, quita o ajusta.
 
 **Pivote:** 3 o más de los 5 cambian 0 o 1 línea, o cambian líneas por probar la herramienta y no porque el dato les sirvió.
 
-Para medirlo, cada pedido es un flujo de 5 pasos y sus reglas las hace cumplir el servidor:
+Para medirlo, cada pedido era un flujo de 5 pasos, con reglas que hace cumplir el servidor. Sigue en la app como "Comparar con mi propia lista":
 
-1. **Lo que ibas a pedir:** el usuario anota su pedido antes de ver cualquier número. Al guardarlo queda fijo.
-2. **Ventas y existencias:** sube el informe de su programa contable.
+1. **Lo que iba a pedir:** el usuario anota su pedido antes de ver cualquier número. Al guardarlo queda fijo.
+2. **Ventas y existencias:** sube el informe de su programa contable o usa el último.
 3. **El reporte:** ve sus productos por semanas de inventario.
-4. **Tu lista final:** arranca como copia de la inicial y la cambia con el reporte al lado. La columna "Cambio" muestra la diferencia.
-5. **Tu pedido:** el pedido queda terminado y sale la orden de compra. Antes, una pregunta opcional: "¿Qué tuviste en cuenta para decidir tu pedido?". El resumen de lo que cambió va plegado.
+4. **Su lista final:** arranca como copia de la inicial y la cambia con el reporte y la cantidad sugerida al lado. La columna "Cambio" muestra la diferencia.
+5. **Su pedido:** el pedido queda terminado y sale la orden de compra. Antes, una pregunta opcional: "¿Qué tuvo en cuenta para decidir su pedido?".
 
-La app compara las dos listas por código y cuenta las líneas agregadas, quitadas y con otra cantidad. El veredicto de la prueba sale de la base de datos con `npm run resultados`; la aplicación no lo muestra. En la lista final (paso 4), al lado de cada producto, SINESC muestra la cantidad que sugiere pedir el modelo, con el tiempo de entrega y cada cuánto pide el usuario (los puede cambiar ahí mismo). El usuario decide: puede llevar las sugeridas a su lista, agregar lo que se agota o dejar lo suyo. Desde el 2026-10-14 los probadores ven todo desde el primer día:
-- un panel con lo que hay que atender;
-- la ficha de cada producto con su pronóstico;
-- el riesgo de agotarse antes de que llegue un pedido;
-- el pedido sugerido por proveedor, en Excel, PDF o WhatsApp.
+La app compara las dos listas por código y cuenta las líneas agregadas, quitadas y con otra cantidad. El veredicto sale de la base de datos con `npm run resultados`; la aplicación no lo muestra.
+
+Además del pedido, la app tiene un panel con lo que hay que atender, la ficha de cada producto con su pronóstico, el riesgo de agotarse antes de que llegue un pedido, el registro diario de entradas y salidas, la llegada de los pedidos y un boletín por correo con los avisos que cada persona elige.
 
 Documentos:
 - [`docs/modelo-rotacion.md`](docs/modelo-rotacion.md): el modelo matemático, la métrica y el pronóstico. Es la fuente de verdad.
 - [`docs/ENTREGABLE_Y_APP.md`](docs/ENTREGABLE_Y_APP.md): qué de lo que declara el Entregable 2 corregido hace la app y en qué se aparta.
 - [`docs/PUBLICAR.md`](docs/PUBLICAR.md): cómo publicar y actualizar en Vercel + Neon.
+- [`docs/PLAN_ALPHA_02.md`](docs/PLAN_ALPHA_02.md): el plan de Alpha 0.2 (SP0 a SP8), sus decisiones y el backlog que quedó fuera.
+- [`docs/USO_DE_IA.md`](docs/USO_DE_IA.md): la declaración de uso de IA de Alpha 0.2.
 - [`docs/HANDOFF.md`](docs/HANDOFF.md): la bitácora de cada sesión de trabajo. La entrada de arriba dice cómo quedó todo y qué sigue.
 
 ## Correr en local
@@ -131,10 +137,11 @@ Probado con archivos reales: el "Movimiento detalle" de Helisa (26.000 filas) y 
 | Perfiles analista (detalle) y operador (métricas gruesas e ingreso de inventario), sin separarse por contraseña | `usuarios.perfil`, `PUT /api/cuenta/perfil`, `resumirParaOperador` (`server/inventario.js`), `SelectorPerfil` (`components/app/vista.tsx`) y el menú (`marco.tsx`) |
 | Entradas y salidas del día y manejo básico de inventario (catálogo, existencias, kardex, conteo), sin reemplazar la subida del archivo | `server/movimientos.js` y `server/saldos.js`; pantallas `movimientos.tsx` y `existencias.tsx`. El inventario "al día" es un export más (origen `movimientos`) |
 | Horizonte en días, semanas o meses | `usuarios.preferencias`, `PUT /api/cuenta/preferencias`, `?horizonte=` en `/api/inventario`; `fijarUnidad` y `horizonteTexto` en `lib/formato.ts`, `SelectorTiempo` en `components/app/vista.tsx` |
-| Boletín diario por correo | `server/boletin.js` y `server/boletin-correo.js`, Cron en `inventory-forecasting-landing-page/vercel.json`, `npm run boletin`; se activa en "Mi cuenta" o al crear la cuenta |
+| Boletín diario por correo | `server/boletin.js` y `server/boletin-correo.js`, Cron en `inventory-forecasting-landing-page/vercel.json`, `npm run boletin [-- --email x --fecha AAAA-MM-DD]`; se activa en "Mi cuenta" o al crear la cuenta |
+| Alertas configurables (SP7): qué avisos trae el boletín y cada cuánto, por perfil; sobrestock por producto | `server/alertas.js` (tipos, frecuencias y valores por perfil), secciones en `server/boletin-correo.js`, entregas atrasadas en `server/recepcion.js`, `productos.sobra_semanas` en `server/inventario.js`; tabla en Mi cuenta (`components/app/cuenta.tsx`) y campo en la ficha (`components/app/catalogo.tsx`); §11 de `docs/modelo-rotacion.md` |
 | Rol de equipo (ve Ejemplos y no cuenta como probador) | `TEAM_EMAILS` o `npm run resultados -- --equipo` (`usuarios.es_equipo`) |
 | Flujo de 5 pasos con indicador; no se salta al reporte; se retoma donde quedó | `components/app/pedido-flujo.tsx`. En el servidor: sin lista inicial guardada, subir el export o pedir el reporte responde 403. Los borradores se guardan solos |
-| Lista inicial tipo Excel (pegar filas) o importando Excel/CSV; sin imágenes; real o simulado | `components/app/hoja.tsx`, `leerLista` en `server/lector.js`. Una lista con solo los productos de ejemplo de la plantilla no se acepta |
+| Lista inicial tipo Excel (pegar filas) o importando Excel/CSV; sin imágenes ("real o simulado" ya no se pregunta desde el SP2: el servidor guarda real) | `components/app/hoja.tsx`, `leerLista` en `server/lector.js`. Una lista con solo los productos de ejemplo de la plantilla no se acepta |
 | La lista inicial queda fija al guardarla | `UPDATE … WHERE inicial_guardada_en IS NULL`; editarla después responde 409 |
 | Borrar un pedido sin terminar | `DELETE /api/pedidos/:id` antes de la lista final; borrado suave (`borrado_en`), no cuenta en el veredicto |
 | Export CSV o Excel con ventas y existencias; plantillas descargables | `/plantillas/*.xlsx`, `server/plantillas.js` |
@@ -160,7 +167,12 @@ Probado con archivos reales: el "Movimiento detalle" de Helisa (26.000 filas) y 
 | Catálogo y motor de reabastecimiento (SP4, Hito 2 de la retroalimentación): familia, múltiplo de empaque y mínimo de pedido; tiempo de entrega en días hábiles; ventas de proyecto fuera del promedio; clasificación (frecuente, esporádico, de proyecto, venta única, venta alta); "pedido hace N días"; "Cómo se calcula" | `server/inventario.js` (`leerAjustes`, `clasificar`), `server/movimientos.js` (`POST /api/catalogo/lote`, `catalogoConEscrito`), `server/lector.js` (columnas `familia` y `canal`, `necesitaCanal`), `server/rotacion.js` y `series.js` (`vendidoProyecto`, `series.proyecto`), `pedidosRecientes` en `server/inventario-rutas.js`; pantallas `catalogo.tsx`, `productos.tsx`, `pedido-preparar.tsx`, `datos.tsx`, `movimientos.tsx`, `subir.tsx`; §9 del modelo |
 | Entradas, salidas y datos al día (SP5, Hito 1 de la retroalimentación): registrar la llegada de un pedido y descontar lo que va en camino; ventas de un periodo; pegar e importar movimientos; códigos que no coinciden entre ventas y existencias; "Datos de hace N días"; columnas recordadas por empresa | `server/recepcion.js` (`POST /api/pedidos/:id/recibir`, `enCaminoDe`), `server/saldos.js` (`desde`, `recortarAlArchivo`), `server/movimientos.js` (`POST /api/movimientos/importar`), `server/rotacion.js` (`revisarCodigos`), `mapeosDe` en `server/pedidos.js`; pantallas `recepcion.tsx`, `movimientos.tsx`, `subir.tsx`, `panel.tsx`; §10 del modelo |
 
-**Cambio de alcance (2026-10-11 y 2026-10-14):** el producto sugiere cuánto pedir y ajusta por temporada y por el tiempo de entrega de cada proveedor (§7 del modelo). Desde el 2026-10-14 el probador lo ve desde el primer día, también en la lista final. Sigue sin ver su inventario antes de guardar su primera lista inicial, y la lista final la escribe él. Este cambio va en la columna "Si cambió" de la Solución en el Entregable 3. Sigue sin conectarse al software contable.
+| Experiencia y tono (SP1, Hito 4): "usted" en la app, los errores, los correos, el PDF y el Excel; letra más grande; desplegables visibles; lo obligatorio arriba a la izquierda; "Pedir ya" | Regla `TUTEO` en `scripts/revisar-texto.js` (`npm run texto`); escala `text-etiqueta`/`text-nota`/`text-chico`/`text-cuerpo` en `app/globals.css`; `Desplegable` y `Titulo` en `components/app/ui.tsx` |
+| Pedido desde lo sugerido (SP2, D9): arranca con todas las líneas sugeridas, por proveedor; seleccionar todas y excluir; filtros; notas y observaciones; PDF y Excel del pedido guardado con el nombre de la empresa; "Agregar al pedido" desde Productos | `POST /api/pedidos { modo: 'sugerido' }`, `pedidos.sugerido`, `GET /:id/pedido.pdf` y `.xlsx` (`?proveedor=`), `/api/pedidos/borrador` (`server/pedidos.js`); `components/app/pedido-preparar.tsx`, `abrir-pedido.tsx` |
+| Medición del piloto y encuesta (SP3, D15, D16): aceptación del sugerido, satisfacción de 1 a 5, uso en días hábiles, sugerido contra decidido contra ocurrido; la aceptación no se muestra | `medirAceptacion` (`server/listas.js`), `evaluarPiloto`, `resumirPiloto`, `compararConLoOcurrido` (`server/equipo.js`), `npm run resultados -- --piloto`; `server/encuesta.js`, `components/app/encuesta.tsx`; §4.4 del modelo |
+| Aprobación y trazabilidad (SP6, D11): quien administra marca quién aprueba; enviar, aprobar o devolver con motivo; historial de quién cambió qué; logo, cargo, "Preparado por" y "Aprobado por" en el PDF y el Excel | `usuarios.aprueba` y `usuarios.cargo`, `POST /:id/enviar`, `/aprobar` y `/devolver`, `GET /api/pedidos/por-aprobar` (`server/pedidos.js`), `server/trazas.js` (`pedido_cambios`), `PUT/GET/DELETE /api/empresa/logo` (`server/empresas.js`), `server/pdf.js`, `server/excel.js`; pantallas `pedido-preparar.tsx`, `pedidos.tsx`, `empresa.tsx` |
+
+**Cambio de alcance (2026-10-11, 2026-10-14 y 2026-10-29):** el producto sugiere cuánto pedir y ajusta por temporada y por el tiempo de entrega de cada proveedor (§7 del modelo). Desde el 2026-10-14 el probador lo ve desde el primer día, también en la lista final. Desde el 2026-10-29 (D9) el pedido por defecto arranca con lo sugerido y la persona lo edita; ya no hace falta una lista inicial para ver el inventario. Este cambio va en la columna "Si cambió" de la Solución en el Entregable 3. Sigue sin conectarse al software contable.
 
 ## Estructura
 
@@ -174,7 +186,8 @@ server/                 la API (Express 5, CommonJS)
   movimientos.js        catálogo, entradas y salidas, existencias e inventario al día
   saldos.js             existencias y ventas desde los movimientos (sin base de datos)
   boletin.js            boletín diario (tarea programada) y baja de un clic
-  boletin-correo.js     el correo del boletín (texto y HTML)
+  boletin-correo.js     el correo del boletín (texto y HTML), por secciones
+  alertas.js            tipos de alerta, frecuencias y valores por perfil del boletín
   limites.js            límite de intentos (entrar, crear cuenta, contraseña)
   pedidos.js            el flujo de 5 pasos y sus reglas
   listas.js             validación y comparación de listas (la métrica)

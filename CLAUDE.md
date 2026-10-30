@@ -4,15 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Qué es este proyecto
 
-MVP Alpha 0.1 del Grupo 1 (curso Diseño de Productos, Uniandes). Es una app web donde un gerente o administrador de inventario sube el export de ventas y existencias de su software contable y ve sus productos ordenados por **semanas de inventario restantes**.
+SINESC, del Grupo 1 (curso Diseño de Productos, Uniandes). Es una app web donde una empresa sube una vez el export de ventas y existencias de su software contable, registra después sus entradas y salidas del día, y prepara sus pedidos a partir de lo que el modelo sugiere, ordenado por **semanas de inventario restantes**.
 
-El producto existe para probar una sola hipótesis (Entregable 2, pestaña 2):
+**Hipótesis vigente: el piloto de Alpha 0.2** (cerca de un mes, `docs/PLAN_ALPHA_02.md`, salida de `docs/Retroalimentación Pruebas.md`):
 
-> Creemos que un reporte de rotación por producto calculado desde el export del software contable, para gerentes y administradores de inventario que coordinan el reabastecimiento, logrará que **3 de 5 cambien 5 o más líneas de su pedido en 14 días**, medido por las líneas que agrega, quita o ajusta.
+> Si SINESC permite registrar entradas y salidas a diario, **X de Y usuarios califican su satisfacción con 4 o más sobre 5 y aceptan el pedido sugerido sin cambios en Z % de las líneas.**
 
-**Pivote:** 3 o más de los 5 cambian 0 o 1 línea, o cambian líneas "por probar la herramienta" y no porque el dato les pareciera correcto.
+X, Y y Z son provisionales (3 de 5 y 70 %, constantes al comienzo de `server/equipo.js`) y el equipo las fija antes de empezar. La aceptación sale de los pedidos desde lo sugerido (`comparacion.aceptacion`), la satisfacción de la encuesta dentro de la app y el uso de los días hábiles con movimientos (§4.4 de `docs/modelo-rotacion.md`). Se lee con `npm run resultados -- --piloto`. **La aceptación no se le muestra a nadie durante el piloto** (D16). Cualquier cambio se juzga por si ayuda o estorba a medir esta hipótesis, y lo que vea el usuario durante el piloto necesita su fila en "Cambios" con fecha de publicación.
 
-Cualquier cambio se juzga por si ayuda o estorba a medir esa hipótesis. Una funcionalidad que no sirve para medirla no entra en Alpha 0.1.
+**Antecedente: la prueba de Alpha 0.1** (Entregable 2, pestaña 2; cerró, D10): *un reporte de rotación por producto calculado desde el export del software contable logrará que 3 de 5 cambien 5 o más líneas de su pedido en 14 días*. Pivote: 3 o más cambian 0 o 1 línea, o cambian "por probar la herramienta". Su herramienta de medición es el flujo de 5 pasos (modo `'lista'`), que sigue en la app como "Comparar con mi propia lista", y su veredicto sigue saliendo de `npm run resultados`.
+
+Lo que trae Alpha 0.2 sobre la 0.1, por sub-plan de `docs/PLAN_ALPHA_02.md`: "usted" y letra más grande (SP1); dos flujos de pedido, el sugerido por defecto (SP2); medición del piloto y encuesta (SP3); catálogo con familia, múltiplo y mínimo, días hábiles y ventas de proyecto fuera del promedio (SP4); llegada de pedidos y lo que va en camino (SP5); aprobación y trazabilidad (SP6); alertas configurables del boletín (SP7). Cada uno tiene su sección abajo y su fila en `docs/ENTREGABLE_Y_APP.md`.
 
 Fuentes de contexto fuera del repo, en la carpeta padre (`../`):
 - `../Entregable 2.xlsx`: ICP + JTBD revisado, hipótesis MVP, plan de prueba, Market Product Fit, cambios y reflexión, rúbrica. **El plan de prueba de la pestaña 2 es lo que se califica en la Entrega 3.**
@@ -32,13 +34,13 @@ npm install
 npm install --no-package-lock --prefix inventory-forecasting-landing-page   # la web (Next.js); pnpm se colgaba en Windows
 TEAM_EMAILS=tu-correo@ejemplo.com npm run dev    # http://localhost:3000: API + Next.js en modo desarrollo; PGlite en data/pglite/
 npm run build && NODE_ENV=production npm start  # en producción con un servidor propio (en Vercel: docs/PUBLICAR.md)
-npm test                                         # node --test test/*.test.js (181 pruebas; no necesitan la web)
+npm test                                         # node --test test/*.test.js (194 pruebas; no necesitan la web)
 node --test test/rotacion.test.js                # un solo archivo
 node --test --test-name-pattern="M = 5" test/listas.test.js   # una prueba por nombre
 npm run ejemplos                                 # regenera los exports inventados de ejemplos/
 npm run texto                                    # revisa los textos buscando marcas de IA (reglas de stop-slop)
 npm run borrar-datos -- --todos [--confirmar]    # borra las cuentas de prueba (sin --confirmar solo cuenta); --email x para una
-npm run boletin [-- --email x]                   # manda el boletín diario de hoy (en Vercel lo hace el Cron); --email: solo a esa cuenta
+npm run boletin [-- --email x] [--fecha AAAA-MM-DD]  # manda el boletín de hoy (en Vercel lo hace el Cron); --email: solo a esa cuenta; --fecha: como si fuera ese día
 npm run resultados [-- --piloto|--json|--errores|--encuesta abrir [--email x]|--clasificar ID dato|probar|ninguna|--anular ID motivo|--reactivar ID|--equipo email|--restablecer email]
 ```
 
@@ -112,6 +114,8 @@ Consecuencias que no se ven leyendo un solo archivo:
 
 **Ejemplos para el equipo** (`server/ejemplos.js`, página `/ejemplos`, solo rol `equipo`): los seis negocios de la demo como Excel (`archivoDemo` en `demo.js`) y los archivos de `ejemplos/`; cada uno se descarga o se carga como el inventario de la cuenta del equipo (`guardarExport` de `inventario-rutas.js`). `/equipo` y `/ejemplos` mandan al panel a quien no es del equipo (`solo-equipo.tsx`), y sus rutas de la API responden 403.
 
+**Alertas del boletín** (SP7, §11 de `docs/modelo-rotacion.md`, `test/alertas.test.js`): `server/alertas.js` define los 8 tipos (`pideYa`, `seAgota`, `enCero`, `porRecibir`, `porAprobar`, `dineroQuieto`, `sobran`, `sinDatos`), las frecuencias (diario, semanal = lunes, mensual = primer día hábil, nunca; sin festivos) y los valores por perfil. `usuarios.preferencias.alertas` guarda **solo lo que la persona cambió** (`PUT /api/cuenta/preferencias { alertas: { tipo: frecuencia } }`; `null` vuelve al perfil); `publico()` devuelve la tabla completa. `usuarios.boletin` sigue siendo el interruptor general y la baja no toca la tabla. `tiposDeHoy` decide qué secciones tocan: `porAprobar` solo a quien aprueba y `sinDatos` solo a quien administra o es operador. Sin secciones con algo que decir no se manda nada (`boletines.estado = 'sin_novedad'`). "Qué cambió" compara con la última revisión de cada tipo (`boletines.resumen.tipos`), no con ayer. `productos.sobra_semanas` cambia "sobra" por producto encima del reporte guardado (`conSobraPropia` en `inventario.js`, vía `catalogoConEscrito`). Sigue habiendo un solo Cron.
+
 **Archivos que se descargan:** Excel con el diseño de SINESC (logo, colores, tablas) en `server/excel.js` (ExcelJS; asíncrono: las plantillas devuelven una promesa) y el pedido en PDF tamaño carta en `server/pdf.js` (pdfkit, fuentes Helvetica). El logo es `server/logo.js` (PNG en base64, para que funcione empaquetado en Vercel). Los archivos que imitan el export de otro programa (`demo.js`, `scripts/generar-ejemplos.js`) siguen con SheetJS y sin marca, a propósito.
 
 **PostHog** (`inventory-forecasting-landing-page/instrumentation-client.ts`): embudo y grabaciones de sesión, solo si existe `NEXT_PUBLIC_POSTHOG_KEY`. Usa el cargador oficial y no el paquete `posthog-js` (con el paquete fallaba la instalación en Vercel). Va por `/ingest` (reescrito en `next.config.mjs`), identifica la sesión con `u<id>` y el rol (sin correo ni nombre, en `contexto.tsx`) y tapa en las grabaciones las tablas, lo que se escribe y lo marcado con `data-privado`. Es apoyo para ver dónde se traba un probador: la métrica de la hipótesis sigue saliendo de la base.
@@ -123,7 +127,7 @@ Consecuencias que no se ven leyendo un solo archivo:
 ## Lineamientos
 
 - **El documento del MVP manda sobre las decisiones técnicas** (regla escrita en `docs/modelo-rotacion.md`). El modelo implementa S = existencias ÷ ventas por semana. Desde el 2026-10-11 las ventas por semana llevan tres ajustes (lo reciente cuenta doble, un mes pico aislado se recorta y los productos nuevos se promedian desde su primera venta), descritos en §3.6 del modelo; sin ajustes que aplicar dan el promedio simple vendido ÷ T. Los umbrales son 2 semanas para "se agota" (desde el 2026-10-13 el usuario puede cambiarlo, de 1 a 11, en el paso 2 de cada pedido o en Datos; cada pedido guarda el suyo en `pedidos.semanas_agota`, fijo al ver el reporte, y `conUmbral` lo aplica sobre el reporte guardado; §3.4.1 del modelo) y 12 para "sobra". Cada fila del reporte guarda el desglose (`vendidoAjustado`, `vendidoReciente`, `semanasProducto`, `semanasRecientes`, `pico`, `promedioSimple`) y `reporte.js` lo explica paso a paso; los reportes guardados antes no traen `ajustes` y se explican con el texto anterior.
-- **Alcance (cambió el 2026-10-11, `docs/PLAN_REESTRUCTURACION.md`):** el producto sugiere cuánto pedir y ajusta por temporada y por tiempo de entrega (§7 del modelo). Desde el 2026-10-14 los probadores lo ven desde el primer día, también en la lista final (paso 4): la prueba mide cuántas líneas cambian con el reporte y el sugerido al lado. Sigue fuera de alcance conectarse al software contable y cualquier IA generativa. Cualquier cosa nueva que un probador vea durante sus 14 días cambia el tratamiento de la prueba: avisa antes de construirla y que quede su fila en "Cambios".
+- **Alcance (cambió el 2026-10-11, `docs/PLAN_REESTRUCTURACION.md`):** el producto sugiere cuánto pedir y ajusta por temporada y por tiempo de entrega (§7 del modelo). Desde el 2026-10-14 los probadores lo ven desde el primer día, también en la lista final (paso 4): la prueba mide cuántas líneas cambian con el reporte y el sugerido al lado. Sigue fuera de alcance conectarse al software contable y cualquier IA generativa, y los Hitos 9 y 10 de la retroalimentación (D14; backlog al final de `docs/PLAN_ALPHA_02.md`). Cualquier cosa nueva que un usuario del piloto vea durante su ventana de 30 días cambia el tratamiento: avisa antes de construirla y que quede su fila en "Cambios" con la fecha en que se publicó.
 - **Todo lo que ve el usuario va en español sencillo**, sin jerga financiera. Esto viene de la ansiedad "caja negra" que señalaron Sandra Sánchez, Daniel Coral y Francisco Lozano. Los errores para el usuario se lanzan con `new ErrorUsuario(mensaje, estado)` y el manejador de `app.js` los devuelve como `{ error }`. Los errores de archivo tienen que decir la fila y la columna.
 - El reporte siempre explica el cálculo con un producto del propio archivo del usuario (`elegirEjemplo`). No lo quites: es la respuesta al requisito de que el número se entienda.
 - El código, los identificadores, los comentarios y los mensajes de commit están en español. Hay que mantener el estilo: funciones pequeñas, comentarios que explican el porqué y sin dependencias nuevas salvo que sean necesarias. El stack es deliberadamente mínimo.

@@ -190,10 +190,19 @@ function estadoDe(f, entrega, enCamino = 0) {
   return 'normal';
 }
 
+// Un producto con su propio umbral de "sobra" (productos.sobra_semanas, SP7): se aplica sobre la fila
+// del reporte guardado, sin recalcularla, como conUmbral con "se agota". Sin ventas y con existencias
+// sobra siempre, con cualquier umbral. Si el producto ya se agota, no puede sobrar.
+function conSobraPropia(f, sobraSemanas) {
+  if (!(sobraSemanas > 0) || sobraSemanas === SEMANAS_SOBRA || f.semanasInventario === null) return f;
+  const sobra = f.estado !== 'se_agota' && f.semanasInventario > sobraSemanas;
+  return { ...f, sobra, estado: f.estado === 'se_agota' ? f.estado : sobra ? 'sobra' : 'normal' };
+}
+
 /**
  * reporte: lo que guardó procesarExport (calcularRotacion + avisos).
  * series: seriesSemanales(...) o null (totales de un periodo).
- * catalogo: { clave: { costo, proveedor } } o null.
+ * catalogo: { clave: { costo, proveedor, familia?, multiplo?, minimoPedido?, sobraSemanas? } } o null.
  * ajustes: leerAjustes(empresas.inventario).
  * semanasPronostico: el horizonte que eligió el usuario para "venderás en…" (ventaHorizonte).
  *   El gráfico pronostica al menos 8 semanas, o el horizonte si es más largo.
@@ -265,9 +274,11 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
   const productos = [];
   let varianzaSemana = new Array(semanasGrafico).fill(0);
   let mediaSemana = new Array(semanasGrafico).fill(0);
-  for (const f of filas) {
-    const k = claveCodigo(f.codigo);
+  for (const fila of filas) {
+    const k = claveCodigo(fila.codigo);
     const datos = cat[k] || {};
+    const sobraSemanas = datos.sobraSemanas > 0 ? datos.sobraSemanas : SEMANAS_SOBRA;
+    const f = conSobraPropia(fila, sobraSemanas);
     const { proveedor, origen: origenProveedor } = proveedorDe(k, datos, ajustes);
     const entrega = ajustes.entregas[proveedor] ?? ajustes.entregaPorDefecto;
     const costo = datos.costo > 0 ? datos.costo : null;
@@ -309,7 +320,7 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       // Si el proveedor tiene un pedido mínimo, lo que quede entre 0 y ese mínimo sube al mínimo.
       const subioAlMinimo = Boolean(minimoPedido && sugerido > 0 && sugerido < minimoPedido);
       if (subioAlMinimo) sugerido = P.aLote(minimoPedido, lote);
-      // Lo que el reporte marca como "sobra" (más de 12 semanas) no se sugiere pedir, aunque el
+      // Lo que el reporte marca como "sobra" (más de 12 semanas, o las del producto) no se sugiere pedir, aunque el
       // margen para ventas de golpe diera algo: sería contradecir el reporte que el usuario acaba de ver.
       if (f.sobra) sugerido = 0;
       // Por qué esa cantidad: las semanas que hay que cubrir (lo que tarda el proveedor más lo que
@@ -358,7 +369,7 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       : null;
     const estado = estadoDe(f, completo ? entrega : 0, cantidadEnCamino);
     const clase = clasificar({ serie: crudo, semanasProducto: f.semanasProducto, vendido: f.vendido, vendidoProyecto: f.vendidoProyecto || 0, unica });
-    const sobrante = f.promedioSemanal > 0 ? Math.max(0, existencias - SEMANAS_SOBRA * f.promedioSemanal) : existencias;
+    const sobrante = f.promedioSemanal > 0 ? Math.max(0, existencias - sobraSemanas * f.promedioSemanal) : existencias;
     const desde = Math.max(0, semanasSerie - SEMANAS_GRAFICO);
     productos.push({
       codigo: f.codigo,
@@ -370,6 +381,8 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       familia: datos.familia || null,
       multiplo,
       minimoPedido,
+      // Desde cuántas semanas sobra, si la empresa lo escribió (si no, las 12 de umbrales.sobra).
+      sobraSemanas: sobraSemanas === SEMANAS_SOBRA ? null : sobraSemanas,
       clase,
       ventaAlta: false,
       enCamino: llegando ? { cantidad: llegando.cantidad, fecha: llegando.fecha } : null,

@@ -197,7 +197,8 @@ test('el horizonte y la unidad de tiempo se eligen; el cálculo sigue en semanas
   assert.equal((await ana.put('/api/cuenta/preferencias', { unidad: 'años' })).estado, 400);
   assert.equal((await ana.put('/api/cuenta/preferencias', { horizonte: 40 })).estado, 400);
   const r = await ana.put('/api/cuenta/preferencias', { unidad: 'dias', horizonte: 2 });
-  assert.deepEqual(r.usuario.preferencias, { unidad: 'dias', horizonte: 2 });
+  assert.equal(r.usuario.preferencias.unidad, 'dias');
+  assert.equal(r.usuario.preferencias.horizonte, 2);
 
   const corto = (await ana.get('/api/inventario')).inventario;
   const largo = (await ana.get('/api/inventario?horizonte=12')).inventario;
@@ -313,8 +314,8 @@ test('boletín diario: solo con CRON_SECRET, uno por persona y día, según el p
   assert.equal(correos.length, 1);
   const c = correos[0];
   assert.equal(c.to[0].email, 'ana@prueba.co');
-  assert.match(c.subject, /Ferretería Ana/);
-  assert.match(c.htmlContent, /Lo más urgente/);
+  assert.match(c.subject, /· Ferretería Ana$/);
+  assert.match(c.htmlContent, /Se van a agotar \(1\)/);
   assert.match(c.headers['List-Unsubscribe'], /\/api\/boletin\/baja\?u=\d+&f=/);
   assert.match(c.textContent, /Ver el panel/, 'Ana es analista');
 

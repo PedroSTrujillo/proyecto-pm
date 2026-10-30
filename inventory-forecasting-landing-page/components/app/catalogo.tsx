@@ -1,7 +1,8 @@
 'use client'
 
 // Lo que la empresa escribe en su catálogo y cambia el sugerido (SP4 de docs/PLAN_ALPHA_02.md):
-// familia, múltiplo de empaque y mínimo de pedido, uno por uno en la ficha o pegados desde Excel.
+// familia, múltiplo de empaque, mínimo de pedido y, desde el SP7, desde cuántas semanas sobra; uno
+// por uno en la ficha o pegados desde Excel.
 // Y "Cómo se calcula": el sugerido explicado en orden con los números del propio producto.
 
 import { useEffect, useState, type ReactNode } from 'react'
@@ -12,13 +13,14 @@ import type { Inventario, Producto } from '@/lib/tipos'
 import { useInventario } from './contexto'
 import { Aviso, Boton, Campo, Desplegable, ErrorLista, claseEntrada } from './ui'
 
-type FilaLote = { codigo: string; familia?: string; multiplo?: string; minimo?: string }
+type FilaLote = { codigo: string; familia?: string; multiplo?: string; minimo?: string; sobra?: string }
 
 // --- Uno por uno, en la ficha ----------------------------------------------------------------
 
 export function EditarCatalogo({ p }: { p: Producto }) {
-  const { recargar } = useInventario()
-  const inicial = () => ({ familia: p.familia || '', multiplo: p.multiplo ? String(p.multiplo) : '', minimo: p.minimoPedido ? String(p.minimoPedido) : '' })
+  const { recargar, inventario } = useInventario()
+  const sobraGeneral = inventario?.umbrales.sobra ?? 12
+  const inicial = () => ({ familia: p.familia || '', multiplo: p.multiplo ? String(p.multiplo) : '', minimo: p.minimoPedido ? String(p.minimoPedido) : '', sobra: p.sobraSemanas ? String(p.sobraSemanas) : '' })
   const [abierto, setAbierto] = useState(false)
   const [v, setV] = useState(inicial)
   const [guardando, setGuardando] = useState(false)
@@ -28,7 +30,7 @@ export function EditarCatalogo({ p }: { p: Producto }) {
     setAbierto(false)
     setV(inicial())
     setError(null)
-  }, [p.codigo, p.familia, p.multiplo, p.minimoPedido]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [p.codigo, p.familia, p.multiplo, p.minimoPedido, p.sobraSemanas]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function guardar() {
     setGuardando(true)
@@ -45,11 +47,11 @@ export function EditarCatalogo({ p }: { p: Producto }) {
     }
   }
 
-  const resumen = [p.familia && `Familia: ${p.familia}`, p.multiplo && `se pide en cajas de ${numero(p.multiplo, 2)}`, p.minimoPedido && `mínimo de pedido ${numero(p.minimoPedido, 2)}`].filter(Boolean).join(' · ')
+  const resumen = [p.familia && `Familia: ${p.familia}`, p.multiplo && `se pide en cajas de ${numero(p.multiplo, 2)}`, p.minimoPedido && `mínimo de pedido ${numero(p.minimoPedido, 2)}`, p.sobraSemanas && `sobra desde ${numero(p.sobraSemanas, 1)} semanas`].filter(Boolean).join(' · ')
   if (!abierto) {
     return (
       <p className="-mt-2 text-chico text-muted-foreground">
-        {resumen ? `${resumen}.` : 'Sin familia, caja ni mínimo de pedido.'}{' '}
+        {resumen ? `${resumen}.` : 'Sin familia, caja, mínimo de pedido ni umbral propio de sobrestock.'}{' '}
         <button type="button" className="font-semibold text-primary hover:text-primary-hover" onClick={() => setAbierto(true)}>{resumen ? 'Cambiar' : 'Escribirlos'}</button>
       </p>
     )
@@ -68,6 +70,10 @@ export function EditarCatalogo({ p }: { p: Producto }) {
         </Campo>
       </div>
       <p className="text-nota text-muted-foreground">Lo sugerido se redondea hacia arriba a cajas completas y, si queda por debajo del mínimo, pasa al mínimo. Vacío: no aplica.</p>
+      <Campo etiqueta="Se considera que sobra desde (semanas)" nota={`(vacío: ${numero(sobraGeneral)}, como los demás)`}>
+        <input className={cn(claseEntrada, 'sm:max-w-40')} inputMode="decimal" value={v.sobra} onChange={(e) => setV({ ...v, sobra: e.target.value })} placeholder={String(sobraGeneral)} />
+      </Campo>
+      <p className="text-nota text-muted-foreground">Si alcanza para más semanas que esto, sale como sobrestock en Productos, en el panel y en el boletín, y no se sugiere pedirlo. Sirve para lo que se compra para muchos meses a propósito, o para lo que se daña pronto.</p>
       {error && <p className="text-sm text-rojo-texto">{error}</p>}
       <div className="flex flex-wrap gap-2">
         <Boton type="submit" tamano="chico" variante="primario" disabled={guardando}>{guardando ? 'Guardando…' : 'Guardar'}</Boton>
@@ -79,15 +85,15 @@ export function EditarCatalogo({ p }: { p: Producto }) {
 
 // --- Varios a la vez, pegados desde Excel ------------------------------------------------------
 
-// Cada fila: código, familia, caja y mínimo, separados por tabulador (Excel) o punto y coma. Una
-// celda vacía borra ese dato; una fila con solo el código no cambia nada.
+// Cada fila: código, familia, caja, mínimo y semanas para que sobre, separados por tabulador (Excel)
+// o punto y coma. Una celda vacía borra ese dato; una fila con solo el código no cambia nada.
 function leerPegado(texto: string): FilaLote[] {
   return texto
     .split(/\r?\n/)
     .filter((l) => l.trim())
     .map((l) => {
-      const [codigo = '', familia, multiplo, minimo] = l.split(/\t|;/).map((x) => x.trim())
-      return { codigo, ...(familia !== undefined ? { familia } : {}), ...(multiplo !== undefined ? { multiplo } : {}), ...(minimo !== undefined ? { minimo } : {}) }
+      const [codigo = '', familia, multiplo, minimo, sobra] = l.split(/\t|;/).map((x) => x.trim())
+      return { codigo, ...(familia !== undefined ? { familia } : {}), ...(multiplo !== undefined ? { multiplo } : {}), ...(minimo !== undefined ? { minimo } : {}), ...(sobra !== undefined ? { sobra } : {}) }
     })
     // Una fila de títulos copiada con los datos.
     .filter((f, i) => !(i === 0 && /c[oó]digo|referencia|sku/i.test(f.codigo)))
@@ -118,21 +124,22 @@ export function CatalogoEnLote() {
   }
 
   return (
-    <Desplegable titulo="Familia, caja y mínimo de pedido de muchos productos a la vez">
+    <Desplegable titulo="Familia, caja, mínimo de pedido y sobrestock de muchos productos a la vez">
       <div className="flex flex-col gap-3">
         <p className="text-chico text-muted-foreground">
-          Copie cuatro columnas de Excel en este orden: código, familia, cajas de (múltiplo de empaque) y mínimo de pedido, y péguelas aquí. Una celda vacía borra ese dato.
+          Copie las columnas de Excel en este orden: código, familia, cajas de (múltiplo de empaque), mínimo de pedido y, si quiere, desde cuántas semanas sobra. Péguelas aquí. Una celda vacía borra ese dato; una columna que no pegue queda como estaba.
         </p>
-        <textarea className={cn(claseEntrada, 'min-h-32 py-2 font-mono text-sm')} value={texto} onChange={(e) => { setTexto(e.target.value); setListo(null) }} placeholder={'TOR-0610\tTornillería\t100\t\nCIN-0048\tCintas\t12\t48'} spellCheck={false} aria-label="Código, familia, cajas de y mínimo, una fila por producto" />
+        <textarea className={cn(claseEntrada, 'min-h-32 py-2 font-mono text-sm')} value={texto} onChange={(e) => { setTexto(e.target.value); setListo(null) }} placeholder={'TOR-0610\tTornillería\t100\t\nCIN-0048\tCintas\t12\t48'} spellCheck={false} aria-label="Código, familia, cajas de, mínimo y semanas para que sobre, una fila por producto" />
         {filas.length > 0 && (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[420px] border-collapse text-chico">
+            <table className="w-full min-w-[500px] border-collapse text-chico">
               <thead>
                 <tr className="text-left text-nota text-muted-foreground">
                   <th scope="col" className="border-b border-border px-2 py-1.5 font-semibold">Código</th>
                   <th scope="col" className="border-b border-border px-2 py-1.5 font-semibold">Familia</th>
                   <th scope="col" className="border-b border-border px-2 py-1.5 text-right font-semibold">Cajas de</th>
                   <th scope="col" className="border-b border-border px-2 py-1.5 text-right font-semibold">Mínimo</th>
+                  <th scope="col" className="border-b border-border px-2 py-1.5 text-right font-semibold">Sobra desde</th>
                 </tr>
               </thead>
               <tbody>
@@ -142,6 +149,7 @@ export function CatalogoEnLote() {
                     <td className="border-b border-[#f0f1ee] px-2 py-1.5">{f.familia ?? <span className="text-muted-foreground">sin cambio</span>}</td>
                     <td className="border-b border-[#f0f1ee] px-2 py-1.5 text-right tabular-nums">{f.multiplo ?? <span className="text-muted-foreground">sin cambio</span>}</td>
                     <td className="border-b border-[#f0f1ee] px-2 py-1.5 text-right tabular-nums">{f.minimo ?? <span className="text-muted-foreground">sin cambio</span>}</td>
+                    <td className="border-b border-[#f0f1ee] px-2 py-1.5 text-right tabular-nums">{f.sobra ?? <span className="text-muted-foreground">sin cambio</span>}</td>
                   </tr>
                 ))}
               </tbody>
