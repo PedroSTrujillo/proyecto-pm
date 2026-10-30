@@ -26,7 +26,7 @@ const { calcularRotacion } = require('./rotacion');
 const { seriesSemanales } = require('./series');
 const { leerAjustes } = require('./inventario');
 const { fechaBogota } = require('./recordatorios');
-const { claveCodigo, leerNumero, MS_DIA } = require('./valores');
+const { claveCodigo, leerNumero, MS_DIA, diaHoy } = require('./valores');
 const S = require('./saldos');
 
 const MAX_LINEAS = 2000;
@@ -87,7 +87,7 @@ async function inventarioAlDia(empresaId) {
       ventas: combinado.ventas,
       existencias: combinado.existencias,
       semanasAgota,
-      hoy: Math.floor(Date.now() / MS_DIA),
+      hoy: diaHoy(),
       hastaDia: combinado.hasta,
     });
     const reporte = {

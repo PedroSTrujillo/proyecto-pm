@@ -6,7 +6,7 @@
 
 const X = require('./excel');
 const { PLANTILLA_EXPORT, PLANTILLA_LISTA, PLANTILLA_INVENTARIO } = require('./formatos');
-const { EXCEL_EPOCA, MS_DIA } = require('./valores');
+const { EXCEL_EPOCA, diaHoy } = require('./valores');
 
 // Productos de ejemplo (una distribuidora de ferretería).
 const PRODUCTOS_EJEMPLO = [
@@ -29,14 +29,10 @@ function aleatorio(semilla) {
   };
 }
 
-function hoyDia() {
-  return Math.floor(Date.now() / MS_DIA);
-}
-
 // Ventas de ejemplo: el último año, con 1 a 3 facturas por semana por producto.
 function ventasEjemplo(semanas = 52) {
   const azar = aleatorio(20261001);
-  const fin = hoyDia() - 1;
+  const fin = diaHoy() - 1;
   const inicio = fin - semanas * 7 + 1;
   const filas = [];
   for (let s = 0; s < semanas; s++) {
