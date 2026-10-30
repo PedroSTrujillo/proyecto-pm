@@ -110,6 +110,13 @@ function diaDe(anio, mes, dia) {
   return Math.round(t / MS_DIA);
 }
 
+// El número de día de hoy en Bogotá. No sirve Math.floor(Date.now() / MS_DIA): de 7 p. m. a
+// medianoche en UTC ya es mañana, y lo de "hoy" (fechaBogota) quedaba como si fuera de ayer.
+function diaHoy(instante = new Date()) {
+  const [a, m, d] = new Date(instante).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).split('-').map(Number);
+  return Math.round(Date.UTC(a, m - 1, d) / MS_DIA);
+}
+
 function finDeMes(diaNum) {
   const d = new Date(diaNum * MS_DIA);
   return Math.round(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0) / MS_DIA);
@@ -212,4 +219,5 @@ module.exports = {
   finDeMes,
   textoDia,
   diaDe,
+  diaHoy,
 };

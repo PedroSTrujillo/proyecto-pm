@@ -27,6 +27,17 @@
 
 ---
 
+## 2026-10-29 (47) — Claude — Las 2 pruebas rotas de empresas.test.js: el "hoy" de la plantilla iba en UTC
+- **Rama:** `empresas-inventario-diario`, solo en local y sin commit (junto con lo de la entrada 46).
+- **Estado:** arreglado. Las pruebas de `empresas.test.js` (líneas 251 y 339) fallaban **solo de 7 p. m. a medianoche en Bogotá**. La plantilla de ventas (`ventasEjemplo` en `plantillas.js`) termina "ayer" contado en UTC (`Math.floor(Date.now() / MS_DIA)`), y la prueba registra movimientos con `fechaBogota()`. De noche, "ayer UTC" es "hoy en Bogotá", así que `combinar` (`saldos.js`) los ignoraba por ser "del día del archivo o antes". La de la línea 339 caía de rebote, porque la anterior se detenía antes del cuarto movimiento. A un usuario le pasaba lo mismo si descargaba la plantilla de noche y registraba movimientos ese día.
+- **Archivos tocados:** `server/valores.js` (nuevo `diaHoy()`: número de día de hoy en Bogotá, sin dependencias), `server/plantillas.js` (`ventasEjemplo` lo usa; se quitó `hoyDia`), `server/movimientos.js` (el `hoy` que va a `calcularRotacion`), `scripts/generar-ejemplos.js` (el `hoy` de los ejemplos).
+- **Base de datos:** sin cambios.
+- **Verificación:** `node --test test/*.test.js` → 194/194 a las 22:00 de Bogotá (antes, 192/194 a esa hora). También 194/194 con el reloj corrido 4 h atrás y 6 h adelante (`Date` sustituido con `--require`). `npm run texto` → 0 con tuteo. Sin navegador.
+- **Siguiente paso exacto:** revisar el diff de las entradas 44 a 47 y hacer commit. Después, lo de la entrada 46: `docs/CONFIGURAR_CORREO_VERCEL.md`.
+- **Notas y bloqueos:** si aparece otro `Date.now() / MS_DIA` para decir "hoy", use `diaHoy()`. Ya no queda ninguno en `server/` ni en `scripts/`.
+
+---
+
 ## 2026-10-29 (46) — Claude — Prueba local del boletín por correo y guía para configurarlo en Vercel
 - **Rama:** `empresas-inventario-diario`, solo en local; los cambios de esta entrada no tienen commit.
 - **Estado:** el boletín llegó bien por Brevo desde local (`npm run boletin -- --email …`). Se corrigió un error de `enviarBoletines`: con `--email` la consulta pasaba `hoy` como `$1` sin usarlo y Postgres respondía `could not determine data type of parameter $1`; ahora solo se pasan los parámetros que la consulta usa. Guía nueva para quien tenga acceso a Vercel: `docs/CONFIGURAR_CORREO_VERCEL.md`.

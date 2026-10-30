@@ -7,7 +7,7 @@
 const fs = require('fs');
 const path = require('path');
 const XLSX = require('xlsx');
-const { EXCEL_EPOCA, MS_DIA, textoDia } = require('../server/valores');
+const { EXCEL_EPOCA, MS_DIA, textoDia, diaHoy } = require('../server/valores');
 
 const DIR = path.join(__dirname, '..', 'ejemplos');
 fs.mkdirSync(DIR, { recursive: true });
@@ -21,7 +21,7 @@ function aleatorio(semilla) {
 }
 
 const azar = aleatorio(42);
-const hoy = Math.floor(Date.now() / MS_DIA);
+const hoy = diaHoy();
 const ddmmyyyy = (d) => { const [y, m, dd] = textoDia(d).split('-'); return `${dd}/${m}/${y}`; };
 
 const FAMILIAS = [
