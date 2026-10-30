@@ -29,8 +29,11 @@ function aleatorio(semilla) {
   };
 }
 
+// Hoy en Bogotá: en UTC, después de las 7 de la noche ya es mañana y los movimientos de hoy
+// quedarían antes del último día del archivo de ejemplo.
 function hoyDia() {
-  return Math.floor(Date.now() / MS_DIA);
+  const [a, m, d] = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).split('-').map(Number);
+  return Math.round(Date.UTC(a, m - 1, d) / MS_DIA);
 }
 
 // Ventas de ejemplo: el último año, con 1 a 3 facturas por semana por producto.
