@@ -143,6 +143,7 @@ function requiereAdminEmpresa(req, _res, next) {
 }
 
 const UNIDADES = ['dias', 'semanas', 'meses'];
+const UNIDAD_CUENTA_NUEVA = 'dias';
 const HORIZONTE_POR_DEFECTO = 4; // semanas: lo de "Venta en 4 semanas"
 const HORIZONTE_MAXIMO = 26;
 
@@ -249,10 +250,13 @@ rutas.post('/crear', async (req, res) => {
       empresaId = rows[0].id;
       admin = true;
     }
+    // Las cuentas nuevas ven el tiempo en días (Francisco Lozano, entrevista de la semana 12: los
+    // indicadores de inventario se miden en días, y mezclar días y semanas confundía). Las de antes siguen
+    // como estaban, y cada quien lo cambia en Mi cuenta.
     const { rows } = await t.query(
-      `INSERT INTO usuarios (email, nombre, clave_hash, rol, empresa_id, admin_empresa, perfil, boletin, cargo)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-      [email, nombre, hashClave(clave), rol, empresaId, admin, perfil, boletin, cargo],
+      `INSERT INTO usuarios (email, nombre, clave_hash, rol, empresa_id, admin_empresa, perfil, boletin, cargo, preferencias)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb) RETURNING id`,
+      [email, nombre, hashClave(clave), rol, empresaId, admin, perfil, boletin, cargo, JSON.stringify({ unidad: UNIDAD_CUENTA_NUEVA })],
     );
     if (invitacion) await t.query('UPDATE invitaciones SET usada_por = $1 WHERE token_hash = $2', [rows[0].id, hashToken(invitacion)]);
     return rows[0].id;

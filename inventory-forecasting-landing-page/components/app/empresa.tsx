@@ -5,7 +5,7 @@
 // pedidos siguen siendo de cada quien, y quien aprueba ve los que le envían (SP6, D11).
 
 import { useEffect, useState, type FormEvent } from 'react'
-import { Copy, ImageUp, Trash2, UserMinus } from 'lucide-react'
+import { ImageUp, Trash2, UserMinus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { api, textoErrores } from '@/lib/api'
 import { fecha } from '@/lib/formato'
@@ -14,15 +14,13 @@ import { useConfirmar } from './confirmar'
 import { useSesion } from './contexto'
 import { Aviso, Boton, Campo, Cargando, ErrorLista, Tarjeta, Titulo, claseEntrada } from './ui'
 import { TEXTO_PERFIL } from './vista'
+import { FormInvitar } from './invitar'
 
 export function Empresa() {
   const { usuario, fijar } = useSesion()
   const [empresa, setEmpresa] = useState<TEmpresa | null>(null)
   const [error, setError] = useState<ReturnType<typeof textoErrores> | null>(null)
   const [msgDatos, setMsgDatos] = useState<{ ok?: string; error?: ReturnType<typeof textoErrores> } | null>(null)
-  const [invitacion, setInvitacion] = useState<{ enlace: string; dias: number; enviado: boolean; email: string } | null>(null)
-  const [errorInvitar, setErrorInvitar] = useState<ReturnType<typeof textoErrores> | null>(null)
-  const [copiado, setCopiado] = useState(false)
   const { ventana, preguntar } = useConfirmar()
   const [errorMiembro, setErrorMiembro] = useState<ReturnType<typeof textoErrores> | null>(null)
   const [msgLogo, setMsgLogo] = useState<{ ok?: string; error?: string } | null>(null)
@@ -48,20 +46,6 @@ export function Empresa() {
       setMsgDatos({ ok: 'Guardado.' })
     } catch (err) {
       setMsgDatos({ error: textoErrores(err) })
-    }
-  }
-
-  async function invitar(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    const email = String(new FormData(e.currentTarget).get('email') || '').trim()
-    setErrorInvitar(null)
-    setCopiado(false)
-    try {
-      const r = await api<{ enlace: string; dias: number; enviado: boolean; empresa: TEmpresa }>('POST', '/empresa/invitaciones', { email })
-      setInvitacion({ enlace: r.enlace, dias: r.dias, enviado: r.enviado, email })
-      setEmpresa(r.empresa)
-    } catch (err) {
-      setErrorInvitar(textoErrores(err))
     }
   }
 
@@ -163,32 +147,7 @@ export function Empresa() {
           <h2 className="text-xl font-bold">Invitar a alguien</h2>
           {admin ? (
             <>
-              <form className="flex flex-col gap-3" onSubmit={invitar} noValidate>
-                <Campo etiqueta="Su correo" nota="(opcional: sin correo, el enlace sirve para cualquiera)"><input className={claseEntrada} type="email" name="email" autoComplete="off" /></Campo>
-                {errorInvitar && <ErrorLista mensaje={errorInvitar.mensaje} lista={errorInvitar.lista} />}
-                <Boton type="submit" variante="primario" className="self-start" disabled={empresa.vacia}>Crear enlace de invitación</Boton>
-              </form>
-              {invitacion && (
-                <div className="aparecer flex flex-col gap-2 rounded-xl border border-border bg-muted p-3">
-                  <p className="text-chico">{invitacion.enviado ? `Le enviamos el enlace a ${invitacion.email}. También lo puede copiar:` : 'Copie el enlace y envíelo por correo o WhatsApp.'} Sirve una sola vez durante {invitacion.dias} días.</p>
-                  <div className="flex gap-2">
-                    <input className={claseEntrada} readOnly value={invitacion.enlace} onFocus={(e) => e.currentTarget.select()} aria-label="Enlace de invitación" />
-                    <Boton
-                      tamano="chico"
-                      onClick={async () => {
-                        try {
-                          await navigator.clipboard.writeText(invitacion.enlace)
-                          setCopiado(true)
-                        } catch {
-                          setCopiado(false)
-                        }
-                      }}
-                    >
-                      <Copy /> {copiado ? 'Copiado' : 'Copiar'}
-                    </Boton>
-                  </div>
-                </div>
-              )}
+              <FormInvitar deshabilitado={empresa.vacia} alInvitar={setEmpresa} />
             </>
           ) : (
             <p className="text-muted-foreground">Para invitar a alguien, pídale a quien administra la empresa que le envíe el enlace.</p>

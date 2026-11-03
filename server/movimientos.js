@@ -70,12 +70,15 @@ async function movimientosDe(empresaId, { conAnulados = false, productoId = null
  * crea otro en vez de reescribirlo. Devuelve el id del export o null si no hubo nada que calcular.
  */
 async function inventarioAlDia(empresaId) {
-  const emp = await db.uno('SELECT movimientos_cambiaron_en, inventario_calculado_en, inventario FROM empresas WHERE id = $1', [empresaId]);
+  const emp = await db.uno('SELECT movimientos_cambiaron_en, inventario_firma, inventario FROM empresas WHERE id = $1', [empresaId]);
   if (!emp || !emp.movimientos_cambiaron_en) return null;
   const base = await exportBase(empresaId);
-  const calculado = emp.inventario_calculado_en ? new Date(emp.inventario_calculado_en).getTime() : 0;
-  const alDia = calculado >= new Date(emp.movimientos_cambiaron_en).getTime() && (!base || calculado >= new Date(base.subido_en).getTime());
-  if (alDia) return null;
+  // Está al día si se calculó con los mismos movimientos y el mismo archivo. Antes se comparaban
+  // horas, pero now() es la hora en que empezó la transacción: un lote grande que se confirmaba
+  // mientras el panel calculaba quedaba con una hora anterior al cálculo y no se volvía a sumar.
+  const mov = await db.uno('SELECT count(*)::int AS n, COALESCE(max(id), 0)::int AS ultimo, count(anulado_en)::int AS anulados FROM movimientos WHERE empresa_id = $1', [empresaId]);
+  const firma = [mov.n, mov.ultimo, mov.anulados, base ? base.id : 0, base ? new Date(base.subido_en).getTime() : 0].join(':');
+  if (emp.inventario_firma === firma) return null;
 
   const movimientos = await movimientosDe(empresaId);
   const combinado = S.combinar({ base: base ? S.ventasDeExport(base) : null, movimientos });
@@ -123,7 +126,7 @@ async function inventarioAlDia(empresaId) {
       exportId = r.id;
     }
   }
-  await db.query('UPDATE empresas SET inventario_calculado_en = now() WHERE id = $1', [empresaId]);
+  await db.query('UPDATE empresas SET inventario_calculado_en = now(), inventario_firma = $2 WHERE id = $1', [empresaId, firma]);
   return exportId;
 }
 

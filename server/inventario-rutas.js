@@ -161,14 +161,16 @@ rutas.get('/', async (req, res) => {
   const horizonte = req.query.horizonte !== undefined ? leerPreferencias({ horizonte: req.query.horizonte }).horizonte : pref.horizonte;
   await inventarioAlDia(empresaId);
   const emp = await db.uno('SELECT inventario, catalogo_cambio_en FROM empresas WHERE id = $1', [empresaId]);
-  const cab = await db.uno(`SELECT id FROM exports WHERE empresa_id = $1 AND estado = 'ok' AND ${db.EXPORT_VIGENTE} ORDER BY subido_en DESC, id DESC LIMIT 1`, [empresaId]);
+  const cab = await db.uno(`SELECT id, subido_en FROM exports WHERE empresa_id = $1 AND estado = 'ok' AND ${db.EXPORT_VIGENTE} ORDER BY subido_en DESC, id DESC LIMIT 1`, [empresaId]);
   if (!cab) {
     // Sin archivo todavía: igual van sus ajustes (proveedores y tiempos), para el paso 1 del pedido.
     return res.json({ inventario: null, ajustes: leerAjustes(emp && emp.inventario), ...per, perfil });
   }
   // Lo que viene en camino cambia el sugerido: va en la llave para que una llegada se vea sin esperar.
+  // subido_en también: el inventario de los movimientos se recalcula en el mismo export (mismo id,
+  // inventarioAlDia), y sin la fecha el panel seguía con el cálculo de antes.
   const enCamino = await enCaminoDe(empresaId);
-  const llave = JSON.stringify([cab.id, per.alcance, emp.inventario, emp.catalogo_cambio_en, req.usuario.sistema, req.usuario.nombre, horizonte, firmaEnCamino(enCamino)]);
+  const llave = JSON.stringify([cab.id, new Date(cab.subido_en).getTime(), per.alcance, emp.inventario, emp.catalogo_cambio_en, req.usuario.sistema, req.usuario.nombre, horizonte, firmaEnCamino(enCamino)]);
   let inventario = calculados.get(llave);
   if (!inventario) {
     const e = await completarSeries(await ultimoExport(empresaId));

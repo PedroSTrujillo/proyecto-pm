@@ -215,11 +215,11 @@ export function CuentasEquipo() {
           ['Sin volver', r.en_riesgo, ESTADO.en_riesgo.descripcion],
           ['Inactivas o sin datos', r.inactiva + r.sin_datos, 'Más de 30 días sin entrar, o nada subido'],
         ] as const).map(([t, n, d]) => (
-          <Tarjeta key={t} className="flex flex-col gap-1 p-4">
+          <div key={t} className="flex flex-col gap-1 rounded-2xl border border-border bg-card p-4">
             <dt className="text-sm font-semibold text-muted-foreground">{t}</dt>
             <dd className="font-display text-3xl font-extrabold tabular-nums">{numero(n)}</dd>
             <dd className="text-nota text-muted-foreground">{d}</dd>
-          </Tarjeta>
+          </div>
         ))}
       </dl>
 

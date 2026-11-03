@@ -135,6 +135,12 @@ export function Movimientos() {
         onCambio={cambiarModo}
         opciones={[{ id: 'uno', texto: 'Un movimiento' }, { id: 'varios', texto: 'Varios a la vez' }]}
       />
+      {/* En las pruebas no se entendía para qué era "Varios a la vez" (Juan Camilo Solano, semana 12). */}
+      <p className="-mt-2 max-w-3xl text-chico text-muted-foreground">
+        {modo === 'uno'
+          ? 'Para algo suelto, como una venta o una entrada de mercancía: elija el tipo, el producto y la cantidad, y oprima Enter.'
+          : 'Para muchos productos de una vez, como la factura de un proveedor o las ventas del día: péguelos desde Excel, escríbalos en la tabla o importe el archivo que saca su programa contable.'}
+      </p>
       {/* Se esconde el que no está elegido en vez de quitarlo: así no se pierde lo que se llevaba escrito. */}
       <div hidden={modo !== 'uno'}>
         <RegistroRapido fecha={fecha || hoy} hoy={hoy} cambiarFecha={setFecha} alGuardar={alGuardar} />

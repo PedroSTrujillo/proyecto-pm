@@ -165,7 +165,7 @@ export function Pildoras<T extends string>({ opciones, valor, onCambio, etiqueta
             )}
           >
             {o.texto}
-            {o.cuenta !== undefined && <span className={cn('tabular-nums', activo ? 'text-primary-foreground/80' : 'text-muted-foreground')}>{o.cuenta}</span>}
+            {o.cuenta !== undefined && <span className={cn('tabular-nums', activo ? 'text-primary-foreground' : 'text-muted-foreground')}>{o.cuenta}</span>}
           </button>
         )
       })}

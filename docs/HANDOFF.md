@@ -27,6 +27,22 @@
 
 ---
 
+## 2026-11-03 (50) — Claude (con David) — Panel al día con los movimientos, días por defecto, invitar desde el panel y accesibilidad
+- **Rama:** `main`, en los dos remotos.
+- **Estado:** listo para las pruebas de usuario de hoy (guía en `docs/GUIA_PRUEBAS_USUARIO.md`).
+  - **Arreglo (lo reportó Jose):** después de varios movimientos, el panel mostraba una fecha y unas existencias viejas mientras Existencias estaba al día. Tenía dos causas:
+    1. El caché en memoria de `GET /api/inventario` usaba como llave el `id` del export, pero `inventarioAlDia` recalcula el export de movimientos en el mismo `id`. Ahora la llave lleva también `subido_en`. En Vercel cada servidor tenía su propio caché viejo, y por eso la fecha cambiaba al refrescar.
+    2. "Al día" se decidía comparando horas, y `now()` es la hora en que empieza la transacción. Un lote grande que se confirmaba mientras el panel calculaba no se volvía a sumar. Ahora se compara una firma: cuántos movimientos hay, el último `id`, los anulados y el archivo base (`empresas.inventario_firma`). Las empresas que ya existen se recalculan solas en su primera visita.
+  - Las cuentas nuevas ven el tiempo en días (Francisco). Las de antes siguen como estaban.
+  - "Invite a su equipo" en el panel y en la pantalla sin inventario: a quien administra y sigue sola en su empresa. El formulario se sacó a `components/app/invitar.tsx` y lo usa también Mi empresa (antes el campo decía "Su correo").
+  - Movimientos explica "Un movimiento" y "Varios a la vez".
+  - Accesibilidad: axe (WCAG 2.1 AA y tamaño de toque 2.2) sin errores en todas las pantallas, en computador y en celular. Se corrigió el contraste del contador de `Pildoras`, 12 textos de la página principal (más opacidad, sin cambiar el diseño), las dos tablas con desplazamiento (se recorren con teclado) y la lista de definiciones de Cuentas.
+- **Archivos tocados:** `server/inventario-rutas.js`, `server/movimientos.js`, `server/db.js` (columna nueva), `server/cuentas.js`, `components/app/invitar.tsx` (nuevo), `empresa.tsx`, `panel.tsx`, `sin-inventario.tsx`, `movimientos.tsx`, `ui.tsx`, `cuentas-equipo.tsx`, `components/landing/{method,pricing,comparison}-section.tsx`, `pedido-preview.tsx`, `test/inventario-al-dia.test.js` (nuevo; reproducía el error antes del arreglo), `docs/ENTREGABLE_Y_APP.md` (fila 15 de Cambios), `docs/GUIA_PRUEBAS_USUARIO.md` (nuevo).
+- **Base de datos:** `ALTER TABLE empresas ADD COLUMN IF NOT EXISTS inventario_firma TEXT`.
+- **Verificación:** `npm test` → 202/202. `tsc` limpio. `npm run texto` igual que antes (52, 0 con tuteo). En el navegador, con la base en memoria: el panel sale en días, la tarjeta de invitar crea el enlace y axe no encuentra errores.
+- **Siguiente paso exacto:** pedirle a Jose que abra el panel de su cuenta y confirme que ya dice al día hasta el 13 de octubre, con las 72 unidades.
+- **Notas y bloqueos:** un movimiento con fecha igual o anterior al último día del archivo subido no se suma (ese día ya está en el archivo), y el panel lo avisa. Si a alguien "no le cambia", revisar esa fecha primero.
+
 ## 2026-11-03 (49) — Claude (con David) — Pantalla Cuentas para el equipo y borrado que no deja empresas sin inventario
 - **Rama:** `main`, en los dos remotos (`origin` y `mio`).
 - **Estado:** listo. El equipo tiene una página nueva, **Cuentas** (`/cuentas`, en el menú debajo de Ejemplos):

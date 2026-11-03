@@ -40,12 +40,12 @@ export function MethodSection() {
             <h2 id="calculo-title" className="mt-3 text-balance text-3xl font-bold tracking-tight md:text-4xl">
               Un número que puedes explicarle a tu jefe.
             </h2>
-            <p className="mt-4 text-pretty text-lg leading-relaxed text-primary-foreground/85">
+            <p className="mt-4 text-pretty text-lg leading-relaxed text-primary-foreground">
               Son dos divisiones con los datos de tu propio archivo, con tres ajustes. En el reporte te mostramos la
               cuenta paso a paso con uno de tus productos.
             </p>
             <div className="mt-8 rounded-xl border border-primary-foreground/15 bg-primary-foreground/5 p-5">
-              <p className="text-sm text-primary-foreground/75">¿Por qué usamos todo el histórico?</p>
+              <p className="text-sm text-primary-foreground/95">¿Por qué usamos todo el histórico?</p>
               <p className="mt-2 leading-relaxed">
                 Si un producto se vende una vez cada mes y medio y solo miras las últimas cuatro semanas, la mitad de
                 las veces te va a salir en cero. Con un año de ventas eso casi no pasa, y no das por muerto algo que sí
@@ -64,9 +64,9 @@ export function MethodSection() {
                 </span>
                 <div>
                   <h3 className="font-semibold">{piece.label}</h3>
-                  <p className="mt-1 text-sm leading-relaxed text-primary-foreground/80">{piece.body}</p>
+                  <p className="mt-1 text-sm leading-relaxed text-primary-foreground/95">{piece.body}</p>
                 </div>
-                <span className="font-mono text-sm whitespace-nowrap text-secondary sm:text-right">{piece.example}</span>
+                <span className="font-mono text-sm whitespace-nowrap text-primary-foreground sm:text-right">{piece.example}</span>
               </li>
             ))}
           </ol>

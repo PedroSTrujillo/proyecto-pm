@@ -241,6 +241,9 @@ const ESQUEMA = [
   // Cuándo cambió por última vez lo escrito a mano en el catálogo: el inventario calculado se
   // guarda en memoria por archivo, y esto lo invalida (server/inventario-rutas.js).
   'ALTER TABLE empresas ADD COLUMN IF NOT EXISTS catalogo_cambio_en TIMESTAMPTZ',
+  // Con qué movimientos y qué archivo se calculó el inventario al día (inventarioAlDia en
+  // server/movimientos.js): si cambia, se vuelve a calcular.
+  'ALTER TABLE empresas ADD COLUMN IF NOT EXISTS inventario_firma TEXT',
   // Ventas de proyecto (D12): bajan existencias pero no cuentan en el promedio. En un archivo, por
   // tipo de documento o por una columna de canal (centro de costo, OT, cliente): exports.canales
   // guarda qué valores de esa columna son de proyecto. En Movimientos, una casilla por venta.

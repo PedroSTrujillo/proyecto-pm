@@ -41,9 +41,9 @@ export function PricingSection() {
             </div>
             <p className="mt-6">
               <span className="text-4xl font-bold tracking-tight">Gratis</span>{' '}
-              <span className="text-sm text-primary-foreground/75">mientras dure la prueba</span>
+              <span className="text-sm text-primary-foreground/95">mientras dure la prueba</span>
             </p>
-            <p className="mt-3 leading-relaxed text-primary-foreground/85">
+            <p className="mt-3 leading-relaxed text-primary-foreground">
               Sin límite de pedidos ni de productos.
             </p>
             <ul className="mt-6 flex flex-1 flex-col gap-3 text-sm">

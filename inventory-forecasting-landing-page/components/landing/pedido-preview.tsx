@@ -59,7 +59,7 @@ export function PedidoPreview() {
           </ol>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Ejemplo de pedido; desliza para ver todas las columnas">
           <table className="w-full text-sm sm:min-w-[520px]">
             <caption className="sr-only">Lista final de ejemplo con lo que sugiere SINESC al lado de cada producto</caption>
             <thead>

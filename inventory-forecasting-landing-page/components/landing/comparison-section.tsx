@@ -54,7 +54,7 @@ export function ComparisonSection() {
         </div>
 
         <div className="overflow-hidden rounded-2xl border border-border bg-background">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Comparación de la lista inicial y la final; desliza para ver todas las columnas">
             <table className="w-full text-sm sm:min-w-[560px]">
               <caption className="sr-only">
                 Comparación entre la lista inicial y la lista final de un pedido de ejemplo

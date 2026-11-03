@@ -14,6 +14,7 @@ import { useInventario } from './contexto'
 import { BarraRiesgo, GraficoVentas, LeyendaVentas, Sparkline } from './graficos'
 import { Ayuda, BotonEnlace, Cargando, ChipEstado, ChipsProducto, ESTADOS, ErrorLista, Pildoras, Tarjeta, Titulo } from './ui'
 import { Encuesta } from './encuesta'
+import { TarjetaInvitar } from './invitar'
 import { SinInventario } from './sin-inventario'
 import { SelectorTiempo } from './vista'
 
@@ -178,6 +179,7 @@ function PanelCon({ inv }: { inv: Inventario }) {
         <AtenderHoy inv={inv} />
       </div>
 
+      {!demo && <TarjetaInvitar />}
       {inv.grafico && <Ventas inv={inv} />}
     </>
   )
