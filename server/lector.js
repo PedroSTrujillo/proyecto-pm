@@ -1040,9 +1040,19 @@ function listaCampos(campos) {
 
 const CAMPOS_LISTA = ['codigo', 'nombre', 'pedir', 'proveedor'];
 
+// Suma dos cantidades de la misma línea (número o texto en formato colombiano). Si alguna no es un
+// número, devuelve null y la fila queda aparte, para que la revisión diga cuál está mal.
+function sumar(a, b) {
+  const x = typeof a === 'number' ? a : V.leerNumero(a);
+  const y = typeof b === 'number' ? b : V.leerNumero(b);
+  if (x === null || y === null || !Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return Math.round((x + y) * 1e6) / 1e6;
+}
+
 /**
  * Lee la hoja con la que el usuario arma el pedido (ej. su informe de mínimos).
- * Devuelve { ok: true, lineas: [{codigo, nombre, cantidad, proveedor?}], omitidas, hoja, columnas }
+ * Devuelve { ok: true, lineas: [{codigo, nombre, cantidad, proveedor?}], omitidas, sumadas?, hoja, columnas }
+ * (las filas con el mismo código se suman en una línea; sumadas dice cuántas se sumaron)
  *       o  { ok: false, errores, hojas }
  */
 function leerLista(buffer, nombreArchivo, mapeo = {}) {
@@ -1078,23 +1088,49 @@ function leerLista(buffer, nombreArchivo, mapeo = {}) {
   const { hoja, analisis } = elegida;
   const c = analisis.columnas;
   const lineas = [];
-  let omitidas = 0;
+  // Un informe por movimiento (el kardex de Siigo) trae una fila por cada movimiento de un producto:
+  // las filas con el mismo código se suman en una sola línea, como si fuera un producto.
+  // Si la cantidad es un saldo (lo que queda después de cada movimiento), vale el de la última fila.
+  const esSaldo = /saldo/i.test(String(hoja.filas[analisis.iEnc][c.pedir] ?? ''));
+  const porClave = new Map();
+  const enCero = new Set();
+  let sumadas = 0;
   for (let i = analisis.iEnc + 1; i < hoja.filas.length; i++) {
     const f = hoja.filas[i];
-    if (filaVacia(f)) continue;
+    if (filaVacia(f) || esFilaDeRuido(f, analisis.firma)) continue;
     const codigo = V.textoCodigo(f[c.codigo]);
     if (esFilaDeTotal(f) && (!codigo || /total/i.test(codigo))) continue;
+    // "Código producto: 31010002 Codo de cobre…": encabezado del grupo, con los totales del producto.
+    if (RE_FILA_DE_GRUPO.test(codigo)) continue;
     const bruto = f[c.pedir];
     const nombre = c.nombre !== undefined && f[c.nombre] !== null ? String(f[c.nombre]).trim() : '';
-    if (bruto === null || bruto === undefined || bruto === 0 || bruto === '0') { if (codigo) omitidas++; continue; }
+    const previa = codigo ? porClave.get(V.claveCodigo(codigo)) : null;
+    if (bruto === null || bruto === undefined || bruto === 0 || bruto === '0') {
+      if (previa && esSaldo) { lineas.splice(lineas.indexOf(previa), 1); porClave.delete(V.claveCodigo(codigo)); }
+      if (codigo) enCero.add(V.claveCodigo(codigo));
+      continue;
+    }
     const proveedor = c.proveedor !== undefined && f[c.proveedor] !== null && f[c.proveedor] !== undefined ? String(f[c.proveedor]).replace(/\s+/g, ' ').trim().slice(0, 80) : '';
-    lineas.push({ codigo, nombre, cantidad: typeof bruto === 'number' ? bruto : String(bruto), ...(proveedor ? { proveedor } : {}), fila: hoja.primeraFila + i });
+    const cantidad = typeof bruto === 'number' ? bruto : String(bruto);
+    const suma = !previa ? null : esSaldo ? cantidad : sumar(previa.cantidad, cantidad);
+    if (previa && suma !== null) {
+      previa.cantidad = suma;
+      if (!previa.nombre && nombre) previa.nombre = nombre;
+      sumadas++;
+      continue;
+    }
+    const linea = { codigo, nombre, cantidad, ...(proveedor ? { proveedor } : {}), fila: hoja.primeraFila + i };
+    lineas.push(linea);
+    if (codigo && !previa) porClave.set(V.claveCodigo(codigo), linea);
   }
+  // Omitidos: los productos que solo traen filas en cero.
+  const omitidas = [...enCero].filter((k) => !porClave.has(k)).length;
   if (!lineas.length && !omitidas) return { ok: false, errores: [SIN_LLENAR], hojas: [] };
   return {
     ok: true,
     lineas,
     omitidas,
+    ...(sumadas ? { sumadas } : {}),
     hoja: hoja.hoja,
     columnas: Object.fromEntries(CAMPOS_LISTA.filter((k) => c[k] !== undefined).map((k) => [k, describirColumna(hoja, analisis, c[k])])),
     firma: analisis.firma,
