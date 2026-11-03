@@ -62,7 +62,9 @@ export function Titulo({ children, sub, acciones, etiqueta }: { children: ReactN
 export const ESTADOS: Record<Estado, { texto: string; chip: string; numero: string; barra: string; descripcion: string }> = {
   agota: { texto: 'Se va a agotar', chip: 'bg-rojo-fondo text-rojo-texto', numero: 'text-rojo', barra: 'bg-rojo', descripcion: 'Alcanza para menos de las semanas elegidas para el aviso (2 si no se cambió).' },
   pide: { texto: 'Pedir ya', chip: 'bg-ambar-fondo text-ambar-texto', numero: 'text-ambar', barra: 'bg-ambar', descripcion: 'No alcanza para lo que tarda en llegar un pedido, más una semana de margen.' },
-  normal: { texto: 'Bien', chip: 'bg-muted text-foreground/80', numero: 'text-foreground', barra: 'bg-primary', descripcion: 'Bien surtido.' },
+  // En verde: en las pruebas se pedían colores con significado (Juan Camilo Solano, semana 12), y en
+  // gris "Bien" se leía como algo apagado.
+  normal: { texto: 'Bien', chip: 'bg-verde-fondo text-[#14532d]', numero: 'text-foreground', barra: 'bg-primary', descripcion: 'Bien surtido.' },
   sobra: { texto: 'Sobrestock', chip: 'bg-azul-fondo text-azul-texto', numero: 'text-azul', barra: 'bg-azul', descripcion: 'Alcanza para más de 12 semanas.' },
   sin_ventas: { texto: 'Sin ventas', chip: 'bg-azul-fondo text-azul-texto', numero: 'text-muted-foreground', barra: 'bg-muted-foreground', descripcion: 'No se vendió en el periodo del archivo.' },
 }

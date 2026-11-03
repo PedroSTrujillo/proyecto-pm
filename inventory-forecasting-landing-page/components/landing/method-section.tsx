@@ -6,17 +6,17 @@ const ejemplo = productoEjemplo('TOR-0610')
 const pieces = [
   {
     label: 'Semanas de ventas',
-    body: 'Contamos desde la primera hasta la última fecha de tu archivo. Lo ideal es que traiga uno o dos años.',
+    body: 'Se cuentan desde la primera hasta la última fecha de su archivo. Lo recomendable es que traiga uno o dos años.',
     example: `${SEMANAS_EJEMPLO * 7} días = ${SEMANAS_EJEMPLO} semanas`,
   },
   {
     label: 'Ventas/semana',
-    body: 'Lo que vendiste del producto, dividido entre esas semanas. Con tres ajustes: lo de los últimos 3 meses cuenta doble, un mes fuera de lo normal (como una venta para un proyecto) no infla el número y un producto nuevo se mide desde su primera venta.',
+    body: 'Lo vendido del producto, dividido entre esas semanas, con tres ajustes: lo de los últimos 3 meses cuenta doble, un mes fuera de lo normal (como una venta para un proyecto) no infla el número y un producto nuevo se mide desde su primera venta.',
     example: `${numero(ejemplo.vendido)} ÷ ${SEMANAS_EJEMPLO} ≈ ${ventasSemana(ejemplo.promedioSemanal)}`,
   },
   {
     label: 'Semanas de inventario',
-    body: 'Lo que tienes hoy dividido entre lo que vendes por semana. Si el producto está en varias bodegas, se suma todo.',
+    body: 'Las existencias de hoy divididas entre lo que se vende por semana. Si el producto está en varias bodegas, se suman.',
     example: `${numero(ejemplo.existencias)} ÷ ${ventasSemana(ejemplo.promedioSemanal)} = ${semanas(ejemplo.semanasInventario)}`,
   },
   {
@@ -38,18 +38,18 @@ export function MethodSection() {
           <div>
             <p className="font-mono text-xs font-medium uppercase tracking-widest text-secondary">El cálculo</p>
             <h2 id="calculo-title" className="mt-3 text-balance text-3xl font-bold tracking-tight md:text-4xl">
-              Un número que puedes explicarle a tu jefe.
+              Un número que puede explicarle a su gerente.
             </h2>
             <p className="mt-4 text-pretty text-lg leading-relaxed text-primary-foreground">
-              Son dos divisiones con los datos de tu propio archivo, con tres ajustes. En el reporte te mostramos la
-              cuenta paso a paso con uno de tus productos.
+              Son dos divisiones con los datos de su propio archivo, con tres ajustes. La aplicación muestra el cálculo
+              paso a paso con uno de sus productos.
             </p>
             <div className="mt-8 rounded-xl border border-primary-foreground/15 bg-primary-foreground/5 p-5">
-              <p className="text-sm text-primary-foreground/95">¿Por qué usamos todo el histórico?</p>
+              <p className="text-sm text-primary-foreground/95">¿Por qué se usa todo el histórico?</p>
               <p className="mt-2 leading-relaxed">
-                Si un producto se vende una vez cada mes y medio y solo miras las últimas cuatro semanas, la mitad de
-                las veces te va a salir en cero. Con un año de ventas eso casi no pasa, y no das por muerto algo que sí
-                se mueve.
+                Si un producto se vende una vez cada mes y medio y solo se miran las últimas cuatro semanas, la mitad
+                de las veces aparece en cero. Con un año de ventas eso casi no ocurre, y no se descarta un producto que
+                sí se mueve.
               </p>
             </div>
           </div>

@@ -5,20 +5,19 @@ import { cn } from '@/lib/utils'
 import { SectionHeading } from './section-heading'
 
 const incluye = [
-  'Reporte de rotación de cada producto',
-  'Cantidad sugerida de cada producto desde el primer día, con el tiempo de entrega de cada proveedor y la temporada',
-  'Orden de compra en PDF, Excel o WhatsApp',
-  'Excel o CSV, en uno o en varios archivos',
-  'Tu lista de antes y la de después, comparadas',
-  'Pedidos reales o simulados',
-  'Plantilla para quien lleva el inventario en Excel',
-  'Recordatorio en tu calendario antes de que un producto se agote, si lo pides',
+  'Panel con lo que se agota, lo que conviene pedir ya y el dinero quieto',
+  'Cantidad sugerida por producto, con el tiempo de entrega de cada proveedor, la temporada, los mínimos y los múltiplos de empaque',
+  'Pedido por proveedor en PDF o Excel con el logo de su empresa, o por WhatsApp',
+  'Registro diario de entradas, ventas y conteos',
+  'Varias personas por empresa, con aprobación de pedidos',
+  'Boletín por correo con los avisos que cada persona elija',
+  'Lectura de Excel o CSV de Siigo, Helisa, World Office y otros programas',
 ]
 
 const noHace = [
-  'No se conecta a tu software contable: tú subes el archivo.',
-  'No hace pedidos por ti: el pedido lo mandas tú.',
-  'No usa inteligencia artificial: cada número sale de una cuenta que puedes revisar.',
+  'No se conecta directamente a su software contable: usted sube el archivo.',
+  'No envía pedidos por su cuenta: el pedido lo envía usted al proveedor.',
+  'No usa inteligencia artificial: cada número sale de un cálculo que usted puede revisar.',
 ]
 
 export function PricingSection() {
@@ -28,23 +27,23 @@ export function PricingSection() {
         <SectionHeading
           id="precio-title"
           eyebrow="Precio"
-          title="Por ahora no cuesta nada."
-          description="Estamos probando la herramienta con un grupo pequeño de distribuidoras. Úsala en tus próximos pedidos y cuéntanos qué te sirvió y qué no. No pedimos tarjeta ni hay nada que firmar."
+          title="Por ahora, sin costo."
+          description="SINESC está en etapa piloto con un grupo de distribuidoras. Úselo en sus próximos pedidos y cuéntenos qué le sirvió y qué no. No se pide tarjeta ni se firma contrato."
         />
         <div className="mt-14 grid gap-4 lg:grid-cols-2">
           <div className="flex flex-col rounded-2xl border border-primary bg-primary p-6 text-primary-foreground md:p-8">
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold">Versión de prueba</h3>
+              <h3 className="font-semibold">Versión piloto</h3>
               <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">
                 Abierta
               </span>
             </div>
             <p className="mt-6">
               <span className="text-4xl font-bold tracking-tight">Gratis</span>{' '}
-              <span className="text-sm text-primary-foreground/95">mientras dure la prueba</span>
+              <span className="text-sm text-primary-foreground/95">durante el piloto</span>
             </p>
             <p className="mt-3 leading-relaxed text-primary-foreground">
-              Sin límite de pedidos ni de productos.
+              Sin límite de pedidos, productos o personas.
             </p>
             <ul className="mt-6 flex flex-1 flex-col gap-3 text-sm">
               {incluye.map((item) => (
@@ -63,9 +62,9 @@ export function PricingSection() {
           </div>
 
           <div className="flex flex-col rounded-2xl border border-border bg-background p-6 md:p-8">
-            <h3 className="font-semibold">Lo que no hace, a propósito</h3>
+            <h3 className="font-semibold">Lo que no hace, por decisión de diseño</h3>
             <p className="mt-3 leading-relaxed text-muted-foreground">
-              Lo dejamos por fuera para que sepas de dónde sale cada número y el pedido siga siendo tuyo.
+              Quedó por fuera para que usted sepa de dónde sale cada número y la decisión del pedido siga siendo suya.
             </p>
             <ul className="mt-6 mb-8 flex flex-col gap-3 text-sm">
               {noHace.map((item) => (
@@ -76,8 +75,8 @@ export function PricingSection() {
               ))}
             </ul>
             <p className="mt-auto rounded-xl border border-border bg-card p-4 text-sm leading-relaxed text-muted-foreground">
-              Lo sugerido es un punto de partida. Tú sabes qué cliente grande viene en camino o qué producto vas a dejar
-              de trabajar.
+              Lo sugerido es un punto de partida, y cada línea se puede aceptar o cambiar. Usted conoce qué cliente grande
+              viene en camino o qué producto va a dejar de trabajar.
             </p>
           </div>
         </div>

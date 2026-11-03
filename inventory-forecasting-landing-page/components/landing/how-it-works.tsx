@@ -1,24 +1,25 @@
-import { BarChart3, ClipboardList, Clock, FileSpreadsheet } from 'lucide-react'
+import { ArrowLeftRight, ClipboardList, Clock, FileSpreadsheet } from 'lucide-react'
 import { CtaEnLinea } from './cta-en-linea'
 import { SectionHeading } from './section-heading'
 
-// Tres pasos (comentario de los monitores: con cinco había demasiada fricción). En la aplicación
-// el tercero se reparte en ver el reporte, ajustar la lista y contar por qué.
+// Tres pasos (comentario de los monitores: con cinco había demasiada fricción). Son los de Alpha
+// 0.2: el inventario se sube una vez, se mantiene al día con los movimientos y el pedido arranca de
+// lo sugerido (D9 de docs/PLAN_ALPHA_02.md).
 const steps = [
   {
-    icon: ClipboardList,
-    title: 'Anota lo que ibas a pedir',
-    body: 'Escribe tu pedido como lo harías hoy, o pégalo desde Excel.',
-  },
-  {
     icon: FileSpreadsheet,
-    title: 'Sube tu archivo',
-    body: 'Las ventas del último año y lo que tienes hoy, tal como salen de tu programa contable.',
+    title: 'Suba su inventario',
+    body: 'Las ventas del último año y las existencias de hoy, tal como salen de su programa contable. Se hace una sola vez.',
   },
   {
-    icon: BarChart3,
-    title: 'Decide y envía',
-    body: 'Ves qué se agota y qué sobra, y cuánto sugiere pedir SINESC. Tú decides la cantidad final y la envías en PDF, Excel o WhatsApp.',
+    icon: ArrowLeftRight,
+    title: 'Registre lo que entra y sale',
+    body: 'Cada día, a mano o con el archivo de su programa. El panel y las existencias se actualizan con cada movimiento.',
+  },
+  {
+    icon: ClipboardList,
+    title: 'Prepare y envíe el pedido',
+    body: 'SINESC sugiere cuánto pedirle a cada proveedor y explica por qué. Usted ajusta las cantidades, lo envía a aprobación si su empresa lo requiere y comparte la orden en PDF, Excel o WhatsApp.',
   },
 ]
 
@@ -29,8 +30,8 @@ export function HowItWorks() {
         <SectionHeading
           id="como-funciona-title"
           eyebrow="Cómo funciona"
-          title="Empieza por el pedido que ya ibas a hacer."
-          description="No cambias tu forma de trabajar. Anotas tu pedido como siempre, miras la rotación y decides si algo cambia."
+          title="Del archivo que ya tiene al pedido listo para el proveedor."
+          description="No tiene que cambiar de programa contable. Suba su información, mantenga el inventario al día y prepare cada pedido con una sugerencia que puede revisar línea por línea."
         />
         <ol className="mt-14 grid gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
           {steps.map((step, index) => (
@@ -56,13 +57,13 @@ export function HowItWorks() {
             <div>
               <h3 className="font-semibold">¿Cuánto toma?</h3>
               <p className="mt-2 leading-relaxed">
-                Unos cinco minutos si tienes el archivo a mano. Si te toca parar, el borrador se guarda solo y sigues
-                después.
+                Unos cinco minutos para ver el primer panel, si tiene el archivo a mano. Si debe interrumpir un pedido,
+                lo que lleva queda guardado.
               </p>
             </div>
           </li>
         </ol>
-        <CtaEnLinea className="mt-10" texto="Tu próximo pedido es un buen momento para probarlo." />
+        <CtaEnLinea className="mt-10" texto="Su próximo pedido es un buen momento para probarlo." />
       </div>
     </section>
   )

@@ -5,7 +5,7 @@ import { URL_CREAR_CUENTA, URL_DEMO } from '@/lib/app'
 import { cn } from '@/lib/utils'
 import { PedidoPreview } from './pedido-preview'
 
-const reassurances = ['Siigo, Alegra, World Office, Helisa y otros', 'Lee tu Excel o CSV tal como sale', 'Unos 5 minutos por pedido']
+const reassurances = ['Siigo, Alegra, World Office, Helisa y otros', 'Lee su Excel o CSV tal como sale', 'Unos 5 minutos por pedido']
 
 export function Hero() {
   return (
@@ -20,11 +20,12 @@ export function Hero() {
             id="hero-title"
             className="mt-6 text-balance text-4xl font-bold leading-[1.05] tracking-tight md:text-6xl"
           >
-            Mira qué se agota y qué sobra. <span className="text-primary">Tú decides cuánto pedir.</span>
+            Vea qué se agota y qué sobra. <span className="text-primary">Usted decide cuánto pedir.</span>
           </h1>
           <p className="mt-6 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground">
-            Sube lo que exportas de tu programa contable. Ves para cuántas semanas te alcanza cada producto, cuánto
-            sugiere pedir SINESC y por qué. Tú decides la cantidad final y te llevas la orden de compra.
+            Suba lo que exporta de su programa contable y registre lo que entra y sale cada día. SINESC le muestra
+            para cuánto tiempo alcanza cada producto, cuánto conviene pedirle a cada proveedor y por qué. Usted decide
+            la cantidad final y obtiene la orden de compra.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <a href={URL_CREAR_CUENTA} className={cn(buttonVariants({ size: 'lg' }), 'h-11 px-5 text-base')}>

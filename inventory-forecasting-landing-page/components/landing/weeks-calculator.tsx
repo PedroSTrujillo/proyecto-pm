@@ -84,7 +84,7 @@ export function WeeksCalculator() {
         <div className="grid gap-4 sm:grid-cols-2">
           <Stat label="Ventas/semana" value={semanasPeriodo > 0 ? ventasSemana(r.promedioSemanal) : '—'} />
           <Stat
-            label="Te alcanza para"
+            label="Le alcanza para"
             value={!(semanasPeriodo > 0) ? '—' : alcanza === null ? 'Sin ventas' : `${semanas(alcanza)} semanas`}
             tono={r.estado === 'se_agota' ? 'rojo' : r.sobra ? 'azul' : undefined}
           />
@@ -134,15 +134,15 @@ export function WeeksCalculator() {
 
 function Resultado({ r, semanasPeriodo, existencias }: { r: Rotacion; semanasPeriodo: number; existencias: number }) {
   if (!(semanasPeriodo > 0)) {
-    return <Mensaje icono={Info}>Escribe cuántas semanas cubren esas ventas.</Mensaje>
+    return <Mensaje icono={Info}>Escriba cuántas semanas cubren esas ventas.</Mensaje>
   }
   const alcanza = r.semanasInventario
 
   if (alcanza === null) {
     return existencias > 0 ? (
       <Mensaje icono={PackagePlus} tono="azul">
-        No se vendió nada en el periodo y tienes <strong>{numero(existencias)}</strong> en existencias. En el reporte
-        saldría al final, marcado como algo que sobra.
+        No se vendió nada en el periodo y tiene <strong>{numero(existencias)}</strong> en existencias. En SINESC
+        aparecería al final, marcado como sobrante.
       </Mensaje>
     ) : (
       <Mensaje icono={Info}>Sin ventas y sin existencias: aquí no hay nada que calcular.</Mensaje>
@@ -152,8 +152,8 @@ function Resultado({ r, semanasPeriodo, existencias }: { r: Rotacion; semanasPer
     return (
       <Mensaje icono={AlertTriangle} tono="rojo">
         {alcanza === 0
-          ? 'No tienes existencias y el producto sí se vende. En el reporte saldría de primero, en rojo.'
-          : `Se agota: si sigues vendiendo igual, no te alcanza ni para ${SEMANAS_SE_AGOTA} semanas. En el reporte saldría arriba, en rojo.`}
+          ? 'No tiene existencias y el producto sí se vende. En SINESC aparecería de primero, en rojo.'
+          : `Se agota: al ritmo actual de ventas no alcanza para ${SEMANAS_SE_AGOTA} semanas. En SINESC aparecería arriba, en rojo.`}
       </Mensaje>
     )
   }
@@ -161,15 +161,15 @@ function Resultado({ r, semanasPeriodo, existencias }: { r: Rotacion; semanasPer
     const meses = Math.round((alcanza * 12) / 52)
     return (
       <Mensaje icono={PackagePlus} tono="azul">
-        Sobra: tienes para <strong>{semanas(alcanza)} semanas</strong>,{' '}
-        {meses < 24 ? `unos ${meses} meses` : 'más de dos años'}. En el reporte saldría marcado en azul.
+        Sobra: tiene para <strong>{semanas(alcanza)} semanas</strong>,{' '}
+        {meses < 24 ? `unos ${meses} meses` : 'más de dos años'}. En SINESC aparecería marcado en azul.
       </Mensaje>
     )
   }
   return (
     <Mensaje icono={CheckCircle2} tono="verde">
-      Te alcanza para <strong>{semanas(alcanza)} semanas</strong>. Está entre {SEMANAS_SE_AGOTA} y {SEMANAS_SOBRA}, así
-      que en el reporte saldría sin resaltar.
+      Le alcanza para <strong>{semanas(alcanza)} semanas</strong>. Está entre {SEMANAS_SE_AGOTA} y {SEMANAS_SOBRA}, así
+      que en SINESC aparecería sin resaltar.
     </Mensaje>
   )
 }

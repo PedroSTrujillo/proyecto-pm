@@ -4,6 +4,18 @@ SINESC es para gerentes y administradores de inventario que coordinan el reabast
 
 En línea: **https://sinesc.vercel.app** (Vercel + Neon).
 
+**Stack:** Next.js 16 (React 19, Tailwind 4) para la interfaz; API en Express 5 dentro del mismo proyecto; PostgreSQL en Neon (PGlite en local); correo con Brevo; un Vercel Cron para el boletín diario; PostHog para el embudo y los Core Web Vitals.
+
+## Cuenta de prueba y guion
+
+- **Cuenta con datos de uso:** `<correo de la cuenta de prueba>` / `<contraseña>`. La crea el equipo en producción con un correo que **no** esté en `TEAM_EMAILS` (las cuentas del equipo ven la pantalla Cuentas con los datos de los demás).
+- **Guion del flujo central** (desde una cuenta nueva, en celular o en computador; el detalle está en [`docs/GUIA_PRUEBAS_USUARIO.md`](docs/GUIA_PRUEBAS_USUARIO.md)):
+  1. Crear la cuenta con el nombre de la empresa → ve "suba su inventario" y la tarjeta "Invite a su equipo".
+  2. Subir en Datos el export del programa contable o la plantilla de ejemplo → ve el panel con lo que se agota, lo que hay que pedir ya y el dinero quieto.
+  3. "Preparar pedido" → ve lo sugerido por proveedor, ajusta una línea, lo cierra y descarga el PDF.
+  4. Registrar un movimiento en Movimientos → el panel y Existencias muestran las existencias nuevas.
+  5. "Invite a su equipo" → copia el enlace; quien lo abre entra a la misma empresa y ve el mismo inventario.
+
 ## Qué se está probando
 
 **Piloto de Alpha 0.2** (cerca de un mes, [`docs/PLAN_ALPHA_02.md`](docs/PLAN_ALPHA_02.md)):

@@ -7,39 +7,39 @@ const faqs: { q: string; a: React.ReactNode }[] = [
     q: '¿Qué archivo necesito?',
     a: (
       <>
-        Lo que sacas de tu programa contable: las ventas del último año, con la fecha de cada venta o el total del
-        periodo, y las existencias de hoy. Uno o varios archivos, en Excel o CSV, tal como salen. Al elegir tu
-        programa te mostramos dónde está cada informe. Si llevas el inventario en Excel, descarga la{' '}
+        El que saca de su programa contable: las ventas del último año, con la fecha de cada venta o el total del
+        periodo, y las existencias de hoy. Puede ser uno o varios archivos, en Excel o CSV, tal como salen. Al elegir su
+        programa, la aplicación le indica dónde está cada informe. Si lleva el inventario en Excel, descargue la{' '}
         <a href={URL_PLANTILLA_INVENTARIO} className="text-primary underline underline-offset-2 hover:text-primary-hover">
           plantilla
         </a>{' '}
-        y llénala.
+        y llénela.
       </>
     ),
   },
   {
     q: '¿Tengo que conectar Siigo, SAP o mi POS?',
-    a: 'No. Subes el archivo tal como sale y reconocemos las columnas. Si alguna no la reconocemos, o si el informe mezcla compras y ventas, te preguntamos una sola vez y la próxima vez lo leemos sin preguntar.',
+    a: 'No. Usted sube el archivo tal como sale y SINESC reconoce las columnas. Si alguna no se reconoce, o si el informe mezcla compras y ventas, se le pregunta una sola vez y las cargas siguientes se leen sin preguntar.',
+  },
+  {
+    q: '¿Tengo que subir el archivo cada semana?',
+    a: 'No. Se sube una vez y después se registra lo que entra y sale, a mano o importando el archivo del día. Cuando cierre un periodo contable, puede subir de nuevo el informe completo y SINESC lo combina con lo registrado.',
   },
   {
     q: '¿La herramienta me dice cuánto pedir?',
-    a: 'Te sugiere una cantidad para cada producto, con el tiempo de entrega de tu proveedor y hasta tu siguiente pedido, y te muestra por qué. Tú decides la cantidad final y el pedido se lo sigues mandando tú al proveedor.',
+    a: 'Sugiere una cantidad para cada producto con el tiempo de entrega de su proveedor, la temporada y lo que ya viene en camino, y muestra cómo la calculó. Usted puede aceptar o modificar cada línea antes de enviar el pedido al proveedor.',
   },
   {
-    q: '¿Por qué tengo que anotar mi pedido antes de ver el reporte?',
-    a: 'Para poder comparar. Tu primera lista queda fija cuando la guardas, y la final la cambias todo lo que quieras. Al terminar ves, línea por línea, qué cambió después de mirar la rotación.',
-  },
-  {
-    q: '¿Tiene que ser un pedido de verdad?',
-    a: 'No. Puedes marcarlo como simulado y armarlo como si fueras a pedir hoy. Igual ves el reporte completo con tus datos.',
+    q: '¿Pueden usarlo varias personas de mi empresa?',
+    a: 'Sí. Quien administra la cuenta invita a las demás personas con un enlace. Las personas invitadas trabajan sobre el mismo inventario, cada una con su propia cuenta, y quien administra decide quién aprueba los pedidos.',
   },
   {
     q: '¿Qué pasa si mi archivo tiene errores?',
-    a: 'Te lo decimos. Si algo no se puede leer, te indicamos la fila y la columna. En el reporte también te avisamos si hay productos que no aparecen en las ventas o en las existencias, existencias negativas o menos de seis meses de ventas.',
+    a: 'SINESC se lo indica con la fila y la columna. También avisa si hay productos que no aparecen en las ventas o en las existencias, existencias negativas o menos de seis meses de ventas.',
   },
   {
     q: '¿Quién puede ver mi información?',
-    a: 'Tus pedidos solo los ves tú; el inventario lo ven las personas de tu empresa. El equipo de SINESC puede revisar cómo se usa la herramienta, por ejemplo qué cambias en tus pedidos, para mejorarla. No compartimos tus datos con nadie. Si quieres que los borremos, escríbenos y los borramos.',
+    a: 'Sus pedidos los ve usted y, si su empresa usa aprobación, quien los aprueba. El inventario lo ven las personas de su empresa. El equipo de SINESC revisa cómo se usa la herramienta para mejorarla. No compartimos sus datos con terceros, y si desea que los borremos, escríbanos y los borramos.',
   },
 ]
 

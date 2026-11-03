@@ -8,12 +8,12 @@ export function CalculatorSection() {
         <div className="lg:sticky lg:top-28">
           <SectionHeading
             id="calculadora-title"
-            eyebrow="Pruébalo con un producto"
-            title="¿Para cuántas semanas te alcanza?"
-            description="Piensa en un producto que conozcas bien: cuánto vendiste en un periodo y cuánto tienes hoy. Es la cuenta básica del reporte. Allá se hace con todos tus productos a la vez y con los ajustes."
+            eyebrow="Pruébelo con un producto"
+            title="¿Para cuántas semanas le alcanza?"
+            description="Piense en un producto que conozca bien: cuánto vendió en un periodo y cuánto tiene hoy. Es el cálculo básico de SINESC. La aplicación lo hace con todos sus productos a la vez y con los ajustes."
           />
           <p className="mt-6 text-sm leading-relaxed text-muted-foreground">
-            En la aplicación no tienes que escribir nada de esto: los números salen de tu archivo.
+            En la aplicación no tiene que escribir nada de esto: los números salen de su archivo.
           </p>
         </div>
         <WeeksCalculator />

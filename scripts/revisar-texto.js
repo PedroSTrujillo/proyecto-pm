@@ -97,7 +97,8 @@ const PREDETERMINADOS = [
   'public/js/app.js', 'public/js/reporte.js', 'public/js/sistemas.js',
 ];
 // La página principal (D13) y la interfaz antigua de public/ no pasan a "usted".
-const SIN_TUTEO = /components[/\\]landing[/\\]|public[/\\]js[/\\](app|reporte|hoja|util)\.js$/;
+// La página principal también trata de "usted" desde el 2026-11-03 (tono formal, pedido del equipo).
+const SIN_TUTEO = /public[/\\]js[/\\](app|reporte|hoja|util)\.js$/;
 module.exports = { TUTEO, fragmentos };
 if (require.main !== module) return;
 

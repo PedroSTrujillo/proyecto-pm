@@ -4,7 +4,7 @@ import { ProblemSection } from '@/components/landing/problem-section'
 import { HowItWorks } from '@/components/landing/how-it-works'
 import { MethodSection } from '@/components/landing/method-section'
 import { CalculatorSection } from '@/components/landing/calculator-section'
-import { ComparisonSection } from '@/components/landing/comparison-section'
+import { EquipoSection } from '@/components/landing/equipo-section'
 import { AudienceSection } from '@/components/landing/audience-section'
 import { PricingSection } from '@/components/landing/pricing-section'
 import { FaqSection } from '@/components/landing/faq-section'
@@ -25,9 +25,9 @@ export default function Page() {
         <HowItWorks />
         <MethodSection />
         <CalculatorSection />
-        <ComparisonSection />
-        <div className="mx-auto max-w-6xl px-4 md:px-6">
-          <CtaEnLinea className="rounded-2xl border border-border bg-card p-6 md:p-8" texto="¿Quieres verlo con tus productos?" />
+        <EquipoSection />
+        <div className="mx-auto max-w-6xl px-4 py-16 md:px-6 md:py-20">
+          <CtaEnLinea className="rounded-2xl border border-border bg-card p-6 md:p-8" texto="¿Quiere verlo con sus productos?" />
         </div>
         <PricingSection />
         <FaqSection />

@@ -1,5 +1,4 @@
 import { Analytics } from '@vercel/analytics/next'
-import { SpeedInsights } from '@vercel/speed-insights/next'
 import type { Metadata, Viewport } from 'next'
 import { Figtree, Plus_Jakarta_Sans } from 'next/font/google'
 import './globals.css'
@@ -11,7 +10,7 @@ const titulos = Plus_Jakarta_Sans({ subsets: ['latin'], weight: ['600', '700', '
 export const metadata: Metadata = {
   title: 'SINESC · Qué se agota y qué sobra, producto por producto',
   description:
-    'Sube el export de tu software contable y mira, en semanas de inventario, qué productos se agotan primero y cuáles sobran.',
+    'Suba el export de su software contable y vea qué productos se agotan primero, cuáles sobran y cuánto pedirle a cada proveedor.',
   icons: {
     icon: [
       {
@@ -47,7 +46,7 @@ export default function RootLayout({
         {children}
         {/* Solo si se activa Web Analytics en Vercel (y se pone ANALITICA_VERCEL=1): si no, su script da 404 en cada página. */}
         {process.env.NODE_ENV === 'production' && process.env.ANALITICA_VERCEL === '1' && <Analytics />}
-        <SpeedInsights />
+        {/* La velocidad de carga real (Core Web Vitals) la mide PostHog: instrumentation-client.ts. */}
       </body>
     </html>
   )

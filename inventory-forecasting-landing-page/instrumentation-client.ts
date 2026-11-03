@@ -27,6 +27,9 @@ if (clave && !w.posthog) {
         capture_pageview: 'history_change',
         person_profiles: 'identified_only',
         session_recording: { maskAllInputs: true, maskTextSelector: 'table, [data-privado]' },
+        // Core Web Vitals de los usuarios reales (LCP, CLS, INP y FCP), en vez de Vercel Speed
+        // Insights: entran en el plan gratis de PostHog y se ven en Web analytics → Web vitals.
+        capture_performance: { web_vitals: true },
       },
       'posthog',
     ])

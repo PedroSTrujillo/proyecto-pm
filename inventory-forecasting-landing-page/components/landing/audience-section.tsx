@@ -4,25 +4,25 @@ import { SectionHeading } from './section-heading'
 const traits = [
   {
     icon: Repeat,
-    title: 'Le compras seguido a los mismos proveedores',
+    title: 'Compra con frecuencia a los mismos proveedores',
     body: 'Pedidos cada semana o cada quince días, con productos que se repiten.',
   },
   {
     icon: Receipt,
-    title: 'Tus ventas ya quedan en el sistema',
-    body: 'En Siigo, Alegra, World Office, Helisa, SAP o el programa del que sacas tus informes en Excel.',
+    title: 'Sus ventas ya quedan en el sistema',
+    body: 'En Siigo, Alegra, World Office, Helisa, SAP o el programa del que saca sus informes en Excel.',
   },
   {
     icon: Scale,
-    title: 'Decides cuánto pedir sin un número a la mano',
-    body: 'Con experiencia, conteos o el informe de mínimos, y lo corriges con pedidos extra.',
+    title: 'La cantidad se decide sin una cifra de referencia',
+    body: 'Con experiencia, conteos o el informe de mínimos, y lo corrige con pedidos adicionales.',
   },
 ]
 
 const principles = [
-  'Cada número trae su cuenta',
-  'Subes tu archivo tal como sale',
-  'La última palabra es tuya',
+  'Cada número muestra su cálculo',
+  'Su archivo se sube tal como sale',
+  'La decisión final es suya',
 ]
 
 export function AudienceSection() {
@@ -33,7 +33,7 @@ export function AudienceSection() {
           id="para-quien-title"
           eyebrow="Para quién es"
           title="Hecho para distribuidoras y comercializadoras de 10 a 50 empleados."
-          description="Para quien lleva el inventario o administra el negocio y se encarga de que no falte nada sin llenar la bodega. Si te reconoces en estas tres cosas, es para ti."
+          description="Para la persona que lleva el inventario, la que arma los pedidos o la que administra el negocio, y que necesita que no falte mercancía sin llenar la bodega. Si su empresa se reconoce en estas tres situaciones, SINESC es para usted."
         />
         <div className="mt-14 grid gap-4 md:grid-cols-3">
           {traits.map((trait) => (

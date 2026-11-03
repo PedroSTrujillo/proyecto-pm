@@ -27,6 +27,24 @@
 
 ---
 
+## 2026-11-03 (51) — Claude (con David) — Página principal en "usted" y al día con Alpha 0.2; Web Vitals con PostHog
+- **Rama:** `main`, en los dos remotos.
+- **Estado:** listo.
+  - Se quitó Vercel Speed Insights (el equipo lo desactivó en Vercel). Los Core Web Vitals de los usuarios reales los mide PostHog, que ya estaba integrado: `capture_performance: { web_vitals: true }` en `instrumentation-client.ts`. Se ven en PostHog → Web analytics → Web vitals.
+  - Página principal en "usted", con tono formal, y describiendo Alpha 0.2:
+    - el hero y su vista previa muestran un pedido desde lo sugerido por proveedor, en días, con "Por aprobar";
+    - Cómo funciona: subir una vez, registrar lo que entra y sale, preparar el pedido;
+    - una sección nueva, `equipo-section.tsx` (roles, aprobación, boletín e invitación), que reemplaza la comparación de listas de Alpha 0.1 (se borró `comparison-section.tsx`);
+    - el precio y el FAQ, sin "simulado" y sin "anotar antes".
+  - `npm run texto` ahora también le revisa el tuteo a la página principal: 49 frases, 0 con tuteo.
+  - "Bien" sale en verde en las etiquetas de estado.
+  - README: stack, cuenta de prueba (por llenar) y guion de 5 pasos para el monitor.
+- **Archivos tocados:** `app/layout.tsx`, `app/page.tsx`, `instrumentation-client.ts`, `package.json` (sin `@vercel/speed-insights`), `components/landing/*`, `components/app/ui.tsx`, `scripts/revisar-texto.js`, `README.md`, `CLAUDE.md`, `docs/ENTREGABLE_Y_APP.md` (fila 15).
+- **Base de datos:** sin cambios.
+- **Verificación:** `npm test` → 202/202. `tsc` limpio. axe sin errores en la página principal, en computador y en celular, y sin scroll horizontal ni errores en la consola.
+- **Siguiente paso exacto:** crear en producción la cuenta de prueba para el monitor (con un correo que no sea del equipo), cargarle datos y escribir el correo y la contraseña en el README y en la hoja de la Entrega 4.
+- **Notas y bloqueos:** PageSpeed no se pudo medir desde aquí (la página no cargó y la API sin clave no tenía cuota). Hay que medirlo a mano en pagespeed.web.dev.
+
 ## 2026-11-03 (50) — Claude (con David) — Panel al día con los movimientos, días por defecto, invitar desde el panel y accesibilidad
 - **Rama:** `main`, en los dos remotos.
 - **Estado:** listo para las pruebas de usuario de hoy (guía en `docs/GUIA_PRUEBAS_USUARIO.md`).

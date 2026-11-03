@@ -7,7 +7,8 @@ import { Logo } from './logo'
 const navLinks = [
   { href: '#como-funciona', label: 'Cómo funciona' },
   { href: '#calculo', label: 'El cálculo' },
-  { href: '#calculadora', label: 'Pruébalo' },
+  { href: '#calculadora', label: 'Pruébelo' },
+  { href: '#equipo', label: 'Su equipo' },
   { href: '#precio', label: 'Precio' },
   { href: '#preguntas', label: 'Preguntas' },
 ]
