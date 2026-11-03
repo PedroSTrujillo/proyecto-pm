@@ -28,6 +28,7 @@ const { leerAjustes } = require('./inventario');
 const { fechaBogota } = require('./recordatorios');
 const { claveCodigo, leerNumero, MS_DIA, diaHoy } = require('./valores');
 const S = require('./saldos');
+const { productosParecidos } = require('./parecidos');
 
 const MAX_LINEAS = 2000;
 const DIAS_ATRAS = 730; // no se registra nada de hace más de dos años
@@ -426,6 +427,41 @@ function revisarMovimientos(lineas, porClave) {
   return { limpias, errores, faltan: [...faltan] };
 }
 
+/**
+ * Códigos que no están en el catálogo. `resolver` ({ código: código existente | 'nuevo' }) trae lo
+ * que la persona ya contestó. Los demás: si se parecen a productos que ya existen, van a
+ * `parecidos` para preguntarle; si no, a `nuevos`, que se crean al guardar. Deja en `porClave` un
+ * producto para cada uno (el elegido o uno nuevo sin id), para que la revisión siga con las filas.
+ */
+async function resolverDesconocidos(empresaId, lineas, porClave, resolver) {
+  const desconocidos = new Map();
+  for (const l of lineas) {
+    const codigo = texto(l && l.codigo, 100);
+    const k = claveCodigo(codigo);
+    if (codigo && !porClave.has(k) && !desconocidos.has(k)) desconocidos.set(k, { codigo, nombre: texto(l.nombre, 200) });
+  }
+  const parecidos = [];
+  const nuevos = [];
+  const errores = [];
+  if (!desconocidos.size) return { parecidos, nuevos, errores };
+  const respuestas = new Map(Object.entries(resolver && typeof resolver === 'object' ? resolver : {}).map(([k, v]) => [claveCodigo(k), String(v ?? '')]));
+  const catalogo = await db.query('SELECT id, clave, codigo, nombre FROM productos WHERE empresa_id = $1 AND activo', [empresaId]);
+  const delCatalogo = new Map(catalogo.map((p) => [p.clave, p]));
+  for (const [k, d] of desconocidos) {
+    const respuesta = respuestas.get(k);
+    if (respuesta && respuesta !== 'nuevo') {
+      const elegido = delCatalogo.get(claveCodigo(respuesta));
+      if (elegido) { porClave.set(k, elegido); continue; }
+      errores.push(`El producto ${respuesta} que eligió para ${d.codigo} ya no está en su catálogo.`);
+    }
+    const opciones = respuesta === 'nuevo' ? [] : productosParecidos(d.codigo, d.nombre, catalogo);
+    if (opciones.length) parecidos.push({ ...d, opciones });
+    else nuevos.push(d);
+    porClave.set(k, { id: null, clave: k, codigo: d.codigo, nombre: d.nombre });
+  }
+  return { parecidos, nuevos, errores };
+}
+
 rutas.post('/', async (req, res) => {
   const lineas = Array.isArray(req.body?.movimientos) ? req.body.movimientos : [];
   if (!lineas.length) throw new ErrorUsuario('Escriba al menos un movimiento.');
@@ -434,11 +470,32 @@ rutas.post('/', async (req, res) => {
   await asegurarCatalogo(empresaId);
   const claves = [...new Set(lineas.map((l) => claveCodigo(l && l.codigo)).filter(Boolean))];
   const productos = await db.query('SELECT id, clave, codigo, nombre FROM productos WHERE empresa_id = $1 AND clave = ANY($2::text[])', [empresaId, claves]);
-  const revision = revisarMovimientos(lineas, new Map(productos.map((p) => [p.clave, p])));
-  if (revision.errores.length) {
-    throw new ErrorUsuario('Revise los movimientos antes de guardar. No se guardó ninguno.', 400, { errores: revision.errores.slice(0, 50), faltan: revision.faltan });
+  const porClave = new Map(productos.map((p) => [p.clave, p]));
+  const desconocidos = await resolverDesconocidos(empresaId, lineas, porClave, req.body?.resolver);
+  const revision = revisarMovimientos(lineas, porClave);
+  const errores = [...desconocidos.errores, ...revision.errores];
+  if (errores.length) {
+    throw new ErrorUsuario('Revise los movimientos antes de guardar. No se guardó ninguno.', 400, { errores: errores.slice(0, 50) });
+  }
+  // Un código que se parece a uno del catálogo puede ser un error al escribirlo: se pregunta antes
+  // de crear un producto repetido. Los demás códigos nuevos se crean al guardar, con aviso.
+  if (desconocidos.parecidos.length) {
+    throw new ErrorUsuario(
+      desconocidos.parecidos.length === 1 ? 'Un código no está en su catálogo, pero se parece a un producto que ya tiene.' : `${desconocidos.parecidos.length} códigos no están en su catálogo, pero se parecen a productos que ya tiene.`,
+      409,
+      { parecidos: desconocidos.parecidos.slice(0, 50), nuevos: desconocidos.nuevos.slice(0, 50) },
+    );
   }
   await db.tx(async (t) => {
+    for (const d of desconocidos.nuevos) {
+      const p = porClave.get(claveCodigo(d.codigo));
+      const r = await t.query(
+        `INSERT INTO productos (empresa_id, clave, codigo, nombre) VALUES ($1, $2, $3, $4)
+         ON CONFLICT (empresa_id, clave) DO UPDATE SET clave = EXCLUDED.clave RETURNING id`,
+        [empresaId, p.clave, p.codigo, p.nombre],
+      );
+      p.id = r.rows[0].id;
+    }
     for (const m of revision.limpias) {
       await t.query(
         'INSERT INTO movimientos (empresa_id, producto_id, usuario_id, tipo, cantidad, fecha, desde, nota, proyecto) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
@@ -450,11 +507,18 @@ rutas.post('/', async (req, res) => {
   const tipos = {};
   for (const m of revision.limpias) tipos[m.tipo] = (tipos[m.tipo] || 0) + 1;
   const periodos = revision.limpias.filter((m) => m.desde).length;
-  await registrarEvento(req.usuario.id, 'movimientos_registrados', { detalle: { cantidad: revision.limpias.length, tipos, ...(periodos ? { periodos } : {}) } });
+  const creados = desconocidos.nuevos.map((d) => d.codigo);
+  await registrarEvento(req.usuario.id, 'movimientos_registrados', { detalle: { cantidad: revision.limpias.length, tipos, ...(periodos ? { periodos } : {}), ...(creados.length ? { creados: creados.length } : {}) } });
+  for (const codigo of creados.slice(0, 100)) await registrarEvento(req.usuario.id, 'producto_creado', { detalle: { codigo, desde: 'movimientos' } });
 
-  // Avisos sobre lo que se acaba de guardar: fechas que ya están en el archivo y saldos negativos.
+  // Avisos sobre lo que se acaba de guardar: productos creados, fechas que ya están en el archivo y
+  // saldos negativos.
   const estado = await existenciasDe(empresaId);
   const avisos = [];
+  if (creados.length) {
+    const lista = creados.slice(0, 10).join(', ') + (creados.length > 10 ? ` y ${creados.length - 10} más` : '');
+    avisos.push(creados.length === 1 ? `${lista} no estaba en su catálogo: se creó como producto nuevo.` : `${creados.length} códigos no estaban en su catálogo y se crearon como productos nuevos: ${lista}.`);
+  }
   if (estado.base) {
     const viejos = revision.limpias.filter((m) => m.fecha <= estado.base.hasta).length;
     if (viejos) avisos.push(`${viejos === 1 ? '1 movimiento es' : `${viejos} movimientos son`} del ${estado.base.hasta} o antes: ese día ya está en el archivo que subieron, así que no cambia las existencias.`);
@@ -465,7 +529,7 @@ rutas.post('/', async (req, res) => {
   for (const p of estado.productos) {
     if (tocados.has(claveCodigo(p.codigo)) && p.existencias < 0) avisos.push(`${p.codigo} quedó en ${p.existencias}. ¿Falta registrar una entrada?`);
   }
-  res.status(201).json({ guardados: revision.limpias.length, avisos: avisos.slice(0, 20) });
+  res.status(201).json({ guardados: revision.limpias.length, creados, avisos: avisos.slice(0, 20) });
 });
 
 function vistaMovimiento(m) {

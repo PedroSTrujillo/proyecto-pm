@@ -383,6 +383,36 @@ test('kardex de Siigo Nube: filas de grupo, productos sin movimiento y remisione
   assert.deepEqual(r.existencias.map((e) => [e.codigo, e.existencias]).sort(), [['AB-1', 18], ['AB-2', 4]], 'el producto sin movimientos conserva su saldo');
 });
 
+test('kardex de Siigo como lista (importar movimientos): sin filas de grupo y una línea por código', () => {
+  // Misma forma que el "Movimiento de productos" de Siigo Nube, con la página repetida; datos inventados.
+  const enc = ['Código producto', 'Nombre producto', 'Referencia de fabrica', 'Comprobante', 'Secuencia', 'Fecha elaboración', 'Cantidad inicial', 'Cantidad entrada', 'Cantidad salida', 'Saldo cantidades'];
+  const filas = [
+    ['Movimiento de productos'], ['EMPRESA DE PRUEBA SAS'], ['De Enero 01 2026 a Marzo 31 2026'],
+    enc,
+    ['Código producto: 1001 Tornillo', null, null, null, null, null, 10, 20, 12, 18],
+    ['1001', 'Tornillo', null, 'FC-1-10', 1, '05/01/2026', null, 20, 0, 30],
+    ['1001', 'Tornillo', null, 'FV-2-100', 1, '10/01/2026', null, 0, 5, 25],
+    enc,
+    ['1001', 'Tornillo', null, 'RM-1-50', 1, '20/02/2026', null, 0, 7, 18],
+    ['Código producto: 1002 Tuerca', null, null, null, null, null, 4, 0, 0, 4],
+    ['1002', 'Tuerca', null, null, null, null, null, 0, 0, 4],
+    ['Código producto: AB-3 Arandela', null, null, null, null, null, 0, 6, 1, 5],
+    ['AB-3', 'Arandela', null, 'FV-2-101', 1, '11/01/2026', null, 0, 1, 5],
+  ];
+  const buffer = xlsx({ Sheet1: filas });
+  const { hojas } = leerLista(buffer, 'movimiento.xlsx');
+  const columnas = (pedir) => ({ porClave: { [hojas[0].clave]: { codigo: 0, nombre: 1, pedir } } });
+
+  const salidas = leerLista(buffer, 'movimiento.xlsx', columnas(8));
+  assert.equal(salidas.ok, true, JSON.stringify(salidas.errores));
+  assert.deepEqual(salidas.lineas.map((l) => [l.codigo, l.nombre, l.cantidad]), [['1001', 'Tornillo', 12], ['AB-3', 'Arandela', 1]], 'las salidas del mismo código se suman y las filas "Código producto: …" no son productos');
+  assert.equal(salidas.sumadas, 1);
+  assert.equal(salidas.omitidas, 1, 'la tuerca no tuvo salidas');
+
+  const saldo = leerLista(buffer, 'movimiento.xlsx', columnas(9));
+  assert.deepEqual(saldo.lineas.map((l) => [l.codigo, l.cantidad]), [['1001', 18], ['1002', 4], ['AB-3', 5]], 'de un saldo vale el de la última fila, no la suma');
+});
+
 test('devoluciones de clientes: en un kardex se resta lo que entró con la nota crédito', () => {
   const enc = ['Código producto', 'Nombre producto', 'Comprobante', 'Fecha elaboración', 'Cantidad entrada', 'Cantidad salida', 'Saldo cantidades'];
   const filas = [

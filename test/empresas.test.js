@@ -230,9 +230,9 @@ test('movimientos del día: catálogo, todo o nada, existencias, inventario al d
     ],
   });
   assert.equal(malos.estado, 400);
-  assert.deepEqual(malos.errores.map((e) => e.split(':')[0]), ['Fila 2', 'Fila 3', 'Fila 4']);
-  assert.deepEqual(malos.faltan, ['NUEVO-1']);
+  assert.deepEqual(malos.errores.map((e) => e.split(':')[0]), ['Fila 3', 'Fila 4'], 'un código que no está en el catálogo ya no es un error');
   assert.equal((await db.uno('SELECT count(*)::int AS n FROM movimientos')).n, 0, 'con una fila mala no se guarda ninguna');
+  assert.equal((await db.uno("SELECT count(*)::int AS n FROM productos WHERE clave = 'NUEVO-1'")).n, 0, 'ni se crea el producto nuevo');
 
   assert.equal((await ana.post('/api/catalogo', { codigo: 'NUEVO-1', nombre: 'Producto nuevo' })).estado, 201);
   assert.equal((await ana.post('/api/catalogo', { codigo: 'nuevo-1', nombre: 'Repetido' })).estado, 409);
@@ -284,6 +284,40 @@ test('movimientos del día: catálogo, todo o nada, existencias, inventario al d
   assert.equal((await bob.get('/api/existencias')).productos.length, 0);
   assert.equal((await ana.post(`/api/movimientos/${movimientos[0].id}/anular`)).estado, 200);
   assert.equal((await ana.get('/api/existencias/TOR-0610')).existencias, 13);
+});
+
+test('código que no está en el catálogo: si se parece a uno, se pregunta; si no, se crea y se avisa', async () => {
+  const ana = cliente();
+  await ana.post('/api/cuenta/entrar', { email: 'ana@prueba.co', clave: 'clave-segura' });
+  const movimientos = () => db.uno('SELECT count(*)::int AS n FROM movimientos').then((r) => r.n);
+  const antes = await movimientos();
+  const lote = [
+    { codigo: 'TOR 0610', tipo: 'venta', cantidad: '2', fecha: hoy },
+    { codigo: 'ZZ-900', nombre: 'Silicona transparente', tipo: 'entrada', cantidad: '6', fecha: hoy },
+  ];
+
+  const pregunta = await ana.post('/api/movimientos', { movimientos: lote });
+  assert.equal(pregunta.estado, 409);
+  assert.deepEqual(pregunta.parecidos.map((d) => d.codigo), ['TOR 0610']);
+  assert.equal(pregunta.parecidos[0].opciones[0].codigo, 'TOR-0610', 'el más parecido va primero');
+  assert.deepEqual(pregunta.nuevos.map((d) => d.codigo), ['ZZ-900'], 'avisa cuál se va a crear');
+  assert.equal(await movimientos(), antes, 'mientras pregunta no guarda nada');
+  assert.equal((await db.uno("SELECT count(*)::int AS n FROM productos WHERE clave = 'ZZ-900'")).n, 0);
+
+  assert.equal((await ana.post('/api/movimientos', { movimientos: lote, resolver: { 'TOR 0610': 'NO-EXISTE' } })).estado, 400, 'lo elegido tiene que estar en el catálogo');
+  const ok = await ana.post('/api/movimientos', { movimientos: lote, resolver: { 'tor 0610': 'TOR-0610' } });
+  assert.equal(ok.estado, 201, ok.error);
+  assert.deepEqual(ok.creados, ['ZZ-900']);
+  assert.match(ok.avisos[0], /ZZ-900 no estaba en su catálogo: se creó como producto nuevo/);
+  assert.equal(await movimientos(), antes + 2);
+  const creado = await db.uno("SELECT nombre FROM productos WHERE clave = 'ZZ-900'");
+  assert.equal(creado.nombre, 'Silicona transparente', 'con el nombre que venía en la fila');
+  const venta = await db.uno("SELECT p.codigo FROM movimientos m JOIN productos p ON p.id = m.producto_id WHERE m.tipo = 'venta' ORDER BY m.id DESC LIMIT 1");
+  assert.equal(venta.codigo, 'TOR-0610', 'la venta quedó en el producto elegido');
+
+  const nuevo = await ana.post('/api/movimientos', { movimientos: [{ codigo: 'TOR-0611', tipo: 'entrada', cantidad: '1', fecha: hoy }], resolver: { 'TOR-0611': 'nuevo' } });
+  assert.equal(nuevo.estado, 201, nuevo.error);
+  assert.deepEqual(nuevo.creados, ['TOR-0611'], 'si dice que es nuevo, se crea aunque se parezca');
 });
 
 test('una empresa sin archivo lleva el inventario solo con movimientos', async () => {

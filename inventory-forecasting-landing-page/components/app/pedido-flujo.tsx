@@ -231,7 +231,7 @@ export const CAMPOS_LISTA = [
   { campo: 'nombre', nombre: 'Nombre (opcional)' },
 ]
 
-type RespuestaLista = { ok: boolean; lineas: LineaGuardada[]; columnas: Record<string, string>; archivo: string; hoja?: string; omitidas?: number; errores?: string[]; hojas?: HojaMapeo[]; archivoId: number }
+type RespuestaLista = { ok: boolean; lineas: LineaGuardada[]; columnas: Record<string, string>; archivo: string; hoja?: string; omitidas?: number; sumadas?: number; errores?: string[]; hojas?: HojaMapeo[]; archivoId: number }
 
 // ruta: a dónde se manda el archivo (por defecto, la lista del pedido). Movimientos la usa con
 // /movimientos/importar y sus propios textos (sin plantilla de lista).
@@ -263,6 +263,7 @@ export function ImportarLista({ pedidoId, para, hoja, alImportar, ruta, boton = 
     setMensaje(
       <Aviso tono="ok">
         Importamos {plural(r.lineas.length, 'producto', 'productos')} de &quot;{r.archivo}&quot;{r.hoja ? ` (hoja "${r.hoja}")` : ''}: código en {r.columnas.codigo}, cantidad en {r.columnas.pedir}.
+        {r.sumadas ? ` El archivo trae varias filas por producto: se juntaron en una línea por código.` : ''}
         {r.omitidas ? ` ${plural(r.omitidas, 'producto sin cantidad no se incluyó', 'productos sin cantidad no se incluyeron')}.` : ''} Revise la tabla antes de guardar.
       </Aviso>,
     )
