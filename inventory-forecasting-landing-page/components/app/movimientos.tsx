@@ -21,7 +21,7 @@ export const TIPOS: { id: TipoMovimiento; texto: string; ayuda: string; icono: R
   { id: 'entrada', texto: 'Entrada', ayuda: 'Llegó mercancía del proveedor.', icono: <ArrowDownToLine />, signo: '+' },
   { id: 'devolucion', texto: 'Devolución', ayuda: 'Un cliente devolvió algo: regresa al inventario y se resta de las ventas.', icono: <RotateCcw />, signo: '+' },
   { id: 'salida', texto: 'Otra salida', ayuda: 'Daño, consumo propio o traslado. Resta, pero no es venta.', icono: <ArrowUpFromLine />, signo: '−' },
-  { id: 'conteo', texto: 'Conteo', ayuda: 'Se contó lo que hay: las existencias quedan en esa cantidad.', icono: <ClipboardCheck />, signo: '=' },
+  { id: 'conteo', texto: 'Conteo', ayuda: 'Se contó lo que hay: las existencias quedan en esa cantidad. Si no registra las ventas, lo que falte desde el conteo anterior se cuenta como vendido.', icono: <ClipboardCheck />, signo: '=' },
 ]
 export const TEXTO_TIPO = Object.fromEntries(TIPOS.map((t) => [t.id, t.texto])) as Record<TipoMovimiento, string>
 

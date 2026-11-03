@@ -54,6 +54,25 @@ function cliente() {
 }
 
 const existenciasDe = (inv, codigo) => inv.inventario.productos.find((p) => p.codigo === codigo).existencias;
+const productoDe = (inv, codigo) => inv.inventario.productos.find((p) => p.codigo === codigo);
+
+test('una empresa que solo cuenta (sin registrar ventas): lo que baja el conteo cuenta como vendido y el panel lo explica', async () => {
+  const leo = cliente();
+  assert.equal((await leo.post('/api/cuenta/crear', { nombre: 'Leo', email: 'leo.conteos@prueba.co', clave: 'clave-segura', empresa: 'Ferretería Conteos' })).estado, 201);
+  const { pedido } = await leo.post('/api/pedidos');
+  await leo.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: [{ codigo: 'TOR-0610', cantidad: '60' }], tipo: 'real' });
+  assert.equal((await leo.subir(`/api/pedidos/${pedido.id}/export`, [['export.xlsx', await plantillaExport()]])).ok, true);
+  const antes = await leo.get('/api/inventario');
+  assert.equal(productoDe(antes, 'TOR-0610').existencias, 18);
+
+  // La plantilla termina ayer y no se aceptan fechas futuras: un conteo de hoy, sin ventas
+  // registradas, que encuentra 6 menos. Lo de varias semanas lo cubre test/saldos.test.js.
+  assert.equal((await leo.post('/api/movimientos', { movimientos: [{ codigo: 'TOR-0610', tipo: 'conteo', cantidad: 12, fecha: fechaBogota() }] })).estado, 201);
+  const despues = await leo.get('/api/inventario');
+  const p = productoDe(despues, 'TOR-0610');
+  assert.equal(p.existencias, 12);
+  assert.ok(despues.inventario.avisos.some((a) => /se contó como vendida/.test(a) && /6 unidades/.test(a)), 'los 6 que bajó el conteo cuentan como vendidos, y el panel lo explica');
+});
 
 test('cada movimiento que se guarda se ve en el panel, aunque el panel ya se haya calculado antes', async () => {
   const ana = cliente();

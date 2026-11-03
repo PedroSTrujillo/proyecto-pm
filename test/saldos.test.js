@@ -34,6 +34,41 @@ test('saldos: el código se compara sin espacios, mayúsculas ni ceros a la izqu
   assert.equal(r.get('123'), 3);
 });
 
+test('ventasDeConteos: sin ventas registradas, lo que baja entre dos conteos se cuenta como vendido en esos días', () => {
+  const hastaBase = S.diaDeFecha('2026-10-01');
+  const v = S.ventasDeConteos({
+    inicial: { A: 100 },
+    hastaBase,
+    movimientos: [mov(1, 'A', 'conteo', 80, '2026-10-11'), mov(2, 'A', 'entrada', 50, '2026-10-12'), mov(3, 'A', 'conteo', 110, '2026-10-21')],
+  });
+  assert.deepEqual(v.map((x) => [x.cantidad, x.desde, x.fecha]), [[20, '2026-10-02', '2026-10-11'], [20, '2026-10-12', '2026-10-21']]);
+  // Repartido por días, como una venta de un periodo: 2 por día durante los 10 días.
+  const dias = S.ventasDeMovimientos(v.slice(0, 1));
+  assert.equal(dias.length, 10);
+  assert.equal(dias[0].cantidad, 2);
+});
+
+test('ventasDeConteos: no deduce si se registraron ventas, si el conteo sube o si no hay con qué comparar', () => {
+  const hastaBase = S.diaDeFecha('2026-10-01');
+  const conVentas = S.ventasDeConteos({ inicial: { A: 100 }, hastaBase, movimientos: [mov(1, 'A', 'venta', 15, '2026-10-05'), mov(2, 'A', 'conteo', 80, '2026-10-11')] });
+  assert.deepEqual(conVentas, [], 'la diferencia que queda es merma o error: no es venta');
+  assert.deepEqual(S.ventasDeConteos({ inicial: { A: 100 }, hastaBase, movimientos: [mov(1, 'A', 'conteo', 130, '2026-10-11')] }), []);
+  assert.deepEqual(S.ventasDeConteos({ inicial: {}, hastaBase, movimientos: [mov(1, 'B', 'conteo', 30, '2026-10-11')] }), [], 'el primer conteo de un producto nuevo no tiene con qué compararse');
+  // Una salida registrada (merma) también explica parte de lo que falta.
+  const conSalida = S.ventasDeConteos({ inicial: { A: 100 }, hastaBase, movimientos: [mov(1, 'A', 'salida', 5, '2026-10-03'), mov(2, 'A', 'conteo', 80, '2026-10-11')] });
+  assert.deepEqual(conSalida.map((x) => x.cantidad), [15]);
+});
+
+test('combinar: con solo conteos, las ventas siguen apareciendo y el aviso lo explica', () => {
+  const base = { ventas: [{ codigo: 'A', dia: S.diaDeFecha('2026-09-20'), cantidad: 30 }], existencias: [{ codigo: 'A', existencias: 100 }], hasta: S.diaDeFecha('2026-10-01') };
+  const r = S.combinar({ base, movimientos: [mov(1, 'A', 'conteo', 72, '2026-10-15')] });
+  assert.equal(r.existencias[0].existencias, 72);
+  const vendido = r.ventas.reduce((n, v) => n + v.cantidad, 0);
+  assert.ok(Math.abs(vendido - 58) < 1e-9, `30 del archivo + 28 que bajó el conteo, y salió ${vendido}`);
+  assert.equal(r.deConteos, 1);
+  assert.ok(r.avisos.some((a) => /se contó como vendida/.test(a)));
+});
+
 test('ventasDeMovimientos: ventas en positivo, devoluciones en negativo, lo demás no cuenta', () => {
   const v = S.ventasDeMovimientos([mov(1, 'A', 'venta', 3, '2026-10-02'), mov(2, 'A', 'devolucion', 1, '2026-10-02'), mov(3, 'A', 'entrada', 9, '2026-10-02'), mov(4, 'A', 'salida', 9, '2026-10-02')]);
   assert.deepEqual(v.map((x) => x.cantidad), [3, -1]);

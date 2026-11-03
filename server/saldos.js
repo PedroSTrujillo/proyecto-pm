@@ -67,6 +67,43 @@ function ventasDeMovimientos(movimientos) {
 }
 
 /**
+ * Ventas que se deducen de los conteos. Hay empresas que no registran cada venta: cuentan lo que hay
+ * (Jose Manuel, 2026-11-03). Sin esto, después del archivo no habría ninguna venta, el promedio
+ * bajaría semana a semana (lo reciente pesa doble) y el sugerido saldría corto.
+ *
+ * Si un conteo encuentra menos de lo que debería haber (el saldo con las entradas, salidas y ventas
+ * registradas) y entre ese conteo y el anterior no se registró ninguna venta ni devolución de ese
+ * producto, la diferencia se cuenta como lo vendido en ese tiempo, repartida entre esos días (como
+ * una venta de un periodo). Si sí se registraron ventas, la diferencia es merma o un error de conteo
+ * y no se toca. Un conteo que encuentra más de lo esperado no deduce nada.
+ *
+ * inicial: { clave: existencias } del archivo; hastaBase: su último día (o null). Los movimientos
+ * son los que ya quedaron después del archivo.
+ */
+function ventasDeConteos({ inicial = {}, hastaBase = null, movimientos }) {
+  const estado = new Map();
+  const out = [];
+  for (const m of ordenar(movimientos)) {
+    const k = claveCodigo(m.codigo);
+    if (!estado.has(k)) estado.set(k, { saldo: inicial[k] || 0, desde: hastaBase, conVentas: false, contado: k in inicial });
+    const e = estado.get(k);
+    const dia = diaDeFecha(m.fecha);
+    if (m.tipo === 'conteo') {
+      const faltan = redondear(e.saldo - Number(m.cantidad));
+      // Sin archivo ni conteo antes, no hay con qué comparar el primero.
+      if (faltan > 0 && !e.conVentas && e.contado) {
+        out.push({ codigo: m.codigo, nombre: m.nombre || '', tipo: 'venta', cantidad: faltan, fecha: m.fecha, desde: e.desde !== null && e.desde + 1 < dia ? textoDia(e.desde + 1) : undefined, deConteo: true });
+      }
+      Object.assign(e, { saldo: Number(m.cantidad), desde: dia, conVentas: false, contado: true });
+    } else {
+      e.saldo = redondear(e.saldo + SIGNO[m.tipo] * Number(m.cantidad));
+      if (m.tipo === 'venta' || m.tipo === 'devolucion') e.conVentas = true;
+    }
+  }
+  return out;
+}
+
+/**
  * Una venta de un periodo que empieza el día del archivo o antes y termina después: los días que ya
  * están en el archivo no se vuelven a contar. Queda la parte proporcional a los días que siguen
  * (de 30 días con 10 ya en el archivo, quedan 20/30 de la cantidad, desde el día siguiente).
@@ -156,7 +193,8 @@ function combinar({ base = null, movimientos }) {
   }
   const finales = saldos({ base: inicial, movimientos: usados });
   const existencias = [...codigos].map(([k, codigo]) => ({ codigo, nombre: nombres.get(k) || '', existencias: finales.get(k) || 0 }));
-  const ventas = (base ? base.ventas : []).concat(ventasDeMovimientos(usados));
+  const deConteos = ventasDeConteos({ inicial, hastaBase, movimientos: usados });
+  const ventas = (base ? base.ventas : []).concat(ventasDeMovimientos(usados), ventasDeMovimientos(deConteos));
   let hasta = hastaBase;
   for (const m of usados) hasta = hasta === null ? diaDeFecha(m.fecha) : Math.max(hasta, diaDeFecha(m.fecha));
 
@@ -166,6 +204,11 @@ function combinar({ base = null, movimientos }) {
   if (ignorados.length) {
     avisos.push(`${ignorados.length === 1 ? 'Hay 1 movimiento' : `Hay ${ignorados.length} movimientos`} del ${fechaTexto(hastaBase)} o antes: ese día ya está en su archivo, así que no se ${ignorados.length === 1 ? 'sumó' : 'sumaron'}.`);
   }
+  if (deConteos.length) {
+    const unidades = redondear(deConteos.reduce((n, m) => n + m.cantidad, 0));
+    const productos = new Set(deConteos.map((m) => claveCodigo(m.codigo))).size;
+    avisos.push(`En ${productos === 1 ? '1 producto' : `${productos} productos`} un conteo encontró menos de lo que había y no se registraron ventas: esa diferencia (${unidades} unidades en total) se contó como vendida entre un conteo y el anterior. Si fue merma o un error, regístrela como salida.`);
+  }
   if (recortados) {
     avisos.push(`${recortados === 1 ? '1 venta de un periodo empieza' : `${recortados} ventas de un periodo empiezan`} el ${fechaTexto(hastaBase)} o antes: se ${recortados === 1 ? 'contó' : 'contaron'} solo los días después de su archivo, en proporción.`);
   }
@@ -173,7 +216,7 @@ function combinar({ base = null, movimientos }) {
   if (negativos.length) {
     avisos.push(`${negativos.length === 1 ? '1 producto quedó' : `${negativos.length} productos quedaron`} con existencias negativas (por ejemplo ${negativos[0].codigo}: ${negativos[0].existencias}). Casi siempre falta registrar una entrada o un conteo.`);
   }
-  return { ventas, existencias, hasta, avisos, usados: usados.length, ignorados: ignorados.length, negativos: negativos.map((e) => e.codigo) };
+  return { ventas, existencias, hasta, avisos, usados: usados.length, ignorados: ignorados.length, negativos: negativos.map((e) => e.codigo), deConteos: deConteos.length };
 }
 
 /**
@@ -192,4 +235,4 @@ function kardex({ inicial = null, movimientos }) {
   return { filas, saldo };
 }
 
-module.exports = { TIPOS, saldos, ventasDeMovimientos, ventasDeExport, combinar, kardex, diaDeFecha };
+module.exports = { TIPOS, saldos, ventasDeMovimientos, ventasDeConteos, ventasDeExport, combinar, kardex, diaDeFecha };

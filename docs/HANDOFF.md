@@ -27,6 +27,19 @@
 
 ---
 
+## 2026-11-03 (52) — Claude (con David) — Ventas deducidas de los conteos
+- **Rama:** `main`, en los dos remotos.
+- **Estado:** listo. Lo reportó Jose: quien lleva el inventario con conteos, sin registrar cada venta, veía bajar el "porcentaje de ventas" del panel. El efecto iba más allá de esa tarjeta: el promedio de venta bajaba (lo reciente pesa doble) y el sugerido salía corto.
+  - `ventasDeConteos` (`server/saldos.js`): si un conteo encuentra menos de lo esperado y desde el conteo anterior (o el archivo) no se registró ninguna venta ni devolución de ese producto, la diferencia cuenta como vendida, repartida entre esos días. Con ventas registradas no deduce nada (la diferencia es merma); tampoco si el conteo sube, ni en el primer conteo de un producto que no estaba en el archivo.
+  - El reporte lo avisa con las unidades deducidas, y la ayuda de "Conteo" en Movimientos lo explica.
+  - `VERSION_CALCULO` (`server/movimientos.js`) entra en la firma: cada empresa se recalcula en su siguiente visita.
+  - No se escondió la tarjeta de la tendencia, como proponía Jose: con las ventas deducidas vuelve a tener sentido.
+- **Archivos tocados:** `server/saldos.js`, `server/movimientos.js`, `components/app/movimientos.tsx`, `test/saldos.test.js` (3 pruebas), `test/inventario-al-dia.test.js` (1 prueba), `docs/modelo-rotacion.md` §8.1, `docs/ENTREGABLE_Y_APP.md` (fila 15), `CLAUDE.md`.
+- **Base de datos:** sin cambios.
+- **Verificación:** `npm test` → 206/206.
+- **Siguiente paso exacto:** que Jose abra el panel con su cuenta y confirme que la tendencia y el "alcanza para" de los productos contados ya no caen.
+- **Notas y bloqueos:** si una empresa registra solo algunas ventas de un producto y además cuenta, lo que falte en ese intervalo se toma como merma y no como venta. Es la opción conservadora; si molesta en las pruebas, se puede cambiar.
+
 ## 2026-11-03 (51) — Claude (con David) — Página principal en "usted" y al día con Alpha 0.2; Web Vitals con PostHog
 - **Rama:** `main`, en los dos remotos.
 - **Estado:** listo.
