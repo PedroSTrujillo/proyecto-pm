@@ -58,7 +58,7 @@ Abre http://localhost:3000. La página, la demo, las cuentas y la aplicación sa
 
 | Comando | Qué hace |
 |---|---|
-| `npm test` | Corre las 111 pruebas automáticas: cálculo, pronóstico, comparación de listas, recordatorios, lector de archivos, demo y API. No necesitan la web. |
+| `npm test` | Corre las 201 pruebas automáticas: cálculo, pronóstico, comparación de listas, recordatorios, lector de archivos, demo y API. No necesitan la web. |
 | `npm run ejemplos` | Regenera en `ejemplos/` los archivos inventados (CSV estilo Siigo, Excel estilo SAP, ventas por mes, un catálogo de 3.000 productos y un informe de mínimos). |
 | `npm run texto` | Revisa los textos de la interfaz buscando frases de relleno. |
 | `npm run borrar-datos -- --todos` | Muestra qué cuentas de prueba se borrarían; con `--confirmar` las borra. `--email correo@empresa.co` borra una sola. Las del equipo no se tocan. |
@@ -70,7 +70,7 @@ Abre http://localhost:3000. La página, la demo, las cuentas y la aplicación sa
 | Variable | Para qué | Ejemplo |
 |---|---|---|
 | `DATABASE_URL` | PostgreSQL en producción (Neon). Sin ella se usa PGlite. | `postgresql://usuario:clave@host/db?sslmode=require` |
-| `TEAM_EMAILS` | Correos del equipo, separados por coma. Esas cuentas ven "Ejemplos" y no cuentan como probadores. | `ana@grupo1.co,juan@grupo1.co` |
+| `TEAM_EMAILS` | Correos del equipo, separados por coma. Esas cuentas ven "Ejemplos" y "Cuentas" (estado de cada cuenta, cerrar sesiones y borrar una cuenta con confirmación) y no cuentan como probadores. | `ana@grupo1.co,juan@grupo1.co` |
 | `APP_URL` | Opcional. La dirección pública, para los enlaces de los recordatorios y de "cambiar contraseña". En Vercel, sin ella, se usa la dirección de producción. | `https://sinesc.vercel.app` |
 | `BREVO_API_KEY` y `CORREO_REMITENTE` | Opcionales. Para que el recordatorio, las invitaciones a la empresa y el boletín diario lleguen por correo con [Brevo](https://www.brevo.com). Sin ellas, el recordatorio solo se descarga, la invitación se copia y el boletín no sale. | `xkeysib-…`, `avisos@grupo1.co` |
 | `CRON_SECRET` | La clave con la que el Cron de Vercel llama `/api/tareas/boletin` (boletín diario). Sin ella la ruta responde 401. Vercel la manda sola en el encabezado `Authorization`. | una cadena larga al azar |
@@ -140,6 +140,7 @@ Probado con archivos reales: el "Movimiento detalle" de Helisa (26.000 filas) y 
 | Boletín diario por correo | `server/boletin.js` y `server/boletin-correo.js`, Cron en `inventory-forecasting-landing-page/vercel.json`, `npm run boletin [-- --email x --fecha AAAA-MM-DD]`; se activa en "Mi cuenta" o al crear la cuenta |
 | Alertas configurables (SP7): qué avisos trae el boletín y cada cuánto, por perfil; sobrestock por producto | `server/alertas.js` (tipos, frecuencias y valores por perfil), secciones en `server/boletin-correo.js`, entregas atrasadas en `server/recepcion.js`, `productos.sobra_semanas` en `server/inventario.js`; tabla en Mi cuenta (`components/app/cuenta.tsx`) y campo en la ficha (`components/app/catalogo.tsx`); §11 de `docs/modelo-rotacion.md` |
 | Rol de equipo (ve Ejemplos y no cuenta como probador) | `TEAM_EMAILS` o `npm run resultados -- --equipo` (`usuarios.es_equipo`) |
+| Cuentas para el equipo: estado de cada cuenta, invitaciones del growth loop, cerrar sesiones y borrar una cuenta (correo exacto + contraseña de quien borra) | `server/cuentas-equipo.js`, `components/app/cuentas-equipo.tsx`, `test/cuentas-equipo.test.js` |
 | Flujo de 5 pasos con indicador; no se salta al reporte; se retoma donde quedó | `components/app/pedido-flujo.tsx`. En el servidor: sin lista inicial guardada, subir el export o pedir el reporte responde 403. Los borradores se guardan solos |
 | Lista inicial tipo Excel (pegar filas) o importando Excel/CSV; sin imágenes ("real o simulado" ya no se pregunta desde el SP2: el servidor guarda real) | `components/app/hoja.tsx`, `leerLista` en `server/lector.js`. Una lista con solo los productos de ejemplo de la plantilla no se acepta |
 | La lista inicial queda fija al guardarla | `UPDATE … WHERE inicial_guardada_en IS NULL`; editarla después responde 409 |
@@ -192,6 +193,7 @@ server/                 la API (Express 5, CommonJS)
   pedidos.js            el flujo de 5 pasos y sus reglas
   listas.js             validación y comparación de listas (la métrica)
   equipo.js             resultados de la prueba y veredicto
+  cuentas-equipo.js     pantalla Cuentas del equipo: estado de cada cuenta y borrar una cuenta
   lector.js             lectura de exports y listas (Excel, CSV, XML, HTML)
   formatos.js           sinónimos de columnas  ← lo que el equipo ajusta
   valores.js            códigos, números y fechas

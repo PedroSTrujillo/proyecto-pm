@@ -27,6 +27,20 @@
 
 ---
 
+## 2026-11-03 (49) — Claude (con David) — Pantalla Cuentas para el equipo y borrado que no deja empresas sin inventario
+- **Rama:** `main`, en los dos remotos (`origin` y `mio`).
+- **Estado:** listo. El equipo tiene una página nueva, **Cuentas** (`/cuentas`, en el menú debajo de Ejemplos):
+  - Estado de cada cuenta: activa (algo en 7 días), sin volver (8 a 30), inactiva (más de 30) o sin datos. Muestra el último ingreso, los pedidos cerrados, los movimientos, los archivos, las sesiones abiertas, su empresa con sus personas y lo último que hizo. Nunca muestra el inventario, los productos, las listas ni la aceptación (D16).
+  - Las invitaciones del growth loop (Entrega 4): enviadas, aceptadas, empresas que invitaron y aceptadas por cuenta activa.
+  - Cerrar las sesiones de una cuenta.
+  - Borrar una cuenta con sus datos. La ventana muestra antes qué se va y qué se queda. Pide el correo exacto de la cuenta y la contraseña de quien borra. No deja borrar cuentas del equipo ni la propia, tiene un límite de 10 por hora, y queda como `cuenta_borrada` en la actividad de quien borró, con el correo enmascarado.
+  - **Arreglo en `borrar.js` (también afecta a `npm run borrar-datos`):** `exports.usuario_id` y `archivos.usuario_id` se borran en cascada. Antes, borrar a una persona de una empresa con más personas borraba los archivos de inventario que esa persona había subido, y las demás se quedaban sin inventario. Ahora esos archivos pasan a quien queda (quien administra, o la persona más antigua), y si nadie queda administrando, esa persona pasa a administrar. Todo va en una transacción. El script ya no imprime "undefined foto(s)".
+- **Archivos tocados:** `server/cuentas-equipo.js` (nuevo), `server/borrar.js`, `server/app.js`, `server/cuentas.js` (exporta `verificarClave`), `scripts/borrar-datos.js`, `components/app/cuentas-equipo.tsx` (nuevo), `app/(app)/cuentas/page.tsx` (nuevo), `components/app/marco.tsx` (menú), `test/cuentas-equipo.test.js` (nuevo, 5 pruebas), `CLAUDE.md`, `README.md`.
+- **Base de datos:** sin cambios.
+- **Verificación:** `npm test` → 201/201. `tsc` sin errores nuevos (solo los conocidos de `.next` viejo). `npm run texto` igual que antes (52, 0 con tuteo). En el navegador, con la base en memoria: la lista, los filtros y el detalle funcionan; con una contraseña equivocada no borra nada; con la correcta borró la cuenta y la otra persona de la empresa pasó a administrarla. En celular (375 px) no hay scroll horizontal.
+- **Siguiente paso exacto:** que quien sea del equipo entre a sinesc.vercel.app/cuentas con su cuenta (tiene que estar en `TEAM_EMAILS` de Vercel) y revise el estado de los probadores.
+- **Notas y bloqueos:** la página ve datos de otras cuentas (actividad y conteos). Si se le agrega algo, que siga siendo actividad y no datos comerciales. La cuenta de prueba que se le da al monitor de la Entrega 4 **no** puede ser del equipo, porque vería esta página.
+
 ## 2026-11-02 (48) — Claude — Kardex de Siigo al importar movimientos, códigos que no están en el catálogo y pantalla de Movimientos
 - **Rama:** `empresas-inventario-diario`, solo en local y sin commit. Antes de empezar se trajo la rama del equipo (`origin`, hasta 82189c0).
 - **Estado:** arreglado lo que describe `CORRECCIONES.docx` (archivos reales de un probador en `data/siigo/`, que no se versiona).

@@ -34,12 +34,12 @@ npm install
 npm install --no-package-lock --prefix inventory-forecasting-landing-page   # la web (Next.js); pnpm se colgaba en Windows
 TEAM_EMAILS=tu-correo@ejemplo.com npm run dev    # http://localhost:3000: API + Next.js en modo desarrollo; PGlite en data/pglite/
 npm run build && NODE_ENV=production npm start  # en producción con un servidor propio (en Vercel: docs/PUBLICAR.md)
-npm test                                         # node --test test/*.test.js (196 pruebas; no necesitan la web)
+npm test                                         # node --test test/*.test.js (201 pruebas; no necesitan la web)
 node --test test/rotacion.test.js                # un solo archivo
 node --test --test-name-pattern="M = 5" test/listas.test.js   # una prueba por nombre
 npm run ejemplos                                 # regenera los exports inventados de ejemplos/
 npm run texto                                    # revisa los textos buscando marcas de IA (reglas de stop-slop)
-npm run borrar-datos -- --todos [--confirmar]    # borra las cuentas de prueba (sin --confirmar solo cuenta); --email x para una
+npm run borrar-datos -- --todos [--confirmar]    # borra las cuentas de prueba (sin --confirmar solo cuenta); --email x para una (también desde /cuentas en la app)
 npm run boletin [-- --email x] [--fecha AAAA-MM-DD]  # manda el boletín de hoy (en Vercel lo hace el Cron); --email: solo a esa cuenta; --fecha: como si fuera ese día
 npm run resultados [-- --piloto|--json|--errores|--encuesta abrir [--email x]|--clasificar ID dato|probar|ninguna|--anular ID motivo|--reactivar ID|--equipo email|--restablecer email]
 ```
@@ -75,7 +75,7 @@ Un pedido se puede borrar **antes de guardar la lista final** (`DELETE /api/pedi
 
 Consecuencias que no se ven leyendo un solo archivo:
 - El reporte se calcula **una vez, al subir el archivo**. Si cambias `rotacion.js`, los reportes ya guardados no se recalculan. Los exports originales sí quedan en `archivos`, así que se pueden reprocesar.
-- **La aplicación es el producto para el usuario y es autocontenida** (decisión del equipo, 2026-10-28): ninguna pantalla ni ruta de la API muestra la hipótesis, el veredicto, la clase o datos de otras cuentas, y ningún texto habla de "la prueba", "probadores" o "14 días". Tampoco se le muestra al usuario un marcador de líneas cambiadas: es lo que se mide. Lo del equipo va por terminal (`npm run resultados`, `scripts/resultados.js`). La única página del equipo dentro de la app es Ejemplos (datos inventados).
+- **La aplicación es el producto para el usuario y es autocontenida** (decisión del equipo, 2026-10-28): ninguna pantalla ni ruta de la API muestra la hipótesis, el veredicto, la clase o datos de otras cuentas, y ningún texto habla de "la prueba", "probadores" o "14 días". Tampoco se le muestra al usuario un marcador de líneas cambiadas: es lo que se mide. Lo del equipo va por terminal (`npm run resultados`, `scripts/resultados.js`). Dentro de la app, el equipo tiene dos páginas: Ejemplos (datos inventados) y **Cuentas** (`/cuentas`, `server/cuentas-equipo.js`, 2026-11-03): estado de cada cuenta (activa, sin volver, inactiva, sin datos) con actividad y conteos, nunca su inventario ni la aceptación (D16); cerrar sus sesiones y borrar una cuenta con sus datos. Borrar pide el correo exacto de la cuenta y la contraseña de quien borra, no deja borrar cuentas del equipo ni la propia, y queda en la actividad de quien borró con el correo enmascarado. Es la única pantalla que ve datos de otras cuentas: lo que se le agregue tiene que seguir siendo actividad, no datos comerciales.
 - `equipo.js` calcula el veredicto de la prueba a partir de los datos guardados (funciones que usa `scripts/resultados.js`; no tiene rutas): una ventana de 14 días desde la primera lista inicial de cada usuario y el pedido con mayor M dentro de esa ventana. Las constantes de la hipótesis (`META_LINEAS`, `DIAS_PRUEBA`, etc.) están al comienzo de ese archivo. Cambiarlas cambia el resultado del experimento, así que hay que reflejar el cambio en el Entregable.
 - La identidad de un producto es `claveCodigo` (`valores.js`): sin espacios, sin importar mayúsculas y sin ceros a la izquierda. La usan igual el reporte y la comparación de listas. Si la cambias en un lado, cámbiala en el otro, y también en la copia de `public/js/util.js`.
 - El rol `equipo` se asigna con `TEAM_EMAILS` al crear la cuenta o al iniciar sesión (o `npm run resultados -- --equipo correo`). Las cuentas del equipo no cuentan como probadores.

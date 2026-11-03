@@ -401,6 +401,7 @@ module.exports = {
   registrarEvento,
   ErrorUsuario,
   hashClave,
+  verificarClave,
   crearEnlaceRestablecer,
   baseDe,
   leerCargo,

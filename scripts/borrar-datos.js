@@ -22,7 +22,8 @@ async function main() {
   await db.iniciar();
   console.log(`Base de datos: ${db.nombreMotor()}`);
   const r = await borrarDatos({ email, todos, confirmar });
-  console.log(`${r.borrado ? 'Se borraron' : 'Se borrarían'}: ${r.usuarios.length} cuenta(s), ${r.pedidos} pedido(s), ${r.archivos} archivo(s), ${r.fotos} foto(s), ${r.eventos} evento(s).`);
+  console.log(`${r.borrado ? 'Se borraron' : 'Se borrarían'}: ${r.usuarios.length} cuenta(s), ${r.pedidos} pedido(s), ${r.archivos} archivo(s), ${r.eventos} evento(s).`);
+  if (r.archivosQuedan) console.log(`${r.archivosQuedan} archivo(s) ${r.borrado ? 'quedaron' : 'quedarían'} en su empresa, que sigue con otras personas.`);
   if (r.usuarios.length) console.log(r.usuarios.join('\n'));
   if (!confirmar) console.log('No se borró nada. Repite con --confirmar para borrar.');
   await db.cerrar();

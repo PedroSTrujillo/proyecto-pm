@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState, type ReactNode } from 'react'
 import { api } from '@/lib/api'
-import { ArrowLeftRight, Boxes, Building2, ClipboardList, Database, FlaskConical, LayoutDashboard, LogOut, Menu, Package, UserRound, X } from 'lucide-react'
+import { ArrowLeftRight, Boxes, Building2, ClipboardList, Database, FlaskConical, LayoutDashboard, LogOut, Menu, Package, ShieldCheck, UserRound, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useInventario, useSesion } from './contexto'
 import { reportarError } from './pantalla-error'
@@ -83,7 +83,7 @@ function itemsDe(demo: boolean, rutas: ReturnType<typeof useInventario>['rutas']
   ]
   const base = perfil === 'operador' ? [...diario, panel, ...resto] : [panel, ...resto.slice(0, 2), ...diario, ...resto.slice(2)]
   if (!demo) base.push({ href: '/empresa', texto: 'Mi empresa', icono: <Building2 /> })
-  if (!demo && equipo) base.push({ href: '/ejemplos', texto: 'Ejemplos', icono: <FlaskConical /> })
+  if (!demo && equipo) base.push({ href: '/ejemplos', texto: 'Ejemplos', icono: <FlaskConical /> }, { href: '/cuentas', texto: 'Cuentas', icono: <ShieldCheck /> })
   if (!demo) base.push({ href: '/cuenta', texto: 'Mi cuenta', icono: <UserRound /> })
   return base
 }
