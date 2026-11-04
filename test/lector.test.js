@@ -158,6 +158,34 @@ test('fechas en los formatos de los exports', async () => {
   assert.equal(diaDe(2026, 1, 15), leerFecha('15/01/2026').dia);
 });
 
+// Listado de inventario inventado con la forma del de Helisa: encabezado en dos filas (los grupos
+// INICIAL, DEL PERIODO y FINAL arriba), "REFERENCIA" encima de una columna vacía con el código en la
+// de al lado, "ARTÍCULO" con los nombres y una fila que abre cada bodega.
+test('listado de inventario de Helisa: la existencia es FINAL · CANTIDAD y el código es la referencia, no el artículo', () => {
+  const inventario = xlsx({
+    Hoja1: [
+      ['', '', '', '', '', 'INICIAL', '', 'DEL PERIODO', 'FINAL', '', ''],
+      ['REFERENCIA', '', 'ARTÍCULO', 'NOMBRE DEL GRUPO', '', 'COSTO', '', 'SALIDAS', 'CANTIDAD', 'COSTO', 'UNITARIO'],
+      ['-', 'BODEGA : A 2026', '', '', '', '', '', '', '', '', ''],
+      ['', '0104131', 'SOLDADURA ELECTRICA 6013 3/32', 'ELECTRICOS', '', 1726343, '', 75, 35, 549291, 15694],
+      ['', 'SI-15', 'SOPORTE INVISIBLE DE 15 CM', 'HERRAJES', '', 80000, '', 10, 40, 64000, 1600],
+      ['', '', '', '', '', 1806343, '', 85, 75, 613291, ''],
+    ],
+  });
+  const ventas = csv('Fecha;Referencia;Cantidad\n2026-10-01;0104131;5\n2026-10-08;0104131;6\n2026-10-02;SI-15;10\n');
+  const r = leerExport([ventas, { nombre: 'inventario.xlsx', buffer: inventario }]);
+  assert.equal(r.ok, true, JSON.stringify(r.errores));
+  assert.deepEqual(r.existencias.map((e) => [e.codigo, e.existencias]), [['0104131', 35], ['SI-15', 40]], 'sin la fila de la bodega ni la de totales');
+  assert.match(r.existencias[0].nombre, /SOLDADURA/);
+  assert.equal(r.catalogo['104131'].costo, 15694, 'el costo es el unitario del saldo final (la llave va sin ceros a la izquierda)');
+});
+
+test('un título arriba de los encabezados no se toma como fila de grupos', () => {
+  const r = leerExport([csv('Listado de inventario;;\nCódigo;Nombre;Existencias\nA1;Uno;4\n'), csv('Fecha;Código;Cantidad\n2026-10-01;A1;2\n', 'ventas.csv')]);
+  assert.equal(r.ok, true, JSON.stringify(r.errores));
+  assert.deepEqual(r.existencias.map((e) => [e.codigo, e.existencias]), [['A1', 4]]);
+});
+
 test('detalle de facturas de Helisa: "Cantidad Disponible" es la venta neta de devoluciones, no existencias', async () => {
   // Mismas columnas que el informe real; los datos son inventados.
   const facturas = xlsx({ Facturas: [

@@ -252,12 +252,45 @@ function nombreHoja(hoja, varias) {
   return varias ? `la hoja "${hoja.hoja}" de "${hoja.archivo}"` : `la hoja "${hoja.hoja}"`;
 }
 
+// Valores de una columna que parecen nombres de producto ("Tornillo drywall 6 x 1"), no códigos.
+function pareceNombre(vs) {
+  return vs.length >= 2 && vs.filter((v) => typeof v === 'string' && /[a-záéíóúñ]{3}/i.test(v) && /\s/.test(v.trim())).length / vs.length >= 0.6;
+}
+
+// Encabezados en dos filas, como el listado de inventario de Helisa: arriba el grupo ("INICIAL",
+// "DEL PERIODO", "FINAL", que ocupa varias columnas) y abajo la columna ("CANTIDAD", "COSTO").
+// Devuelve cada encabezado con su grupo delante ("FINAL CANTIDAD"), o null si la fila de arriba no
+// es de grupos: hacen falta dos o más textos (un título de informe es uno solo) y que no parezca
+// ella misma una fila de encabezados (como mucho un texto que sea un campo: "DEL PERIODO" se lee
+// como fecha).
+function encabezadosConGrupo(arriba, encabezados) {
+  if (!arriba) return null;
+  const textos = arriba.filter((c) => c !== null && c !== undefined && c !== '');
+  if (textos.length < 2 || textos.some((c) => typeof c !== 'string') || textos.filter((c) => camposDeEncabezado(c).length).length > 1) return null;
+  let grupo = null;
+  return encabezados.map((t, i) => {
+    if (arriba[i] !== null && arriba[i] !== undefined && arriba[i] !== '') grupo = String(arriba[i]).trim();
+    const texto = t === null || t === undefined ? '' : String(t).trim();
+    return grupo ? [grupo, texto].filter(Boolean).join(' ') : t;
+  });
+}
+
 // Prepara la hoja: fila de encabezados, columnas detectadas (o las que eligió el usuario).
 function analizarHoja(hoja, campos, mapeo) {
   const iEnc = buscarEncabezado(hoja, campos);
-  const encabezados = iEnc >= 0 ? hoja.filas[iEnc].map((c) => (c instanceof Date ? V.textoDia(Math.round(c.getTime() / V.MS_DIA)) : c)) : [];
+  let encabezados = iEnc >= 0 ? hoja.filas[iEnc].map((c) => (c instanceof Date ? V.textoDia(Math.round(c.getTime() / V.MS_DIA)) : c)) : [];
   const brutos = iEnc >= 0 ? hoja.filas[iEnc] : [];
   let columnas = detectarColumnas(encabezados, campos);
+  // Con el grupo de la fila de arriba, solo si así aparecen las existencias que faltaban: no cambia
+  // cómo se lee ningún archivo que ya se leía.
+  const conGrupo = iEnc > 0 && campos.includes('existencias') && columnas.existencias === undefined ? encabezadosConGrupo(hoja.filas[iEnc - 1], encabezados) : null;
+  if (conGrupo) {
+    const otras = detectarColumnas(conGrupo, campos);
+    if (otras.existencias !== undefined) {
+      encabezados = conGrupo;
+      columnas = otras;
+    }
+  }
   const firma = firmaEncabezados(encabezados);
   const manual = mapeo && (mapeo.porClave || mapeo.porFirma && mapeo.porFirma[firma]);
   if (manual) {
@@ -267,13 +300,20 @@ function analizarHoja(hoja, campos, mapeo) {
       if (Number.isInteger(v) && v >= 0 && v < encabezados.length) columnas[campo] = v;
     }
   }
+  // "REFERENCIA | (vacía) | ARTÍCULO" (listado de inventario de Helisa): por prioridad, "Artículo"
+  // gana como código, pero trae nombres. Si otra columna también se llama como un código, el
+  // código es esa (realinearColumnas la corre a la vecina con datos) y el artículo es el nombre.
+  if (!manual && iEnc >= 0 && columnas.codigo !== undefined && pareceNombre(valoresDe(filasDeMuestra(hoja, iEnc + 1, firma), columnas.codigo))) {
+    const tomadas = new Set(Object.values(columnas));
+    const otra = encabezados.findIndex((t, i) => !tomadas.has(i) && t && detectarColumnas([t], ['codigo']).codigo === 0);
+    if (otra >= 0) columnas = { ...columnas, ...(campos.includes('nombre') && columnas.nombre === undefined ? { nombre: columnas.codigo } : {}), codigo: otra };
+  }
   if (!manual && iEnc >= 0) columnas = realinearColumnas(hoja, iEnc, columnas, firma);
   // "CODIGO | ARTÍCULO | PEDIDO": por su título, "Artículo" también parece de código, pero trae
   // nombres. Si el código ya está en otra columna, una así se toma como el nombre.
   if (!manual && iEnc >= 0 && campos.includes('nombre') && columnas.nombre === undefined && columnas.codigo !== undefined) {
     const muestra = filasDeMuestra(hoja, iEnc + 1, firma);
     const tomadas = new Set(Object.values(columnas));
-    const pareceNombre = (vs) => vs.length >= 2 && vs.filter((v) => typeof v === 'string' && /[a-záéíóúñ]{3}/i.test(v) && /\s/.test(v.trim())).length / vs.length >= 0.6;
     const candidata = encabezados.findIndex((t, i) => !tomadas.has(i) && t && detectarColumnas([t], ['codigo']).codigo === 0 && pareceNombre(valoresDe(muestra, i)));
     if (candidata >= 0) columnas = { ...columnas, nombre: candidata };
   }
@@ -419,7 +459,8 @@ function esFilaDeRuido(f, firma) {
 // Filas que no son datos: totales, subtotales (solo números) y títulos sueltos sin código.
 // Encabezado de grupo de un kardex: "Código producto: 31010002 Codo de cobre…", con los totales
 // del producto en la misma fila (Movimiento de productos de Siigo Nube).
-const RE_FILA_DE_GRUPO = /^c[oó]d(igo|\.)?(\s+(de\s+)?(producto|art[ií]culo|item|[ií]tem|referencia))?\s*:/i;
+// También "BODEGA : A 2026", que abre el grupo de cada bodega en el listado de inventario de Helisa.
+const RE_FILA_DE_GRUPO = /^(c[oó]d(igo|\.)?(\s+(de\s+)?(producto|art[ií]culo|item|[ií]tem|referencia))?|bodega|almac[eé]n)\s*:/i;
 
 function esFilaQueSeSalta(f, codigo) {
   if (esFilaDeTotal(f) && (!codigo || /total/i.test(codigo))) return true;

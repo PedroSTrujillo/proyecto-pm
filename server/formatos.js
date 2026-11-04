@@ -73,6 +73,8 @@ const CAMPOS = {
       'nuevo saldo', 'saldo nuevo', 'cant fisica', 'cantidad fisica', 'saldo final cantidad', 'existencia fisica', 'cant disp',
       // Siigo Nube, "Movimiento de productos" (kardex con entradas y salidas).
       'saldo cantidades', 'saldo de cantidades',
+      // Helisa, listado de inventario con el encabezado en dos filas ("FINAL" sobre "CANTIDAD").
+      'final cantidad', 'cantidad final', 'saldo final unidades',
     ],
   },
   // Opcional: el tipo de documento de cada fila. Sirve para los informes que mezclan compras,
@@ -102,6 +104,8 @@ const CAMPOS = {
       'costo unitario', 'costo promedio', 'costo unit', 'costo prom', 'costo promedio unitario',
       'vr unitario costo', 'valor unitario costo', 'costo', 'precio costo', 'ultimo costo',
       'costo ultima compra', 'unit cost', 'cost',
+      // Helisa, listado de inventario: "FINAL" sobre "UNITARIO" (el costo unitario del saldo).
+      'final unitario',
     ],
   },
   costoTotal: {

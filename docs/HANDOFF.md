@@ -27,6 +27,19 @@
 
 ---
 
+## 2026-11-04 (53) — Claude (con David) — Listado de inventario de Helisa con encabezado en dos filas
+- **Rama:** `main`, en los dos remotos.
+- **Estado:** listo. El listado de inventario que sacan de Helisa no se leía: decía "Falta la columna de existencias". Tenía tres problemas:
+  1. El encabezado viene en dos filas ("FINAL" arriba de "CANTIDAD"). Ahora `encabezadosConGrupo` antepone el grupo, y solo se usa si así aparecen las existencias que faltaban.
+  2. "ARTÍCULO" ganaba a "REFERENCIA" como código, pero trae los nombres. Ahora, si la columna de código trae nombres y otra se llama como un código, el código es esa.
+  3. La fila "BODEGA : A 2026" entraba como si fuera un producto.
+  - Con un listado real (4.890 productos) y sus ventas, 1.922 de los 1.925 códigos vendidos cruzan, y el costo sale del "FINAL · UNITARIO".
+- **Archivos tocados:** `server/lector.js`, `server/formatos.js` (sinónimos `final cantidad`, `cantidad final`, `final unitario`), `test/lector.test.js` (2 pruebas, con datos inventados), `CLAUDE.md`.
+- **Base de datos:** sin cambios.
+- **Verificación:** `npm test` → 208/208.
+- **Siguiente paso exacto:** subir en Datos los archivos de la prueba y confirmar que no pregunta por columnas.
+- **Notas y bloqueos:** el listado de Helisa trae las existencias al momento de sacarlo. Si las ventas llegan hasta el día anterior y después se importan las de ese día, hay que usar el inventario al cierre del día anterior; si no, esas ventas se restan dos veces.
+
 ## 2026-11-03 (52) — Claude (con David) — Ventas deducidas de los conteos
 - **Rama:** `main`, en los dos remotos.
 - **Estado:** listo. Lo reportó Jose: quien lleva el inventario con conteos, sin registrar cada venta, veía bajar el "porcentaje de ventas" del panel. El efecto iba más allá de esa tarjeta: el promedio de venta bajaba (lo reciente pesa doble) y el sugerido salía corto.
