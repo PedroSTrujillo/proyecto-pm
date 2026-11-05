@@ -8,7 +8,7 @@ En línea: **https://sinesc.vercel.app** (Vercel + Neon).
 
 ## Cuenta de prueba y guion
 
-- **Cuenta con datos de uso:** `<correo de la cuenta de prueba>` / `<contraseña>`. La crea el equipo en producción con un correo que **no** esté en `TEAM_EMAILS` (las cuentas del equipo ven la pantalla Cuentas con los datos de los demás).
+- **Cuenta con datos de uso:** `p.sanin@uniandes.edu.co` / `12345678`. La crea el equipo en producción con un correo que **no** esté en `TEAM_EMAILS` (las cuentas del equipo ven la pantalla Cuentas con los datos de los demás).
 - **Guion del flujo central** (desde una cuenta nueva, en celular o en computador; el detalle está en [`docs/GUIA_PRUEBAS_USUARIO.md`](docs/GUIA_PRUEBAS_USUARIO.md)):
   1. Crear la cuenta con el nombre de la empresa → ve "suba su inventario" y la tarjeta "Invite a su equipo".
   2. Subir en Datos el export del programa contable o la plantilla de ejemplo → ve el panel con lo que se agota, lo que hay que pedir ya y el dinero quieto.
