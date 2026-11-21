@@ -10,7 +10,7 @@ En línea: **https://sinesc.vercel.app** (Vercel + Neon).
 
 - **Cuenta con datos de uso:** `p.sanin@uniandes.edu.co` / `12345678`. La crea el equipo en producción con un correo que **no** esté en `TEAM_EMAILS` (las cuentas del equipo ven la pantalla Cuentas con los datos de los demás).
 - **Guion del flujo central** (desde una cuenta nueva, en celular o en computador; el detalle está en [`docs/GUIA_PRUEBAS_USUARIO.md`](docs/GUIA_PRUEBAS_USUARIO.md)):
-  1. Crear la cuenta con el nombre de la empresa → ve "suba su inventario" y la tarjeta "Invite a su equipo".
+  1. Crear la cuenta con el nombre de la empresa y un código de acceso (lo genera el equipo en Cuentas; se puede escribir con o sin guion) → ve "suba su inventario" y la tarjeta "Invite a su equipo".
   2. Subir en Datos el export del programa contable o la plantilla de ejemplo → ve el panel con lo que se agota, lo que hay que pedir ya y el dinero quieto.
   3. "Preparar pedido" → ve lo sugerido por proveedor, ajusta una línea, lo cierra y descarga el PDF.
   4. Registrar un movimiento en Movimientos → el panel y Existencias muestran las existencias nuevas.
@@ -70,7 +70,7 @@ Abre http://localhost:3000. La página, la demo, las cuentas y la aplicación sa
 
 | Comando | Qué hace |
 |---|---|
-| `npm test` | Corre las 208 pruebas automáticas: cálculo, pronóstico, comparación de listas, recordatorios, lector de archivos, demo y API. No necesitan la web. |
+| `npm test` | Corre las 225 pruebas automáticas: cálculo, pronóstico, comparación de listas, recordatorios, lector de archivos, demo y API. No necesitan la web. |
 | `npm run ejemplos` | Regenera en `ejemplos/` los archivos inventados (CSV estilo Siigo, Excel estilo SAP, ventas por mes, un catálogo de 3.000 productos y un informe de mínimos). |
 | `npm run texto` | Revisa los textos de la interfaz buscando frases de relleno. |
 | `npm run borrar-datos -- --todos` | Muestra qué cuentas de prueba se borrarían; con `--confirmar` las borra. `--email correo@empresa.co` borra una sola. Las del equipo no se tocan. |

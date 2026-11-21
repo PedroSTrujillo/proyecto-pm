@@ -13,7 +13,7 @@ const assert = require('node:assert/strict');
 const db = require('../server/db');
 const { crearApp } = require('../server/app');
 const { plantillaExport } = require('../server/plantillas');
-const { estadoCuenta, enmascarar } = require('../server/cuentas-equipo');
+const { estadoCuenta, enmascarar, crearCodigos } = require('../server/cuentas-equipo');
 
 let servidor;
 let base;
@@ -206,6 +206,10 @@ test('crear una cuenta pide un código de acceso de un solo uso, y el equipo los
 
   const rita = await cliente().post('/api/cuenta/crear', { ...datos, codigo: nuevos[0].toLowerCase() });
   assert.equal(rita.estado, 201, 'se acepta en minúsculas');
+  // Dictado por teléfono: sin guion o con un espacio también vale.
+  const [otro] = await crearCodigos(1, 'dictado', null);
+  const sinGuion = await cliente().post('/api/cuenta/crear', { ...datos, email: 'rita3@prueba.co', codigo: ` ${otro.replace('-', ' ').toLowerCase()} ` });
+  assert.equal(sinGuion.estado, 201, 'con espacio en vez de guion');
   assert.equal((await cliente().post('/api/cuenta/crear', { ...datos, email: 'rita2@prueba.co', codigo: nuevos[0] })).estado, 400, 'ya se usó');
   assert.equal((await db.uno('SELECT 1 AS x FROM usuarios WHERE email = $1', ['rita2@prueba.co'])), null);
 

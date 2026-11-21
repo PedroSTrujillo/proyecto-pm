@@ -432,7 +432,10 @@ function recortarAContenedores(inv, foto) {
   if (!inv.ajustes.importaciones) return foto;
   const productos = new Map(inv.productos.map((x) => [x.codigo, x]));
   const nuevas = new Map(); // codigo → cantidad que queda, solo de los proveedores con contenedores
-  for (const [proveedor, lineas] of Map.groupBy(foto, (l) => l.proveedor)) {
+  // Sin Map.groupBy: no existe en Node 20, que es el mínimo de package.json.
+  const porProveedor = new Map();
+  for (const l of foto) porProveedor.set(l.proveedor, [...(porProveedor.get(l.proveedor) || []), l]);
+  for (const [proveedor, lineas] of porProveedor) {
     const capacidad = capacidadDe(inv.ajustes.condiciones[proveedor]);
     if (capacidad === null) continue;
     const { lineas: quedan } = ajustarAContenedores(

@@ -35,7 +35,9 @@ function deVentas(titulo, nota, campo, elegir) {
     if (!e) throw new ErrorUsuario('Suba primero el inventario en Datos.', 409);
     const ventas = ventasEnRango(e.series, desde, hasta);
     const conCosto = e.inv.productos.some((p) => p.costo > 0);
-    const filas = elegir(e.inv.productos.map((p) => ({ p, v: (ventas[claveCodigo(p.codigo)] || {})[campo] || 0 })))
+    // En unidades enteras: el reparto de cada semana por días deja fracciones ("100,71 unidades") que
+    // nadie vendió así; el rango ya es aproximado (ventasEnRango).
+    const filas = elegir(e.inv.productos.map((p) => ({ p, v: Math.round((ventas[claveCodigo(p.codigo)] || {})[campo] || 0) })))
       .map(({ p, v }) => [p.codigo, p.nombre, v, p.existencias, p.pedidoReciente ? p.pedidoReciente.cantidad : '', ...(conCosto ? [Math.round(v * (p.costo || 0))] : [])]);
     return {
       titulo,

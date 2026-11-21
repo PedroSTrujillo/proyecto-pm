@@ -27,6 +27,17 @@
 
 ---
 
+## 2026-11-21 (70) — Claude (David) — Publicación del PR 4 (T1 a T14) y ajustes de la revisión
+- **Rama:** `main`, con el PR 4 de Santiago (`cambios-sinesc`) más estos ajustes. Publicado en Vercel.
+- **Estado:** roles (gerente, administrador, operador), menú por rol, operador sin costos ni pedidos ni reportes, Proveedores, Reportes, códigos de acceso, suspender cuentas, contenedores e importaciones quedan en producción. Ajustes de la revisión: (1) el código de acceso se acepta con o sin guion y con espacios ("flua gddv" = "FLUA-GDDV"): antes se rechazaba un código válido escrito sin guion, que es como se dicta por teléfono; (2) los reportes de ventas muestran unidades enteras (el reparto por días de cada semana daba "100,71 unidades"); (3) `Map.groupBy` en `pedidos.js` cambiado por un ciclo (no existe en Node 20, el mínimo de `package.json`); (4) `npm run texto` ya no confunde columnas SQL (`aprueba`, `sube_datos`) con tuteo.
+- **Archivos tocados:** `server/cuentas.js`, `server/reportes.js`, `server/pedidos.js`, `scripts/revisar-texto.js`, `test/cuentas-equipo.test.js`; docs `CLAUDE.md`, `README.md`, `docs/ENTREGABLE_Y_APP.md` (filas 16 a 26: publicadas), `docs/RESUMEN_CAMBIOS_SINESC.md`.
+- **Base de datos:** nada nuevo aparte de lo del PR 4 (`codigos_acceso`, `invitaciones.rol`, `usuarios.sube_datos`, `usuarios.suspendida_en`, `productos.medidas_cm`); se crean solos al arrancar.
+- **Verificación:** `npm test` 225 de 225; `tsc` limpio; `npm run texto` 0 con tuteo. En el navegador (local): cuenta nueva con código escrito con espacio, invitación de operador, el gerente ve Proveedores y Reportes ("Más vendidos" con datos), el operador cae en Movimientos, `/pedidos` lo devuelve, `/api/pedidos` y `/api/reportes` le responden 403, `costo` y `sugerido` le llegan en `null` y Datos le dice que pida permiso para subir.
+- **Siguiente paso exacto:** en producción, que el gerente de cada empresa del piloto revise en Mi empresa el rol de cada miembro: quien antes eligió "operador" al registrarse ahora es operador y ya no abre Pedidos (si es quien aprueba, pasarlo a administrador y marcar "Aprueba"). Generar en Cuentas los códigos de quien vaya a crear cuenta.
+- **Notas y bloqueos:** el plan decía publicar al cerrar el piloto; se publicó el 2026-11-21 porque el PR entró a `main` y David pidió desplegarlo. Siguen como supuestos las capacidades de contenedor (33 y 67 m³, estiba 0,85).
+
+---
+
 ## 2026-11-21 (69) — Claude — T14: importadores y contenedores (última tarea del plan)
 - **Rama:** `cambios-sinesc`, solo en local, sin commit (T5 a T13 tampoco).
 - **Estado:** T14 hecha como **extensión opcional**: `ajustes.importaciones` (apagada por defecto, casilla discreta al final de Proveedores). Apagada, la ficha, el pedido y los productos se ven como siempre y el servidor no recorta nada. Encendida: `condiciones[prov].contenedores` + `tipoContenedor` (cada proveedor se marca nacional o internacional con `condiciones[prov].internacional`, a pedido del usuario; los nacionales no llevan contenedores ni medidas, y el servidor descarta los contenedores de uno que no sea internacional), medidas por producto en la ficha del proveedor (`productos.medidas_cm`, "40x30x20"), `server/contenedores.js` (`capacidadDe`, `volumenDe`, `ajustarAContenedores`), recorte en `crearDesdeSugerido` y "Ocupa X de N contenedores" en el grupo del pedido (rojo si pasa).

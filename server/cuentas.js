@@ -250,7 +250,9 @@ rutas.post('/crear', async (req, res) => {
   const existe = await db.uno('SELECT id FROM usuarios WHERE email = $1', [email]);
   if (existe) throw new ErrorUsuario('Ya hay una cuenta con ese correo. Inicie sesión.');
   const rol = esEmailDeEquipo(email) ? 'equipo' : 'usuario';
-  const codigo = String(req.body?.codigo || '').replace(/\s+/g, '').toUpperCase();
+  // El código se dicta por teléfono: "flua gddv", "FLUAGDDV" y "FLUA-GDDV" son el mismo.
+  const limpio = String(req.body?.codigo || '').replace(/[^0-9a-z]/gi, '').toUpperCase();
+  const codigo = limpio.length === 8 ? `${limpio.slice(0, 4)}-${limpio.slice(4)}` : limpio;
   if (!codigo) throw new ErrorUsuario('Escriba su código de acceso. Se lo entrega el equipo de SINESC.');
   const id = await db.tx(async (t) => {
     // Cada persona lleva el suyo, también quien entra por invitación; si algo falla abajo, el tx lo devuelve.
