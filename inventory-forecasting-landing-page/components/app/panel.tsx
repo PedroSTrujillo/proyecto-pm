@@ -227,12 +227,13 @@ function PrimeroEnAcabarse({ inv }: { inv: Inventario }) {
         </Link>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] border-collapse">
+        {/* En el celular, sin ventas ni existencias en columnas aparte (las existencias van debajo del nombre): así cabe sin deslizar de lado. */}
+        <table className="w-full border-collapse sm:min-w-[640px]">
           <thead>
             <tr className="text-left text-nota text-muted-foreground">
               <th scope="col" className="border-b border-border px-2 py-2.5 font-semibold">Producto</th>
-              <th scope="col" className="border-b border-border px-2 py-2.5 font-semibold">Ventas/semana</th>
-              <th scope="col" className="border-b border-border px-2 py-2.5 text-right font-semibold">Existencias</th>
+              <th scope="col" className="hidden border-b border-border px-2 py-2.5 font-semibold sm:table-cell">Ventas/semana</th>
+              <th scope="col" className="hidden border-b border-border px-2 py-2.5 text-right font-semibold sm:table-cell">Existencias</th>
               <th scope="col" className="border-b border-border px-2 py-2.5 text-right font-semibold">Alcanza para</th>
               <th scope="col" className="border-b border-border px-2 py-2.5 font-semibold">{inv.alcance === 'prueba' ? 'Estado' : 'Riesgo de agotarse'}</th>
             </tr>
@@ -255,19 +256,20 @@ function FilaPrimero({ p, href }: { p: Producto; href: string }) {
       <td className="border-b border-[#f0f1ee] px-2 py-3">
         <span className="block text-nota tracking-wide text-muted-foreground">{p.codigo}</span>
         <Link href={href} className="font-semibold text-foreground hover:text-primary">{p.nombre}</Link>
+        <span className="block text-nota text-muted-foreground sm:hidden">Existencias: {numero(p.existencias)}</span>
       </td>
-      <td className="border-b border-[#f0f1ee] px-2 py-3">
+      <td className="hidden border-b border-[#f0f1ee] px-2 py-3 sm:table-cell">
         <span className="flex items-center gap-2.5">
           {p.serie && <Sparkline valores={p.serie.slice(-16)} className="w-20" />}
           <span className="font-semibold tabular-nums">{ventasSemana(p.ventasSemana)}</span>
         </span>
       </td>
-      <td className="border-b border-[#f0f1ee] px-2 py-3 text-right tabular-nums">{numero(p.existencias)}</td>
+      <td className="hidden border-b border-[#f0f1ee] px-2 py-3 text-right tabular-nums sm:table-cell">{numero(p.existencias)}</td>
       <td className="border-b border-[#f0f1ee] px-2 py-3 text-right">
         <strong className={cn('font-display text-xl tabular-nums', e.numero)}>{alcancePartes(p.semanas).valor}</strong>
         <span className="block text-nota text-muted-foreground">{alcancePartes(p.semanas).unidad}</span>
       </td>
-      <td className="min-w-44 border-b border-[#f0f1ee] px-2 py-3">
+      <td className="border-b border-[#f0f1ee] px-2 py-3 sm:min-w-44">
         {/* En cero ya se agotó: un porcentaje ahí confunde (sería la probabilidad de que lo pidan). */}
         {p.existencias <= 0 && p.ventasSemana > 0 ? (
           <span className="block text-sm font-bold text-rojo-texto">Ya está en cero</span>

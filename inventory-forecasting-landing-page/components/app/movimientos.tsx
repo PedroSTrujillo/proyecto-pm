@@ -25,7 +25,7 @@ export const TIPOS: { id: TipoMovimiento; texto: string; ayuda: string; icono: R
 ]
 export const TEXTO_TIPO = Object.fromEntries(TIPOS.map((t) => [t.id, t.texto])) as Record<TipoMovimiento, string>
 
-type Resultado = { guardados: number; creados?: string[]; avisos: string[] }
+type Resultado = { guardados: number; creados?: string[]; avisos: string[]; en?: number }
 
 type Modo = 'uno' | 'varios'
 const CLAVE_MODO = 'movimientos-modo'
@@ -64,7 +64,7 @@ function useCatalogo(q: string) {
 }
 
 export function Movimientos() {
-  const { recargar, perfil } = useInventario()
+  const { recargar } = useInventario()
   const [hoy, setHoy] = useState<string | null>(null)
   const [fecha, setFecha] = useState<string>('')
   const [lista, setLista] = useState<Movimiento[] | null>(null)
@@ -104,7 +104,7 @@ export function Movimientos() {
   }, [fecha, cargar])
 
   function alGuardar(r: Resultado) {
-    setUltimo(r)
+    setUltimo({ ...r, en: Date.now() })
     cargar(fecha)
     recargar()
   }
@@ -127,7 +127,6 @@ export function Movimientos() {
       >
         Movimientos
       </Titulo>
-      {perfil === 'analista' && <Aviso tono="info">Registrar movimientos es tarea del perfil operador, pero cualquiera de la empresa puede hacerlo.</Aviso>}
 
       <Pildoras
         etiqueta="Cuántos movimientos va a registrar"
@@ -151,7 +150,7 @@ export function Movimientos() {
 
       {ultimo && (
         <div className="aparecer flex flex-col gap-2">
-          <Aviso tono="ok">{ultimo.guardados === 1 ? 'Guardado 1 movimiento.' : `Guardados ${ultimo.guardados} movimientos.`}</Aviso>
+          <ConfirmacionFlotante key={ultimo.en} texto={ultimo.guardados === 1 ? 'Guardado 1 movimiento.' : `Guardados ${ultimo.guardados} movimientos.`} />
           {ultimo.avisos.map((a) => <Aviso key={a} tono="cuidado">{a}</Aviso>)}
         </div>
       )}
@@ -168,28 +167,29 @@ export function Movimientos() {
           <p className="text-muted-foreground">Nada registrado este día.</p>
         ) : (
           <div className="relative overflow-x-auto">
-            <table className="w-full min-w-[560px] border-separate border-spacing-0 text-cuerpo" data-privado>
+            {/* En el celular el tipo va debajo del producto y "Quién" se oculta: así cabe sin deslizar de lado. */}
+            <table className="w-full border-separate border-spacing-0 text-cuerpo sm:min-w-[560px]" data-privado>
               <thead>
                 <tr className="text-left text-sm text-muted-foreground">
                   <th scope="col" className="border-b border-border px-2 py-2 font-semibold">Producto</th>
-                  <th scope="col" className="border-b border-border px-2 py-2 font-semibold">Tipo</th>
+                  <th scope="col" className="hidden border-b border-border px-2 py-2 font-semibold sm:table-cell">Tipo</th>
                   <th scope="col" className="border-b border-border px-2 py-2 text-right font-semibold">Cantidad</th>
-                  <th scope="col" className="border-b border-border px-2 py-2 font-semibold">Quién</th>
+                  <th scope="col" className="hidden border-b border-border px-2 py-2 font-semibold sm:table-cell">Quién</th>
                   <th scope="col" className="border-b border-border px-2 py-2"><span className="sr-only">Acciones</span></th>
                 </tr>
               </thead>
               <tbody>
                 {lista.map((m) => (
                   <tr key={m.id} className={cn(m.anulado && 'text-muted-foreground line-through')}>
-                    <td className="border-b border-[#f0f1ee] px-2 py-2.5"><strong>{m.codigo}</strong> <span className="text-muted-foreground">{m.nombre}</span>{m.nota && <span className="block text-nota text-muted-foreground">{m.nota}</span>}</td>
-                    <td className="border-b border-[#f0f1ee] px-2 py-2.5">
+                    <td className="border-b border-[#f0f1ee] px-2 py-2.5"><strong>{m.codigo}</strong> <span className="text-muted-foreground">{m.nombre}</span>{m.nota && <span className="block text-nota text-muted-foreground">{m.nota}</span>}<span className="block text-nota font-semibold text-muted-foreground sm:hidden">{TEXTO_TIPO[m.tipo]}{m.proyecto ? ' de proyecto' : ''}</span></td>
+                    <td className="hidden border-b border-[#f0f1ee] px-2 py-2.5 sm:table-cell">
                       {TEXTO_TIPO[m.tipo]}
                       {m.proyecto && <span className="block text-nota text-muted-foreground">de proyecto</span>}
                       {m.desde && <span className="block text-nota text-muted-foreground">del {dia(m.desde)} al {dia(m.fecha)}</span>}
                       {m.pedidoId && <span className="block text-nota text-muted-foreground">llegada de un pedido</span>}
                     </td>
                     <td className="border-b border-[#f0f1ee] px-2 py-2.5 text-right font-semibold tabular-nums">{TIPOS.find((t) => t.id === m.tipo)!.signo}{numero(m.cantidad, 2)}</td>
-                    <td className="border-b border-[#f0f1ee] px-2 py-2.5 text-sm text-muted-foreground">{m.registro || '—'}</td>
+                    <td className="hidden border-b border-[#f0f1ee] px-2 py-2.5 text-sm text-muted-foreground sm:table-cell">{m.registro || '—'}</td>
                     <td className="border-b border-[#f0f1ee] px-2 py-2.5 text-right">
                       {m.anulado ? <span className="text-sm no-underline">Anulado</span> : <Boton tamano="chico" variante="fantasma" onClick={() => anular(m)}><Undo2 /> Anular</Boton>}
                     </td>
@@ -471,5 +471,25 @@ function PegarVarios({ fecha, hoy, alGuardar }: { fecha: string; hoy: string; al
       )}
       <p className="text-nota text-muted-foreground">Si una fila tiene un error, no se guarda ninguna: corríjala y guarde de nuevo.</p>
     </Tarjeta>
+  )
+}
+
+// La confirmación de lo guardado. En el celular el formulario llena la pantalla y el aviso quedaba debajo,
+// fuera de la vista: flota abajo unos segundos para que se vea sin bajar (y no se registre dos veces).
+function ConfirmacionFlotante({ texto }: { texto: string }) {
+  const [visible, setVisible] = useState(true)
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(false), 5000)
+    return () => clearTimeout(t)
+  }, [])
+  return (
+    <>
+      <Aviso tono="ok">{texto}</Aviso>
+      {visible && (
+        <div aria-hidden="true" className="aparecer fixed inset-x-4 bottom-4 z-40 rounded-xl bg-foreground px-4 py-3 text-center text-cuerpo font-semibold text-background shadow-lg sm:hidden">
+          {texto}
+        </div>
+      )}
+    </>
   )
 }

@@ -197,7 +197,8 @@ export function Cargando({ texto = 'Cargando…' }: { texto?: string }) {
 export function Ayuda({ texto }: { texto: string }) {
   return (
     <span className="group inline-flex">
-      <button type="button" aria-label={texto} className="inline-flex size-7 items-center justify-center rounded-full border border-border bg-card text-nota font-bold text-muted-foreground hover:text-foreground">
+      {/* El círculo se ve de 28 px, pero el dedo tiene 44 (after:-inset-2). */}
+      <button type="button" aria-label={texto} className="relative inline-flex size-7 items-center after:absolute after:-inset-2 after:content-[''] justify-center rounded-full border border-border bg-card text-nota font-bold text-muted-foreground hover:text-foreground">
         ?
       </button>
       <span role="tooltip" className="pointer-events-none absolute inset-x-3 top-12 z-20 rounded-xl bg-foreground px-3 py-2 text-left text-nota leading-snug font-normal text-background opacity-0 shadow-lg transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100">

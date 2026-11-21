@@ -114,7 +114,7 @@ export function CrearCuenta() {
   }
   const sub = invitacion
     ? invitada ? `Lo invitaron a ${invitada.empresa}. Cree su cuenta para ver y llevar el inventario de la empresa.` : 'Revisando su invitación…'
-    : 'Cree la cuenta de su empresa. Después invita a su equipo desde "Mi empresa".'
+    : 'Cree la cuenta de su empresa. Después podrá invitar a su equipo desde "Mi empresa".'
   return (
     <Caja titulo={invitacion ? 'Únase a su empresa' : 'Cree su cuenta'} sub={sub} pie={<p className="text-center">¿Ya tiene cuenta? <Link href="/entrar" className="font-semibold text-primary hover:text-primary-hover">Entrar</Link>.</p>}>
       {errorInvitacion ? (
@@ -124,19 +124,20 @@ export function CrearCuenta() {
         </div>
       ) : (
         <form className="flex flex-col gap-4" onSubmit={alEnviar} noValidate>
+          {/* Primero el código: sin él no se crea la cuenta, y así nadie llena todo el formulario para enterarse al final. */}
+          <Campo etiqueta="Código de acceso" nota="(se lo entrega el equipo de SINESC)"><input className={cn(claseEntrada, 'font-mono uppercase')} type="text" name="codigo" required autoComplete="off" autoCapitalize="characters" spellCheck={false} placeholder="XXXX-XXXX" autoFocus /></Campo>
           {!invitacion && (
             <>
-              <Campo etiqueta="Nombre de su empresa"><input className={claseEntrada} type="text" name="empresa" required autoComplete="organization" autoFocus /></Campo>
+              <Campo etiqueta="Nombre de su empresa"><input className={claseEntrada} type="text" name="empresa" required autoComplete="organization" /></Campo>
               <Campo etiqueta="NIT" nota="(opcional)"><input className={claseEntrada} type="text" name="nit" inputMode="numeric" /></Campo>
             </>
           )}
-          <Campo etiqueta="Código de acceso" nota="(se lo entrega el equipo de SINESC)"><input className={cn(claseEntrada, 'font-mono uppercase')} type="text" name="codigo" required autoComplete="off" placeholder="XXXX-XXXX" /></Campo>
-          <Campo etiqueta="Su nombre"><input className={claseEntrada} type="text" name="nombre" required autoComplete="name" autoFocus={Boolean(invitacion)} /></Campo>
+          <Campo etiqueta="Su nombre"><input className={claseEntrada} type="text" name="nombre" required autoComplete="name" /></Campo>
           <Campo etiqueta="Su cargo" nota="(opcional, va en el PDF de sus pedidos)"><input className={claseEntrada} type="text" name="cargo" maxLength={80} placeholder="Por ejemplo, jefe de compras" autoComplete="organization-title" /></Campo>
           <Campo etiqueta="Correo"><input className={claseEntrada} type="email" name="email" required autoComplete="email" defaultValue={invitada?.email || ''} key={invitada?.email || ''} /></Campo>
           <Campo etiqueta="Contraseña" nota="(mínimo 8 caracteres)"><input className={claseEntrada} type="password" name="clave" required minLength={8} autoComplete="new-password" /></Campo>
           <label className="flex items-start gap-2.5 text-cuerpo">
-            <input type="checkbox" name="boletin" defaultChecked className="mt-1 size-4 accent-[var(--primary)]" />
+            <input type="checkbox" name="boletin" defaultChecked className="mt-0.5 size-5 shrink-0 accent-[var(--primary)]" />
             <span>Recibir cada mañana un correo con el estado del inventario. <span className="text-muted-foreground">Se da de baja con un clic.</span></span>
           </label>
           {error && <ErrorLista mensaje={error.mensaje} lista={error.lista} />}

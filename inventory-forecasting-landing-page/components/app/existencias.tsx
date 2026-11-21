@@ -99,12 +99,13 @@ export function Existencias() {
           <input className={cn(claseEntrada, 'mb-3')} placeholder="Buscar por código o nombre" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Buscar producto" />
           {filas.length === 0 ? <p className="text-muted-foreground">No hay productos{q ? ' con esa búsqueda' : ''}.</p> : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[520px] border-separate border-spacing-0 text-cuerpo" data-privado>
+              {/* En el celular cabe sin deslizar de lado: "Pedido" pasa debajo del nombre (solo al contar hace falta más ancho). */}
+              <table className={cn('w-full border-separate border-spacing-0 text-cuerpo', contando && 'min-w-[520px]')} data-privado>
                 <thead>
                   <tr className="text-left text-sm text-muted-foreground">
                     <th scope="col" className="border-b border-border px-2 py-2 font-semibold">Producto</th>
                     <th scope="col" className="border-b border-border px-2 py-2 text-right font-semibold">Existencias</th>
-                    <th scope="col" className="border-b border-border px-2 py-2 text-right font-semibold">Pedido</th>
+                    <th scope="col" className="hidden border-b border-border px-2 py-2 text-right font-semibold sm:table-cell">Pedido</th>
                     {contando && <th scope="col" className="border-b border-border px-2 py-2 text-right font-semibold">Conteo</th>}
                     <th scope="col" className="hidden border-b border-border px-2 py-2 font-semibold sm:table-cell">Último movimiento</th>
                   </tr>
@@ -121,10 +122,11 @@ export function Existencias() {
                             <strong>{p.codigo}</strong> <span className="text-muted-foreground">{p.nombre}</span>
                           </button>
                           {inv && inv.estado === 'agota' && <span className="block text-nota font-semibold text-rojo-texto">{inv.existencias <= 0 ? 'Agotado' : 'Se va a agotar'}</span>}
+                          {inv?.pedidoReciente && <span className="block text-nota text-muted-foreground sm:hidden">Pedido: {numero(inv.pedidoReciente.cantidad, 2)}</span>}
                         </td>
                         <td className={cn('border-b border-[#f0f1ee] px-2 py-2.5 text-right font-semibold tabular-nums', p.existencias < 0 && 'text-rojo')}>{numero(p.existencias, 2)}{p.unidad ? <span className="ml-1 text-sm font-normal text-muted-foreground">{p.unidad}</span> : null}</td>
                         <td
-                          className="border-b border-[#f0f1ee] px-2 py-2.5 text-right text-sm tabular-nums text-muted-foreground"
+                          className="hidden border-b border-[#f0f1ee] px-2 py-2.5 text-right text-sm tabular-nums text-muted-foreground sm:table-cell"
                           title={inv?.pedidoReciente ? `Pedido ${inv.pedidoReciente.numero}${inv.pedidoReciente.por ? ` de ${inv.pedidoReciente.por}` : ''}, ${dia(inv.pedidoReciente.fecha)}${inv.enCamino ? `. Faltan por entrar ${numero(inv.enCamino.cantidad, 2)}.` : '. Ya entró.'}` : undefined}
                         >
                           {inv?.pedidoReciente ? `Pedido: ${numero(inv.pedidoReciente.cantidad, 2)}` : ''}

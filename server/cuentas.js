@@ -243,17 +243,18 @@ rutas.post('/crear', async (req, res) => {
   const nit = String(empresa.nit || '').trim().slice(0, 30) || null;
   const cargo = leerCargo(req.body?.cargo);
   const boletin = req.body?.boletin === true || req.body?.boletin === 'on' || req.body?.boletin === 'true';
-  if (!nombre) throw new ErrorUsuario('Escriba su nombre.');
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new ErrorUsuario('Escriba un correo válido.');
-  validarClave(clave);
-  if (!invitacion && !nombreEmpresa) throw new ErrorUsuario('Escriba el nombre de su empresa o abra el enlace de invitación que le enviaron.');
-  const existe = await db.uno('SELECT id FROM usuarios WHERE email = $1', [email]);
-  if (existe) throw new ErrorUsuario('Ya hay una cuenta con ese correo. Inicie sesión.');
-  const rol = esEmailDeEquipo(email) ? 'equipo' : 'usuario';
+  // En el orden del formulario (código, empresa, nombre, correo, contraseña): el primer error es el de más arriba.
   // El código se dicta por teléfono: "flua gddv", "FLUAGDDV" y "FLUA-GDDV" son el mismo.
   const limpio = String(req.body?.codigo || '').replace(/[^0-9a-z]/gi, '').toUpperCase();
   const codigo = limpio.length === 8 ? `${limpio.slice(0, 4)}-${limpio.slice(4)}` : limpio;
   if (!codigo) throw new ErrorUsuario('Escriba su código de acceso. Se lo entrega el equipo de SINESC.');
+  if (!invitacion && !nombreEmpresa) throw new ErrorUsuario('Escriba el nombre de su empresa o abra el enlace de invitación que le enviaron.');
+  if (!nombre) throw new ErrorUsuario('Escriba su nombre.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new ErrorUsuario('Escriba un correo válido.');
+  validarClave(clave);
+  const existe = await db.uno('SELECT id FROM usuarios WHERE email = $1', [email]);
+  if (existe) throw new ErrorUsuario('Ya hay una cuenta con ese correo. Inicie sesión.');
+  const rol = esEmailDeEquipo(email) ? 'equipo' : 'usuario';
   const id = await db.tx(async (t) => {
     // Cada persona lleva el suyo, también quien entra por invitación; si algo falla abajo, el tx lo devuelve.
     const { rows: usados } = await t.query('UPDATE codigos_acceso SET usado_en = now() WHERE codigo = $1 AND usado_en IS NULL RETURNING codigo', [codigo]);

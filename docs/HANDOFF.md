@@ -27,6 +27,17 @@
 
 ---
 
+## 2026-11-21 (71) — Claude (David) — Revisión de experiencia y accesibilidad antes de las pruebas
+- **Rama:** `main`.
+- **Estado:** recorrido como usuario (gerente, administrador y operador) en celular de 375 px y en escritorio, con una revisión automática por pantalla (botones sin nombre, campos sin etiqueta, contraste, letra menor de 12 px, toque menor de 28 px, desborde horizontal) y el flujo de la prueba H2 completo. Arreglado: tarjetas por producto en Preparar pedido en el celular (`TarjetasGrupo` en `pedido-preparar.tsx`; la tabla queda desde `sm`); Existencias, panel, Mis pedidos y Movimientos sin deslizar de lado; confirmación flotante al guardar un movimiento en el celular (`ConfirmacionFlotante`); código de acceso primero en Crear cuenta y validación del servidor en el mismo orden; `exigirLineas` en `/enviar` y `/por-que` (un pedido vacío llegaba a quien aprueba); "Saltar al contenido", Escape en el menú del celular, foco en "Cerrar/Aprobar/Enviar" con `irAlCierre`, área de toque de 44 px en `Ayuda`; textos ("lápiz, escriba", "valores de su rol", sin el aviso de "perfil operador").
+- **Archivos tocados:** web `pedido-preparar.tsx`, `existencias.tsx`, `panel.tsx`, `pedidos.tsx`, `movimientos.tsx`, `marco.tsx`, `ui.tsx`, `cuenta-formularios.tsx`, `cuenta.tsx`, `pedido-flujo.tsx`; servidor `cuentas.js`, `pedidos.js`; pruebas `aprobacion.test.js`; docs `ENTREGABLE_Y_APP.md` (fila 27).
+- **Base de datos:** nada.
+- **Verificación:** `npm test` 225 de 225; `tsc` limpio; `npm run texto` 0 con tuteo. En el navegador: todas las pantallas sin desborde ni elementos sin nombre; preparar, enviar, aprobar (diálogo con foco y Enter), PDF y Excel; operador registra ventas y ve la confirmación.
+- **Siguiente paso exacto:** que el gerente de cada empresa del piloto revise roles en Mi empresa y que el equipo genere los códigos de acceso en Cuentas antes de invitar a alguien.
+- **Notas y bloqueos:** la tabla de Reportes sigue deslizando de lado en el celular (6 columnas; se usa más en computador). Productos en el celular pone los filtros antes de la lista: funciona, pero es largo.
+
+---
+
 ## 2026-11-21 (70) — Claude (David) — Publicación del PR 4 (T1 a T14) y ajustes de la revisión
 - **Rama:** `main`, con el PR 4 de Santiago (`cambios-sinesc`) más estos ajustes. Publicado en Vercel.
 - **Estado:** roles (gerente, administrador, operador), menú por rol, operador sin costos ni pedidos ni reportes, Proveedores, Reportes, códigos de acceso, suspender cuentas, contenedores e importaciones quedan en producción. Ajustes de la revisión: (1) el código de acceso se acepta con o sin guion y con espacios ("flua gddv" = "FLUA-GDDV"): antes se rechazaba un código válido escrito sin guion, que es como se dicta por teléfono; (2) los reportes de ventas muestran unidades enteras (el reparto por días de cada semana daba "100,71 unidades"); (3) `Map.groupBy` en `pedidos.js` cambiado por un ciclo (no existe en Node 20, el mínimo de `package.json`); (4) `npm run texto` ya no confunde columnas SQL (`aprueba`, `sube_datos`) con tuteo.

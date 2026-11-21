@@ -300,7 +300,7 @@ export function PedidoPreparar({ pedido, alCambiar }: { pedido: Pedido; alCambia
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          {editable && <Boton variante="primario" onClick={() => document.getElementById('cerrar-pedido')?.scrollIntoView({ behavior: 'smooth' })}>{ap?.puedoAprobar ? 'Ir a aprobar' : ap?.puedoCerrar ? 'Ir a cerrar el pedido' : 'Ir a enviar'}</Boton>}
+          {editable && <Boton variante="primario" onClick={irAlCierre}>{ap?.puedoAprobar ? 'Ir a aprobar' : ap?.puedoCerrar ? 'Ir a cerrar el pedido' : 'Ir a enviar'}</Boton>}
           <Boton variante={cerrado ? 'primario' : 'secundario'} onClick={() => descargar('pdf')} disabled={!total.lineas}><FileText /> PDF del pedido</Boton>
           <Boton onClick={() => descargar('xlsx')} disabled={!total.lineas}><FileSpreadsheet /> Excel por proveedor</Boton>
           {editable && <span className="text-sm text-muted-foreground" aria-live="polite">{auto.estado}</span>}
@@ -431,7 +431,7 @@ export function PedidoPreparar({ pedido, alCambiar }: { pedido: Pedido; alCambia
         )}
       </Tarjeta>
 
-      <Tarjeta id="cerrar-pedido" className="flex flex-col gap-4 p-5 sm:p-6">
+      <Tarjeta id="cerrar-pedido" tabIndex={-1} className="flex flex-col gap-4 p-5 outline-none sm:p-6">
         {ap?.puedoAprobar ? (
           <>
             <h2 className="text-xl font-bold">Aprobar el pedido</h2>
@@ -523,9 +523,83 @@ function Cifra({ titulo, valor, destacado }: { titulo: string; valor: string; de
   )
 }
 
-function TablaGrupo({ filas, cerrado, conCosto, alCambiar }: { filas: Fila[]; cerrado: boolean; conCosto: boolean; alCambiar: (clave: string, cambio: Partial<Fila>) => void }) {
+type PropsGrupo = { filas: Fila[]; cerrado: boolean; conCosto: boolean; alCambiar: (clave: string, cambio: Partial<Fila>) => void }
+
+// En el celular, una tarjeta por producto: la tabla de 720 px dejaba la cantidad fuera de la pantalla y
+// había que deslizar de lado para cambiarla.
+// Baja hasta "Cerrar / Aprobar / Enviar" y le pasa el foco, para que el teclado y el lector de pantalla sigan ahí.
+// Sin animación si la persona pidió menos movimiento en su sistema.
+function irAlCierre() {
+  const el = document.getElementById('cerrar-pedido')
+  if (!el) return
+  el.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+  el.focus({ preventScroll: true })
+}
+
+function TablaGrupo(props: PropsGrupo) {
   return (
-    <div className="relative overflow-x-auto">
+    <>
+      <TarjetasGrupo {...props} />
+      <TablaGrupoAncha {...props} />
+    </>
+  )
+}
+
+function TarjetasGrupo({ filas, cerrado, conCosto, alCambiar }: PropsGrupo) {
+  return (
+    <ul className="divide-y divide-[#f0f1ee] sm:hidden" data-privado>
+      {filas.map((f) => {
+        const c = cantidadDe(f.cantidad)
+        const distinta = f.sugerido !== null && c !== f.sugerido
+        return (
+          <li key={f.clave} className={cn('py-3', !f.incluida && 'text-muted-foreground')}>
+            <label className="flex cursor-pointer items-start gap-3">
+              <input type="checkbox" checked={f.incluida} disabled={cerrado} onChange={(e) => alCambiar(f.clave, { incluida: e.target.checked })} aria-label={`Incluir ${f.nombre || f.codigo}`} className="mt-1 size-6 shrink-0 accent-[var(--primary)]" />
+              <span className="min-w-0">
+                <span className="block text-nota text-muted-foreground">{f.codigo}{f.sugerido === null ? ' · agregado' : ''}</span>
+                <span className={cn('font-semibold', f.incluida && 'text-foreground', !f.incluida && 'line-through')}>{f.nombre || f.codigo}</span>
+                {f.estado && <span className="mt-1 block"><ChipEstado estado={f.estado} existencias={f.existencias} /></span>}
+                <ChipsProducto p={f} className="mt-1" />
+              </span>
+            </label>
+            <dl className="mt-2 grid grid-cols-2 gap-2 pl-9 text-chico">
+              <div><dt className="text-muted-foreground">Alcanza para</dt><dd className="font-semibold tabular-nums">{f.semanas === null && f.estado === null ? '—' : alcance(f.semanas, true)}</dd></div>
+              <div><dt className="text-muted-foreground">Sugerido</dt><dd className="font-semibold tabular-nums">{f.sugerido === null ? '—' : numero(f.sugerido, 2)}</dd></div>
+            </dl>
+            <div className="mt-2 flex flex-wrap items-end gap-2 pl-9">
+              <label className="text-nota text-muted-foreground">
+                Cantidad
+                <input
+                  inputMode="decimal"
+                  value={f.cantidad}
+                  disabled={cerrado || !f.incluida}
+                  onChange={(e) => alCambiar(f.clave, { cantidad: e.target.value.replace(/[^\d.,]/g, '') })}
+                  className={cn('mt-0.5 block h-11 w-28 rounded-lg border bg-card px-2 text-center text-cuerpo font-bold text-foreground tabular-nums focus:border-primary focus:outline-3 focus:outline-ring disabled:bg-muted', f.incluida && !(c > 0) ? 'border-rojo' : distinta ? 'border-highlight' : 'border-input')}
+                />
+              </label>
+              {conCosto && <span className="pb-2.5 text-chico tabular-nums">{f.incluida && f.costo && c > 0 ? plata(c * f.costo) : ''}</span>}
+            </div>
+            <label className="mt-2 block pl-9 text-nota text-muted-foreground">
+              Nota
+              <input
+                value={f.nota}
+                maxLength={200}
+                disabled={cerrado || !f.incluida}
+                placeholder={cerrado ? '' : 'Opcional'}
+                onChange={(e) => alCambiar(f.clave, { nota: e.target.value })}
+                className="mt-0.5 block h-11 w-full rounded-lg border border-input bg-card px-2.5 text-chico text-foreground focus:border-primary focus:outline-3 focus:outline-ring disabled:bg-muted"
+              />
+            </label>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+function TablaGrupoAncha({ filas, cerrado, conCosto, alCambiar }: PropsGrupo) {
+  return (
+    <div className="relative hidden overflow-x-auto sm:block">
       <table className="w-full min-w-[720px] border-collapse text-cuerpo" data-privado>
         <thead>
           <tr className="text-left text-nota text-muted-foreground">

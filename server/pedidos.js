@@ -993,6 +993,11 @@ rutas.post('/:id/lista-final', async (req, res) => {
 // Termina el pedido. La respuesta a "¿qué tuviste en cuenta?" es opcional: sin texto queda en NULL
 // y el pedido no tiene nada que clasificar (server/equipo.js).
 
+// Un pedido desde lo sugerido sin ningún producto no se envía ni se cierra: llegaba vacío a quien aprueba.
+function exigirLineas(p) {
+  if (!(Array.isArray(p.lista_final) && p.lista_final.length)) throw new ErrorUsuario('El pedido no tiene productos. Agregue al menos uno, o anúlelo si ya no lo va a hacer.', 409);
+}
+
 rutas.post('/:id/por-que', async (req, res) => {
   const p = await pedidoActivo(req);
   if (!p.final_guardada_en) throw new ErrorUsuario('Primero guarde su lista final.', 409);
@@ -1001,6 +1006,7 @@ rutas.post('/:id/por-que', async (req, res) => {
   let aprueba = false;
   if (p.modo === 'sugerido') {
     if (p.enviado_en) throw new ErrorUsuario('Este pedido está esperando aprobación.', 409);
+    exigirLineas(p);
     if (!(await puedeCerrarSolo(req.usuario))) {
       const nombres = (await aprobadoresDe(req.usuario.empresa_id)).map((a) => a.nombre).join(', ');
       throw new ErrorUsuario(`En su empresa los pedidos los aprueba ${nombres}. Envíelo a aprobación.`, 403);
@@ -1031,6 +1037,7 @@ rutas.post('/:id/enviar', async (req, res) => {
   if (p.terminado_en) throw new ErrorUsuario('Este pedido ya está cerrado.', 409);
   if (p.enviado_en) throw new ErrorUsuario('Este pedido ya está esperando aprobación.', 409);
   if (!p.final_guardada_en) throw new ErrorUsuario('Primero guarde la lista del pedido.', 409);
+  exigirLineas(p);
   const aprobadores = await aprobadoresDe(req.usuario.empresa_id);
   if (!aprobadores.some((a) => a.id !== req.usuario.id)) throw new ErrorUsuario('En su empresa nadie más aprueba pedidos: ciérrelo usted. Quien administra la empresa marca quién aprueba en Mi empresa.', 409);
   const respuesta = String(req.body?.respuesta || '').trim().slice(0, 5000);
