@@ -27,6 +27,45 @@
 
 ---
 
+## 2026-11-21 (63) — Claude — T9: precio en la página principal
+- **Rama:** `cambios-sinesc`, solo en local, sin commit (T5 a T8 tampoco).
+- **Estado:** T9 hecha. `components/landing/pricing-section.tsx` reescrita: tres tarjetas (82.500 una persona, 90.000 con un operador —la destacada, con "Crear mi cuenta"—, +10.000 por cada adicional), "Todos los planes incluyen" y la línea del código de acceso (lo implementa T10). Se quitó "Versión piloto" de `cta-section.tsx` y **todo lo que decía lo que SINESC no hace** en la landing (decisión del usuario, por recomendación): la tarjeta "Lo que no hace" y la reformulación en positivo de dos preguntas del FAQ, de `how-it-works.tsx` y de `calculator-section.tsx`. Los precios **no llevan IVA** (SaaS en línea): no se aclara en la página, solo aquí y en `ENTREGABLE_Y_APP.md`.
+- **Archivos tocados:** web `components/landing/` `pricing-section.tsx`, `cta-section.tsx`, `faq-section.tsx`, `how-it-works.tsx`, `calculator-section.tsx`; docs `ENTREGABLE_Y_APP.md` (fila 21), este archivo. Servidor sin cambios.
+- **Verificación:** `npm test` 212 de 212; `tsc --noEmit` limpio; `npm run texto` solo marca "incluyen" (falso positivo). **No se probó en el navegador.**
+- **Siguiente paso exacto:** T10 (códigos de acceso de un solo uso) o T11 (suspender cuentas); T12 antes de T13 y T14.
+- **Notas y bloqueos:** nada se publica mientras siga el piloto de Alpha 0.2, y T9 debe salir junto con T10 (la página ya habla del código). Sigue pendiente confirmar con el equipo lo de T5.
+
+---
+
+## 2026-11-21 (62) — Claude — T8: pantalla de Reportes
+- **Rama:** `cambios-sinesc`, solo en local, sin commit (T5, T6 y T7 tampoco).
+- **Estado:** T8 hecha. `app/(app)/reportes/page.tsx` (con `SoloRol` de gerente y administrador) y `components/app/reportes.tsx`: una `TarjetaReporte` por reporte, con su propio periodo (`Pildoras`: 7, 30, 90 días o entre fechas), "Ver" (`api` a `/reportes/:id`, tabla genérica de hasta 300 filas) y "Descargar" (`bajar` del `.xlsx`). Ítem "Reportes" en `itemsDe` (`marco.tsx`) para la vista principal y la maestro del gerente y para el administrador; el operador y la demo no lo llevan. Servidor sin cambios.
+- **Verificación:** `npm test` 212 de 212; `tsc --noEmit` limpio. **No se probó en el navegador.**
+- **Siguiente paso exacto:** T9 (precio en la página principal), T10 (códigos de acceso de un uso) o T11 (suspender cuentas), que no dependen de nada. T12 antes de T13 y T14.
+- **Notas y bloqueos:** nada se publica mientras siga el piloto de Alpha 0.2. Sigue pendiente confirmar con el equipo lo de T5.
+
+---
+
+## 2026-11-21 (61) — Claude — T7: reportes en el servidor
+- **Rama:** `cambios-sinesc`, solo en local, sin commit (T5 y T6 tampoco).
+- **Estado:** T7 hecha. `server/reportes.js` (nuevo, montado en `app.js` con `requiereRol('gerente','administrador')`): `GET /api/reportes/:tipo` y `/:tipo.xlsx` con `desde` y `hasta` (por defecto, últimos 30 días). Tipos: `mas-vendidos`, `menos-vendidos`, `proyectos`, `venta-unica`, `pedidos`. `ventasEnRango(series, desde, hasta)` es nueva en `server/series.js` (prorratea por días la semana que cruza el rango). `inventarioDeEmpresa` devuelve también `series`. Se desvía del plan en una cosa: la semana parcial se prorratea en vez de contar entera.
+- **Archivos tocados:** `server/` `reportes.js` (nuevo), `series.js`, `inventario-rutas.js` (una línea), `app.js`; `test/reportes.test.js` (nuevo, 5 pruebas); docs `CLAUDE.md`, `README.md`, `ENTREGABLE_Y_APP.md` (fila 19), este archivo.
+- **Verificación:** `npm test` 212 de 212; `tsc --noEmit` limpio. No se probó en el navegador; el servidor local hay que reiniciarlo para ver la ruta.
+- **Siguiente paso exacto:** T8 (pantalla de Reportes: `app/(app)/reportes/page.tsx`, `components/app/reportes.tsx`, ítem en `itemsDe`, usa `SoloRol`). Después T9, T10, T11; T12 antes de T13 y T14.
+- **Notas y bloqueos:** el reporte de pedidos no lleva valor (`lista_final` no guarda costo). Nada se publica mientras siga el piloto de Alpha 0.2. Sigue pendiente confirmar con el equipo lo de T5.
+
+---
+
+## 2026-11-21 (60) — Claude — T6: Movimientos abre en "Varios a la vez" con el archivo como acción principal
+- **Rama:** `cambios-sinesc`, solo en local, sin commit (T5 tampoco).
+- **Estado:** T6 hecha. `movimientos.tsx` arranca en `varios` (lo guardado en `localStorage['movimientos-modo']` se respeta) y las pildoras van "Varios a la vez" y "Un movimiento". En `PegarVarios`, `ImportarLista` sube arriba de las pildoras de qué registrar, con la prop nueva `principal` (botón primario, `clasesBoton`); el "Guardar N filas" es primario solo cuando hay filas. Pedidos usa `ImportarLista` sin la prop y no cambia.
+- **Archivos tocados:** web `components/app/` `movimientos.tsx`, `pedido-flujo.tsx`; docs `ENTREGABLE_Y_APP.md` (fila 18 y línea de Movimientos), este archivo. Servidor sin cambios.
+- **Verificación:** `npm test` 207 de 207; `tsc --noEmit` limpio. **No se probó en el navegador.**
+- **Siguiente paso exacto:** T9 (precio en la página principal), T10 (códigos de acceso de un uso) o T11 (suspender cuentas), que no dependen de nada. T12 antes de T13 y T14.
+- **Notas y bloqueos:** nada se publica mientras siga el piloto de Alpha 0.2. Sigue pendiente confirmar con el equipo lo de T5 (pedido aprobado cuenta en la estimación).
+
+---
+
 ## 2026-11-20 (59) — Claude — T5: los pedidos no tocan el inventario; lo pedido cuenta en camino hasta que entra
 - **Rama:** `cambios-sinesc`, solo en local, sin commit.
 - **Estado:** T5 hecha, con una decisión tuya que se aparta del documento del equipo: se quitó "Registrar la llegada" (`server/recepcion.js`, `/recibir`, `/por-recibir`, `/:id/recepcion`, `recepcion.tsx`) y la alerta `porRecibir` ("Entregas atrasadas"), pero un pedido **cerrado** (aprobado, o cerrado por quien lo preparó si nadie aprueba) sigue contando "en camino" en el sugerido y el "pida ya" hasta que se registre la entrada en Movimientos (`pedido − entradas desde ese día`) o venza `máx(14 días, tiempo de entrega)`. Las existencias no cambian por un pedido. Nuevo `server/en-camino.js` (`pedidosRecientes`, `enCaminoDe`, `firmaEnCamino`); Existencias tiene la columna "Pedido: N". `server/inventario.js` no cambió (el `enCamino` sigue entrando a `construirInventario`).

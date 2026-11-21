@@ -31,7 +31,7 @@ export function HowItWorks() {
           id="como-funciona-title"
           eyebrow="Cómo funciona"
           title="Del archivo que ya tiene al pedido listo para el proveedor."
-          description="No tiene que cambiar de programa contable. Suba su información, mantenga el inventario al día y prepare cada pedido con una sugerencia que puede revisar línea por línea."
+          description="Siga con su programa contable. Suba su información, mantenga el inventario al día y prepare cada pedido con una sugerencia que puede revisar línea por línea."
         />
         <ol className="mt-14 grid gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
           {steps.map((step, index) => (

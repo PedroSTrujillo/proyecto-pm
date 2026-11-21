@@ -18,7 +18,7 @@ import { useConfirmar } from './confirmar'
 import { Hoja, type Extra, type HojaApi } from './hoja'
 import { Reporte, estadoDeFila, type FilaReporte, type ReporteRotacion } from './reporte'
 import { FormularioColumnas, SubirArchivos, type HojaMapeo } from './subir'
-import { Aviso, Boton, BotonEnlace, Cargando, ChipAprobacion, Contador, Desplegable, ErrorLista, Tarjeta, claseEntrada } from './ui'
+import { Aviso, Boton, BotonEnlace, Cargando, ChipAprobacion, Contador, Desplegable, ErrorLista, Tarjeta, claseEntrada, clasesBoton } from './ui'
 import { PedidoPreparar } from './pedido-preparar'
 import { useAutoguardado } from './autoguardado'
 import type { Aprobacion, Clase, EntradaHistorial, Estado } from '@/lib/tipos'
@@ -231,7 +231,7 @@ type RespuestaLista = { ok: boolean; lineas: LineaGuardada[]; columnas: Record<s
 
 // ruta: a dónde se manda el archivo (por defecto, la lista del pedido). Movimientos la usa con
 // /movimientos/importar y sus propios textos (sin plantilla de lista).
-export function ImportarLista({ pedidoId, para, hoja, alImportar, ruta, boton = 'Importar mi archivo de pedido', intro = 'Escriba en la tabla o pegue filas copiadas de su Excel (Ctrl+V). También puede:', conPlantilla = true, campos = CAMPOS_LISTA }: { pedidoId?: number; para?: 'inicial' | 'final'; hoja: React.RefObject<HojaApi | null>; alImportar: () => void; ruta?: string; boton?: string; intro?: string; conPlantilla?: boolean; campos?: { campo: string; nombre: string }[] }) {
+export function ImportarLista({ pedidoId, para, hoja, alImportar, ruta, boton = 'Importar mi archivo de pedido', intro = 'Escriba en la tabla o pegue filas copiadas de su Excel (Ctrl+V). También puede:', conPlantilla = true, campos = CAMPOS_LISTA, principal = false }: { pedidoId?: number; para?: 'inicial' | 'final'; hoja: React.RefObject<HojaApi | null>; alImportar: () => void; ruta?: string; boton?: string; intro?: string; conPlantilla?: boolean; campos?: { campo: string; nombre: string }[]; principal?: boolean }) {
   const destino = ruta ?? `/pedidos/${pedidoId}/importar-lista`
   const [mensaje, setMensaje] = useState<React.ReactNode>(null)
   const [mapeo, setMapeo] = useState<{ hojas: HojaMapeo[]; archivoId: number } | null>(null)
@@ -270,7 +270,11 @@ export function ImportarLista({ pedidoId, para, hoja, alImportar, ruta, boton = 
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-chico text-muted-foreground">
         <span>{intro}</span>
-        <label className="presionable inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-input bg-card px-3 text-sm font-semibold text-foreground hover:bg-muted focus-within:outline-3 focus-within:outline-ring">
+        <label className={cn(
+          principal
+            ? clasesBoton('primario', 'normal', 'cursor-pointer focus-within:outline-3 focus-within:outline-ring')
+            : 'presionable inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-input bg-card px-3 text-sm font-semibold text-foreground hover:bg-muted focus-within:outline-3 focus-within:outline-ring',
+        )}>
           <FileUp className="size-4" /> {boton}
           <input
             ref={input}

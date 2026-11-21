@@ -18,12 +18,12 @@ const faqs: { q: string; a: React.ReactNode }[] = [
     ),
   },
   {
-    q: '¿Tengo que conectar Siigo, SAP o mi POS?',
-    a: 'No. Usted sube el archivo tal como sale y SINESC reconoce las columnas. Si alguna no se reconoce, o si el informe mezcla compras y ventas, se le pregunta una sola vez y las cargas siguientes se leen sin preguntar.',
+    q: '¿Cómo le llevo mis datos a SINESC?',
+    a: 'Usted sube el archivo tal como sale de su programa (Siigo, SAP, su POS u otro) y SINESC reconoce las columnas. Si alguna no se reconoce, o si el informe mezcla compras y ventas, se le pregunta una sola vez y las cargas siguientes se leen sin preguntar.',
   },
   {
-    q: '¿Tengo que subir el archivo cada semana?',
-    a: 'No. Se sube una vez y después se registra lo que entra y sale, a mano o importando el archivo del día. Cuando cierre un periodo contable, puede subir de nuevo el informe completo y SINESC lo combina con lo registrado.',
+    q: '¿Cada cuánto subo el archivo?',
+    a: 'Una vez. Después se registra lo que entra y sale, a mano o importando el archivo del día. Cuando cierre un periodo contable, puede subir de nuevo el informe completo y SINESC lo combina con lo registrado.',
   },
   {
     q: '¿La herramienta me dice cuánto pedir?',

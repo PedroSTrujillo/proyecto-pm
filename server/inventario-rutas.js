@@ -186,7 +186,7 @@ async function inventarioDeEmpresa(empresaId) {
   const emp = await db.uno('SELECT inventario FROM empresas WHERE id = $1', [empresaId]);
   const recientes = await pedidosRecientes(empresaId);
   const inv = construirInventario({ reporte: e.reporte, series: e.series, catalogo: await catalogoConEscrito(empresaId, e.catalogo), ajustes: emp && emp.inventario, alcance: 'completo', enCamino: await enCaminoDe(empresaId, recientes) });
-  return { exportId: e.id, inv: conPedidosRecientes(inv, recientes) };
+  return { exportId: e.id, series: e.series, inv: conPedidosRecientes(inv, recientes) };
 }
 
 // Se mezcla con lo guardado: cambiar un tiempo de entrega no borra los proveedores asignados, y al revés.

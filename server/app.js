@@ -9,6 +9,7 @@ const inventario = require('./inventario-rutas');
 const ejemplos = require('./ejemplos');
 const cuentasEquipo = require('./cuentas-equipo');
 const exportar = require('./exportar');
+const reportes = require('./reportes');
 const empresas = require('./empresas');
 const movimientos = require('./movimientos');
 const boletin = require('./boletin');
@@ -80,6 +81,7 @@ function crearApp({ web = null, dev = false } = {}) {
   app.use('/api/tareas', boletin.tareas);
   app.use('/api/boletin', boletin.baja);
   app.use('/api/exportar', exportar.rutas);
+  app.use('/api/reportes', reportes.rutas);
   app.use('/api/encuesta', encuesta.rutas);
   app.use('/api/errores', errores.rutas);
 

@@ -100,4 +100,35 @@ function inicioDeSemana(hasta, semanas, i) {
   return textoDia(ultimo - (semanas - i) * 7 + 1);
 }
 
-module.exports = { seriesSemanales, inicioDeSemana, SEMANAS_MAXIMAS };
+const diaDeTexto = (t) => {
+  const [a, m, d] = t.split('-').map(Number);
+  return Math.round(Date.UTC(a, m - 1, d) / MS_DIA);
+};
+
+/**
+ * Lo vendido de cada producto entre dos días ("YYYY-MM-DD", ambos incluidos), de la serie semanal:
+ * { clave: { vendido, proyecto } }. De cada semana cuenta la parte que cae dentro del rango
+ * (días en común ÷ 7). Sin serie (archivo con total de periodo) o con el rango fuera de ella, queda vacío.
+ * shortcut: la serie es semanal, así que dentro de una semana las ventas se reparten por igual y un rango
+ * de pocos días es aproximado; si hace falta exactitud por día, usar los movimientos y el archivo por fecha.
+ */
+function ventasEnRango(series, desde, hasta) {
+  const out = {};
+  if (!series || !series.porProducto) return out;
+  const d0 = diaDeTexto(desde);
+  const d1 = diaDeTexto(hasta);
+  const ultimo = diaDeTexto(series.hasta);
+  const partes = Array.from({ length: series.semanas }, (_, i) => {
+    const inicio = ultimo - (series.semanas - i) * 7 + 1;
+    return Math.max(0, Math.min(inicio + 6, d1) - Math.max(inicio, d0) + 1) / 7;
+  });
+  for (const [campo, destino] of [['porProducto', 'vendido'], ['proyecto', 'proyecto']]) {
+    for (const [clave, serie] of Object.entries(series[campo] || {})) {
+      const suma = serie.reduce((t, v, i) => t + v * partes[i], 0);
+      out[clave] = { vendido: 0, proyecto: 0, ...out[clave], [destino]: Math.round(suma * 100) / 100 };
+    }
+  }
+  return out;
+}
+
+module.exports = { seriesSemanales, inicioDeSemana, ventasEnRango, SEMANAS_MAXIMAS };
