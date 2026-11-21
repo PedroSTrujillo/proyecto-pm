@@ -9,6 +9,7 @@ process.env.DATA_DIR = 'memory://';
 process.env.SIN_LIMITES = '1';
 
 const test = require('node:test');
+const { conCodigo } = require('./codigo');
 const assert = require('node:assert/strict');
 const db = require('../server/db');
 const { crearApp } = require('../server/app');
@@ -54,6 +55,13 @@ test('días hábiles: se convierten a semanas (÷ 5) y los ajustes guardados en 
   assert.deepEqual(nuevo.entregasDias, { Andina: 3, Costa: 8 });
 });
 
+test('la unidad del tiempo de entrega de cada proveedor se guarda y lo desconocido se descarta', () => {
+  const a = leerAjustes({ unidades: { Andina: 'semanas', Valle: 'calendario', Costa: 'habiles', Raro: 'meses', Otro: 5, Nulo: null } });
+  assert.deepEqual(a.unidades, { Andina: 'semanas', Valle: 'calendario', Costa: 'habiles' });
+  assert.deepEqual(leerAjustes({}).unidades, {});
+  assert.deepEqual(leerAjustes({ unidades: 'semanas' }).unidades, {});
+});
+
 test('cada cuánto pide se guarda con decimales: viene de días o meses', () => {
   assert.equal(leerAjustes({ cadaCuanto: 10 / 7 }).cadaCuanto, 1.429);
   assert.equal(leerAjustes({ cadaCuanto: 0.2 }).cadaCuanto, 4, 'menos de una semana no se acepta');
@@ -82,6 +90,44 @@ test('múltiplo de empaque y mínimo de pedido cambian el sugerido, y el desglos
   const lleno = negocio({ existenciasA: 5000 });
   const nada = construirInventario({ reporte: lleno.reporte, series: lleno.series, catalogo: { A: { minimoPedido: 500 } }, ajustes: {} }).productos.find((p) => p.codigo === 'A');
   assert.equal(nada.sugerido, 0, 'si no hace falta pedir, el mínimo no lo obliga');
+});
+
+test('el mínimo del envío de cada proveedor se guarda; el paquete y el mínimo por producto no son del proveedor', () => {
+  const sucio = leerAjustes({ condiciones: { Andina: { minimoEnvio: 200, multiplo: 10, minimoProducto: 30 }, Valle: { minimoEnvio: 'x' }, Costa: { minimoEnvio: 0 }, Raro: 7 } });
+  assert.deepEqual(sucio.condiciones, { Andina: { minimoEnvio: 200 } });
+  assert.deepEqual(leerAjustes({}).condiciones, {});
+  assert.deepEqual(leerAjustes({ condiciones: 'x' }).condiciones, {});
+
+  const { reporte, series } = negocio();
+  const sin = construirInventario({ reporte, series, catalogo: { A: { proveedor: 'Andina' } }, ajustes: {} }).productos.find((p) => p.codigo === 'A');
+  const con = construirInventario({ reporte, series, catalogo: { A: { proveedor: 'Andina' } }, ajustes: { condiciones: { Andina: { multiplo: 80, minimoProducto: 500, minimoEnvio: 900 } } } }).productos.find((p) => p.codigo === 'A');
+  assert.equal(con.sugerido, sin.sugerido, 'lo del proveedor no cambia las cantidades');
+});
+
+test('importadores: la extensión está apagada salvo que se encienda, y los contenedores se leen limpios', () => {
+  assert.equal(leerAjustes({}).importaciones, false);
+  assert.equal(leerAjustes({ importaciones: 'si' }).importaciones, false, 'solo un verdadero la enciende');
+  assert.equal(leerAjustes({ importaciones: true }).importaciones, true);
+  const c = leerAjustes({ condiciones: { Asia: { internacional: true, contenedores: 2.4, tipoContenedor: '20' }, Chile: { internacional: true, contenedores: 3, tipoContenedor: 'raro', minimoEnvio: 50 }, Nacional: { contenedores: 4, minimoEnvio: 10 }, Cero: { internacional: true, contenedores: 0 }, Muchos: { internacional: true, contenedores: 99 } } }).condiciones;
+  assert.deepEqual(c, { Asia: { internacional: true, contenedores: 2, tipoContenedor: '20' }, Chile: { minimoEnvio: 50, internacional: true, contenedores: 3, tipoContenedor: '40' }, Nacional: { minimoEnvio: 10 }, Cero: { internacional: true }, Muchos: { internacional: true } });
+});
+
+test('cada cuánto se pide puede ser de cada proveedor; sin valor propio vale el general', () => {
+  const sucio = leerAjustes({ cadaCuantoProv: { Andina: 8, Valle: 0.5, Costa: 'x', Sur: 30, Raro: null } });
+  assert.deepEqual(sucio.cadaCuantoProv, { Andina: 8 });
+  assert.deepEqual(leerAjustes({}).cadaCuantoProv, {});
+
+  const { reporte, series } = negocio();
+  const de = (ajustes, proveedor = 'Andina') => construirInventario({ reporte, series, catalogo: { A: { proveedor } }, ajustes }).productos.find((p) => p.codigo === 'A');
+  const general = de({ cadaCuanto: 4 });
+  const propio = de({ cadaCuanto: 4, cadaCuantoProv: { Andina: 8 } });
+  assert.equal(general.cadaCuanto, 4);
+  assert.equal(propio.cadaCuanto, 8);
+  assert.ok(propio.sugerido > general.sugerido, 'pedir cada 8 semanas necesita más que cada 4');
+  assert.equal(propio.detalleSugerido.semanasCubrir, general.detalleSugerido.semanasCubrir + 4);
+  const otro = de({ cadaCuanto: 4, cadaCuantoProv: { Andina: 8 } }, 'Valle');
+  assert.equal(otro.cadaCuanto, 4, 'otro proveedor sigue con el general');
+  assert.equal(otro.sugerido, general.sugerido);
 });
 
 test('clasificación: frecuente, esporádico, de proyecto y venta única', () => {
@@ -210,7 +256,7 @@ function cliente() {
 
 async function cuenta(nombre, email, empresa) {
   const c = cliente();
-  const r = await c.post('/api/cuenta/crear', { nombre, email, clave: 'clave-segura', empresa });
+  const r = await c.post('/api/cuenta/crear', await conCodigo({ nombre, email, clave: 'clave-segura', empresa }));
   assert.equal(r.estado, 201, r.error);
   return c;
 }
@@ -281,7 +327,7 @@ test('una venta de proyecto registrada en Movimientos no sube el promedio', asyn
   assert.ok(Math.abs(despues.ventasSemana - antes.ventasSemana) < antes.ventasSemana * 0.2, `el promedio casi no cambia (${antes.ventasSemana} → ${despues.ventasSemana}): solo pasa el tiempo`);
 });
 
-test('pedido reciente: lo cerrado en los últimos 14 días por la empresa se marca en cada producto', async () => {
+test('pedido reciente: lo cerrado en los últimos 14 días (o lo que tarda el proveedor) se marca en cada producto', async () => {
   const leo = await cuenta('Leo Otra', 'leo.catalogo@prueba.co', 'Otra Empresa');
   assert.equal((await leo.subir('/api/inventario/export', [['inventario.xlsx', await plantillaExport()]])).ok, true);
 
@@ -298,6 +344,6 @@ test('pedido reciente: lo cerrado en los últimos 14 días por la empresa se mar
   assert.equal(p.pedidoReciente.por, 'Ana Catálogo');
   assert.equal((await producto(leo, linea.codigo)).pedidoReciente, null, 'otra empresa no lo ve');
 
-  await db.query("UPDATE pedidos SET terminado_en = now() - interval '15 days' WHERE id = $1", [r.pedido.id]);
-  assert.equal((await producto(ana, linea.codigo)).pedidoReciente, null, 'pasadas 2 semanas ya no es reciente');
+  await db.query("UPDATE pedidos SET terminado_en = now() - interval '60 days' WHERE id = $1", [r.pedido.id]);
+  assert.equal((await producto(ana, linea.codigo)).pedidoReciente, null, 'pasada la ventana (14 días o el tiempo de entrega) ya no es reciente');
 });

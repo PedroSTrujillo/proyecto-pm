@@ -18,11 +18,10 @@ import { useConfirmar } from './confirmar'
 import { Hoja, type Extra, type HojaApi } from './hoja'
 import { Reporte, estadoDeFila, type FilaReporte, type ReporteRotacion } from './reporte'
 import { FormularioColumnas, SubirArchivos, type HojaMapeo } from './subir'
-import { Aviso, Boton, BotonEnlace, Cargando, ChipAprobacion, Contador, Desplegable, ErrorLista, Tarjeta, claseEntrada } from './ui'
+import { Aviso, Boton, BotonEnlace, Cargando, ChipAprobacion, Contador, Desplegable, ErrorLista, Tarjeta, claseEntrada, clasesBoton } from './ui'
 import { PedidoPreparar } from './pedido-preparar'
-import { RecibirPedido } from './recepcion'
 import { useAutoguardado } from './autoguardado'
-import type { Aprobacion, Clase, EntradaHistorial, Estado, Recepcion } from '@/lib/tipos'
+import type { Aprobacion, Clase, EntradaHistorial, Estado } from '@/lib/tipos'
 
 export type LineaGuardada = { codigo: string; nombre?: string; cantidad: number | string; proveedor?: string; nota?: string }
 type Conteo = { agregadas: number; quitadas: number; cambiadas: number; total: number }
@@ -56,7 +55,6 @@ export type Pedido = {
   porQue: string | null
   terminadoEn: string | null
   anulado: { en: string; motivo: string } | null
-  recepcion?: Recepcion | null
   aprobacion?: Aprobacion | null // solo desde lo sugerido
   historial?: EntradaHistorial[] | null
 }
@@ -159,7 +157,6 @@ export function PedidoFlujo({ id }: { id: number }) {
         <div inert={Boolean(pedido.anulado)} className={cn('flex flex-col gap-7', pedido.anulado && 'opacity-60')}>
           {pedido.anulado && <AvisoAnulado pedido={pedido} reactivar={reactivar} />}
           <PedidoPreparar pedido={pedido} alCambiar={setPedido} />
-          {pedido.terminado && pedido.recepcion?.espera && <Tarjeta className="p-5 sm:p-6"><RecibirPedido recepcion={pedido.recepcion} /></Tarjeta>}
         </div>
       ) : <>
       {pedido.anulado && <AvisoAnulado pedido={pedido} reactivar={reactivar} />}
@@ -201,7 +198,6 @@ export function PedidoFlujo({ id }: { id: number }) {
         {paso === 3 && <Paso3 pedido={pedido} ir={ir} />}
         {paso === 4 && <Paso4 key={`${(pedido.listaFinal || []).length}-${pedido.finalGuardadaEn}`} pedido={pedido} ir={ir} />}
         {paso === 5 && <Paso5 pedido={pedido} recargar={cargar} />}
-        {paso === 5 && pedido.terminado && pedido.recepcion?.espera && <Tarjeta className="p-5 sm:p-6"><RecibirPedido recepcion={pedido.recepcion} /></Tarjeta>}
       </div>
       </>}
     </>
@@ -235,7 +231,7 @@ type RespuestaLista = { ok: boolean; lineas: LineaGuardada[]; columnas: Record<s
 
 // ruta: a dónde se manda el archivo (por defecto, la lista del pedido). Movimientos la usa con
 // /movimientos/importar y sus propios textos (sin plantilla de lista).
-export function ImportarLista({ pedidoId, para, hoja, alImportar, ruta, boton = 'Importar mi archivo de pedido', intro = 'Escriba en la tabla o pegue filas copiadas de su Excel (Ctrl+V). También puede:', conPlantilla = true, campos = CAMPOS_LISTA }: { pedidoId?: number; para?: 'inicial' | 'final'; hoja: React.RefObject<HojaApi | null>; alImportar: () => void; ruta?: string; boton?: string; intro?: string; conPlantilla?: boolean; campos?: { campo: string; nombre: string }[] }) {
+export function ImportarLista({ pedidoId, para, hoja, alImportar, ruta, boton = 'Importar mi archivo de pedido', intro = 'Escriba en la tabla o pegue filas copiadas de su Excel (Ctrl+V). También puede:', conPlantilla = true, campos = CAMPOS_LISTA, principal = false }: { pedidoId?: number; para?: 'inicial' | 'final'; hoja: React.RefObject<HojaApi | null>; alImportar: () => void; ruta?: string; boton?: string; intro?: string; conPlantilla?: boolean; campos?: { campo: string; nombre: string }[]; principal?: boolean }) {
   const destino = ruta ?? `/pedidos/${pedidoId}/importar-lista`
   const [mensaje, setMensaje] = useState<React.ReactNode>(null)
   const [mapeo, setMapeo] = useState<{ hojas: HojaMapeo[]; archivoId: number } | null>(null)
@@ -274,7 +270,11 @@ export function ImportarLista({ pedidoId, para, hoja, alImportar, ruta, boton = 
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-chico text-muted-foreground">
         <span>{intro}</span>
-        <label className="presionable inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-input bg-card px-3 text-sm font-semibold text-foreground hover:bg-muted focus-within:outline-3 focus-within:outline-ring">
+        <label className={cn(
+          principal
+            ? clasesBoton('primario', 'normal', 'cursor-pointer focus-within:outline-3 focus-within:outline-ring')
+            : 'presionable inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-input bg-card px-3 text-sm font-semibold text-foreground hover:bg-muted focus-within:outline-3 focus-within:outline-ring',
+        )}>
           <FileUp className="size-4" /> {boton}
           <input
             ref={input}
@@ -381,7 +381,7 @@ function Paso1({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
       <ImportarLista pedidoId={pedido.id} para="inicial" hoja={hoja} alImportar={cambioLista} />
       <ProveedoresPedido enLista={enLista} />
       <Hoja ref={hoja} inicial={pedido.listaInicial} alCambiar={cambioLista} conProveedor proveedores={nombresProveedores} />
-      <p className="text-sm text-muted-foreground">Cada línea necesita código y cantidad. El nombre y el proveedor son opcionales: el proveedor queda atado al producto, también en Datos.</p>
+      <p className="text-sm text-muted-foreground">Cada línea necesita código y cantidad. El nombre y el proveedor son opcionales: el proveedor queda atado al producto, también en Proveedores.</p>
       {error && <ErrorLista mensaje={error.mensaje} lista={error.lista} />}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <Boton variante="primario" onClick={guardar} disabled={guardando}>{guardando ? 'Revisando…' : 'Guardar lista inicial'}</Boton>
@@ -401,7 +401,7 @@ function contarProveedores(ls: { proveedor?: string }[]) {
   return m
 }
 
-// Los proveedores que ya tiene (los mismos de Datos) más los que escribió en la lista.
+// Los proveedores que ya tiene (los mismos de Proveedores) más los que escribió en la lista.
 function useNombresProveedores(enLista: Map<string, number>) {
   const { inventario, respuesta } = useInventario()
   const aj = inventario?.ajustes ?? respuesta?.ajustes
@@ -410,7 +410,7 @@ function useNombresProveedores(enLista: Map<string, number>) {
 }
 
 // Panel del paso 1: cada proveedor con cuánto tarda. Se guarda en los ajustes de la cuenta, así
-// que es lo mismo que en Datos y lo usan el sugerido y la orden de compra.
+// que es lo mismo que en Proveedores y lo usan el sugerido y la orden de compra.
 function ProveedoresPedido({ enLista }: { enLista: Map<string, number> }) {
   const { inventario, respuesta, recargar } = useInventario()
   const aj = inventario?.ajustes ?? respuesta?.ajustes
@@ -439,7 +439,7 @@ function ProveedoresPedido({ enLista }: { enLista: Map<string, number> }) {
     <div className="flex flex-col gap-3 rounded-2xl border border-border bg-muted/40 p-4">
       <div>
         <strong className="text-cuerpo">Proveedores</strong>
-        <p className="text-chico text-muted-foreground">Los mismos de Datos. Escriba el proveedor de cada producto en la tabla; uno nuevo se agrega solo. Ajuste aquí cuánto tarda en llegar cada pedido.</p>
+        <p className="text-chico text-muted-foreground">Los mismos de Proveedores. Escriba el proveedor de cada producto en la tabla; uno nuevo se agrega solo. Ajuste aquí cuánto tarda en llegar cada pedido.</p>
       </div>
       {todos.length > 0 && (
         <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
@@ -813,7 +813,7 @@ function RecuadroSugerido({ sug, hoja, alCambiarLista, alCambiarAjustes }: { sug
   const urgentes = faltan.slice(0, 10)
   const porCodigo = new Map(sug.productos.map((p) => [claveCodigo(p.codigo), p]))
 
-  // Los proveedores de este archivo, con cuánto tarda cada uno (de Datos, o el de todos).
+  // Los proveedores de este archivo, con cuánto tarda cada uno (de Proveedores, o el de todos).
   const proveedores = [...new Map(sug.productos.filter((p) => p.proveedor && p.proveedor !== 'Sin proveedor').map((p) => [p.proveedor, p.entrega])).entries()]
     .map(([nombre, entrega]) => ({ nombre, entrega, productos: sug.productos.filter((p) => p.proveedor === nombre).length }))
     .sort((a, b) => b.productos - a.productos)
@@ -879,10 +879,10 @@ function RecuadroSugerido({ sug, hoja, alCambiarLista, alCambiarAjustes }: { sug
               </li>
             ))}
           </ul>
-          <p className="mt-1 text-nota text-muted-foreground">"Por defecto" aplica a los proveedores sin tiempo propio. Se guarda también en Datos.</p>
+          <p className="mt-1 text-nota text-muted-foreground">"Por defecto" aplica a los proveedores sin tiempo propio. Se guarda también en Proveedores.</p>
         </Desplegable>
       ) : (
-        <p className="text-nota text-muted-foreground">Los proveedores con tiempo propio en Datos usan ese.</p>
+        <p className="text-nota text-muted-foreground">Los proveedores con tiempo propio en Proveedores usan ese.</p>
       )}
       <div className="flex flex-wrap gap-2">
         <Boton tamano="chico" className="py-1.5 text-left whitespace-normal" onClick={usarSugeridas}>Usar las cantidades sugeridas en mi lista</Boton>

@@ -7,6 +7,7 @@ process.env.TEAM_EMAILS = 'equipo@prueba.co';
 process.env.SIN_LIMITES = '1'; // las pruebas crean muchas cuentas desde la misma dirección
 
 const test = require('node:test');
+const { conCodigo } = require('./codigo');
 const assert = require('node:assert/strict');
 const db = require('../server/db');
 const { crearApp } = require('../server/app');
@@ -58,7 +59,7 @@ function cliente() {
 
 async function nuevoUsuario(nombre, email) {
   const c = cliente();
-  const r = await c.post('/api/cuenta/crear', { nombre, email, clave: 'clave-segura', empresa: `Empresa de ${nombre}` });
+  const r = await c.post('/api/cuenta/crear', await conCodigo({ nombre, email, clave: 'clave-segura', empresa: `Empresa de ${nombre}` }));
   assert.equal(r.estado, 201, r.error);
   return c;
 }
@@ -359,7 +360,7 @@ test('inventario guardado: se sube desde el comienzo, con sugerido desde el prim
   // El equipo sí ve el sugerido.
   const eq = cliente();
   const ya = await eq.post('/api/cuenta/entrar', { email: 'equipo@prueba.co', clave: 'clave-segura' });
-  if (ya.estado !== 200) assert.equal((await eq.post('/api/cuenta/crear', { nombre: 'Equipo', email: 'equipo@prueba.co', clave: 'clave-segura', empresa: 'SINESC' })).estado, 201);
+  if (ya.estado !== 200) assert.equal((await eq.post('/api/cuenta/crear', await conCodigo({ nombre: 'Equipo', email: 'equipo@prueba.co', clave: 'clave-segura', empresa: 'SINESC' }))).estado, 201);
   const { pedido: p2 } = await eq.post('/api/pedidos');
   await eq.post(`/api/pedidos/${p2.id}/lista-inicial`, { lineas: INICIAL, tipo: 'real' });
   await eq.subir(`/api/pedidos/${p2.id}/export`, [['e.xlsx', (await plantillaExport())]]);
@@ -492,7 +493,7 @@ test('ejemplos del equipo: un probador no los ve; el equipo carga un negocio y u
 
   const eq = cliente();
   const ya = await eq.post('/api/cuenta/entrar', { email: 'equipo@prueba.co', clave: 'clave-segura' });
-  if (ya.estado !== 200) assert.equal((await eq.post('/api/cuenta/crear', { nombre: 'Equipo', email: 'equipo@prueba.co', clave: 'clave-segura', empresa: 'SINESC' })).estado, 201);
+  if (ya.estado !== 200) assert.equal((await eq.post('/api/cuenta/crear', await conCodigo({ nombre: 'Equipo', email: 'equipo@prueba.co', clave: 'clave-segura', empresa: 'SINESC' }))).estado, 201);
   const lista = await eq.get('/api/equipo/ejemplos');
   assert.equal(lista.negocios.length, 6);
   assert.ok(lista.archivos.every((a) => a.disponible), 'los archivos de ejemplos/ están en el repo');
@@ -592,7 +593,7 @@ test('borrar un pedido sin terminar: desaparece para el usuario, la prueba no ca
   assert.equal((await otro.del(`/api/pedidos/${b.id}`)).estado, 404);
   const eq = cliente();
   const ya = await eq.post('/api/cuenta/entrar', { email: 'equipo@prueba.co', clave: 'clave-segura' });
-  if (ya.estado !== 200) await eq.post('/api/cuenta/crear', { nombre: 'Equipo', email: 'equipo@prueba.co', clave: 'clave-segura', empresa: 'SINESC' });
+  if (ya.estado !== 200) await eq.post('/api/cuenta/crear', await conCodigo({ nombre: 'Equipo', email: 'equipo@prueba.co', clave: 'clave-segura', empresa: 'SINESC' }));
   const r = await resultados();
   const suyo = r.usuarios.find((u) => u.email === 'bea.borrar@prueba.co');
   assert.equal(suyo.pedidos.find((p) => p.id === a.id).borrado, true);
@@ -653,7 +654,7 @@ test('cada tipo de usuario ve lo que le toca: visitante, probador nuevo, en prue
   // Equipo: todo desde el primer día, y no cuenta como probador.
   const eq = cliente();
   const ya = await eq.post('/api/cuenta/entrar', { email: 'equipo@prueba.co', clave: 'clave-segura' });
-  if (ya.estado !== 200) await eq.post('/api/cuenta/crear', { nombre: 'Equipo', email: 'equipo@prueba.co', clave: 'clave-segura', empresa: 'SINESC' });
+  if (ya.estado !== 200) await eq.post('/api/cuenta/crear', await conCodigo({ nombre: 'Equipo', email: 'equipo@prueba.co', clave: 'clave-segura', empresa: 'SINESC' }));
   assert.equal((await eq.get('/api/inventario')).alcance, 'completo');
   const r = await resultados();
   assert.ok(r.usuarios.some((u) => u.email === 'tito.tipos@prueba.co'));
@@ -786,7 +787,7 @@ test('anular un pedido: sigue a la vista con su motivo, no se edita, no cuenta e
   assert.equal((await otra.post(`/api/pedidos/${p.id}/reactivar`)).estado, 404);
   const eq = cliente();
   const ya = await eq.post('/api/cuenta/entrar', { email: 'equipo@prueba.co', clave: 'clave-segura' });
-  if (ya.estado !== 200) await eq.post('/api/cuenta/crear', { nombre: 'Equipo', email: 'equipo@prueba.co', clave: 'clave-segura', empresa: 'SINESC' });
+  if (ya.estado !== 200) await eq.post('/api/cuenta/crear', await conCodigo({ nombre: 'Equipo', email: 'equipo@prueba.co', clave: 'clave-segura', empresa: 'SINESC' }));
   let suyo = (await resultados()).usuarios.find((u) => u.email === 'ana.anular@prueba.co');
   assert.equal(suyo.pedidos[0].anulado.motivo, 'Al final no se hizo este pedido.');
   assert.equal(suyo.evaluacion.mejor, null);

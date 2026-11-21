@@ -5,7 +5,7 @@
 // la contraseña de quien borra; la ventana muestra antes qué se va y qué se queda.
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { ChevronDown, LogOut, RefreshCw, Search, Trash2 } from 'lucide-react'
+import { Ban, ChevronDown, Copy, KeyRound, LogOut, Play, RefreshCw, Search, Trash2 } from 'lucide-react'
 import { api, textoErrores } from '@/lib/api'
 import { fecha, fechaHora, numero } from '@/lib/formato'
 import { cn } from '@/lib/utils'
@@ -23,6 +23,7 @@ type Cuenta = {
   cargo: string
   sistema: string | null
   creadoEn: string
+  suspendidaEn: string | null
   boletin: boolean
   empresa: { id: number; nombre: string; vacia: boolean; miembros: number; admin: boolean; aprueba: boolean; invitaciones: { creadas: number; aceptadas: number } } | null
   ultimoIngreso: string | null
@@ -104,6 +105,8 @@ const EVENTOS: Record<string, string> = {
   umbral_elegido: 'Cambió el umbral de “se agota”',
   cuenta_borrada: 'Borró una cuenta',
   sesiones_cerradas: 'Cerró las sesiones de una cuenta',
+  cuenta_suspendida: 'Suspendió una cuenta',
+  cuenta_reactivada: 'Reactivó una cuenta',
 }
 const COMO: Record<string, string> = {
   inicio_sesion: 'con su contraseña',
@@ -133,6 +136,68 @@ function ChipCuenta({ estado }: { estado: EstadoCuenta }) {
 }
 
 type Filtro = 'todas' | EstadoCuenta
+
+type CodigoAcceso = { codigo: string; nota: string | null; creadoEn: string; usadoEn: string | null; usadoPor: { nombre: string | null; email: string | null } | null }
+
+// Sin código no se crea una cuenta (server/cuentas.js): el equipo genera uno por persona y se lo entrega.
+function CodigosAcceso() {
+  const [codigos, setCodigos] = useState<CodigoAcceso[] | null>(null)
+  const [nota, setNota] = useState('')
+  const [generando, setGenerando] = useState(false)
+  const [copiado, setCopiado] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    api<{ codigos: CodigoAcceso[] }>('GET', '/equipo/cuentas/codigos').then((r) => setCodigos(r.codigos)).catch((e) => setError(textoErrores(e).mensaje))
+  }, [])
+  async function generar() {
+    setGenerando(true)
+    try {
+      const r = await api<{ codigos: CodigoAcceso[] }>('POST', '/equipo/cuentas/codigos', { cantidad: 1, nota })
+      setCodigos(r.codigos)
+      setNota('')
+      setError(null)
+    } catch (e) {
+      setError(textoErrores(e).mensaje)
+    } finally {
+      setGenerando(false)
+    }
+  }
+  async function copiar(codigo: string) {
+    try {
+      await navigator.clipboard.writeText(codigo)
+      setCopiado(codigo)
+    } catch {
+      setError('No se pudo copiar. Selecciónelo y cópielo a mano.')
+    }
+  }
+  return (
+    <Tarjeta className="flex flex-col gap-3 p-4">
+      <div className="flex flex-col gap-0.5">
+        <h2 className="flex items-center gap-2 font-bold"><KeyRound aria-hidden="true" className="size-4" /> Códigos de acceso</h2>
+        <p className="text-nota text-muted-foreground">Cada persona necesita uno para crear su cuenta, también quien entra por invitación. Sirve una sola vez.</p>
+      </div>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <input className={cn(claseEntrada, 'sm:max-w-xs')} value={nota} onChange={(e) => setNota(e.target.value)} maxLength={100} placeholder="Para quién es (opcional)" aria-label="Para quién es el código" />
+        <Boton variante="primario" onClick={generar} disabled={generando}>{generando ? 'Generando…' : 'Generar código'}</Boton>
+      </div>
+      {error && <ErrorLista mensaje={error} />}
+      {codigos && codigos.length > 0 && (
+        <ul className="flex flex-col divide-y divide-border">
+          {codigos.map((c) => (
+            <li key={c.codigo} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
+              <code className={cn('font-mono text-base font-bold', c.usadoEn && 'text-muted-foreground line-through')}>{c.codigo}</code>
+              {!c.usadoEn && <Boton tamano="chico" onClick={() => copiar(c.codigo)}><Copy /> {copiado === c.codigo ? 'Copiado' : 'Copiar'}</Boton>}
+              <span className="text-nota text-muted-foreground">
+                {c.usadoEn ? `Usado por ${c.usadoPor?.nombre || 'una cuenta borrada'}${c.usadoPor?.email ? ` (${c.usadoPor.email})` : ''} el ${fecha(c.usadoEn)}` : 'Disponible'}
+                {c.nota ? ` · ${c.nota}` : ''}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Tarjeta>
+  )
+}
 
 export function CuentasEquipo() {
   const { usuario } = useSesion()
@@ -166,6 +231,24 @@ export function CuentasEquipo() {
       .filter((c) => filtro === 'todas' || c.estado === filtro)
       .filter((c) => !q || [c.nombre, c.email, c.empresa?.nombre || ''].some((t) => t.toLowerCase().includes(q)))
   }, [datos, filtro, busca])
+
+  async function suspender(c: Cuenta) {
+    const quitar = !c.suspendidaEn
+    const si = await preguntar(
+      quitar ? `¿Suspender la cuenta de ${c.nombre}?` : `¿Reactivar la cuenta de ${c.nombre}?`,
+      <p>{quitar ? 'No podrá entrar hasta que usted la reactive, y se cierran sus sesiones. Sus datos y los de su empresa se quedan como están.' : 'Podrá volver a entrar con su contraseña y encontrará todo como lo dejó.'}</p>,
+      quitar ? 'Sí, suspender' : 'Sí, reactivar',
+      quitar,
+    )
+    if (!si) return
+    try {
+      await api('POST', `/equipo/cuentas/${c.id}/${quitar ? 'suspender' : 'reactivar'}`)
+      setAviso({ ok: true, texto: quitar ? `Se suspendió la cuenta de ${c.nombre}.` : `Se reactivó la cuenta de ${c.nombre}.` })
+      cargar()
+    } catch (e) {
+      setAviso({ ok: false, texto: textoErrores(e).mensaje })
+    }
+  }
 
   async function cerrarSesiones(c: Cuenta) {
     const si = await preguntar(
@@ -240,6 +323,8 @@ export function CuentasEquipo() {
         </dl>
       </Tarjeta>
 
+      <CodigosAcceso />
+
       <div className="flex flex-col gap-3">
         <label className="relative block max-w-md">
           <span className="sr-only">Buscar por nombre, correo o empresa</span>
@@ -262,6 +347,7 @@ export function CuentasEquipo() {
               alAbrir={() => setAbierta(abierta === c.id ? null : c.id)}
               alBorrar={() => { setAviso(null); setBorrando(c) }}
               alCerrarSesiones={() => cerrarSesiones(c)}
+              alSuspender={() => suspender(c)}
             />
           ))}
         </ul>
@@ -286,7 +372,7 @@ export function CuentasEquipo() {
   )
 }
 
-function FilaCuenta({ c, esYo, abierta, alAbrir, alBorrar, alCerrarSesiones }: { c: Cuenta; esYo: boolean; abierta: boolean; alAbrir: () => void; alBorrar: () => void; alCerrarSesiones: () => void }) {
+function FilaCuenta({ c, esYo, abierta, alAbrir, alBorrar, alCerrarSesiones, alSuspender }: { c: Cuenta; esYo: boolean; abierta: boolean; alAbrir: () => void; alBorrar: () => void; alCerrarSesiones: () => void; alSuspender: () => void }) {
   const idDetalle = `cuenta-${c.id}`
   return (
     <li>
@@ -296,6 +382,7 @@ function FilaCuenta({ c, esYo, abierta, alAbrir, alBorrar, alCerrarSesiones }: {
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-bold">{c.nombre}</span>
               <ChipCuenta estado={c.estado} />
+              {c.suspendidaEn && <span className="inline-flex items-center rounded-full border border-destructive/40 bg-destructive/10 px-2.5 py-0.5 text-nota font-semibold text-destructive">Suspendida</span>}
               {esYo && <span className="text-nota text-muted-foreground">(usted)</span>}
             </div>
             <span className="truncate text-sm text-muted-foreground">{c.email}</span>
@@ -312,13 +399,13 @@ function FilaCuenta({ c, esYo, abierta, alAbrir, alBorrar, alCerrarSesiones }: {
           </dl>
           <ChevronDown aria-hidden="true" className={cn('hidden size-5 shrink-0 text-muted-foreground transition-transform duration-200 sm:block', abierta && 'rotate-180')} />
         </button>
-        {abierta && <DetalleCuenta id={idDetalle} c={c} esYo={esYo} alBorrar={alBorrar} alCerrarSesiones={alCerrarSesiones} />}
+        {abierta && <DetalleCuenta id={idDetalle} c={c} esYo={esYo} alBorrar={alBorrar} alCerrarSesiones={alCerrarSesiones} alSuspender={alSuspender} />}
       </Tarjeta>
     </li>
   )
 }
 
-function DetalleCuenta({ id, c, esYo, alBorrar, alCerrarSesiones }: { id: string; c: Cuenta; esYo: boolean; alBorrar: () => void; alCerrarSesiones: () => void }) {
+function DetalleCuenta({ id, c, esYo, alBorrar, alCerrarSesiones, alSuspender }: { id: string; c: Cuenta; esYo: boolean; alBorrar: () => void; alCerrarSesiones: () => void; alSuspender: () => void }) {
   const [d, setD] = useState<Detalle | null>(null)
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
@@ -395,6 +482,7 @@ function DetalleCuenta({ id, c, esYo, alBorrar, alCerrarSesiones }: { id: string
       {c.rol !== 'equipo' && !esYo && (
         <div className="flex flex-wrap gap-2.5 border-t border-border pt-4">
           <Boton tamano="chico" onClick={alCerrarSesiones} disabled={!c.sesionesAbiertas}><LogOut /> Cerrar sus sesiones</Boton>
+          <Boton tamano="chico" onClick={alSuspender}>{c.suspendidaEn ? <><Play /> Reactivar cuenta</> : <><Ban /> Suspender cuenta</>}</Boton>
           <Boton tamano="chico" variante="peligro" onClick={alBorrar}><Trash2 /> Borrar cuenta y datos</Boton>
         </div>
       )}

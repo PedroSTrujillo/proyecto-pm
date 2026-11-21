@@ -9,6 +9,7 @@
 // cuenta no sea del equipo ni la propia. Lo que se borró queda en la actividad de quien borró, con
 // el correo enmascarado.
 
+const crypto = require('crypto');
 const express = require('express');
 const db = require('./db');
 const { requiereEquipo, ErrorUsuario, registrarEvento, verificarClave } = require('./cuentas');
@@ -43,7 +44,7 @@ function estadoCuenta({ rol, ultimaActividad, archivos, pedidos, movimientos }, 
 async function listarCuentas() {
   const [usuarios, eventos, pedidos, archivos, movimientos, sesiones, exportes, invitaciones] = await Promise.all([
     db.query(
-      `SELECT u.id, u.nombre, u.email, u.rol, u.perfil, u.cargo, u.sistema, u.creado_en, u.admin_empresa, u.aprueba, u.boletin,
+      `SELECT u.id, u.nombre, u.email, u.rol, u.perfil, u.cargo, u.sistema, u.creado_en, u.suspendida_en, u.admin_empresa, u.aprueba, u.boletin,
               e.id AS empresa_id, e.nombre AS empresa, e.vacia,
               (SELECT count(*)::int FROM usuarios m WHERE m.empresa_id = u.empresa_id) AS miembros
          FROM usuarios u LEFT JOIN empresas e ON e.id = u.empresa_id ORDER BY u.creado_en DESC, u.id DESC`,
@@ -83,6 +84,7 @@ async function listarCuentas() {
       cargo: u.cargo || '',
       sistema: u.sistema || null,
       creadoEn: u.creado_en,
+      suspendidaEn: u.suspendida_en || null,
       boletin: Boolean(u.boletin),
       empresa: u.empresa_id
         ? {
@@ -241,15 +243,69 @@ async function cerrarSesiones(id, quien) {
   return { cerradas: filas.length };
 }
 
+// Sin 0, O, 1 ni I: el código se dicta por teléfono o por chat.
+const ALFABETO = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+function nuevoCodigo() {
+  const b = crypto.randomBytes(8);
+  const c = Array.from(b, (x) => ALFABETO[x % ALFABETO.length]).join('');
+  return `${c.slice(0, 4)}-${c.slice(4)}`;
+}
+
+/** Crea `cantidad` códigos de acceso de un solo uso y devuelve el texto de cada uno. */
+async function crearCodigos(cantidad, nota, creadoPor) {
+  const out = [];
+  for (let i = 0; i < cantidad; i++) {
+    const codigo = nuevoCodigo();
+    await db.query('INSERT INTO codigos_acceso (codigo, nota, creado_por) VALUES ($1, $2, $3)', [codigo, nota || null, creadoPor]);
+    out.push(codigo);
+  }
+  return out;
+}
+
+async function listarCodigos() {
+  const filas = await db.query(
+    `SELECT c.codigo, c.nota, c.creado_en, c.usado_en, u.nombre AS usado_por_nombre, u.email AS usado_por_email
+       FROM codigos_acceso c LEFT JOIN usuarios u ON u.id = c.usado_por
+      ORDER BY c.creado_en DESC, c.codigo LIMIT 100`,
+  );
+  return filas.map((f) => ({
+    codigo: f.codigo,
+    nota: f.nota,
+    creadoEn: f.creado_en,
+    usadoEn: f.usado_en,
+    usadoPor: f.usado_en ? { nombre: f.usado_por_nombre, email: f.usado_por_email ? enmascarar(f.usado_por_email) : null } : null,
+  }));
+}
+
+// Suspender no borra nada: la cuenta no entra (cargarUsuario y /entrar) hasta que se reactive.
+async function suspender(id, quien, suspender) {
+  const u = await cuentaPorId(id);
+  if (suspender && (u.rol === 'equipo' || u.id === quien.id)) throw new ErrorUsuario('Una cuenta del equipo no se suspende desde aquí.', 403);
+  await db.query('UPDATE usuarios SET suspendida_en = CASE WHEN $2 THEN now() END WHERE id = $1', [u.id, suspender]);
+  if (suspender) await db.query('DELETE FROM sesiones WHERE usuario_id = $1', [u.id]);
+  await registrarEvento(quien.id, suspender ? 'cuenta_suspendida' : 'cuenta_reactivada', { detalle: { cuenta: enmascarar(u.email) } });
+  return { suspendida: suspender };
+}
+
 const rutas = express.Router();
 rutas.use(requiereEquipo);
 // Nadie del equipo necesita borrar más de unas pocas cuentas por hora; si pasa, algo anda mal.
 const limiteBorrar = limitar({ max: 10, minutos: 60, mensaje: 'Demasiados intentos de borrar cuentas. Espere una hora.' });
 
+rutas.get('/codigos', async (_req, res) => res.json({ codigos: await listarCodigos() }));
+rutas.post('/codigos', async (req, res) => {
+  const cantidad = Math.floor(Number(req.body?.cantidad ?? 1));
+  if (!(cantidad >= 1 && cantidad <= 20)) throw new ErrorUsuario('Pida entre 1 y 20 códigos.');
+  const nota = String(req.body?.nota || '').trim().slice(0, 100);
+  res.status(201).json({ nuevos: await crearCodigos(cantidad, nota, req.usuario.id), codigos: await listarCodigos() });
+});
 rutas.get('/', async (_req, res) => res.json(await listarCuentas()));
 rutas.get('/:id', async (req, res) => res.json(await detalleCuenta(req.params.id)));
 rutas.get('/:id/borrar', async (req, res) => res.json(await previaBorrado(req.params.id, req.usuario)));
 rutas.post('/:id/borrar', limiteBorrar, async (req, res) => res.json(await borrarCuenta(req.params.id, req.usuario, req.body || {})));
+rutas.post('/:id/suspender', async (req, res) => res.json(await suspender(req.params.id, req.usuario, true)));
+rutas.post('/:id/reactivar', async (req, res) => res.json(await suspender(req.params.id, req.usuario, false)));
 rutas.post('/:id/cerrar-sesiones', async (req, res) => res.json(await cerrarSesiones(req.params.id, req.usuario)));
 
-module.exports = { rutas, estadoCuenta, enmascarar, listarCuentas };
+module.exports = { rutas, estadoCuenta, enmascarar, listarCuentas, crearCodigos };

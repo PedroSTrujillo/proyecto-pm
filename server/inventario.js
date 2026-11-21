@@ -19,6 +19,7 @@ const ENTREGA_POR_DEFECTO = 1; // semanas, si el usuario no ha dicho cuánto tar
 const CADA_CUANTO_POR_DEFECTO = 4; // semanas entre un pedido y el siguiente
 const NIVEL_SERVICIO = 0.9; // la cantidad sugerida alcanza en 9 de cada 10 casos
 const SIN_PROVEEDOR = 'Sin proveedor';
+const UNIDADES_ENTREGA = ['habiles', 'calendario', 'semanas'];
 const DIAS_HABILES_SEMANA = 5; // el tiempo de entrega se escribe en días hábiles (lunes a viernes)
 const MAX_DIAS_ENTREGA = 260; // un año hábil
 const VENDE_FRECUENTE = 0.5; // vende en la mitad de sus semanas o más: "frecuente"
@@ -56,6 +57,35 @@ function leerAjustes(a) {
     entregasDias[String(k).slice(0, 80)] = Math.round(n);
     entregas[String(k).slice(0, 80)] = Math.round(n) / DIAS_HABILES_SEMANA;
   }
+  // En qué unidad escribe cada proveedor su tiempo (T12): solo cambia lo que se muestra, el modelo sigue en días hábiles.
+  const unidades = {};
+  for (const [k, v] of Object.entries(ajustes.unidades || {})) {
+    if (UNIDADES_ENTREGA.includes(v)) unidades[String(k).slice(0, 80)] = v;
+  }
+  // Lo que pide cada proveedor (T13): el mínimo de todo el envío, en unidades. Solo avisa en el pedido.
+  // El paquete y el mínimo por producto son de cada producto (catálogo), no del proveedor.
+  const condiciones = {};
+  for (const [k, v] of Object.entries(ajustes.condiciones && typeof ajustes.condiciones === 'object' ? ajustes.condiciones : {})) {
+    const n = Number(v && v.minimoEnvio);
+    const c = {};
+    if (Number.isFinite(n) && n > 0 && n <= 1000000) c.minimoEnvio = n;
+    // Importadores (T14): solo un proveedor internacional lleva contenedores (cuántos y de qué tamaño) y medidas.
+    if (v && v.internacional === true) {
+      c.internacional = true;
+      const cont = Math.round(Number(v.contenedores));
+      if (cont >= 1 && cont <= 50) {
+        c.contenedores = cont;
+        c.tipoContenedor = String(v.tipoContenedor) === '20' ? '20' : '40';
+      }
+    }
+    if (Object.keys(c).length) condiciones[String(k).slice(0, 80)] = c;
+  }
+  // Cada cuánto se le pide a cada proveedor (semanas). Sin valor propio vale `cadaCuanto`, que es también el de los productos sin proveedor.
+  const cadaCuantoProv = {};
+  for (const [k, v] of Object.entries(ajustes.cadaCuantoProv && typeof ajustes.cadaCuantoProv === 'object' ? ajustes.cadaCuantoProv : {})) {
+    const n = num(v, null, 1, 26);
+    if (n !== null) cadaCuantoProv[String(k).slice(0, 80)] = Math.round(n * 1000) / 1000;
+  }
   const entregaPorDefectoDias = ajustes.entregaPorDefectoDias === undefined || ajustes.entregaPorDefectoDias === null
     ? null
     : num(ajustes.entregaPorDefectoDias, null, 0, MAX_DIAS_ENTREGA);
@@ -75,6 +105,11 @@ function leerAjustes(a) {
     entregaPorDefecto: entregaPorDefectoDias !== null ? Math.round(entregaPorDefectoDias) / DIAS_HABILES_SEMANA : num(ajustes.entregaPorDefecto, ENTREGA_POR_DEFECTO, 0, 52),
     entregaPorDefectoDias: entregaPorDefectoDias !== null ? Math.round(entregaPorDefectoDias) : null,
     entregasDias,
+    unidades,
+    condiciones,
+    // La extensión de importadores (contenedores) es de las empresas que la encienden; apagada no se usa nada de ella.
+    importaciones: ajustes.importaciones === true,
+    cadaCuantoProv,
     // Se guarda con 3 decimales: en días o meses (la unidad que eligió el usuario) no da un número entero de semanas.
     cadaCuanto: Math.round(num(ajustes.cadaCuanto, CADA_CUANTO_POR_DEFECTO, 1, 26) * 1000) / 1000,
     // Entero y por debajo de "sobra" (12): si no, un producto podría salir con los dos estados.
@@ -211,7 +246,7 @@ function conSobraPropia(f, sobraSemanas) {
  *   pronóstico, sin temporada, sin tiempo de entrega ("pide ya", riesgo) y sin cantidad
  *   sugerida. Así el tratamiento de la prueba es el que se declaró y M mide el reporte.
  * sugerencias: forma antigua de pedir el alcance (false = 'prueba').
- * enCamino: Map clave → { cantidad, fecha } de lo pedido que no ha llegado (server/recepcion.js). El
+ * enCamino: Map clave → { cantidad, fecha } de lo pedido que no ha entrado (server/en-camino.js). El
  *   sugerido descuenta existencias más en camino (posición de inventario, §7 del modelo).
  */
 function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos, fuente = {}, alcance = null, sugerencias = true, semanasPronostico = 4, enCamino = null }) {
@@ -281,6 +316,7 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
     const f = conSobraPropia(fila, sobraSemanas);
     const { proveedor, origen: origenProveedor } = proveedorDe(k, datos, ajustes);
     const entrega = ajustes.entregas[proveedor] ?? ajustes.entregaPorDefecto;
+    const cadaCuanto = ajustes.cadaCuantoProv[proveedor] ?? ajustes.cadaCuanto;
     const costo = datos.costo > 0 ? datos.costo : null;
     const { recortada, semanasPico } = recortes.get(k);
     const crudo = porProducto[k] || null;
@@ -312,7 +348,7 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       // Riesgo de quedarse sin él antes de reponerlo: dentro del umbral de "se agota"
       // o, si el proveedor tarda más, antes de que llegue un pedido hecho hoy.
       riesgo = redondear(P.predictiva(ajuste, futuro(Math.max(entrega, ajustes.semanasAgota))).probMayorQue(existencias), 3);
-      const necesidad = P.predictiva(ajuste, futuro(entrega + ajustes.cadaCuanto)).cuantil(NIVEL_SERVICIO);
+      const necesidad = P.predictiva(ajuste, futuro(entrega + cadaCuanto)).cuantil(NIVEL_SERVICIO);
       // Se pide en paquetes completos: los del catálogo (cajas de 80) o los que se deducen de las ventas.
       // Lo que ya viene en camino cuenta como si estuviera: si no, se pediría dos veces.
       const falta = Math.max(0, Math.ceil(necesidad - existencias - cantidadEnCamino));
@@ -326,7 +362,7 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       // Por qué esa cantidad: las semanas que hay que cubrir (lo que tarda el proveedor más lo que
       // falta para el siguiente pedido), lo más probable que se venda en ellas y lo que alcanza en
       // 9 de cada 10 casos. ventaSemana (con temporada) dice para cuánto alcanza cualquier cantidad.
-      const cubrir = entrega + ajustes.cadaCuanto;
+      const cubrir = entrega + cadaCuanto;
       const enCubrir = P.predictiva(ajuste, futuro(cubrir));
       const media = enCubrir.media;
       detalleSugerido = {
@@ -375,6 +411,9 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       codigo: f.codigo,
       nombre: f.nombre,
       proveedor,
+      cadaCuanto,
+      medidas: datos.medidas || null,
+      volumenPaquete: datos.volumenPaquete > 0 ? datos.volumenPaquete : null,
       origenProveedor,
       entrega,
       entregaDias: ajustes.entregasDias[proveedor] ?? (proveedor === SIN_PROVEEDOR || ajustes.entregas[proveedor] === undefined ? ajustes.entregaPorDefectoDias : null),
@@ -513,7 +552,7 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
 // Lo que ve el operador (D3): cuántos productos hay en cada estado y, por producto, existencias,
 // estado y para cuánto alcanza. Sin pronóstico, probabilidades, sugeridos ni dinero. Es la misma
 // respuesta con los detalles en null, para que las pantallas usen los mismos tipos.
-const CAMPOS_RESUMEN_OPERADOR = ['productos', 'seAgotan', 'enCero', 'pideYa', 'sobran', 'sinVentas', 'cobertura', 'sinProveedor', 'tieneCostos', 'enCamino'];
+const CAMPOS_RESUMEN_OPERADOR = ['productos', 'seAgotan', 'enCero', 'pideYa', 'sobran', 'sinVentas', 'cobertura', 'sinProveedor', 'enCamino'];
 
 function resumirParaOperador(inv) {
   const resumen = {};
@@ -533,6 +572,7 @@ function resumirParaOperador(inv) {
       detalleSugerido: null,
       minimo: null,
       maximo: null,
+      costo: null,
       valor: null,
       quieto: null,
       tendencia: null,

@@ -104,6 +104,7 @@ export function Existencias() {
                   <tr className="text-left text-sm text-muted-foreground">
                     <th scope="col" className="border-b border-border px-2 py-2 font-semibold">Producto</th>
                     <th scope="col" className="border-b border-border px-2 py-2 text-right font-semibold">Existencias</th>
+                    <th scope="col" className="border-b border-border px-2 py-2 text-right font-semibold">Pedido</th>
                     {contando && <th scope="col" className="border-b border-border px-2 py-2 text-right font-semibold">Conteo</th>}
                     <th scope="col" className="hidden border-b border-border px-2 py-2 font-semibold sm:table-cell">Último movimiento</th>
                   </tr>
@@ -122,6 +123,12 @@ export function Existencias() {
                           {inv && inv.estado === 'agota' && <span className="block text-nota font-semibold text-rojo-texto">{inv.existencias <= 0 ? 'Agotado' : 'Se va a agotar'}</span>}
                         </td>
                         <td className={cn('border-b border-[#f0f1ee] px-2 py-2.5 text-right font-semibold tabular-nums', p.existencias < 0 && 'text-rojo')}>{numero(p.existencias, 2)}{p.unidad ? <span className="ml-1 text-sm font-normal text-muted-foreground">{p.unidad}</span> : null}</td>
+                        <td
+                          className="border-b border-[#f0f1ee] px-2 py-2.5 text-right text-sm tabular-nums text-muted-foreground"
+                          title={inv?.pedidoReciente ? `Pedido ${inv.pedidoReciente.numero}${inv.pedidoReciente.por ? ` de ${inv.pedidoReciente.por}` : ''}, ${dia(inv.pedidoReciente.fecha)}${inv.enCamino ? `. Faltan por entrar ${numero(inv.enCamino.cantidad, 2)}.` : '. Ya entró.'}` : undefined}
+                        >
+                          {inv?.pedidoReciente ? `Pedido: ${numero(inv.pedidoReciente.cantidad, 2)}` : ''}
+                        </td>
                         {contando && (
                           <td className="border-b border-[#f0f1ee] px-2 py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
                             <input className={cn(claseEntrada, 'ml-auto min-h-9 w-24 text-right')} inputMode="decimal" value={v} onChange={(e) => setConteo((c) => ({ ...c, [p.codigo]: e.target.value }))} aria-label={`Conteo de ${p.codigo}`} />

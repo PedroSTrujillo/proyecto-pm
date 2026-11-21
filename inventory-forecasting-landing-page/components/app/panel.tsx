@@ -106,7 +106,7 @@ function PanelCon({ inv }: { inv: Inventario }) {
             etiqueta="text-ambar-texto"
             valor="¿?"
             detalle="Díganos cuánto tarda su proveedor y le avisamos qué pedir antes de que sea tarde."
-            ayuda="Se asume una semana de entrega. Si su proveedor tarda más, cámbielo en Datos."
+            ayuda="Se asume una semana de entrega. Si su proveedor tarda más, cámbielo en Proveedores."
             href={rutas.datos}
             textoEnlace="Decir cuánto tarda"
           />

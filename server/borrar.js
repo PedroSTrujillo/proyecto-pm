@@ -40,7 +40,7 @@ async function borrarDatos({ email = null, todos = false, confirmar = false }) {
       for (const h of herederos) {
         await t.query('UPDATE exports SET usuario_id = $1 WHERE usuario_id = ANY($2::int[])', [h.queda, h.salen]);
         await t.query('UPDATE archivos SET usuario_id = $1 WHERE usuario_id = ANY($2::int[])', [h.queda, h.salen]);
-        if (h.nuevoAdmin) await t.query('UPDATE usuarios SET admin_empresa = true WHERE id = $1', [h.queda]);
+        if (h.nuevoAdmin) await t.query("UPDATE usuarios SET admin_empresa = true, perfil = 'analista', aprueba = true WHERE id = $1", [h.queda]);
       }
       await t.query('DELETE FROM usuarios WHERE id = ANY($1::int[])', [ids]);
       // Una empresa sin nadie se borra con su inventario (archivos, catálogo y movimientos).

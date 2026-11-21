@@ -86,7 +86,7 @@ function esEmailDeEquipo(email) {
 
 // Lo que se sabe de un usuario en cada petición: sus datos, su empresa y sus preferencias.
 const COLUMNAS_USUARIO = `u.id, u.email, u.nombre, u.rol, u.sistema, u.empresa_id, u.admin_empresa, u.perfil,
-  u.preferencias, u.boletin, u.aprueba, u.cargo, e.nombre AS empresa_nombre, e.vacia AS empresa_vacia`;
+  u.preferencias, u.boletin, u.aprueba, u.sube_datos, u.cargo, e.nombre AS empresa_nombre, e.vacia AS empresa_vacia`;
 
 async function usuarioPorId(id) {
   return db.uno(`SELECT ${COLUMNAS_USUARIO} FROM usuarios u LEFT JOIN empresas e ON e.id = u.empresa_id WHERE u.id = $1`, [id]);
@@ -97,8 +97,8 @@ async function usuarioPorId(id) {
 async function asegurarEmpresa(u) {
   if (u.empresa_id) return u;
   const e = await db.uno('INSERT INTO empresas (vacia) VALUES (true) RETURNING id');
-  await db.query('UPDATE usuarios SET empresa_id = $1, admin_empresa = true WHERE id = $2', [e.id, u.id]);
-  return { ...u, empresa_id: e.id, admin_empresa: true, empresa_nombre: '', empresa_vacia: true };
+  await db.query("UPDATE usuarios SET empresa_id = $1, admin_empresa = true, perfil = 'analista', aprueba = true WHERE id = $2", [e.id, u.id]);
+  return { ...u, empresa_id: e.id, admin_empresa: true, perfil: 'analista', aprueba: true, empresa_nombre: '', empresa_vacia: true };
 }
 
 // Carga req.usuario si hay sesión válida.
@@ -108,7 +108,7 @@ async function cargarUsuario(req, _res, next) {
   const fila = await db.uno(
     `SELECT ${COLUMNAS_USUARIO}, s.token_hash, s.ultima_actividad_en
        FROM sesiones s JOIN usuarios u ON u.id = s.usuario_id LEFT JOIN empresas e ON e.id = u.empresa_id
-      WHERE s.token_hash = $1 AND s.expira_en > now()`,
+      WHERE s.token_hash = $1 AND s.expira_en > now() AND u.suspendida_en IS NULL`,
     [hashToken(token)],
   );
   if (!fila) return next();
@@ -136,11 +136,25 @@ function requiereEquipo(req, _res, next) {
   next();
 }
 
-function requiereAdminEmpresa(req, _res, next) {
-  if (!req.usuario) return next(new ErrorUsuario('Su sesión se cerró. Vuelva a iniciar sesión.', 401));
-  if (!req.usuario.admin_empresa) return next(new ErrorUsuario('Solo quien administra la empresa puede hacer esto.', 403));
-  next();
+// El rol sale de dos columnas que ya existían: el gerente es quien fundó la empresa (admin_empresa) y
+// el perfil guardado distingue al administrador ('analista') del operador. Una persona solo invita,
+// cambia o saca a alguien de rango menor al suyo (docs/PLAN_CAMBIOS_SINESC.md, T1).
+const RANGO = { operador: 1, administrador: 2, gerente: 3 };
+
+function rolEmpresa(u) {
+  if (u.admin_empresa) return 'gerente';
+  return u.perfil === 'operador' ? 'operador' : 'administrador';
 }
+
+function requiereRol(...roles) {
+  return (req, _res, next) => {
+    if (!req.usuario) return next(new ErrorUsuario('Su sesión se cerró. Vuelva a iniciar sesión.', 401));
+    if (!roles.includes(rolEmpresa(req.usuario))) return next(new ErrorUsuario('Solo quien administra la empresa puede hacer esto.', 403));
+    next();
+  };
+}
+
+const requiereAdminEmpresa = requiereRol('gerente', 'administrador');
 
 const UNIDADES = ['dias', 'semanas', 'meses'];
 const UNIDAD_CUENTA_NUEVA = 'dias';
@@ -168,12 +182,15 @@ function publico(u) {
     rol: u.rol,
     sistema: u.sistema || null,
     perfil: u.perfil || 'analista',
+    rolEmpresa: rolEmpresa(u),
     // alertas: la tabla completa del boletín; alertasPropias: si cambió algo de lo de su perfil.
     preferencias: { ...leerPreferencias(u.preferencias), alertas: alertasDe(u.preferencias, u.perfil || 'analista'), alertasPropias: Object.keys(leerPreferencias(u.preferencias).alertas).length > 0 },
     boletin: Boolean(u.boletin),
     cargo: u.cargo || '',
     // Aprueba los pedidos de su empresa (lo marca quien administra, D11).
     aprueba: Boolean(u.aprueba),
+    // Un operador sube el archivo de inventario solo si quien administra se lo marcó.
+    subeDatos: Boolean(u.sube_datos),
     empresa: u.empresa_id ? { id: u.empresa_id, nombre: u.empresa_nombre || '', vacia: Boolean(u.empresa_vacia), admin: Boolean(u.admin_empresa) } : null,
   };
 }
@@ -208,6 +225,8 @@ function baseDe(req) {
   return process.env.APP_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : `${req.protocol}://${req.get('host')}`);
 }
 
+const CUENTA_SUSPENDIDA = 'Su cuenta está suspendida. Escriba al equipo de SINESC para reactivarla.';
+
 // --- Rutas -----------------------------------------------------------------------
 
 const rutas = express.Router();
@@ -222,7 +241,6 @@ rutas.post('/crear', async (req, res) => {
   const empresa = typeof req.body?.empresa === 'object' && req.body.empresa ? req.body.empresa : { nombre: req.body?.empresa, nit: req.body?.nit };
   const nombreEmpresa = String(empresa.nombre || '').trim().slice(0, 120);
   const nit = String(empresa.nit || '').trim().slice(0, 30) || null;
-  const perfil = req.body?.perfil === 'operador' ? 'operador' : 'analista';
   const cargo = leerCargo(req.body?.cargo);
   const boletin = req.body?.boletin === true || req.body?.boletin === 'on' || req.body?.boletin === 'true';
   if (!nombre) throw new ErrorUsuario('Escriba su nombre.');
@@ -232,46 +250,59 @@ rutas.post('/crear', async (req, res) => {
   const existe = await db.uno('SELECT id FROM usuarios WHERE email = $1', [email]);
   if (existe) throw new ErrorUsuario('Ya hay una cuenta con ese correo. Inicie sesión.');
   const rol = esEmailDeEquipo(email) ? 'equipo' : 'usuario';
+  const codigo = String(req.body?.codigo || '').replace(/\s+/g, '').toUpperCase();
+  if (!codigo) throw new ErrorUsuario('Escriba su código de acceso. Se lo entrega el equipo de SINESC.');
   const id = await db.tx(async (t) => {
+    // Cada persona lleva el suyo, también quien entra por invitación; si algo falla abajo, el tx lo devuelve.
+    const { rows: usados } = await t.query('UPDATE codigos_acceso SET usado_en = now() WHERE codigo = $1 AND usado_en IS NULL RETURNING codigo', [codigo]);
+    if (!usados[0]) throw new ErrorUsuario('El código de acceso no es válido o ya se usó. Pídalo al equipo de SINESC.');
     let empresaId;
-    let admin;
+    // Quien funda la empresa es su gerente y aprueba; quien entra por invitación toma el rol de la
+    // invitación (sin rol, el más bajo), nunca uno que mande el formulario.
+    let admin = true;
+    let perfil = 'analista';
+    let aprueba = true;
     if (invitacion) {
       const { rows } = await t.query(
         `UPDATE invitaciones SET usada_en = now()
           WHERE token_hash = $1 AND usada_en IS NULL AND expira_en > now() AND (email IS NULL OR email = $2)
-          RETURNING empresa_id`,
+          RETURNING empresa_id, rol`,
         [hashToken(invitacion), email],
       );
       if (!rows[0]) throw new ErrorUsuario('Este enlace de invitación ya se usó, se venció o es para otro correo. Pida uno nuevo a quien lo invitó.');
       empresaId = rows[0].empresa_id;
       admin = false;
+      aprueba = false;
+      perfil = rows[0].rol === 'administrador' ? 'analista' : 'operador';
     } else {
       const { rows } = await t.query('INSERT INTO empresas (nombre, nit) VALUES ($1, $2) RETURNING id', [nombreEmpresa, nit]);
       empresaId = rows[0].id;
-      admin = true;
     }
     // Las cuentas nuevas ven el tiempo en días (Francisco Lozano, entrevista de la semana 12: los
     // indicadores de inventario se miden en días, y mezclar días y semanas confundía). Las de antes siguen
     // como estaban, y cada quien lo cambia en Mi cuenta.
     const { rows } = await t.query(
-      `INSERT INTO usuarios (email, nombre, clave_hash, rol, empresa_id, admin_empresa, perfil, boletin, cargo, preferencias)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb) RETURNING id`,
-      [email, nombre, hashClave(clave), rol, empresaId, admin, perfil, boletin, cargo, JSON.stringify({ unidad: UNIDAD_CUENTA_NUEVA })],
+      `INSERT INTO usuarios (email, nombre, clave_hash, rol, empresa_id, admin_empresa, perfil, aprueba, boletin, cargo, preferencias)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb) RETURNING id`,
+      [email, nombre, hashClave(clave), rol, empresaId, admin, perfil, aprueba, boletin, cargo, JSON.stringify({ unidad: UNIDAD_CUENTA_NUEVA })],
     );
+    await t.query('UPDATE codigos_acceso SET usado_por = $1 WHERE codigo = $2', [rows[0].id, codigo]);
     if (invitacion) await t.query('UPDATE invitaciones SET usada_por = $1 WHERE token_hash = $2', [rows[0].id, hashToken(invitacion)]);
     return rows[0].id;
   });
-  await registrarEvento(id, 'cuenta_creada', { detalle: { como: invitacion ? 'invitacion' : 'empresa_nueva', perfil } });
+  const usuario = await publicoPorId(id);
+  await registrarEvento(id, 'cuenta_creada', { detalle: { como: invitacion ? 'invitacion' : 'empresa_nueva', rol: usuario.rolEmpresa } });
   await registrarEvento(id, 'ingreso', { detalle: { como: 'cuenta_nueva' } });
   await abrirSesion(req, res, id);
-  res.status(201).json({ usuario: await publicoPorId(id) });
+  res.status(201).json({ usuario });
 });
 
 rutas.post('/entrar', async (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
   const clave = String(req.body?.clave || '');
-  const u = await db.uno('SELECT id, email, nombre, rol, sistema, clave_hash, es_equipo FROM usuarios WHERE email = $1', [email]);
+  const u = await db.uno('SELECT id, email, nombre, rol, sistema, clave_hash, es_equipo, suspendida_en FROM usuarios WHERE email = $1', [email]);
   if (!u || !verificarClave(clave, u.clave_hash)) throw new ErrorUsuario('El correo o la contraseña no coinciden.', 401);
+  if (u.suspendida_en) throw new ErrorUsuario(CUENTA_SUSPENDIDA, 403);
   const rol = esEmailDeEquipo(email) || u.es_equipo ? 'equipo' : u.rol === 'equipo' && !process.env.TEAM_EMAILS ? 'equipo' : 'usuario';
   if (rol !== u.rol) await db.query('UPDATE usuarios SET rol = $1 WHERE id = $2', [rol, u.id]);
   u.rol = rol;
@@ -302,15 +333,6 @@ rutas.put('/datos', requiereUsuario, async (req, res) => {
   if (sistema !== null && !/^[a-z0-9-]{1,40}$/.test(String(sistema))) throw new ErrorUsuario('Elija su programa contable de la lista.');
   const cargo = req.body?.cargo === undefined ? req.usuario.cargo : leerCargo(req.body.cargo);
   await db.query('UPDATE usuarios SET nombre = $1, sistema = $2, cargo = $3 WHERE id = $4', [nombre, sistema, cargo, req.usuario.id]);
-  res.json({ usuario: await publicoPorId(req.usuario.id) });
-});
-
-// Analista u operador: lo elige cada quien, sin contraseña aparte (D3).
-rutas.put('/perfil', requiereUsuario, async (req, res) => {
-  const perfil = req.body?.perfil;
-  if (perfil !== 'analista' && perfil !== 'operador') throw new ErrorUsuario('Elija analista u operador.');
-  await db.query('UPDATE usuarios SET perfil = $1 WHERE id = $2', [perfil, req.usuario.id]);
-  if (perfil !== req.usuario.perfil) await registrarEvento(req.usuario.id, 'perfil_cambiado', { detalle: { perfil } });
   res.json({ usuario: await publicoPorId(req.usuario.id) });
 });
 
@@ -363,7 +385,7 @@ rutas.put('/clave', requiereUsuario, async (req, res) => {
 rutas.post('/olvide', async (req, res) => {
   if (!correoConfigurado()) return res.json({ correo: false });
   const email = String(req.body?.email || '').trim().toLowerCase();
-  const u = await db.uno('SELECT id, nombre, email FROM usuarios WHERE email = $1', [email]);
+  const u = await db.uno('SELECT id, nombre, email FROM usuarios WHERE email = $1 AND suspendida_en IS NULL', [email]);
   if (u) {
     const { enlace, horas } = await crearEnlaceRestablecer(u.id, baseDe(req));
     await enviarCorreo({
@@ -385,6 +407,7 @@ rutas.post('/restablecer', async (req, res) => {
     [hashToken(token)],
   );
   if (!r) throw new ErrorUsuario('Este enlace ya se usó o se venció. Pida uno nuevo.', 400);
+  if ((await db.uno('SELECT suspendida_en FROM usuarios WHERE id = $1', [r.usuario_id]))?.suspendida_en) throw new ErrorUsuario(CUENTA_SUSPENDIDA, 403);
   await db.query('UPDATE usuarios SET clave_hash = $1 WHERE id = $2', [hashClave(clave), r.usuario_id]);
   await db.query('DELETE FROM sesiones WHERE usuario_id = $1', [r.usuario_id]);
   await registrarEvento(r.usuario_id, 'clave_restablecida');
@@ -398,6 +421,9 @@ module.exports = {
   requiereUsuario,
   requiereEquipo,
   requiereAdminEmpresa,
+  requiereRol,
+  rolEmpresa,
+  RANGO,
   leerPreferencias,
   hashToken,
   esEmailDeEquipo,

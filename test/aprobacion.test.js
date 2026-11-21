@@ -8,6 +8,7 @@ process.env.DATA_DIR = 'memory://';
 process.env.SIN_LIMITES = '1';
 
 const test = require('node:test');
+const { conCodigo } = require('./codigo');
 const assert = require('node:assert/strict');
 const zlib = require('zlib');
 const db = require('../server/db');
@@ -77,26 +78,27 @@ function textoDePdf(buf) {
 }
 
 let gerente; // administra y aprueba
-let carlos; // prepara, no aprueba
-let lucia; // de la misma empresa, no aprueba
+let carlos; // administrador: prepara, no aprueba
+let lucia; // administradora de la misma empresa, no aprueba
 let ids = {};
 let pedido;
 
-async function invitado(nombre, email, cargo) {
-  const { enlace } = await gerente.post('/api/empresa/invitaciones', {});
+// Quien prepara y consulta pedidos es administrador; un operador no los abre (T4).
+async function invitado(nombre, email, cargo, rol = 'administrador') {
+  const { enlace } = await gerente.post('/api/empresa/invitaciones', { rol });
   const token = new URL(enlace).searchParams.get('invitacion');
   const c = cliente();
-  const r = await c.post('/api/cuenta/crear', { nombre, email, clave: 'clave-segura', invitacion: token, cargo });
+  const r = await c.post('/api/cuenta/crear', await conCodigo({ nombre, email, clave: 'clave-segura', invitacion: token, cargo }));
   assert.equal(r.estado, 201, r.error);
   return { c, id: r.usuario.id, usuario: r.usuario };
 }
 
 test('el administrador marca quién aprueba y el cargo de cada persona', async () => {
   gerente = cliente();
-  const r = await gerente.post('/api/cuenta/crear', { nombre: 'Gloria Gerente', email: 'gloria@aprueba.co', clave: 'clave-segura', empresa: 'Distribuidora Aprueba', cargo: 'Gerente general' });
+  const r = await gerente.post('/api/cuenta/crear', await conCodigo({ nombre: 'Gloria Gerente', email: 'gloria@aprueba.co', clave: 'clave-segura', empresa: 'Distribuidora Aprueba', cargo: 'Gerente general' }));
   assert.equal(r.estado, 201, r.error);
   assert.equal(r.usuario.cargo, 'Gerente general');
-  assert.equal(r.usuario.aprueba, false, 'nadie aprueba hasta que se marque');
+  assert.equal(r.usuario.aprueba, true, 'quien funda la empresa es su gerente y aprueba');
   ids.gerente = r.usuario.id;
   const c = await invitado('Carlos Compras', 'carlos@aprueba.co', 'Auxiliar de compras');
   carlos = c.c;
@@ -108,10 +110,6 @@ test('el administrador marca quién aprueba y el cargo de cada persona', async (
 
   // Solo quien administra cambia esto.
   assert.equal((await carlos.put(`/api/empresa/miembros/${ids.carlos}`, { aprueba: true })).estado, 403);
-  const e = await gerente.put(`/api/empresa/miembros/${ids.gerente}`, { aprueba: true });
-  assert.equal(e.estado, 200, e.error);
-  const g = e.empresa.miembros.find((m) => m.id === ids.gerente);
-  assert.equal(g.aprueba, true);
   const cargo = await gerente.put(`/api/empresa/miembros/${ids.lucia}`, { cargo: '  Jefe de   bodega ' });
   assert.equal(cargo.empresa.miembros.find((m) => m.id === ids.lucia).cargo, 'Jefe de bodega');
   // Cada quien también cambia el suyo en Mi cuenta.
@@ -159,8 +157,7 @@ test('quien no aprueba recibe 403 y alguien de otra empresa 404', async () => {
   assert.deepEqual((await lucia.get('/api/pedidos/por-aprobar')).pedidos, []);
 
   const otra = cliente();
-  await otra.post('/api/cuenta/crear', { nombre: 'Otro Jefe', email: 'otro@aprueba-otra.co', clave: 'clave-segura', empresa: 'Otra Empresa' });
-  await otra.put(`/api/empresa/miembros/${(await otra.get('/api/cuenta/yo')).usuario.id}`, { aprueba: true });
+  await otra.post('/api/cuenta/crear', await conCodigo({ nombre: 'Otro Jefe', email: 'otro@aprueba-otra.co', clave: 'clave-segura', empresa: 'Otra Empresa' }));
   assert.equal((await otra.post(`/api/pedidos/${pedido.id}/aprobar`)).estado, 404);
   assert.equal((await otra.get(`/api/pedidos/${pedido.id}`)).estado, 404);
   assert.equal((await otra.put(`/api/pedidos/${pedido.id}/lista-final`, { lineas: [] })).estado, 404);
@@ -248,12 +245,12 @@ test('reenviado y aprobado: lo de quien aprueba se mide aparte y el PDF lleva su
   assert.equal(r.pedido.aprobacion.aprobado.nombre, 'Gloria Gerente');
   assert.equal(r.pedido.aprobacion.aprobado.cargo, 'Gerente general');
 
-  const p = await db.uno('SELECT comparacion, recibido, aprobado_por FROM pedidos WHERE id = $1', [pedido.id]);
+  const p = await db.uno('SELECT comparacion, aprobado_por FROM pedidos WHERE id = $1', [pedido.id]);
   assert.equal(p.aprobado_por, ids.gerente);
   assert.equal(p.comparacion.aprobacion.quitadas, 1, 'quien aprueba quitó una línea');
   assert.equal(p.comparacion.aprobacion.por, ids.gerente);
   assert.ok(p.comparacion.aceptacion, 'la aceptación de quien preparó sigue ahí');
-  assert.deepEqual(p.recibido, {}, 'aprobado, queda en camino');
+  assert.ok((await gerente.get('/api/inventario')).inventario.resumen.enCamino > 0, 'aprobado, queda en camino');
   assert.equal((await gerente.post(`/api/pedidos/${pedido.id}/aprobar`)).estado, 409);
 
   const pdf = await carlos.get(`/api/pedidos/${pedido.id}/pedido.pdf`);
@@ -284,7 +281,10 @@ test('el logo: PNG o JPG de hasta 300 KB, solo quien administra, y va en el PDF'
   assert.equal(r.estado, 413);
   assert.match(r.error, /300 KB/);
   assert.equal((await gerente.put('/api/empresa/logo', { datos: Buffer.from('GIF89a…').toString('base64') })).estado, 400);
-  assert.equal((await carlos.put('/api/empresa/logo', { datos: LOGO.toString('base64') })).estado, 403);
+  assert.equal((await carlos.put('/api/empresa/logo', { datos: LOGO.toString('base64') })).estado, 200, 'un administrador también cambia el logo');
+  const oscar = (await invitado('Óscar Operador', 'oscar@aprueba.co', undefined, 'operador')).c;
+  assert.equal((await oscar.put('/api/empresa/logo', { datos: LOGO.toString('base64') })).estado, 403);
+  assert.equal((await oscar.get('/api/pedidos')).estado, 403, 'un operador no abre los pedidos');
 
   const ok = await gerente.put('/api/empresa/logo', { datos: `data:image/png;base64,${LOGO.toString('base64')}` });
   assert.equal(ok.estado, 200, ok.error);
@@ -305,7 +305,7 @@ test('el logo: PNG o JPG de hasta 300 KB, solo quien administra, y va en el PDF'
 });
 
 test('sin nadie que apruebe, quien prepara lo cierra sin aprobación (como antes)', async () => {
-  await gerente.put(`/api/empresa/miembros/${ids.gerente}`, { aprueba: false });
+  await db.query('UPDATE usuarios SET aprueba = false WHERE id = $1', [ids.gerente]); // al gerente nadie lo edita por la API
   const p = (await carlos.post('/api/pedidos', { modo: 'sugerido' })).pedido;
   assert.equal(p.aprobacion.puedoCerrar, true);
   assert.equal(p.aprobacion.puedoEnviar, false);

@@ -17,7 +17,7 @@ const MAX_CLAVES = 2000;
 const DIAS_POR_MES = 30.44;
 
 // El orden en que van las secciones y del que sale el asunto: lo más urgente primero.
-const ORDEN = ['enCero', 'pideYa', 'seAgota', 'porAprobar', 'porRecibir', 'sinDatos', 'sobran', 'dineroQuieto'];
+const ORDEN = ['enCero', 'pideYa', 'seAgota', 'porAprobar', 'sinDatos', 'sobran', 'dineroQuieto'];
 
 function numero(n, dec = 0) {
   if (n === null || n === undefined || Number.isNaN(n)) return '—';
@@ -68,8 +68,7 @@ const sobra = (p) => p.estado === 'sobra' || (p.estado === 'sin_ventas' && p.exi
 
 /**
  * Lo que dice una sección hoy, o null si no tiene nada que decir.
- * ctx: { inv, porAprobar: [{ id, numero, preparadoPor, enviadoEn, lineas }], porRecibir:
- *   atrasadosDe(...) de server/recepcion.js, sinDatos: { dias } }.
+ * ctx: { inv, porAprobar: [{ id, numero, preparadoPor, enviadoEn, lineas }], sinDatos: { dias } }.
  * claves: lo que se guarda para decir la próxima vez qué es nuevo.
  */
 function seccion(tipo, ctx) {
@@ -94,10 +93,6 @@ function seccion(tipo, ctx) {
   if (tipo === 'porAprobar') {
     const ps = ctx.porAprobar || [];
     return ps.length ? { tipo, n: ps.length, claves: ps.map((p) => String(p.id)), pedidos: ps } : null;
-  }
-  if (tipo === 'porRecibir') {
-    const ps = ctx.porRecibir || [];
-    return ps.length ? { tipo, n: ps.length, claves: ps.map((p) => `${p.pedidoId}:${p.proveedor}`), entregas: ps } : null;
   }
   if (tipo === 'sinDatos') {
     const dias = ctx.sinDatos && ctx.sinDatos.dias;
@@ -144,7 +139,6 @@ function asuntoDe(secciones, empresa) {
     pideYa: () => `Pedir ya: ${contar(n, 'producto', 'productos')}`,
     seAgota: () => `Se van a agotar: ${contar(n, 'producto', 'productos')}`,
     porAprobar: () => `Por aprobar: ${contar(n, 'pedido', 'pedidos')}`,
-    porRecibir: () => `Entregas atrasadas: ${numero(n)}`,
     sinDatos: () => `Sin movimientos hace ${numero(n)} días hábiles`,
     sobran: () => `Sobran: ${contar(n, 'producto', 'productos')}`,
     dineroQuieto: () => `Dinero quieto: ${plata(n)}`,
@@ -204,18 +198,6 @@ function bloques(s, { analista, unidad, url, cambios }) {
       ],
       tabla: null,
       enlaces: [{ texto: 'Revisar los pedidos', url: ir('/pedidos') }],
-    };
-  }
-  if (s.tipo === 'porRecibir') {
-    return {
-      titulo: `Entregas atrasadas (${numero(s.n)})`,
-      parrafos: [
-        'Según lo que tarda cada proveedor, ya deberían haber llegado. Si llegaron, registre la llegada para que el sugerido siga al día.',
-        ...s.entregas.slice(0, MAX_LISTA).map((e) => `${e.proveedor}, pedido ${e.numero ?? e.pedidoId} del ${fechaCorta(e.pedidoEl)}: debía llegar el ${fechaCorta(e.esperado)} (${contar(e.diasTarde, 'día hábil', 'días hábiles')} de retraso). Faltan ${contar(e.pendientes, 'producto', 'productos')}.`),
-        ...resto(s.n, MAX_LISTA, 'entrega', 'entregas'),
-      ],
-      tabla: null,
-      enlaces: [{ texto: 'Registrar la llegada', url: ir('/pedidos') }],
     };
   }
   if (s.tipo === 'sinDatos') {

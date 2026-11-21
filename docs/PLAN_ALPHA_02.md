@@ -351,3 +351,5 @@ Ordenado por hito. Nada de esto se empieza sin decisión del equipo, y lo que ve
 - El campo de sobrestock de la ficha va en semanas aunque la persona use días o meses (SP7).
 - No se ha probado el boletín en Gmail ni Outlook de verdad, ni un lunes real con Brevo (SP7).
 - Los festivos no se descuentan del uso ni de las alertas.
+
+> **Nota (2026-11-20, T5 de `docs/PLAN_CAMBIOS_SINESC.md`):** la llegada de pedidos de SP5 ("Por recibir", `POST /api/pedidos/:id/recibir`, `server/recepcion.js`) y la alerta "Entregas atrasadas" (`porRecibir`, SP7) se quitaron. Lo pedido sigue contando "en camino" en el sugerido hasta que se registra su entrada en Movimientos (`server/en-camino.js`, §10.1 de `docs/modelo-rotacion.md`). Lo escrito arriba sobre la llegada es histórico.

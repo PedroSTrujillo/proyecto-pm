@@ -141,8 +141,9 @@ const ESQUEMA = [
   )`,
   'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS empresa_id INTEGER REFERENCES empresas(id) ON DELETE SET NULL',
   'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS admin_empresa BOOLEAN NOT NULL DEFAULT false',
-  // analista: métricas detalladas; operador: métricas gruesas e ingreso de inventario. No es un
-  // permiso: cada persona lo elige y lo cambia cuando quiera. No confundir con rol (probador o equipo).
+  // analista (en pantalla, administrador): métricas detalladas; operador: métricas gruesas e ingreso de
+  // inventario. Junto con admin_empresa (el gerente) es el rol de la empresa y el servidor lo hace cumplir
+  // (cuentas.js, rolEmpresa). No confundir con rol (probador o equipo).
   "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS perfil TEXT NOT NULL DEFAULT 'analista' CHECK (perfil IN ('analista', 'operador'))",
   // { unidad: 'dias' | 'semanas' | 'meses', horizonte: semanas del pronóstico }
   "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS preferencias JSONB NOT NULL DEFAULT '{}'::jsonb",
@@ -162,6 +163,17 @@ const ESQUEMA = [
     expira_en TIMESTAMPTZ NOT NULL,
     usada_en TIMESTAMPTZ,
     usada_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL
+  )`,
+  // Rol con el que entra quien usa la invitación: 'administrador' u 'operador' (NULL = operador).
+  'ALTER TABLE invitaciones ADD COLUMN IF NOT EXISTS rol TEXT',
+  // Códigos de acceso de un solo uso: sin uno no se crea una cuenta (T10). Los entrega el equipo.
+  `CREATE TABLE IF NOT EXISTS codigos_acceso (
+    codigo TEXT PRIMARY KEY,
+    nota TEXT,
+    creado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+    usado_en TIMESTAMPTZ,
+    usado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL
   )`,
   // Catálogo de la empresa: la identidad es claveCodigo (valores.js), igual que en el reporte.
   `CREATE TABLE IF NOT EXISTS productos (
@@ -251,9 +263,9 @@ const ESQUEMA = [
   'ALTER TABLE movimientos ADD COLUMN IF NOT EXISTS proyecto BOOLEAN NOT NULL DEFAULT false',
   // SP5: entradas, salidas y datos al día.
   //   movimientos.pedido_id: la entrada que se registró al recibir un pedido ("Registrar llegada").
+  //     Sin uso desde T5 (2026-11-20): ya no se registra la llegada; las filas viejas se conservan.
   //   movimientos.desde: una venta que es el total de un periodo (desde → fecha); se reparte por días.
-  //   pedidos.recibido: { clave: { cantidad, fecha, mov, por, en } } de lo que ya llegó. NULL en los
-  //     pedidos cerrados antes del SP5: de esos no se espera nada (no cuentan "en camino").
+  //   pedidos.recibido: sin uso desde T5; lo que está en camino se calcula en server/en-camino.js.
   //   empresas.mapeos: las columnas y documentos que se recordaron, de toda la empresa.
   'ALTER TABLE movimientos ADD COLUMN IF NOT EXISTS pedido_id INTEGER REFERENCES pedidos(id) ON DELETE SET NULL',
   'ALTER TABLE movimientos ADD COLUMN IF NOT EXISTS desde TEXT',
@@ -270,6 +282,12 @@ const ESQUEMA = [
   //   empresas.logo: PNG o JPG de hasta 300 KB para el PDF y el Excel.
   'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS aprueba BOOLEAN NOT NULL DEFAULT false',
   'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cargo TEXT',
+  // Un operador solo sube el archivo de inventario si quien administra se lo marca (T4 de docs/PLAN_CAMBIOS_SINESC.md).
+  'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS sube_datos BOOLEAN NOT NULL DEFAULT false',
+  // Cuenta suspendida por el equipo (T11): no entra ni recibe el boletín, pero sus datos se quedan.
+  'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS suspendida_en TIMESTAMPTZ',
+  // El gerente (quien fundó la empresa) siempre es administrador y aprueba; nadie le cambia el rol.
+  "UPDATE usuarios SET perfil = 'analista', aprueba = true WHERE admin_empresa AND (perfil <> 'analista' OR NOT aprueba)",
   'ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS enviado_en TIMESTAMPTZ',
   'ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS lista_enviada JSONB',
   'ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS aprobado_en TIMESTAMPTZ',
@@ -296,6 +314,8 @@ const ESQUEMA = [
   // aplica encima del reporte guardado, sin recalcularlo (server/inventario.js, conSobraPropia).
   // Las alertas del boletín van en usuarios.preferencias.alertas (server/alertas.js), sin columna.
   'ALTER TABLE productos ADD COLUMN IF NOT EXISTS sobra_semanas NUMERIC',
+  // Medidas de un paquete (largo x ancho x alto, en cm) para los importadores que calculan contenedores (T14): "40x30x20".
+  'ALTER TABLE productos ADD COLUMN IF NOT EXISTS medidas_cm TEXT',
   'CREATE INDEX IF NOT EXISTS pedidos_empresa ON pedidos(empresa_id)',
   'CREATE INDEX IF NOT EXISTS usuarios_empresa ON usuarios(empresa_id)',
   'CREATE INDEX IF NOT EXISTS exports_empresa ON exports(empresa_id, subido_en)',

@@ -8,6 +8,7 @@ process.env.TEAM_EMAILS = 'equipo@prueba.co,otra.equipo@prueba.co';
 process.env.SIN_LIMITES = '1';
 
 const test = require('node:test');
+const { conCodigo } = require('./codigo');
 const assert = require('node:assert/strict');
 const db = require('../server/db');
 const { crearApp } = require('../server/app');
@@ -55,7 +56,7 @@ function cliente() {
 
 async function cuenta(nombre, email, extra = {}) {
   const c = cliente();
-  const r = await c.post('/api/cuenta/crear', { nombre, email, clave: 'clave-segura', empresa: `Empresa de ${nombre}`, ...extra });
+  const r = await c.post('/api/cuenta/crear', await conCodigo({ nombre, email, clave: 'clave-segura', empresa: `Empresa de ${nombre}`, ...extra }));
   assert.equal(r.estado, 201, r.error);
   return { c, usuario: r.usuario };
 }
@@ -167,8 +168,9 @@ test('borrar a una persona de una empresa compartida no le quita el inventario a
 
   const r = await eq.post(`/api/equipo/cuentas/${anaU.id}/borrar`, { confirmacion: 'ana@prueba.co', clave: 'clave-segura' });
   assert.equal(r.estado, 200, r.error);
-  const c = await db.uno('SELECT admin_empresa, empresa_id FROM usuarios WHERE id = $1', [carlaU.id]);
+  const c = await db.uno('SELECT admin_empresa, empresa_id, perfil, aprueba FROM usuarios WHERE id = $1', [carlaU.id]);
   assert.equal(c.admin_empresa, true, 'la empresa no queda sin quien la administre');
+  assert.deepEqual([c.perfil, c.aprueba], ['analista', true], 'y el ascenso la deja como gerente');
   assert.equal(c.empresa_id, anaU.empresa.id);
   assert.equal((await db.uno('SELECT count(*)::int AS n FROM exports WHERE empresa_id = $1', [c.empresa_id])).n > 0, true, 'el archivo de la empresa se queda');
   assert.equal((await db.uno('SELECT count(*)::int AS n FROM archivos WHERE usuario_id = $1', [carlaU.id])).n, 1);
@@ -185,4 +187,62 @@ test('cerrar las sesiones de una cuenta la deja afuera', async () => {
   const r = await eq.post(`/api/equipo/cuentas/${usuario.id}/cerrar-sesiones`);
   assert.equal(r.cerradas, 1);
   assert.equal((await leo.get('/api/cuenta/yo')).usuario, null);
+});
+
+test('crear una cuenta pide un código de acceso de un solo uso, y el equipo los genera y los ve', async () => {
+  const { c: eq } = await cuenta('Equipo 5', 'equipo5@prueba.co');
+  await db.query("UPDATE usuarios SET rol = 'equipo', es_equipo = true WHERE email = 'equipo5@prueba.co'");
+  const { c: normal } = await cuenta('Normal', 'normal-codigo@prueba.co');
+  assert.equal((await normal.get('/api/equipo/cuentas/codigos')).estado, 403);
+
+  const datos = { nombre: 'Rita', email: 'rita@prueba.co', clave: 'clave-segura', empresa: 'Rita SAS' };
+  assert.equal((await cliente().post('/api/cuenta/crear', datos)).estado, 400, 'sin código');
+  assert.equal((await cliente().post('/api/cuenta/crear', { ...datos, codigo: 'ZZZZ-ZZZZ' })).estado, 400, 'código inventado');
+
+  const { nuevos } = await eq.post('/api/equipo/cuentas/codigos', { cantidad: 2, nota: 'Rita' });
+  assert.equal(nuevos.length, 2);
+  assert.match(nuevos[0], /^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+  assert.equal((await eq.post('/api/equipo/cuentas/codigos', { cantidad: 99 })).estado, 400);
+
+  const rita = await cliente().post('/api/cuenta/crear', { ...datos, codigo: nuevos[0].toLowerCase() });
+  assert.equal(rita.estado, 201, 'se acepta en minúsculas');
+  assert.equal((await cliente().post('/api/cuenta/crear', { ...datos, email: 'rita2@prueba.co', codigo: nuevos[0] })).estado, 400, 'ya se usó');
+  assert.equal((await db.uno('SELECT 1 AS x FROM usuarios WHERE email = $1', ['rita2@prueba.co'])), null);
+
+  // Un formulario que falla no gasta el código: el segundo sigue disponible tras una invitación vencida.
+  const { codigos } = await eq.get('/api/equipo/cuentas/codigos');
+  const usado = codigos.find((x) => x.codigo === nuevos[0]);
+  assert.equal(usado.usadoPor.nombre, 'Rita');
+  assert.equal(usado.usadoPor.email, 'rit•••@prueba.co');
+  assert.equal(codigos.find((x) => x.codigo === nuevos[1]).usadoEn, null);
+  const conInvitacionMala = await cliente().post('/api/cuenta/crear', { nombre: 'Ivo', email: 'ivo@prueba.co', clave: 'clave-segura', invitacion: 'no-existe', codigo: nuevos[1] });
+  assert.equal(conInvitacionMala.estado, 400);
+  assert.equal((await cliente().post('/api/cuenta/crear', { nombre: 'Ivo', email: 'ivo@prueba.co', clave: 'clave-segura', empresa: 'Ivo SAS', codigo: nuevos[1] })).estado, 201, 'el código no se perdió');
+});
+
+test('suspender una cuenta la deja afuera sin borrar nada, y al reactivarla vuelve', async () => {
+  const { c: eq } = await cuenta('Equipo 6', 'equipo6@prueba.co');
+  await db.query("UPDATE usuarios SET rol = 'equipo', es_equipo = true WHERE email = 'equipo6@prueba.co'");
+  const { c: ana, usuario } = await cuenta('Ana Susp', 'ana-susp@prueba.co');
+  await conInventario(ana);
+  assert.equal((await ana.post(`/api/equipo/cuentas/${usuario.id}/suspender`)).estado, 403, 'una cuenta normal no suspende');
+  const yo = (await eq.get('/api/cuenta/yo')).usuario;
+  assert.equal((await eq.post(`/api/equipo/cuentas/${yo.id}/suspender`)).estado, 403, 'ni se suspende a sí mismo');
+
+  assert.equal((await eq.post(`/api/equipo/cuentas/${usuario.id}/suspender`)).suspendida, true);
+  assert.equal((await ana.get('/api/cuenta/yo')).usuario, null, 'la sesión abierta se cae');
+  const entrar = await cliente().post('/api/cuenta/entrar', { email: 'ana-susp@prueba.co', clave: 'clave-segura' });
+  assert.equal(entrar.estado, 403);
+  assert.match(entrar.error, /suspendida/);
+  assert.equal((await cliente().post('/api/cuenta/entrar', { email: 'ana-susp@prueba.co', clave: 'otra-clave' })).estado, 401, 'con la clave mala no se revela nada');
+  const lista = await eq.get('/api/equipo/cuentas');
+  assert.ok(lista.cuentas.find((x) => x.id === usuario.id).suspendidaEn);
+
+  assert.equal((await eq.post(`/api/equipo/cuentas/${usuario.id}/reactivar`)).suspendida, false);
+  const otra = cliente();
+  assert.equal((await otra.post('/api/cuenta/entrar', { email: 'ana-susp@prueba.co', clave: 'clave-segura' })).estado, 200);
+  assert.equal((await otra.get('/api/inventario')).estado, 200, 'sus datos siguen');
+  const eventos = await db.query("SELECT tipo, detalle FROM eventos WHERE tipo IN ('cuenta_suspendida', 'cuenta_reactivada') ORDER BY id");
+  assert.deepEqual(eventos.map((e) => e.tipo), ['cuenta_suspendida', 'cuenta_reactivada']);
+  assert.equal(eventos[0].detalle.cuenta, 'ana•••@prueba.co');
 });

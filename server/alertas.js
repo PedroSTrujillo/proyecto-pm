@@ -9,14 +9,14 @@
 // lleva el correo. Lo que la persona no cambió sigue los valores de su perfil, así que si cambia de
 // analista a operador, cambia también lo que no tocó.
 
-const TIPOS = ['pideYa', 'seAgota', 'enCero', 'porRecibir', 'porAprobar', 'dineroQuieto', 'sobran', 'sinDatos'];
+const TIPOS = ['pideYa', 'seAgota', 'enCero', 'porAprobar', 'dineroQuieto', 'sobran', 'sinDatos'];
 const FRECUENCIAS = ['diario', 'semanal', 'mensual', 'nunca'];
 
 // Decisión del equipo (2026-10-29). El operador recibe a diario lo que tiene que hacer en la bodega
 // y nada de dinero; el analista recibe lo urgente a diario y el resto como resumen.
 const POR_PERFIL = {
-  analista: { pideYa: 'diario', seAgota: 'diario', enCero: 'semanal', porRecibir: 'semanal', porAprobar: 'diario', dineroQuieto: 'semanal', sobran: 'mensual', sinDatos: 'semanal' },
-  operador: { pideYa: 'diario', seAgota: 'diario', enCero: 'diario', porRecibir: 'diario', porAprobar: 'diario', dineroQuieto: 'nunca', sobran: 'nunca', sinDatos: 'diario' },
+  analista: { pideYa: 'diario', seAgota: 'diario', enCero: 'semanal', porAprobar: 'diario', dineroQuieto: 'semanal', sobran: 'mensual', sinDatos: 'semanal' },
+  operador: { pideYa: 'diario', seAgota: 'diario', enCero: 'diario', porAprobar: 'diario', dineroQuieto: 'nunca', sobran: 'nunca', sinDatos: 'diario' },
 };
 
 // Hace más de esto (en días hábiles) que no entra ningún movimiento ni archivo: sección sinDatos.
@@ -39,7 +39,10 @@ function limpiarAlertas(a) {
 // La tabla completa: lo elegido encima de los valores del perfil.
 function alertasDe(preferencias, perfil) {
   const propias = limpiarAlertas(preferencias && preferencias.alertas);
-  return { ...(POR_PERFIL[perfil] || POR_PERFIL.analista), ...propias };
+  const tabla = { ...(POR_PERFIL[perfil] || POR_PERFIL.analista), ...propias };
+  // El operador no recibe dinero ni sobrestock, aunque lo haya pedido (T4).
+  if (perfil === 'operador') tabla.dineroQuieto = tabla.sobran = 'nunca';
+  return tabla;
 }
 
 // El primer día de lunes a viernes del mes. Los festivos no cuentan (decisión del equipo).
@@ -65,30 +68,18 @@ function habilesEntre(desde, hasta) {
   return n;
 }
 
-// La fecha que queda `dias` días hábiles después de `desde`.
-function sumarHabiles(desde, dias) {
-  let d = aDia(desde);
-  let falta = Math.max(0, Math.round(dias));
-  while (falta > 0) {
-    d++;
-    if (esHabil(deDia(d))) falta--;
-  }
-  return deDia(d);
-}
-
 /**
  * Los tipos que van hoy en el boletín de esta persona.
  * usuario: { perfil, preferencias, aprueba, admin }.
- * porAprobar solo a quien aprueba; sinDatos solo a quien administra la empresa y a los operadores
- * (son los que registran los movimientos).
+ * porAprobar solo a quien aprueba (y nunca a un operador, que no abre los pedidos). sinDatos le llega
+ * a todos los roles: el administrador mantiene los datos y el operador registra los movimientos.
  */
 function tiposDeHoy(usuario, hoy) {
   const alertas = alertasDe(usuario.preferencias, usuario.perfil);
   return TIPOS.filter((t) => {
-    if (t === 'porAprobar' && !usuario.aprueba) return false;
-    if (t === 'sinDatos' && !usuario.admin && usuario.perfil !== 'operador') return false;
+    if (t === 'porAprobar' && (!usuario.aprueba || usuario.perfil === 'operador')) return false;
     return tocaHoy(alertas[t], hoy);
   });
 }
 
-module.exports = { TIPOS, FRECUENCIAS, POR_PERFIL, DIAS_SIN_DATOS, limpiarAlertas, alertasDe, tocaHoy, primerHabilDelMes, habilesEntre, sumarHabiles, tiposDeHoy };
+module.exports = { TIPOS, FRECUENCIAS, POR_PERFIL, DIAS_SIN_DATOS, limpiarAlertas, alertasDe, tocaHoy, primerHabilDelMes, habilesEntre, tiposDeHoy };

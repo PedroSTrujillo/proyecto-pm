@@ -13,7 +13,7 @@ export function CalculatorSection() {
             description="Piense en un producto que conozca bien: cuánto vendió en un periodo y cuánto tiene hoy. Es el cálculo básico de SINESC. La aplicación lo hace con todos sus productos a la vez y con los ajustes."
           />
           <p className="mt-6 text-sm leading-relaxed text-muted-foreground">
-            En la aplicación no tiene que escribir nada de esto: los números salen de su archivo.
+            En la aplicación los números salen de su archivo.
           </p>
         </div>
         <WeeksCalculator />

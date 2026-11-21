@@ -27,6 +27,9 @@ export type Producto = {
   nombre: string
   proveedor: string
   origenProveedor: 'producto' | 'archivo' | 'prefijo' | null
+  cadaCuanto?: number // cada cuánto se le pide a su proveedor (semanas)
+  medidas?: string | null // largo x ancho x alto de un paquete, en cm (solo importadores, T14)
+  volumenPaquete?: number | null // m³ de un paquete
   entrega: number
   entregaDias?: number | null // si el tiempo de entrega se escribió en días hábiles
   familia?: string | null
@@ -37,7 +40,7 @@ export type Producto = {
   ventaAlta?: boolean // el 20 % de productos que más vende
   // Lo pedido en las últimas 2 semanas por alguien de la empresa.
   pedidoReciente?: { fecha: string; cantidad: number; numero: number; por: string | null } | null
-  // Lo pedido en pedidos cerrados que todavía no ha llegado (server/recepcion.js): el sugerido lo descuenta.
+  // Lo pedido en pedidos cerrados que todavía no ha llegado (server/en-camino.js): el sugerido lo descuenta hasta que entre.
   enCamino?: { cantidad: number; fecha: string } | null
   costo: number | null
   ventasSemana: number
@@ -74,6 +77,9 @@ export type Producto = {
   ventaHorizonte?: Pronostico | null
 }
 
+// Lo que pide cada proveedor (T13): el mínimo del envío completo, en unidades; y, si importa (T14), sus contenedores.
+export type Condiciones = { minimoEnvio?: number; internacional?: boolean; contenedores?: number; tipoContenedor?: '20' | '40' }
+
 export type Proveedor = { nombre: string; entrega: number; productos: number; pideYa: number; seAgotan: number }
 
 export type Inventario = {
@@ -104,7 +110,7 @@ export type Inventario = {
   horizonte?: number
   // 'operador': las métricas gruesas, con los detalles en null (server/inventario.js, resumirParaOperador).
   vista?: Perfil
-  ajustes: { entregaPorDefecto: number; entregaPorDefectoDias?: number | null; entregasDias?: Record<string, number>; cadaCuanto: number; semanasAgota: number; entregas: Record<string, number>; asignaciones: Record<string, string>; prefijos: { prefijo: string; proveedor: string }[]; nivelServicio: number }
+  ajustes: { entregaPorDefecto: number; entregaPorDefectoDias?: number | null; entregasDias?: Record<string, number>; unidades?: Record<string, 'habiles' | 'calendario' | 'semanas'>; condiciones?: Record<string, Condiciones>; cadaCuantoProv?: Record<string, number>; importaciones?: boolean; cadaCuanto: number; semanasAgota: number; entregas: Record<string, number>; asignaciones: Record<string, string>; prefijos: { prefijo: string; proveedor: string }[]; nivelServicio: number }
   sugerencias: boolean
   alcance: 'completo' | 'prueba'
   temporada: number[] | null
@@ -151,8 +157,10 @@ export type RespuestaInventario = {
 }
 
 export type Perfil = 'analista' | 'operador'
+// El rol en la empresa (server/cuentas.js, rolEmpresa): el servidor lo hace cumplir y nadie se lo cambia a sí mismo.
+export type RolEmpresa = 'gerente' | 'administrador' | 'operador'
 
-export type TipoAlerta = 'pideYa' | 'seAgota' | 'enCero' | 'porRecibir' | 'porAprobar' | 'dineroQuieto' | 'sobran' | 'sinDatos'
+export type TipoAlerta = 'pideYa' | 'seAgota' | 'enCero' | 'porAprobar' | 'dineroQuieto' | 'sobran' | 'sinDatos'
 export type Frecuencia = 'diario' | 'semanal' | 'mensual' | 'nunca'
 
 export type Usuario = {
@@ -162,11 +170,13 @@ export type Usuario = {
   rol: 'usuario' | 'equipo'
   sistema: string | null
   perfil: Perfil
+  rolEmpresa: RolEmpresa
   // alertas: la tabla completa del boletín (lo que eligió encima de lo de su perfil, server/alertas.js).
   preferencias: { unidad: 'dias' | 'semanas' | 'meses'; horizonte: number; alertas: Record<TipoAlerta, Frecuencia>; alertasPropias: boolean }
   boletin: boolean
   cargo: string
   aprueba: boolean // aprueba los pedidos de su empresa (lo marca quien administra)
+  subeDatos: boolean // un operador sube el archivo de inventario solo si quien administra se lo marcó
   empresa: { id: number; nombre: string; vacia: boolean; admin: boolean } | null
 }
 
@@ -177,7 +187,7 @@ export type Empresa = {
   vacia: boolean
   creadoEn: string
   logo: boolean
-  miembros: { id: number; nombre: string; email: string; perfil: Perfil; admin: boolean; aprueba: boolean; cargo: string; desde: string }[]
+  miembros: { id: number; nombre: string; email: string; perfil: Perfil; rol: RolEmpresa; admin: boolean; aprueba: boolean; subeDatos: boolean; cargo: string; desde: string }[]
   invitacionesAbiertas: { email: string | null; creadaEn: string; expiraEn: string }[]
 }
 
@@ -211,17 +221,6 @@ export type Existencias = {
 }
 
 export type Sector = { id: string; empresa: string; sector: string; ciudad: string; programa: string; resumen: string; productos: number }
-
-// Lo que llegó de un pedido cerrado, por proveedor (server/recepcion.js, vistaRecepcion).
-export type Recepcion = {
-  pedidoId: number
-  numero: number | null
-  por: string | null
-  terminadoEn: string
-  espera: boolean
-  pendientes: number
-  proveedores: { proveedor: string; lineas: { codigo: string; nombre: string; cantidad: number; recibido: { cantidad: number; fecha: string; por: string | null } | null }[] }[]
-}
 
 // Códigos que no coinciden entre ventas y existencias (server/rotacion.js, revisarCodigos).
 export type RevisionCodigos = {

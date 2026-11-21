@@ -13,7 +13,6 @@ import type { EstadoAprobacion } from '@/lib/tipos'
 import { useInventario, useSesion } from './contexto'
 import { useConfirmar } from './confirmar'
 import { Aviso, Boton, Cargando, ChipAprobacion, ErrorLista, Tarjeta, Titulo } from './ui'
-import { PorRecibir } from './recepcion'
 
 type Resumen = { id: number; modo: 'lista' | 'sugerido'; proveedor: string; creadoEn: string; paso: number; lineas: number | null; terminadoEn: string | null; aprobacion: EstadoAprobacion | null; aprobado: boolean; anulado: { en: string; motivo: string } | null }
 type PorAprobarFila = { id: number; numero: number; preparadoPor: string; enviadoEn: string; lineas: number; observaciones: string }
@@ -110,7 +109,6 @@ export function Pedidos() {
       )}
       {error && <ErrorLista mensaje={error.mensaje} lista={error.lista} />}
       <PorAprobar />
-      <PorRecibir />
 
       {!pedidos || pedidos.length === 0 ? (
         <Tarjeta className="flex flex-col gap-4 p-5 sm:p-6">

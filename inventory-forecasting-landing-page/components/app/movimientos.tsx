@@ -70,7 +70,7 @@ export function Movimientos() {
   const [lista, setLista] = useState<Movimiento[] | null>(null)
   const [errorLista, setErrorLista] = useState<string | null>(null)
   const [ultimo, setUltimo] = useState<Resultado | null>(null)
-  const [modo, setModo] = useState<Modo>('uno')
+  const [modo, setModo] = useState<Modo>('varios')
   const { ventana, preguntar } = useConfirmar()
 
   // Se recuerda en este navegador si la persona registra de a uno o varios a la vez.
@@ -133,13 +133,13 @@ export function Movimientos() {
         etiqueta="Cuántos movimientos va a registrar"
         valor={modo}
         onCambio={cambiarModo}
-        opciones={[{ id: 'uno', texto: 'Un movimiento' }, { id: 'varios', texto: 'Varios a la vez' }]}
+        opciones={[{ id: 'varios', texto: 'Varios a la vez' }, { id: 'uno', texto: 'Un movimiento' }]}
       />
       {/* En las pruebas no se entendía para qué era "Varios a la vez" (Juan Camilo Solano, semana 12). */}
       <p className="-mt-2 max-w-3xl text-chico text-muted-foreground">
         {modo === 'uno'
           ? 'Para algo suelto, como una venta o una entrada de mercancía: elija el tipo, el producto y la cantidad, y oprima Enter.'
-          : 'Para muchos productos de una vez, como la factura de un proveedor o las ventas del día: péguelos desde Excel, escríbalos en la tabla o importe el archivo que saca su programa contable.'}
+          : 'Para lo del día o muchos productos de una vez, como la factura de un proveedor: importe el archivo que saca su programa contable, péguelo desde Excel o escríbalo en la tabla.'}
       </p>
       {/* Se esconde el que no está elegido en vez de quitarlo: así no se pierde lo que se llevaba escrito. */}
       <div hidden={modo !== 'uno'}>
@@ -390,7 +390,7 @@ function PegarVarios({ fecha, hoy, alGuardar }: { fecha: string; hoy: string; al
   const periodoMalo = periodo && (!desde || !hasta || desde > hasta)
   // El mismo botón arriba y abajo de la hoja: con muchas filas, el de abajo queda lejos.
   const botonGuardar = (
-    <Boton variante="primario" disabled={guardando || !filas || periodoMalo} onClick={() => guardar()}>
+    <Boton variante={filas ? 'primario' : 'secundario'} disabled={guardando || !filas || periodoMalo} onClick={() => guardar()}>
       {guardando ? 'Guardando…' : filas ? `Guardar ${filas === 1 ? '1 fila' : `${filas} filas`}` : 'Guardar'}
     </Boton>
   )
@@ -431,6 +431,17 @@ function PegarVarios({ fecha, hoy, alGuardar }: { fecha: string; hoy: string; al
         <h2 className="text-xl font-bold">Varios a la vez</h2>
         {pendiente ? <span className="text-nota text-muted-foreground">Conteste abajo por los códigos que no están en su catálogo.</span> : botonGuardar}
       </div>
+      {/* Arriba y con el botón primario: lo normal es subir lo del día. El archivo solo llena la tabla; el tipo y la fecha se leen al guardar. */}
+      <ImportarLista
+        ruta="/movimientos/importar"
+        hoja={hoja}
+        alImportar={contar}
+        boton="Importar de un archivo"
+        intro="Suba el archivo del día que saca su programa contable, o escriba o pegue dos columnas copiadas de Excel (Ctrl+V)."
+        conPlantilla={false}
+        campos={CAMPOS_MOVIMIENTOS}
+        principal
+      />
       <Pildoras
         etiqueta="Qué va a registrar"
         valor={forma}
@@ -451,15 +462,6 @@ function PegarVarios({ fecha, hoy, alGuardar }: { fecha: string; hoy: string; al
           <Campo etiqueta="Fecha"><input type="date" className={cn(claseEntrada, 'max-w-48')} value={fechaLote} max={hoy} onChange={(e) => e.target.value && setFechaLote(e.target.value)} /></Campo>
         </>
       )}
-      <ImportarLista
-        ruta="/movimientos/importar"
-        hoja={hoja}
-        alImportar={contar}
-        boton="Importar de un archivo"
-        intro="Escriba el código y la cantidad, o pegue dos columnas copiadas de Excel (Ctrl+V)."
-        conPlantilla={false}
-        campos={CAMPOS_MOVIMIENTOS}
-      />
       <Hoja key={version} ref={hoja} inicial={[]} alCambiar={contar} tituloCantidad={periodo ? 'Vendido' : tipo === 'conteo' ? 'Conteo' : 'Cantidad'} />
       {error && <ErrorLista mensaje={error.mensaje} lista={error.lista} />}
       {pendiente ? (

@@ -8,7 +8,7 @@ const roles = [
   {
     icon: ArrowLeftRight,
     title: 'Quien lleva la bodega',
-    body: 'Lleva al día las entradas, ventas y conteos, además de la llegada de cada pedido. Ve las existencias actualizadas y lo que se va a agotar.',
+    body: 'Lleva al día las entradas, ventas y conteos. Ve las existencias actualizadas y lo que se va a agotar.',
   },
   {
     icon: BarChart3,

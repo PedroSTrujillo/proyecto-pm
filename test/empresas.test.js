@@ -12,6 +12,7 @@ process.env.CRON_SECRET = 'secreto-cron';
 process.env.BOLETIN_SECRETO = 'secreto-boletin';
 
 const test = require('node:test');
+const { conCodigo } = require('./codigo');
 const assert = require('node:assert/strict');
 const db = require('../server/db');
 const { crearApp } = require('../server/app');
@@ -73,7 +74,7 @@ function cliente() {
 
 async function cuenta(nombre, email, extra = {}) {
   const c = cliente();
-  const r = await c.post('/api/cuenta/crear', { nombre, email, clave: 'clave-segura', ...extra });
+  const r = await c.post('/api/cuenta/crear', await conCodigo({ nombre, email, clave: 'clave-segura', ...extra }));
   assert.equal(r.estado, 201, r.error);
   return { c, usuario: r.usuario };
 }
@@ -114,27 +115,29 @@ test('los usuarios de antes de las empresas quedan cada uno con su empresa vací
 });
 
 test('una cuenta nueva siempre entra a una empresa: la que crea o la de su invitación', async () => {
-  const sin = await cliente().post('/api/cuenta/crear', { nombre: 'Sin', email: 'sin@prueba.co', clave: 'clave-segura' });
+  const sin = await cliente().post('/api/cuenta/crear', await conCodigo({ nombre: 'Sin', email: 'sin@prueba.co', clave: 'clave-segura' }));
   assert.equal(sin.estado, 400);
   assert.match(sin.error, /nombre de su empresa/);
 
-  const { c: ana, usuario } = await cuenta('Ana', 'ana@prueba.co', { empresa: 'Ferretería Ana', perfil: 'operador', boletin: true });
+  const { c: ana, usuario } = await cuenta('Ana', 'ana@prueba.co', { empresa: 'Ferretería Ana', boletin: true });
   assert.deepEqual({ ...usuario.empresa, id: undefined }, { id: undefined, nombre: 'Ferretería Ana', vacia: false, admin: true });
-  assert.equal(usuario.perfil, 'operador');
+  assert.equal(usuario.rolEmpresa, 'gerente', 'quien funda la empresa es su gerente');
+  assert.equal(usuario.aprueba, true);
   assert.equal(usuario.boletin, true);
 
-  const inv = await ana.post('/api/empresa/invitaciones', { email: 'carla@prueba.co' });
+  const inv = await ana.post('/api/empresa/invitaciones', { email: 'carla@prueba.co', rol: 'administrador' });
   assert.equal(inv.estado, 201);
   assert.equal(inv.enviado, true, 'con correo configurado, la invitación sale por correo');
   const token = new URL(inv.enlace).searchParams.get('invitacion');
   assert.equal((await cliente().get(`/api/empresa/invitaciones/${token}`)).empresa, 'Ferretería Ana');
 
-  const otroCorreo = await cliente().post('/api/cuenta/crear', { nombre: 'Intrusa', email: 'otra@prueba.co', clave: 'clave-segura', invitacion: token });
+  const otroCorreo = await cliente().post('/api/cuenta/crear', await conCodigo({ nombre: 'Intrusa', email: 'otra@prueba.co', clave: 'clave-segura', invitacion: token }));
   assert.equal(otroCorreo.estado, 400);
   const { usuario: carla } = await cuenta('Carla', 'carla@prueba.co', { invitacion: token });
   assert.equal(carla.empresa.id, usuario.empresa.id);
   assert.equal(carla.empresa.admin, false);
-  const otraVez = await cliente().post('/api/cuenta/crear', { nombre: 'Carla 2', email: 'carla2@prueba.co', clave: 'clave-segura', invitacion: token });
+  assert.equal(carla.rolEmpresa, 'administrador', 'toma el rol de la invitación, no uno que mande el formulario');
+  const otraVez = await cliente().post('/api/cuenta/crear', await conCodigo({ nombre: 'Carla 2', email: 'carla2@prueba.co', clave: 'clave-segura', invitacion: token }));
   assert.equal(otraVez.estado, 400, 'una invitación sirve una sola vez');
 
   const { empresa } = await ana.get('/api/empresa');
@@ -144,7 +147,6 @@ test('una cuenta nueva siempre entra a una empresa: la que crea o la de su invit
 test('el inventario es de la empresa; los pedidos siguen siendo de cada persona', async () => {
   const ana = cliente();
   await ana.post('/api/cuenta/entrar', { email: 'ana@prueba.co', clave: 'clave-segura' });
-  await ana.put('/api/cuenta/perfil', { perfil: 'analista' });
   await conInventario(ana);
   const carla = cliente();
   await carla.post('/api/cuenta/entrar', { email: 'carla@prueba.co', clave: 'clave-segura' });
@@ -168,15 +170,17 @@ test('el inventario es de la empresa; los pedidos siguen siendo de cada persona'
 test('el operador ve las métricas gruesas; el analista, el detalle', async () => {
   const ana = cliente();
   await ana.post('/api/cuenta/entrar', { email: 'ana@prueba.co', clave: 'clave-segura' });
-  await ana.put('/api/cuenta/perfil', { perfil: 'analista' });
   const completo = (await ana.get('/api/inventario')).inventario;
   assert.equal(completo.vista, 'analista');
   assert.ok(completo.productos.some((p) => p.pronostico));
   assert.ok(completo.grafico);
 
-  assert.equal((await ana.put('/api/cuenta/perfil', { perfil: 'jefe' })).estado, 400);
-  assert.equal((await ana.put('/api/cuenta/perfil', { perfil: 'operador' })).usuario.perfil, 'operador');
-  const r = await ana.get('/api/inventario');
+  // El rol ya no se cambia con un clic: la ruta de perfil no existe y el operador lo es por su invitación.
+  assert.equal((await ana.put('/api/cuenta/perfil', { perfil: 'operador' })).estado, 404);
+  const inv = await ana.post('/api/empresa/invitaciones', { email: 'dani@prueba.co', rol: 'operador' });
+  const { c: dani, usuario } = await cuenta('Dani', 'dani@prueba.co', { invitacion: new URL(inv.enlace).searchParams.get('invitacion') });
+  assert.equal(usuario.rolEmpresa, 'operador');
+  const r = await dani.get('/api/inventario');
   assert.equal(r.perfil, 'operador');
   const op = r.inventario;
   assert.equal(op.vista, 'operador');
@@ -188,7 +192,83 @@ test('el operador ve las métricas gruesas; el analista, el detalle', async () =
     for (const campo of ['riesgo', 'sugerido', 'detalleSugerido', 'minimo', 'maximo', 'pronostico', 'serie', 'ventaHorizonte', 'quieto']) assert.equal(p[campo], null, `${p.codigo}.${campo}`);
   }
   assert.deepEqual(op.productos.map((p) => [p.codigo, p.existencias, p.estado]), completo.productos.map((p) => [p.codigo, p.existencias, p.estado]));
-  await ana.put('/api/cuenta/perfil', { perfil: 'analista' });
+});
+
+// T1 (docs/PLAN_CAMBIOS_SINESC.md): solo se actúa sobre rango menor al propio.
+test('los roles se hacen cumplir: nadie invita, cambia ni saca a alguien de su rango o mayor', async () => {
+  const ana = cliente();
+  await ana.post('/api/cuenta/entrar', { email: 'ana@prueba.co', clave: 'clave-segura' });
+  const carla = cliente();
+  await carla.post('/api/cuenta/entrar', { email: 'carla@prueba.co', clave: 'clave-segura' });
+  const dani = cliente();
+  await dani.post('/api/cuenta/entrar', { email: 'dani@prueba.co', clave: 'clave-segura' });
+  const { empresa } = await ana.get('/api/empresa');
+  const id = (nombre) => empresa.miembros.find((m) => m.nombre === nombre).id;
+
+  // El operador no invita; el administrador solo invita operadores.
+  assert.equal((await dani.post('/api/empresa/invitaciones', {})).estado, 403);
+  assert.equal((await carla.post('/api/empresa/invitaciones', { rol: 'administrador' })).estado, 403);
+  assert.equal((await carla.post('/api/empresa/invitaciones', { rol: 'jefe' })).estado, 400);
+  assert.equal((await carla.post('/api/empresa/invitaciones', {})).estado, 201, 'sin rol, entra como operador');
+
+  // Nadie toca al gerente, ni siquiera él mismo; el administrador tampoco se toca a sí mismo.
+  assert.equal((await ana.put(`/api/empresa/miembros/${id('Ana')}`, { aprueba: false })).estado, 403);
+  assert.equal((await carla.put(`/api/empresa/miembros/${id('Ana')}`, { cargo: 'Jefa' })).estado, 403);
+  assert.equal((await carla.put(`/api/empresa/miembros/${id('Carla')}`, { rol: 'operador' })).estado, 403);
+  assert.equal((await carla.del(`/api/empresa/miembros/${id('Ana')}`)).estado, 403);
+
+  // El administrador sí maneja a un operador, pero no le da su propio rango.
+  assert.equal((await carla.put(`/api/empresa/miembros/${id('Dani')}`, { rol: 'administrador' })).estado, 403);
+  assert.equal((await carla.put(`/api/empresa/miembros/${id('Dani')}`, { cargo: 'Bodega' })).estado, 200);
+  // El gerente asciende y baja de rol.
+  const sube = await ana.put(`/api/empresa/miembros/${id('Dani')}`, { rol: 'administrador' });
+  assert.equal(sube.empresa.miembros.find((m) => m.nombre === 'Dani').rol, 'administrador');
+  assert.equal((await ana.put(`/api/empresa/miembros/${id('Dani')}`, { rol: 'operador' })).estado, 200);
+  assert.equal((await dani.get('/api/cuenta/yo')).usuario.rolEmpresa, 'operador');
+});
+
+// T4: lo que el operador no ve ni escribe lo cierra el servidor, no solo la pantalla. Va en una empresa
+// aparte para no cambiar el catálogo ni los movimientos de las otras pruebas.
+test('el operador no abre pedidos, ajustes ni catálogo, no recibe dinero y subir datos pide permiso', async () => {
+  const { c: gina } = await cuenta('Gina', 'gina@prueba.co', { empresa: 'Gina y Cía' });
+  const inv = await gina.post('/api/empresa/invitaciones', { email: 'hugo@prueba.co', rol: 'operador' });
+  const { c: hugo, usuario: u } = await cuenta('Hugo', 'hugo@prueba.co', { invitacion: new URL(inv.enlace).searchParams.get('invitacion') });
+  assert.equal(u.rolEmpresa, 'operador');
+
+  // El costo es dinero: quien administra lo ve y el operador no.
+  const creado = await gina.post('/api/catalogo', { codigo: 'T4-COSTO', nombre: 'Producto con costo', costo: 1500 });
+  assert.equal(creado.estado, 201);
+  assert.equal((await gina.get('/api/catalogo?q=T4-COSTO')).productos[0].costo, 1500);
+  const deHugo = (await hugo.get('/api/catalogo?q=T4-COSTO')).productos[0];
+  assert.equal(deHugo.costo, null);
+
+  // No abre pedidos, no cambia ajustes ni escribe el catálogo; el gerente sí.
+  for (const ruta of ['/api/pedidos', '/api/pedidos/por-aprobar', '/api/pedidos/borrador']) assert.equal((await hugo.get(ruta)).estado, 403, ruta);
+  assert.equal((await hugo.post('/api/pedidos', { modo: 'sugerido' })).estado, 403);
+  assert.equal((await hugo.put('/api/inventario/ajustes', { cadaCuanto: 3 })).estado, 403);
+  assert.equal((await hugo.put(`/api/catalogo/${deHugo.id}`, { nombre: 'Otro' })).estado, 403);
+  assert.equal((await hugo.post('/api/catalogo/lote', { filas: [{ codigo: 'T4-COSTO', familia: 'X' }] })).estado, 403);
+  assert.equal((await hugo.post('/api/catalogo', { codigo: 'T4-OTRO', nombre: 'Otro' })).estado, 403);
+  assert.equal((await gina.put('/api/inventario/ajustes', { cadaCuanto: 6 })).estado, 200);
+  assert.equal((await gina.put(`/api/catalogo/${deHugo.id}`, { nombre: 'Producto con costo' })).estado, 200);
+
+  // Lo del día sigue abierto para el operador.
+  assert.equal((await hugo.get('/api/empresa')).estado, 200);
+  // Una fila mala llega a la validación (400), no al guardia (403), y no guarda nada.
+  assert.equal((await hugo.post('/api/movimientos', { movimientos: [{ tipo: 'venta', codigo: 'T4-COSTO', cantidad: 'diez' }] })).estado, 400);
+
+  // Subir el archivo de inventario pide que quien administra se lo marque.
+  assert.equal((await hugo.subir('/api/inventario/export', [['inventario.xlsx', await plantillaExport()]])).estado, 403);
+  assert.equal((await hugo.get('/api/cuenta/yo')).usuario.subeDatos, false);
+  assert.equal((await gina.put(`/api/empresa/miembros/${u.id}`, { subeDatos: true })).empresa.miembros.find((m) => m.id === u.id).subeDatos, true);
+  assert.equal((await hugo.get('/api/cuenta/yo')).usuario.subeDatos, true);
+  assert.equal((await hugo.subir('/api/inventario/export', [['inventario.xlsx', await plantillaExport()]])).ok, true);
+  // Con el archivo ya subido, el operador recibe el inventario sin costos.
+  for (const p of (await hugo.get('/api/inventario')).inventario.productos) assert.equal(p.costo, null, `${p.codigo}.costo`);
+
+  // Un operador no aprueba pedidos, aunque se lo marquen.
+  const marcado = await gina.put(`/api/empresa/miembros/${u.id}`, { aprueba: true });
+  assert.equal(marcado.empresa.miembros.find((m) => m.id === u.id).aprueba, false);
 });
 
 test('el horizonte y la unidad de tiempo se eligen; el cálculo sigue en semanas', async () => {

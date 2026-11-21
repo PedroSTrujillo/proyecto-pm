@@ -11,6 +11,7 @@ process.env.CORREO_REMITENTE = 'avisos@prueba.co';
 process.env.BOLETIN_SECRETO = 'secreto-boletin';
 
 const test = require('node:test');
+const { conCodigo } = require('./codigo');
 const assert = require('node:assert/strict');
 const db = require('../server/db');
 const { crearApp } = require('../server/app');
@@ -69,7 +70,7 @@ function cliente() {
 
 async function cuenta(nombre, email, extra) {
   const c = cliente();
-  const r = await c.post('/api/cuenta/crear', { nombre, email, clave: 'clave-segura', boletin: true, ...extra });
+  const r = await c.post('/api/cuenta/crear', await conCodigo({ nombre, email, clave: 'clave-segura', boletin: true, ...extra }));
   assert.equal(r.estado, 201, r.error);
   return { c, usuario: r.usuario };
 }
@@ -98,18 +99,21 @@ test('Mi cuenta: la tabla de alertas sigue el perfil y guarda solo lo que la per
   assert.equal(u.preferencias.alertas.sobran, 'semanal');
   assert.equal(u.preferencias.alertasPropias, true);
 
-  // Al pasar a operador cambia lo que no tocó; lo suyo se queda.
-  u = (await ana.put('/api/cuenta/perfil', { perfil: 'operador' })).usuario;
-  assert.equal(u.preferencias.alertas.sobran, 'semanal');
+  // Al pasar a operador cambia lo que no tocó. Sobrestock y dinero quieto salen en 'nunca' aunque los
+  // haya pedido: el operador no recibe dinero (T4), pero lo que eligió queda guardado.
+  await db.query("UPDATE usuarios SET perfil = 'operador' WHERE id = $1", [u.id]); // el perfil ya no se cambia por la API
+  u = (await ana.get('/api/cuenta/yo')).usuario;
+  assert.equal(u.preferencias.alertas.sobran, 'nunca');
   assert.equal(u.preferencias.alertas.dineroQuieto, 'nunca');
   assert.equal(u.preferencias.alertas.enCero, 'diario');
+  assert.equal((await ana.put('/api/cuenta/preferencias', { alertas: { dineroQuieto: 'diario' } })).usuario.preferencias.alertas.dineroQuieto, 'nunca');
   // Cambiar la unidad no borra las alertas.
   u = (await ana.put('/api/cuenta/preferencias', { unidad: 'dias' })).usuario;
-  assert.equal(u.preferencias.alertas.sobran, 'semanal');
+  assert.equal(u.preferencias.alertasPropias, true);
   u = (await ana.put('/api/cuenta/preferencias', { alertas: null })).usuario;
   assert.equal(u.preferencias.alertas.sobran, 'nunca', 'vuelve a lo del perfil (operador)');
   assert.equal(u.preferencias.alertasPropias, false);
-  await ana.put('/api/cuenta/perfil', { perfil: 'analista' });
+  await db.query("UPDATE usuarios SET perfil = 'analista' WHERE id = $1", [u.id]);
 });
 
 test('desde cuántas semanas sobra cada producto: en la ficha, por lote y en el inventario', async () => {
@@ -143,19 +147,17 @@ test('desde cuántas semanas sobra cada producto: en la ficha, por lote y en el 
 });
 
 test('boletín de un lunes: cada quien recibe sus secciones, y nunca dos veces el mismo día', async () => {
-  // Un pedido cerrado hace 40 días que no ha llegado (atrasado), y uno de Carla esperando a Ana.
-  const p1 = (await ana.post('/api/pedidos', { modo: 'sugerido' })).pedido;
-  await ana.post(`/api/pedidos/${p1.id}/lista-final`, { lineas: p1.listaFinal });
-  assert.equal((await ana.post(`/api/pedidos/${p1.id}/por-que`, { respuesta: '' })).estado, 200);
-  await db.query("UPDATE pedidos SET terminado_en = now() - interval '40 days' WHERE id = $1", [p1.id]);
-
-  const inv = await ana.post('/api/empresa/invitaciones', { email: 'carla.alertas@prueba.co' });
-  ({ c: carla } = await cuenta('Carla Bodega', 'carla.alertas@prueba.co', { invitacion: new URL(inv.enlace).searchParams.get('invitacion'), perfil: 'operador' }));
+  // Un pedido de Carla esperando a Ana.
+  const inv = await ana.post('/api/empresa/invitaciones', { email: 'carla.alertas@prueba.co', rol: 'operador' });
+  ({ c: carla } = await cuenta('Carla Bodega', 'carla.alertas@prueba.co', { invitacion: new URL(inv.enlace).searchParams.get('invitacion') }));
   const { id: anaId } = await db.uno("SELECT id FROM usuarios WHERE email = 'ana.alertas@prueba.co'");
   await db.query('UPDATE usuarios SET aprueba = true WHERE id = $1', [anaId]);
+  // Un operador no abre los pedidos (T4): Carla prepara este como administradora y vuelve a ser operadora.
+  await db.query("UPDATE usuarios SET perfil = 'analista' WHERE email = 'carla.alertas@prueba.co'");
   const p2 = (await carla.post('/api/pedidos', { modo: 'sugerido' })).pedido;
   await carla.post(`/api/pedidos/${p2.id}/lista-final`, { lineas: p2.listaFinal });
   assert.equal((await carla.post(`/api/pedidos/${p2.id}/enviar`, {})).estado, 200);
+  await db.query("UPDATE usuarios SET perfil = 'operador' WHERE email = 'carla.alertas@prueba.co'");
 
   // Nadie ha registrado nada en 15 días.
   await db.query("UPDATE exports SET subido_en = now() - interval '15 days' WHERE empresa_id = (SELECT empresa_id FROM usuarios WHERE id = $1)", [anaId]);
@@ -170,13 +172,11 @@ test('boletín de un lunes: cada quien recibe sus secciones, y nunca dos veces e
 
   assert.match(paraAna.htmlContent, /Pedidos por aprobar \(1\)/, 'Ana aprueba');
   assert.match(paraAna.textContent, /de Carla Bodega/);
-  assert.match(paraAna.htmlContent, /Entregas atrasadas/, 'semanal: el lunes sí');
   assert.match(paraAna.htmlContent, /Datos sin actualizar/, 'Ana administra la empresa');
   assert.match(paraAna.htmlContent, /Ver el panel/);
 
   assert.doesNotMatch(paraCarla.htmlContent, /por aprobar/i, 'Carla no aprueba');
   assert.doesNotMatch(paraCarla.htmlContent, /Dinero quieto|Sugerido/, 'el operador no recibe dinero ni sugeridos');
-  assert.match(paraCarla.htmlContent, /Entregas atrasadas/);
   assert.match(paraCarla.htmlContent, /Datos sin actualizar/, 'los operadores sí lo reciben');
   assert.match(paraCarla.textContent, /Hace \d+ días hábiles que no se registran movimientos ni archivos/);
 
@@ -188,7 +188,7 @@ test('boletín de un lunes: cada quien recibe sus secciones, y nunca dos veces e
 });
 
 test('con todo en "nunca" no sale nada, pero la persona sigue activada', async () => {
-  const nunca = { pideYa: 'nunca', seAgota: 'nunca', enCero: 'nunca', porRecibir: 'nunca', porAprobar: 'nunca', dineroQuieto: 'nunca', sobran: 'nunca', sinDatos: 'nunca' };
+  const nunca = { pideYa: 'nunca', seAgota: 'nunca', enCero: 'nunca', porAprobar: 'nunca', dineroQuieto: 'nunca', sobran: 'nunca', sinDatos: 'nunca' };
   assert.equal((await carla.put('/api/cuenta/preferencias', { alertas: nunca })).estado, 200);
   const martes = diaDespues(proximoLunes());
   correos.length = 0;
@@ -198,10 +198,10 @@ test('con todo en "nunca" no sale nada, pero la persona sigue activada', async (
   const fila = await db.uno("SELECT b.estado, u.boletin FROM boletines b JOIN usuarios u ON u.id = b.usuario_id WHERE u.email = 'carla.alertas@prueba.co' AND b.fecha = $1", [martes]);
   assert.deepEqual(fila, { estado: 'sin_novedad', boletin: true });
 
-  // El martes, Ana (analista) solo recibe lo diario: ni lo atrasado ni los datos sin actualizar.
+  // El martes, Ana (analista) solo recibe lo diario: no los datos sin actualizar (semanal).
   const paraAna = correos.find((c) => c.to[0].email === 'ana.alertas@prueba.co');
   assert.ok(paraAna);
-  assert.doesNotMatch(paraAna.htmlContent, /Entregas atrasadas|Datos sin actualizar/);
+  assert.doesNotMatch(paraAna.htmlContent, /Datos sin actualizar/);
   assert.match(paraAna.htmlContent, /Pedidos por aprobar/, 'porAprobar es diario');
 });
 

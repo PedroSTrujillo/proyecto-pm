@@ -9,8 +9,7 @@ export function CtaSection() {
       <div className="mx-auto max-w-6xl overflow-hidden rounded-3xl bg-foreground px-6 py-14 text-background md:px-14 md:py-20">
         <div className="grid gap-10 lg:grid-cols-[1.4fr_1fr] lg:items-end">
           <div>
-            <p className="font-mono text-xs font-medium uppercase tracking-widest text-highlight">Versión piloto</p>
-            <h2 id="empezar-title" className="mt-3 text-balance text-3xl font-bold tracking-tight md:text-5xl">
+            <h2 id="empezar-title" className="text-balance text-3xl font-bold tracking-tight md:text-5xl">
               Traiga su archivo de ventas. En cinco minutos verá qué se le está acabando.
             </h2>
             <p className="mt-5 max-w-xl text-pretty text-lg leading-relaxed text-background/75">

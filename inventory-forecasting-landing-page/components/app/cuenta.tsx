@@ -10,7 +10,7 @@ import type { Frecuencia, TipoAlerta, Usuario } from '@/lib/tipos'
 import { cn } from '@/lib/utils'
 import { useSesion } from './contexto'
 import { Aviso, Boton, Campo, ErrorLista, Tarjeta, Titulo, claseEntrada } from './ui'
-import { SelectorPerfil, SelectorTiempo } from './vista'
+import { SelectorTiempo, TEXTO_ROL } from './vista'
 
 export function Cuenta() {
   const { usuario, fijar } = useSesion()
@@ -85,8 +85,7 @@ export function Cuenta() {
           </form>
         </Tarjeta>
         <Tarjeta className="flex flex-col gap-4 p-5 sm:p-6">
-          <h2 className="text-xl font-bold">Cómo usa SINESC</h2>
-          <SelectorPerfil />
+          <h2 className="text-xl font-bold">Cómo ve el tiempo</h2>
           <div className="flex flex-col gap-2">
             <span className="text-cuerpo font-semibold">Para cuánto alcanza, en</span>
             <SelectorTiempo conHorizonte />
@@ -116,7 +115,6 @@ const ALERTAS: { tipo: TipoAlerta; texto: string; descripcion: string }[] = [
   { tipo: 'pideYa', texto: 'Pedir ya', descripcion: 'Lo que hay que pedir hoy para que llegue a tiempo.' },
   { tipo: 'seAgota', texto: 'Se van a agotar', descripcion: 'Lo que alcanza para menos de lo elegido para el aviso.' },
   { tipo: 'enCero', texto: 'En cero', descripcion: 'Productos sin existencias.' },
-  { tipo: 'porRecibir', texto: 'Entregas atrasadas', descripcion: 'Pedidos que ya debían llegar según lo que tarda el proveedor.' },
   { tipo: 'porAprobar', texto: 'Pedidos por aprobar', descripcion: 'Los que le enviaron para aprobar.' },
   { tipo: 'sobran', texto: 'Sobrestock', descripcion: 'Lo que alcanza para más de 12 semanas, o lo que diga la ficha de cada producto.' },
   { tipo: 'dineroQuieto', texto: 'Dinero quieto', descripcion: 'Cuánta plata hay en lo que sobra. Solo si el archivo trae costos.' },
@@ -134,9 +132,10 @@ function TablaAlertas({ usuario }: { usuario: Usuario }) {
   const { fijar } = useSesion()
   const [error, setError] = useState<ReturnType<typeof textoErrores> | null>(null)
   const [guardando, setGuardando] = useState<TipoAlerta | 'todas' | null>(null)
-  // Pedidos por aprobar solo le llega a quien aprueba; datos sin actualizar, a quien administra la
-  // empresa y a los operadores (los que registran los movimientos). Lo demás no se muestra.
-  const visibles = ALERTAS.filter((a) => (a.tipo !== 'porAprobar' || usuario.aprueba) && (a.tipo !== 'sinDatos' || usuario.empresa?.admin || usuario.perfil === 'operador'))
+  // Pedidos por aprobar solo le llega a quien aprueba, y nunca a un operador. El operador tampoco recibe
+  // dinero quieto ni sobrestock (el servidor lo fuerza en "nunca"); lo demás le llega a todos los roles.
+  const operador = usuario.rolEmpresa === 'operador'
+  const visibles = ALERTAS.filter((a) => (a.tipo !== 'porAprobar' || (usuario.aprueba && !operador)) && !(operador && (a.tipo === 'dineroQuieto' || a.tipo === 'sobran')))
 
   async function guardar(alertas: Partial<Record<TipoAlerta, Frecuencia>> | null, cual: TipoAlerta | 'todas') {
     setError(null)
@@ -156,7 +155,7 @@ function TablaAlertas({ usuario }: { usuario: Usuario }) {
       <div>
         <h3 className="text-lg font-bold">Qué avisos trae y cada cuánto</h3>
         <p className="text-chico text-muted-foreground">
-          {usuario.boletin ? 'Se guarda al elegir.' : 'El boletín está apagado: puede dejar esto listo y activarlo después.'} Los valores de partida son los de su perfil ({usuario.perfil === 'operador' ? 'operador' : 'analista'}). Los festivos cuentan como días hábiles.
+          {usuario.boletin ? 'Se guarda al elegir.' : 'El boletín está apagado: puede dejar esto listo y activarlo después.'} Los valores de partida son los de su rol ({TEXTO_ROL[usuario.rolEmpresa].titulo.toLowerCase()}). Los festivos cuentan como días hábiles.
         </p>
       </div>
       <ul className="flex flex-col">

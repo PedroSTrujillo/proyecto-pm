@@ -19,7 +19,7 @@ Las decisiones de producto las tomó el equipo: el backlog salió de las pruebas
 | SP2 · Pedido desde lo sugerido | El modo de pedido `'sugerido'` en el servidor, la pantalla "Preparar pedido" (grupos por proveedor, selección, filtros, notas, autoguardado) y el PDF y Excel del pedido guardado |
 | SP3 · Medición del piloto | La métrica de aceptación, la evaluación por usuario y el veredicto, "sugerido contra decidido contra ocurrido", la encuesta dentro de la app y la salida `npm run resultados -- --piloto` |
 | SP4 · Catálogo y motor | Familia, múltiplo y mínimo de pedido; tiempo de entrega en días hábiles; ventas de proyecto fuera del promedio (por documento, por columna y por movimiento); clasificación de productos; "pedido hace N días"; "Cómo se calcula" |
-| SP5 · Entradas y salidas | Llegada de pedidos y lo que va en camino en el sugerido; ventas de un periodo; pegar e importar movimientos; aviso de códigos que no coinciden; "datos de hace N días" |
+| SP5 · Entradas y salidas | Lo pedido que cuenta en camino en el sugerido hasta que entra (sin registrar la llegada, T5); ventas de un periodo; pegar e importar movimientos; aviso de códigos que no coinciden; "datos de hace N días" |
 | SP6 · Aprobación | Enviar, aprobar y devolver pedidos; historial de cambios; logo, cargo y firmas en el PDF y el Excel |
 | SP7 · Alertas | Ocho tipos de aviso con frecuencia por persona y valores por perfil; el boletín por secciones; entregas atrasadas; sobrestock por producto |
 | SP8 · Cierre | Actualizó `CLAUDE.md`, `README.md`, `modelo-rotacion.md` (§4.4 y §7.7), `ENTREGABLE_Y_APP.md` (hipótesis del piloto, filas 9 a 14 y resumen) y el backlog; escribió esta declaración |
@@ -38,5 +38,5 @@ Cada sub-plan terminó con las pruebas automáticas en verde (de 136 a 194 prueb
 - **El correo del boletín** se revisó como imagen del HTML; no se probó en Gmail ni Outlook, ni un lunes real con Brevo.
 - **Errores propios corregidos en la misma sesión:** abrir "Preparar pedido" creaba dos borradores en desarrollo; varias tablas se salían de la pantalla en celular.
 - **Apartarse del plan sin pedirlo:** en el SP1 cambió el texto de `pedido-sugerido.tsx`, que el plan decía no tocar (quedó anotado en la bitácora).
-- **Simplificaciones que el equipo debe aceptar o cambiar:** una llegada parcial cierra la línea; el uso y las alertas no descuentan festivos; "sugerido contra ocurrido" cuenta semanas de forma aproximada; el pegado del catálogo es un cuadro de texto y no la hoja tipo Excel.
+- **Simplificaciones que el equipo debe aceptar o cambiar:** lo pedido deja de contar por tiempo o al registrar su entrada (no se mira el archivo nuevo); el uso y las alertas no descuentan festivos; "sugerido contra ocurrido" cuenta semanas de forma aproximada; el pegado del catálogo es un cuadro de texto y no la hoja tipo Excel.
 - **Nada de lo anterior se ha probado con usuarios reales.** Las pruebas usan datos inventados con la forma de los archivos reales. Lo que dice el piloto lo van a decir los usuarios.

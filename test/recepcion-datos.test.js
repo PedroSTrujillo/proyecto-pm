@@ -1,6 +1,6 @@
 'use strict';
 
-// SP5 de docs/PLAN_ALPHA_02.md: recibir un pedido (entradas y "en camino"), ventas de un periodo,
+// SP5 de docs/PLAN_ALPHA_02.md: lo pedido que cuenta "en camino" hasta que entra (T5), ventas de un periodo,
 // importar movimientos de un archivo, códigos que no coinciden entre ventas y existencias y las
 // columnas recordadas por empresa. Base de datos en memoria.
 
@@ -8,13 +8,13 @@ process.env.DATA_DIR = 'memory://';
 process.env.SIN_LIMITES = '1';
 
 const test = require('node:test');
+const { conCodigo } = require('./codigo');
 const assert = require('node:assert/strict');
 const db = require('../server/db');
 const { crearApp } = require('../server/app');
 const { plantillaExport } = require('../server/plantillas');
 const { claveCodigo } = require('../server/valores');
 const { calcularRotacion, revisarCodigos } = require('../server/rotacion');
-const { sumarEnCamino } = require('../server/recepcion');
 const { fechaBogota } = require('../server/recordatorios');
 const S = require('../server/saldos');
 
@@ -59,7 +59,7 @@ function cliente() {
 
 async function cuenta(nombre, email, extra) {
   const c = cliente();
-  const r = await c.post('/api/cuenta/crear', { nombre, email, clave: 'clave-segura', ...extra });
+  const r = await c.post('/api/cuenta/crear', await conCodigo({ nombre, email, clave: 'clave-segura', ...extra }));
   assert.equal(r.estado, 201, r.error);
   return c;
 }
@@ -68,7 +68,7 @@ const hoy = () => fechaBogota();
 const porCodigo = (inv, codigo) => inv.productos.find((p) => claveCodigo(p.codigo) === claveCodigo(codigo));
 const mov = (id, codigo, tipo, cantidad, fecha, extra = {}) => ({ id, codigo, nombre: '', tipo, cantidad, fecha, ...extra });
 
-// --- Recibir un pedido ---------------------------------------------------------------------------
+// --- Lo pedido y todavía en camino ---------------------------------------------------------------------------
 
 let ana;
 let carla;
@@ -82,9 +82,7 @@ test('al cerrar un pedido, lo pedido cuenta en camino y el sugerido lo descuenta
   pedido = (await ana.post('/api/pedidos', { modo: 'sugerido' })).pedido;
   assert.ok(pedido.sugerido.length >= 3, 'la plantilla trae varios productos para pedir');
   assert.equal((await ana.post(`/api/pedidos/${pedido.id}/lista-final`, { lineas: pedido.listaFinal })).estado, 200);
-  const cerrado = (await ana.post(`/api/pedidos/${pedido.id}/por-que`, { respuesta: '' })).pedido;
-  assert.equal(cerrado.recepcion.espera, true);
-  assert.equal(cerrado.recepcion.pendientes, pedido.listaFinal.length);
+  assert.equal((await ana.post(`/api/pedidos/${pedido.id}/por-que`, { respuesta: '' })).estado, 200);
 
   const inv = (await ana.get('/api/inventario')).inventario;
   assert.equal(inv.resumen.enCamino, pedido.listaFinal.length);
@@ -98,83 +96,44 @@ test('al cerrar un pedido, lo pedido cuenta en camino y el sugerido lo descuenta
   }
 });
 
-test('"Por recibir" lo ve cualquiera de la empresa, y otra empresa no puede recibirlo', async () => {
-  const inv = await ana.post('/api/empresa/invitaciones', { email: 'carla.recibe@prueba.co' });
-  const token = new URL(inv.enlace).searchParams.get('invitacion');
-  carla = await cuenta('Carla Bodega', 'carla.recibe@prueba.co', { invitacion: token, perfil: 'operador' });
-  const lista = await carla.get('/api/pedidos/por-recibir');
-  assert.equal(lista.pedidos.length, 1);
-  assert.equal(lista.pedidos[0].pedidoId, pedido.id);
-  assert.equal(lista.pedidos[0].por, 'Ana Recibe');
-  assert.ok(lista.pedidos[0].proveedores.length >= 1);
-  assert.equal((await carla.get(`/api/pedidos/${pedido.id}`)).estado, 404, 'el pedido sigue siendo de Ana');
-  assert.equal((await carla.get(`/api/pedidos/${pedido.id}/recepcion`)).estado, 200, 'pero su llegada es de la empresa');
-
-  const beto = await cuenta('Beto', 'beto.recibe@prueba.co', { empresa: 'Otra Empresa' });
-  assert.equal((await beto.get(`/api/pedidos/${pedido.id}/recepcion`)).estado, 404);
-  const r = await beto.post(`/api/pedidos/${pedido.id}/recibir`, { lineas: [{ codigo: pedido.listaFinal[0].codigo, cantidad: 1 }] });
-  assert.equal(r.estado, 404);
-  assert.deepEqual((await beto.get('/api/pedidos/por-recibir')).pedidos, []);
-});
-
-test('registrar la llegada crea entradas ligadas al pedido y deja de contar en camino', async () => {
+test('lo pedido deja de contar en camino al registrar su entrada, y vence con la ventana', async () => {
+  const inv = await ana.post('/api/empresa/invitaciones', { email: 'carla.recibe@prueba.co', rol: 'administrador' });
+  carla = await cuenta('Carla Bodega', 'carla.recibe@prueba.co', { invitacion: new URL(inv.enlace).searchParams.get('invitacion') });
   const [primera, segunda, tercera] = pedido.listaFinal;
-  const exist = (await ana.get('/api/existencias')).productos;
-  const antesPrimera = exist.find((p) => claveCodigo(p.codigo) === claveCodigo(primera.codigo)).existencias;
+  const enCamino = async (codigo) => porCodigo((await ana.get('/api/inventario')).inventario, codigo).enCamino;
+  // El pedido solo suma "en camino": las existencias no cambian por pedir.
+  const existencias = async (codigo) => (await ana.get('/api/existencias')).productos.find((p) => claveCodigo(p.codigo) === claveCodigo(codigo)).existencias;
+  const antes0 = await existencias(primera.codigo);
 
-  // Validaciones: todo o nada.
-  const malo = await carla.post(`/api/pedidos/${pedido.id}/recibir`, { lineas: [{ codigo: primera.codigo, cantidad: 'x' }, { codigo: 'NO-EXISTE', cantidad: 1 }] });
-  assert.equal(malo.estado, 400);
-  assert.equal(malo.errores.length, 2);
-  assert.equal((await carla.post(`/api/pedidos/${pedido.id}/recibir`, { fecha: '2099-01-01', lineas: [{ codigo: primera.codigo, cantidad: 1 }] })).estado, 400);
+  // Una entrada parcial de la primera, registrada en Movimientos, descuenta lo que llegó.
+  const parcial = Math.min(1, primera.cantidad - 0.5);
+  const r1 = await ana.post('/api/movimientos', { movimientos: [{ codigo: primera.codigo, tipo: 'entrada', cantidad: String(parcial), fecha: hoy() }] });
+  assert.equal(r1.estado, 201, r1.error);
+  assert.equal((await enCamino(primera.codigo)).cantidad, primera.cantidad - parcial);
+  // Completa: ya no cuenta.
+  const r2 = await ana.post('/api/movimientos', { movimientos: [{ codigo: primera.codigo, tipo: 'entrada', cantidad: String(primera.cantidad - parcial), fecha: hoy() }] });
+  assert.equal(r2.estado, 201, r2.error);
+  assert.equal(await enCamino(primera.codigo), null);
+  assert.equal((await enCamino(tercera.codigo)).cantidad, tercera.cantidad, 'lo que no ha entrado sigue contando');
+  assert.equal(await existencias(primera.codigo), antes0 + primera.cantidad, 'las existencias solo suben con lo registrado');
 
-  // La primera llega completa y la segunda no llegó (0). La tercera sigue en camino.
-  const r = await carla.post(`/api/pedidos/${pedido.id}/recibir`, { fecha: hoy(), lineas: [{ codigo: primera.codigo, cantidad: primera.cantidad }, { codigo: segunda.codigo, cantidad: 0 }] });
-  assert.equal(r.estado, 200, r.error);
-  assert.equal(r.entradas, 1);
-  assert.equal(r.recepcion.pendientes, pedido.listaFinal.length - 2);
+  // Si se anula la entrada, vuelve a estar en camino.
+  const entradas = (await ana.get('/api/movimientos')).movimientos.filter((m) => claveCodigo(m.codigo) === claveCodigo(primera.codigo) && m.tipo === 'entrada');
+  assert.equal((await ana.post(`/api/movimientos/${entradas[0].id}/anular`)).estado, 200);
+  assert.ok((await enCamino(primera.codigo)).cantidad > 0);
 
-  const movs = (await ana.get('/api/movimientos')).movimientos;
-  const entrada = movs.find((m) => m.pedidoId === pedido.id);
-  assert.equal(entrada.tipo, 'entrada');
-  assert.equal(entrada.cantidad, primera.cantidad);
-  assert.equal(entrada.registro, 'Carla Bodega');
-  assert.match(entrada.nota, /Llegada del pedido/);
-  const despues = (await ana.get('/api/existencias')).productos.find((p) => claveCodigo(p.codigo) === claveCodigo(primera.codigo)).existencias;
-  assert.equal(despues, antesPrimera + primera.cantidad);
-
-  const inv = (await ana.get('/api/inventario')).inventario;
-  assert.equal(porCodigo(inv, primera.codigo).enCamino, null);
-  assert.equal(porCodigo(inv, segunda.codigo).enCamino, null, 'lo que no llegó deja de contar en camino');
-  assert.equal(porCodigo(inv, tercera.codigo).enCamino.cantidad, tercera.cantidad);
-
-  const otraVez = await ana.post(`/api/pedidos/${pedido.id}/recibir`, { lineas: [{ codigo: primera.codigo, cantidad: 1 }] });
-  assert.equal(otraVez.estado, 400);
-  assert.match(otraVez.errores[0], /ya está registrada/);
-
-  // Si se anula la entrada en Movimientos, la línea vuelve a estar en camino.
-  assert.equal((await ana.post(`/api/movimientos/${entrada.id}/anular`)).estado, 200);
-  assert.equal(porCodigo((await ana.get('/api/inventario')).inventario, primera.codigo).enCamino.cantidad, primera.cantidad);
-});
-
-test('un pedido sin cerrar o de antes de registrar llegadas no espera nada', async () => {
-  const abierto = (await ana.post('/api/pedidos', { modo: 'sugerido' })).pedido;
-  const r = await ana.post(`/api/pedidos/${abierto.id}/recibir`, { lineas: [{ codigo: abierto.listaFinal[0].codigo, cantidad: 1 }] });
-  assert.equal(r.estado, 409);
-  assert.match(r.error, /cerrado/);
-
-  const pedidos = [
-    { id: 1, terminado_en: '2026-10-01', recibido: null, lista_final: [{ codigo: 'A', cantidad: 5 }] },
-    { id: 2, terminado_en: '2026-10-02', recibido: {}, lista_final: [{ codigo: 'A', cantidad: 3 }, { codigo: 'B', cantidad: 2 }] },
-    { id: 3, terminado_en: '2026-10-03', recibido: { B: { cantidad: 0, mov: null } }, lista_final: [{ codigo: 'b', cantidad: 4 }] },
-    { id: 4, terminado_en: '2026-10-04', recibido: { A: { cantidad: 6, mov: 77 } }, lista_final: [{ codigo: 'A', cantidad: 6 }] },
-  ];
-  const sin = sumarEnCamino(pedidos);
-  assert.equal(sin.get('A').cantidad, 3, 'el de antes (recibido NULL) no cuenta; el recibido tampoco');
-  assert.equal(sin.get('B').cantidad, 2);
-  const conAnulada = sumarEnCamino(pedidos, new Set([77]));
-  assert.equal(conAnulada.get('A').cantidad, 9, 'la entrada anulada vuelve a dejarlo en camino');
-  assert.equal(conAnulada.get('A').pedidos, 2);
+  // Pasada la ventana (14 días o lo que tarda el proveedor) el pedido ya no cuenta, aunque nada haya entrado.
+  await db.query("UPDATE pedidos SET terminado_en = now() - interval '15 days' WHERE id = $1", [pedido.id]);
+  assert.equal(await enCamino(segunda.codigo), null);
+  assert.equal(porCodigo((await ana.get('/api/inventario')).inventario, segunda.codigo).pedidoReciente, null);
+  // Con un proveedor que tarda 6 semanas (42 días), a los 15 sigue contando.
+  assert.equal((await ana.put('/api/inventario/ajustes', { entregaPorDefecto: 6 })).estado, 200);
+  assert.ok((await enCamino(segunda.codigo)).cantidad > 0, 'la ventana crece con el tiempo de entrega');
+  assert.equal(porCodigo((await ana.get('/api/inventario')).inventario, segunda.codigo).pedidoReciente.cantidad, segunda.cantidad);
+  // Un pedido simulado no cuenta.
+  await db.query("UPDATE pedidos SET tipo = 'simulado' WHERE id = $1", [pedido.id]);
+  assert.equal(await enCamino(segunda.codigo), null);
+  await db.query("UPDATE pedidos SET tipo = 'real' WHERE id = $1", [pedido.id]);
 });
 
 // --- Ventas de un periodo ------------------------------------------------------------------------

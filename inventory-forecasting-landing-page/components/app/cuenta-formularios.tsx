@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { api, textoErrores } from '@/lib/api'
 import type { Usuario } from '@/lib/tipos'
+import { cn } from '@/lib/utils'
 import { Marca } from './marco'
 import { Aviso, Boton, Campo, ErrorLista, claseEntrada } from './ui'
 
@@ -86,7 +87,7 @@ export function Entrar() {
 }
 
 // Toda cuenta entra a una empresa: la crea aquí mismo o llega con el enlace que le mandaron
-// (?invitacion=…). Elige también cómo va a usar la app (analista u operador) y si quiere el boletín.
+// (?invitacion=…). Quien la funda es el gerente; quien llega por invitación toma el rol de esa invitación.
 export function CrearCuenta() {
   const router = useRouter()
   const params = useSearchParams()!
@@ -106,8 +107,9 @@ export function CrearCuenta() {
     e.preventDefault()
     const d = Object.fromEntries(new FormData(e.currentTarget)) as Record<string, string>
     enviar(async () => {
-      await api<{ usuario: Usuario }>('POST', '/cuenta/crear', { ...d, boletin: d.boletin === 'on', ...(invitacion ? { invitacion } : {}) })
-      router.replace(d.perfil === 'operador' ? '/movimientos' : destino(params))
+      const r = await api<{ usuario: Usuario }>('POST', '/cuenta/crear', { ...d, boletin: d.boletin === 'on', ...(invitacion ? { invitacion } : {}) })
+      // El rol viene de la invitación: quien entra como operador empieza por lo que registra.
+      router.replace(r.usuario.perfil === 'operador' ? '/movimientos' : destino(params))
     })
   }
   const sub = invitacion
@@ -128,15 +130,11 @@ export function CrearCuenta() {
               <Campo etiqueta="NIT" nota="(opcional)"><input className={claseEntrada} type="text" name="nit" inputMode="numeric" /></Campo>
             </>
           )}
+          <Campo etiqueta="Código de acceso" nota="(se lo entrega el equipo de SINESC)"><input className={cn(claseEntrada, 'font-mono uppercase')} type="text" name="codigo" required autoComplete="off" placeholder="XXXX-XXXX" /></Campo>
           <Campo etiqueta="Su nombre"><input className={claseEntrada} type="text" name="nombre" required autoComplete="name" autoFocus={Boolean(invitacion)} /></Campo>
           <Campo etiqueta="Su cargo" nota="(opcional, va en el PDF de sus pedidos)"><input className={claseEntrada} type="text" name="cargo" maxLength={80} placeholder="Por ejemplo, jefe de compras" autoComplete="organization-title" /></Campo>
           <Campo etiqueta="Correo"><input className={claseEntrada} type="email" name="email" required autoComplete="email" defaultValue={invitada?.email || ''} key={invitada?.email || ''} /></Campo>
           <Campo etiqueta="Contraseña" nota="(mínimo 8 caracteres)"><input className={claseEntrada} type="password" name="clave" required minLength={8} autoComplete="new-password" /></Campo>
-          <fieldset className="flex flex-col gap-2">
-            <legend className="mb-1 text-cuerpo font-semibold">¿Cómo va a usar SINESC?</legend>
-            <ElegirPerfil nombre="perfil" />
-            <span className="text-nota text-muted-foreground">Lo puede cambiar cuando quiera, desde el menú.</span>
-          </fieldset>
           <label className="flex items-start gap-2.5 text-cuerpo">
             <input type="checkbox" name="boletin" defaultChecked className="mt-1 size-4 accent-[var(--primary)]" />
             <span>Recibir cada mañana un correo con el estado del inventario. <span className="text-muted-foreground">Se da de baja con un clic.</span></span>
@@ -146,24 +144,6 @@ export function CrearCuenta() {
         </form>
       )}
     </Caja>
-  )
-}
-
-export const PERFILES = [
-  { id: 'analista', titulo: 'Analista', texto: 'Miro el detalle: pronóstico, riesgo, cuánto pedir y dinero quieto.' },
-  { id: 'operador', titulo: 'Operador', texto: 'Registro entradas y salidas, subo el archivo y veo lo que se agota.' },
-] as const
-
-function ElegirPerfil({ nombre }: { nombre: string }) {
-  return (
-    <div className="grid gap-2 sm:grid-cols-2">
-      {PERFILES.map((p, i) => (
-        <label key={p.id} className="flex cursor-pointer gap-2.5 rounded-xl border border-input p-3 has-[:checked]:border-primary has-[:checked]:bg-secondary">
-          <input type="radio" name={nombre} value={p.id} defaultChecked={i === 0} className="mt-1 size-4 accent-[var(--primary)]" />
-          <span className="flex flex-col"><strong>{p.titulo}</strong><span className="text-nota text-muted-foreground">{p.texto}</span></span>
-        </label>
-      ))}
-    </div>
   )
 }
 

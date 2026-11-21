@@ -20,7 +20,7 @@ const express = require('express');
 const multer = require('multer');
 const zlib = require('zlib');
 const db = require('./db');
-const { requiereUsuario, registrarEvento, ErrorUsuario } = require('./cuentas');
+const { requiereUsuario, requiereAdminEmpresa, registrarEvento, ErrorUsuario } = require('./cuentas');
 const { leerExport, leerLista } = require('./lector');
 const { soloEjemplo } = require('./plantillas');
 const { calcularRotacion, conUmbral, SEMANAS_SE_AGOTA } = require('./rotacion');
@@ -33,10 +33,11 @@ const X = require('./excel');
 const recordatorios = require('./recordatorios');
 const { correoConfigurado } = require('./correo');
 const { leerAjustes, construirInventario } = require('./inventario');
-const { claveCodigo, leerNumero } = require('./valores');
+const { claveCodigo } = require('./valores');
 const { inventarioDelUsuario, guardarInventarioDelUsuario } = require('./empresas');
 const { inventarioAlDia, agregarAlCatalogo, catalogoConEscrito } = require('./movimientos');
-const R = require('./recepcion');
+const { enCaminoDe } = require('./en-camino');
+const { capacidadDe, ajustarAContenedores } = require('./contenedores');
 
 const MAX_LINEAS = 5000;
 const subida = multer({
@@ -64,6 +65,8 @@ function archivoSubido(f) {
 
 const rutas = express.Router();
 rutas.use(requiereUsuario);
+// Los pedidos (y con ellos costos y sugeridos) son de gerente y administrador; el operador no los abre (T4).
+rutas.use(requiereAdminEmpresa);
 
 // --- Utilidades --------------------------------------------------------------------
 
@@ -243,8 +246,6 @@ async function vistaPedido(p, usuario = null) {
     porQue: p.por_que,
     anulado: p.anulado_en ? { en: p.anulado_en, motivo: p.anulado_motivo || '' } : null,
     terminadoEn: p.terminado_en,
-    // Qué ha llegado de este pedido, por proveedor (SP5). Solo de los cerrados.
-    recepcion: p.terminado_en && p.empresa_id ? await R.vistaRecepcion(p.empresa_id, { ...p, numero }) : null,
     // Aprobación e historial de cambios (SP6), solo desde lo sugerido.
     aprobacion: sugerido ? await vistaAprobacion(p, usuario) : null,
     historial: sugerido ? await trazas.historial(p.id) : null,
@@ -425,12 +426,31 @@ function fotoSugerido(inv) {
     }));
 }
 
+// Importadores (T14): si la empresa encendió los contenedores, el pedido a cada proveedor con contenedores se recorta
+// hasta que quepa (server/contenedores.js). Apagado, o sin contenedores, no se toca nada.
+function recortarAContenedores(inv, foto) {
+  if (!inv.ajustes.importaciones) return foto;
+  const productos = new Map(inv.productos.map((x) => [x.codigo, x]));
+  const nuevas = new Map(); // codigo → cantidad que queda, solo de los proveedores con contenedores
+  for (const [proveedor, lineas] of Map.groupBy(foto, (l) => l.proveedor)) {
+    const capacidad = capacidadDe(inv.ajustes.condiciones[proveedor]);
+    if (capacidad === null) continue;
+    const { lineas: quedan } = ajustarAContenedores(
+      lineas.map((l) => ({ codigo: l.codigo, cantidad: l.cantidad, semanas: l.semanas, lote: productos.get(l.codigo)?.lote || 1, volumenPaquete: productos.get(l.codigo)?.volumenPaquete || null })),
+      capacidad,
+    );
+    for (const l of lineas) nuevas.set(l.codigo, 0);
+    for (const q of quedan) nuevas.set(q.codigo, q.cantidad);
+  }
+  return foto.filter((l) => nuevas.get(l.codigo) !== 0).map((l) => (nuevas.has(l.codigo) ? { ...l, cantidad: nuevas.get(l.codigo) } : l));
+}
+
 async function crearDesdeSugerido(usuario) {
   // Aquí y no arriba: inventario-rutas.js usa este archivo.
   const { inventarioDeEmpresa } = require('./inventario-rutas');
   const base = await inventarioDeEmpresa(usuario.empresa_id);
   if (!base) throw new ErrorUsuario('Para preparar un pedido, primero suba el archivo de su programa contable en Datos o registre sus movimientos.', 403);
-  const foto = fotoSugerido(base.inv);
+  const foto = recortarAContenedores(base.inv, fotoSugerido(base.inv));
   const lista = foto.map(({ codigo, nombre, cantidad, proveedor }) => ({ codigo, nombre, cantidad, proveedor }));
   const p = await db.uno(
     `INSERT INTO pedidos (usuario_id, empresa_id, modo, tipo, export_id, sugerido, lista_final, semanas_agota)
@@ -503,11 +523,6 @@ rutas.post('/', async (req, res) => {
   res.status(201).json({ pedido: await vistaPedido(p, req.usuario) });
 });
 
-// Lo que la empresa espera que llegue: pedidos cerrados con líneas sin recibir, de cualquier persona.
-rutas.get('/por-recibir', async (req, res) => {
-  res.json({ pedidos: await R.porRecibir(req.usuario.empresa_id) });
-});
-
 // Los pedidos que esperan aprobación en la empresa (para quien aprueba; a los demás, ninguno).
 rutas.get('/por-aprobar', async (req, res) => {
   if (!req.usuario.aprueba) return res.json({ pedidos: [] });
@@ -526,89 +541,6 @@ rutas.get('/por-aprobar', async (req, res) => {
 
 rutas.get('/:id', async (req, res) => {
   res.json({ pedido: await vistaPedido(await pedidoVisible(req), req.usuario) });
-});
-
-// --- Llegada de un pedido (SP5) -------------------------------------------------------------
-// Lo recibe cualquiera de la empresa: quien recibe la mercancía no siempre es quien la pidió. Por
-// eso estas rutas buscan el pedido por empresa y no por persona (pedidoDe no cambia).
-
-async function pedidoDeEmpresa(req) {
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id)) throw new ErrorUsuario('Ese pedido no existe.', 404);
-  const [p] = await R.pedidosEsperando(req.usuario.empresa_id, { id });
-  if (p) return p;
-  const otro = await db.uno('SELECT terminado_en, anulado_en, recibido, tipo FROM pedidos WHERE id = $1 AND empresa_id = $2 AND borrado_en IS NULL', [id, req.usuario.empresa_id]);
-  if (!otro) throw new ErrorUsuario('Ese pedido no existe.', 404);
-  if (!otro.terminado_en) throw new ErrorUsuario('Este pedido todavía no está cerrado: ciérrelo antes de registrar su llegada.', 409);
-  if (otro.anulado_en) throw new ErrorUsuario('Este pedido está anulado.', 409);
-  throw new ErrorUsuario('Este pedido no espera mercancía: es de antes de que se pudiera registrar la llegada, o de hace más de 4 meses. Registre lo que llegó como una entrada en Movimientos.', 409);
-}
-
-rutas.get('/:id/recepcion', async (req, res) => {
-  res.json({ recepcion: await R.vistaRecepcion(req.usuario.empresa_id, await pedidoDeEmpresa(req)) });
-});
-
-/**
- * Registrar la llegada: { fecha, lineas: [{ codigo, cantidad }] }. Cada línea con cantidad crea una
- * entrada en Movimientos ligada al pedido; con 0 queda como "no llegó" y deja de contar en camino.
- * Las cantidades vienen precargadas con lo pedido y se pueden cambiar. Todo o nada.
- */
-rutas.post('/:id/recibir', async (req, res) => {
-  const p = await pedidoDeEmpresa(req);
-  const empresaId = req.usuario.empresa_id;
-  const hoy = recordatorios.fechaBogota();
-  const desdeCierre = recordatorios.fechaBogota(p.terminado_en);
-  const fecha = req.body?.fecha ? String(req.body.fecha).trim() : hoy;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || Number.isNaN(Date.parse(`${fecha}T12:00:00Z`))) throw new ErrorUsuario('La fecha de llegada no es válida.');
-  if (fecha > hoy) throw new ErrorUsuario('La fecha de llegada es después de hoy.');
-  if (fecha < desdeCierre) throw new ErrorUsuario(`La fecha de llegada es antes del ${desdeCierre}, el día en que se cerró el pedido.`);
-
-  const anulados = await R.entradasAnuladas(empresaId, [p.id]);
-  const delPedido = new Map(R.lineasDelPedido(p).map((l) => [l.clave, l]));
-  const entrada = Array.isArray(req.body?.lineas) ? req.body.lineas : [];
-  if (!entrada.length) throw new ErrorUsuario('Elija al menos un producto que haya llegado.');
-  const errores = [];
-  const limpias = [];
-  const vistas = new Set();
-  entrada.forEach((l, i) => {
-    const fila = i + 1;
-    const clave = claveCodigo(l && l.codigo);
-    const linea = delPedido.get(clave);
-    if (!linea) return errores.push(`Fila ${fila}: ${String((l && l.codigo) || '').slice(0, 40) || 'ese producto'} no está en este pedido.`);
-    if (vistas.has(clave)) return errores.push(`Fila ${fila}: ${linea.codigo} está dos veces.`);
-    vistas.add(clave);
-    if (R.recibidaDe(p, clave, anulados)) return errores.push(`Fila ${fila}: la llegada de ${linea.codigo} ya está registrada.`);
-    const cantidad = leerNumero(l.cantidad);
-    if (cantidad === null || cantidad < 0) return errores.push(`Fila ${fila}: la cantidad de ${linea.codigo} tiene que ser un número de 0 en adelante.`);
-    if (cantidad > 1e9) return errores.push(`Fila ${fila}: la cantidad de ${linea.codigo} es demasiado grande.`);
-    limpias.push({ ...linea, recibida: cantidad });
-  });
-  if (errores.length) throw new ErrorUsuario('Revise las cantidades. No se guardó nada.', 400, { errores: errores.slice(0, 50) });
-
-  const numero = p.numero;
-  const marcas = {};
-  await db.tx(async (t) => {
-    for (const l of limpias) {
-      let mov = null;
-      if (l.recibida > 0) {
-        // Un producto que se agregó a mano al pedido puede no estar en el catálogo todavía.
-        await t.query('INSERT INTO productos (empresa_id, clave, codigo, nombre) VALUES ($1, $2, $3, $4) ON CONFLICT (empresa_id, clave) DO NOTHING', [empresaId, l.clave, l.codigo.slice(0, 100), String(l.nombre || '').slice(0, 200)]);
-        const r = await t.query(
-          `INSERT INTO movimientos (empresa_id, producto_id, usuario_id, tipo, cantidad, fecha, nota, pedido_id)
-           VALUES ($1, (SELECT id FROM productos WHERE empresa_id = $1 AND clave = $2), $3, 'entrada', $4, $5, $6, $7) RETURNING id`,
-          [empresaId, l.clave, req.usuario.id, l.recibida, fecha, `Llegada del pedido ${numero}${l.proveedor ? ` · ${l.proveedor}` : ''}`.slice(0, 200), p.id],
-        );
-        mov = r.rows[0].id;
-      }
-      marcas[l.clave] = { cantidad: l.recibida, pedida: l.cantidad, fecha, mov, por: req.usuario.nombre, en: new Date().toISOString() };
-    }
-    await t.query("UPDATE pedidos SET recibido = COALESCE(recibido, '{}'::jsonb) || $1::jsonb WHERE id = $2", [JSON.stringify(marcas), p.id]);
-    await t.query('UPDATE empresas SET movimientos_cambiaron_en = now() WHERE id = $1', [empresaId]);
-  });
-  const llegaron = limpias.filter((l) => l.recibida > 0).length;
-  await registrarEvento(req.usuario.id, 'pedido_recibido', { pedidoId: p.id, detalle: { lineas: limpias.length, llegaron, fecha } });
-  const [actual] = await R.pedidosEsperando(empresaId, { id: p.id });
-  res.json({ recepcion: await R.vistaRecepcion(empresaId, actual), entradas: llegaron });
 });
 
 // --- Paso 1: lista inicial --------------------------------------------------------------
@@ -907,7 +839,7 @@ rutas.get('/:id/sugerido', async (req, res) => {
   const e = await db.uno("SELECT reporte, series, catalogo FROM exports WHERE id = $1 AND estado = 'ok'", [p.export_id]);
   if (!e) throw new ErrorUsuario('Primero suba su export de ventas y existencias.', 409);
   const ajustes = { ...(await inventarioDelUsuario(req.usuario.id)), semanasAgota: p.semanas_agota || (e.reporte.umbrales && e.reporte.umbrales.seAgota) || SEMANAS_SE_AGOTA };
-  const inv = construirInventario({ reporte: e.reporte, series: e.series, catalogo: await catalogoConEscrito(req.usuario.empresa_id, e.catalogo), ajustes, alcance: 'completo', enCamino: await R.enCaminoDe(req.usuario.empresa_id) });
+  const inv = construirInventario({ reporte: e.reporte, series: e.series, catalogo: await catalogoConEscrito(req.usuario.empresa_id, e.catalogo), ajustes, alcance: 'completo', enCamino: await enCaminoDe(req.usuario.empresa_id) });
   res.json({
     entrega: inv.ajustes.entregaPorDefecto,
     // Los tiempos por proveedor que ya tiene (para cambiarlos sin borrar los demás).
@@ -1073,10 +1005,10 @@ rutas.post('/:id/por-que', async (req, res) => {
     aprueba = Boolean(req.usuario.aprueba);
   }
   const respuesta = String(req.body?.respuesta || '').trim().slice(0, 5000);
-  // recibido = {}: desde ahora el pedido espera su mercancía y lo que pidió cuenta "en camino"
-  // hasta que se registre la llegada (server/recepcion.js). Un pedido simulado no espera nada.
+  // Cerrado, lo que pidió cuenta "en camino" hasta que se registre su entrada en Movimientos o venza
+  // la ventana (server/en-camino.js). El pedido no cambia las existencias.
   const actualizado = await db.uno(
-    `UPDATE pedidos SET por_que = $1, terminado_en = now(), recibido = CASE WHEN tipo = 'simulado' THEN NULL ELSE '{}'::jsonb END,
+    `UPDATE pedidos SET por_que = $1, terminado_en = now(),
             aprobado_en = CASE WHEN $3 THEN now() END, aprobado_por = CASE WHEN $3 THEN $4::int END
       WHERE id = $2 AND terminado_en IS NULL RETURNING *`,
     [respuesta || null, p.id, aprueba, req.usuario.id],
@@ -1109,7 +1041,7 @@ rutas.post('/:id/enviar', async (req, res) => {
   res.json({ pedido: await vistaPedido(actualizado, req.usuario) });
 });
 
-// Quien aprueba lo aprueba tal como está (con lo que haya ajustado): queda cerrado y en camino.
+// Quien aprueba lo aprueba tal como está (con lo que haya ajustado): queda cerrado y cuenta como pedido en camino.
 rutas.post('/:id/aprobar', async (req, res) => {
   const p = await pedidoParaAprobar(req);
   const revision = revisarLista(p.lista_final || []);
@@ -1118,8 +1050,7 @@ rutas.post('/:id/aprobar', async (req, res) => {
   const aprobacion = { ...medirAceptacion(p.lista_enviada || [], revision.lineas), por: req.usuario.id };
   const actualizado = await db.uno(
     `UPDATE pedidos SET lista_final = $1::jsonb, comparacion = COALESCE(comparacion, '{}'::jsonb) || $2::jsonb,
-            aprobado_en = now(), aprobado_por = $3, terminado_en = now(),
-            recibido = CASE WHEN tipo = 'simulado' THEN NULL ELSE '{}'::jsonb END
+            aprobado_en = now(), aprobado_por = $3, terminado_en = now()
       WHERE id = $4 AND enviado_en IS NOT NULL AND terminado_en IS NULL RETURNING *`,
     [JSON.stringify(revision.lineas), JSON.stringify({ aprobacion }), req.usuario.id, p.id],
   );
@@ -1203,7 +1134,7 @@ async function documentoDelPedido(req) {
       aprobadoPor: aprobo ? { ...aprobo, fecha: X.fechaHoy(p.aprobado_en) } : null,
       logo: emp && emp.logo ? abrirImagen(emp.logo) : null,
       observaciones: p.observaciones || '',
-      cadaCuanto: `${ajustes.cadaCuanto} ${ajustes.cadaCuanto === 1 ? 'semana' : 'semanas'}`,
+      cadaCuanto: ((n) => `${n} ${n === 1 ? 'semana' : 'semanas'}`)((proveedor && ajustes.cadaCuantoProv[proveedor]) || ajustes.cadaCuanto),
       proveedor,
       lineas,
     },

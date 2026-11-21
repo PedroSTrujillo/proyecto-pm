@@ -1,14 +1,12 @@
 'use strict';
 
 // El correo del boletín diario y las alertas por tipo (SP7 de docs/PLAN_ALPHA_02.md). Sin base de
-// datos: server/boletin-correo.js, server/alertas.js y atrasadosDe de server/recepcion.js.
+// datos: server/boletin-correo.js y server/alertas.js.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { armarBoletin, seccionesDelDia, resumenDelDia, cambiosDesde, alcance } = require('../server/boletin-correo');
 const A = require('../server/alertas');
-const { atrasadosDe } = require('../server/recepcion');
-const { leerAjustes } = require('../server/inventario');
 
 const producto = (codigo, estado, existencias, semanas, extra = {}) => ({ codigo, nombre: `Producto ${codigo}`, estado, existencias, semanas, sugerido: null, quieto: null, unidadesQuietas: 0, ...extra });
 
@@ -61,26 +59,26 @@ test('frecuencias: semanal los lunes, mensual el primer día hábil y sin festiv
   assert.equal(A.tocaHoy('mensual', '2026-12-02'), false);
   assert.equal(A.tocaHoy('nunca', LUNES), false);
   assert.equal(A.habilesEntre('2026-10-30', LUNES), 1, 'de viernes a lunes hay un día hábil');
-  assert.equal(A.sumarHabiles('2026-10-29', 3), '2026-11-03', 'jueves + 3 hábiles = martes');
 });
 
 test('valores por defecto de cada perfil: qué sale un día cualquiera, un lunes y el primer día hábil', () => {
   const ana = { perfil: 'analista', preferencias: {}, aprueba: false, admin: false };
   const carla = { perfil: 'operador', preferencias: {}, aprueba: false, admin: false };
   assert.deepEqual(A.tiposDeHoy(ana, MIERCOLES), ['pideYa', 'seAgota']);
-  assert.deepEqual(A.tiposDeHoy(ana, LUNES), ['pideYa', 'seAgota', 'enCero', 'porRecibir', 'dineroQuieto', 'sobran'], 'el lunes 2 de noviembre también es el primer día hábil');
-  assert.deepEqual(A.tiposDeHoy(ana, '2026-11-09'), ['pideYa', 'seAgota', 'enCero', 'porRecibir', 'dineroQuieto']);
+  assert.deepEqual(A.tiposDeHoy(ana, LUNES), ['pideYa', 'seAgota', 'enCero', 'dineroQuieto', 'sobran', 'sinDatos'], 'el lunes 2 de noviembre también es el primer día hábil');
+  assert.deepEqual(A.tiposDeHoy(ana, '2026-11-09'), ['pideYa', 'seAgota', 'enCero', 'dineroQuieto', 'sinDatos']);
   assert.deepEqual(A.tiposDeHoy(ana, PRIMER_HABIL), ['pideYa', 'seAgota', 'sobran']);
-  assert.deepEqual(A.tiposDeHoy(carla, MIERCOLES), ['pideYa', 'seAgota', 'enCero', 'porRecibir', 'sinDatos']);
+  assert.deepEqual(A.tiposDeHoy(carla, MIERCOLES), ['pideYa', 'seAgota', 'enCero', 'sinDatos']);
   assert.ok(!A.tiposDeHoy(carla, PRIMER_HABIL).includes('sobran'), 'el operador no recibe lo que sobra');
   assert.ok(!A.tiposDeHoy(carla, LUNES).includes('dineroQuieto'));
 });
 
-test('porAprobar solo a quien aprueba y sinDatos solo a quien administra o es operador', () => {
+test('porAprobar solo a quien aprueba (nunca a un operador) y sinDatos a todos los roles', () => {
   const ana = { perfil: 'analista', preferencias: {}, aprueba: false, admin: false };
   assert.ok(!A.tiposDeHoy(ana, MIERCOLES).includes('porAprobar'));
   assert.ok(A.tiposDeHoy({ ...ana, aprueba: true }, MIERCOLES).includes('porAprobar'));
-  assert.ok(!A.tiposDeHoy(ana, '2026-11-09').includes('sinDatos'), 'la analista que no administra no lo recibe');
+  assert.ok(!A.tiposDeHoy({ ...ana, perfil: 'operador', aprueba: true }, MIERCOLES).includes('porAprobar'), 'un operador no abre los pedidos');
+  assert.ok(A.tiposDeHoy(ana, '2026-11-09').includes('sinDatos'), 'el administrador mantiene los datos');
   assert.ok(A.tiposDeHoy({ ...ana, admin: true }, '2026-11-09').includes('sinDatos'));
 });
 
@@ -88,7 +86,8 @@ test('lo que la persona cambia manda sobre su perfil; con todo en nunca no sale 
   const nunca = Object.fromEntries(A.TIPOS.map((t) => [t, 'nunca']));
   assert.deepEqual(A.tiposDeHoy({ perfil: 'operador', preferencias: { alertas: nunca }, aprueba: true, admin: true }, LUNES), []);
   const propias = { alertas: { sobran: 'diario', pideYa: 'cada hora' } };
-  assert.equal(A.alertasDe(propias, 'operador').sobran, 'diario');
+  assert.equal(A.alertasDe(propias, 'operador').sobran, 'nunca', 'el operador no recibe sobrestock aunque lo pida');
+  assert.equal(A.alertasDe(propias, 'analista').sobran, 'diario');
   assert.equal(A.alertasDe(propias, 'operador').pideYa, 'diario', 'una frecuencia que no existe se ignora');
   assert.equal(A.alertasDe(propias, 'analista').enCero, 'semanal', 'lo que no tocó sigue su perfil');
 });
@@ -131,7 +130,7 @@ test('sin nada que decir no hay secciones (sin_novedad); sinDatos solo después 
   const inv = inventario();
   inv.productos = [producto('D', 'normal', 50, 6)];
   inv.resumen = { ...inv.resumen, tieneCostos: false, dineroQuieto: null };
-  assert.deepEqual(correo(analista, A.TIPOS, { inv, ctx: { porAprobar: [], porRecibir: [], sinDatos: { dias: 3 } } }).secciones, []);
+  assert.deepEqual(correo(analista, A.TIPOS, { inv, ctx: { porAprobar: [], sinDatos: { dias: 3 } } }).secciones, []);
   assert.equal(correo(analista, ['sinDatos'], { inv, ctx: { sinDatos: { dias: 4 } } }).secciones.length, 1);
 });
 
@@ -152,33 +151,12 @@ test('qué cambió: cada sección se compara con la última vez que se revisó, 
   assert.equal(cambiosDesde(null, s), null, 'la primera vez no hay con qué comparar');
 });
 
-test('pedidos por aprobar y entregas atrasadas', () => {
-  const c = correo(analista, ['porAprobar', 'porRecibir'], {
-    ctx: {
-      porAprobar: [{ id: 9, numero: 3, preparadoPor: 'Carlos', lineas: 12, enviadoDia: '2026-10-27' }],
-      porRecibir: [{ pedidoId: 5, numero: 2, proveedor: 'Cementos', pedidoEl: '2026-10-01', esperado: '2026-10-15', diasTarde: 9, pendientes: 4 }],
-    },
+test('pedidos por aprobar', () => {
+  const c = correo(analista, ['porAprobar'], {
+    ctx: { porAprobar: [{ id: 9, numero: 3, preparadoPor: 'Carlos', lineas: 12, enviadoDia: '2026-10-27' }] },
   });
-  assert.equal(c.asunto, 'Por aprobar: 1 pedido y 1 aviso más · Ferretería Ana');
+  assert.equal(c.asunto, 'Por aprobar: 1 pedido · Ferretería Ana');
   assert.match(c.texto, /Pedido 3, de Carlos: 12 productos, enviado el 27 de octubre/);
-  assert.match(c.texto, /Cementos, pedido 2 del 1 de octubre: debía llegar el 15 de octubre \(9 días hábiles de retraso\)\. Faltan 4 productos/);
-});
-
-test('atrasadosDe: un proveedor que ya pasó su tiempo de entrega, en días hábiles', () => {
-  const ajustes = leerAjustes({ entregasDias: { Cementos: 5 }, entregas: { Pinturas: 4 } });
-  const esperando = [{
-    pedidoId: 1, numero: 1, por: 'Ana', terminadoEn: '2026-10-19T15:00:00Z',
-    proveedores: [
-      { proveedor: 'Cementos', lineas: [{ codigo: 'C1', recibido: null }, { codigo: 'C2', recibido: { cantidad: 3 } }] },
-      { proveedor: 'Pinturas', lineas: [{ codigo: 'P1', recibido: null }] },
-      { proveedor: 'Tornillos', lineas: [{ codigo: 'T1', recibido: { cantidad: 1 } }] },
-    ],
-  }];
-  const fechaDe = (v) => String(v).slice(0, 10);
-  const r = atrasadosDe(esperando, ajustes, MIERCOLES, fechaDe);
-  // Cementos: 5 hábiles desde el lunes 19 = lunes 26; el miércoles 28 lleva 2 de retraso.
-  // Pinturas: 4 semanas = 20 hábiles, todavía no. Tornillos: ya llegó todo.
-  assert.deepEqual(r, [{ pedidoId: 1, numero: 1, por: 'Ana', proveedor: 'Cementos', pedidoEl: '2026-10-19', esperado: '2026-10-26', diasTarde: 2, pendientes: 1 }]);
 });
 
 test('el HTML escapa lo que viene de los datos', () => {

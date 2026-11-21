@@ -7,7 +7,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { usePathname, useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
 import { fijarUnidad, type Unidad } from '@/lib/formato'
-import type { Inventario, Perfil, RespuestaInventario, Usuario } from '@/lib/tipos'
+import type { Condiciones, Inventario, Perfil, RespuestaInventario, Usuario } from '@/lib/tipos'
 
 export type Fuente = { tipo: 'demo'; sector: string } | { tipo: 'cuenta' }
 
@@ -99,7 +99,7 @@ type EstadoInventario = {
   cambiarTiempo: (t: { unidad?: Unidad; horizonte?: number }) => Promise<void>
 }
 
-export type Ajustes = Partial<{ entregas: Record<string, number>; entregasDias: Record<string, number>; entregaPorDefecto: number; entregaPorDefectoDias: number | null; cadaCuanto: number; semanasAgota: number; asignaciones: Record<string, string>; prefijos: { prefijo: string; proveedor: string }[] }>
+export type Ajustes = Partial<{ entregas: Record<string, number>; entregasDias: Record<string, number>; entregaPorDefecto: number; entregaPorDefectoDias: number | null; cadaCuanto: number; semanasAgota: number; asignaciones: Record<string, string>; prefijos: { prefijo: string; proveedor: string }[]; condiciones: Record<string, Condiciones>; cadaCuantoProv: Record<string, number>; importaciones: boolean }>
 
 const InventarioCtx = createContext<EstadoInventario | null>(null)
 
@@ -161,7 +161,8 @@ export function InventarioProvider({ fuente, children }: { fuente: Fuente; child
         const resp: RespuestaInventario = 'puedeSubir' in r ? r : { inventario: r.inventario, puedeSubir: false, sugerencias: true, finPrueba: null }
         setRespuesta(resp)
         if (fuente.tipo === 'cuenta') {
-          if (resp.inventario) {
+          // Un operador no abre los pedidos (el servidor responde 403): no hay borrador que pedir.
+          if (resp.inventario && usuario?.rolEmpresa !== 'operador') {
             api<{ pedido: { lineas: { codigo: string; cantidad: number | string }[] } | null }>('GET', '/pedidos/borrador')
               .then((b) => vivo && setPedido(Object.fromEntries((b.pedido?.lineas || []).map((l) => [l.codigo, Number(l.cantidad) || 0]))))
               .catch(() => {})
@@ -243,9 +244,8 @@ export function InventarioProvider({ fuente, children }: { fuente: Fuente; child
       },
       ...vista,
       cambiarPerfil: async (perfil) => {
-        if (fuente.tipo === 'demo') return guardarVistaDemo({ perfil })
-        const r = await api<{ usuario: Usuario }>('PUT', '/cuenta/perfil', { perfil })
-        fijar(r.usuario)
+        // Solo la demo: en una cuenta el rol lo da la invitación y no se cambia a sí mismo.
+        if (fuente.tipo === 'demo') guardarVistaDemo({ perfil })
       },
       cambiarTiempo: async (t) => {
         if (fuente.tipo === 'demo') return guardarVistaDemo(t)

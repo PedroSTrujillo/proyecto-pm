@@ -27,6 +27,167 @@
 
 ---
 
+## 2026-11-21 (69) — Claude — T14: importadores y contenedores (última tarea del plan)
+- **Rama:** `cambios-sinesc`, solo en local, sin commit (T5 a T13 tampoco).
+- **Estado:** T14 hecha como **extensión opcional**: `ajustes.importaciones` (apagada por defecto, casilla discreta al final de Proveedores). Apagada, la ficha, el pedido y los productos se ven como siempre y el servidor no recorta nada. Encendida: `condiciones[prov].contenedores` + `tipoContenedor` (cada proveedor se marca nacional o internacional con `condiciones[prov].internacional`, a pedido del usuario; los nacionales no llevan contenedores ni medidas, y el servidor descarta los contenedores de uno que no sea internacional), medidas por producto en la ficha del proveedor (`productos.medidas_cm`, "40x30x20"), `server/contenedores.js` (`capacidadDe`, `volumenDe`, `ajustarAContenedores`), recorte en `crearDesdeSugerido` y "Ocupa X de N contenedores" en el grupo del pedido (rojo si pasa).
+- **Desvíos del plan:** se guardan las **medidas** (`medidas_cm`) y no `volumen_paquete`, para poder editarlas; las medidas se editan solo en la ficha del proveedor (no en la del producto).
+- **Archivos tocados:** `server/contenedores.js` (nuevo), `db.js`, `movimientos.js`, `inventario.js`, `pedidos.js`; web `proveedores.tsx`, `pedido-preparar.tsx`, `contexto.tsx`, `lib/tipos.ts`; pruebas `test/contenedores.test.js` (nuevo), `pedidos-sugerido.test.js`, `catalogo-motor.test.js`; docs `modelo-rotacion.md` §9.1, `ENTREGABLE_Y_APP.md` (fila 26), `CLAUDE.md`, `README.md`.
+- **Base de datos:** columna `productos.medidas_cm TEXT` (en `ESQUEMA`).
+- **Verificación:** `npm test` 225 de 225; `tsc --noEmit` limpio; `npm run texto` sin frases nuevas propias. **No se probó en el navegador.**
+- **Siguiente paso exacto:** T1 a T14 están implementadas en local. Falta: probar todo en el navegador (recorrido de punta a punta de `docs/PLAN_CAMBIOS_SINESC.md`), confirmar con el equipo lo de T5 (un pedido aprobado cuenta en la estimación) y las capacidades de los contenedores, hacer commit, y publicar solo cuando cierre el piloto de Alpha 0.2 (T9 y T10 juntas).
+- **Notas y bloqueos:** capacidades 33 y 67 m³ y estiba 0,85 son supuestos de referencia. Solo cuenta el volumen (no el peso). Los pedidos armados a mano no se recortan: solo avisan. Nada de lo de T5 a T14 se publica con el piloto abierto.
+
+---
+
+## 2026-11-21 (68) — Claude — Proveedores como tabla y "cada cuánto se pide" por proveedor
+- **Rama:** `cambios-sinesc`, solo en local, sin commit (T5 a T13 tampoco).
+- **Estado:** pedido del usuario sobre T12. La pantalla Proveedores muestra una tabla (proveedor, productos, tarda en llegar con su unidad, cada cuánto se le pide) y una tarjeta aparte "Productos sin proveedor" con los ajustes generales (tiempo por defecto y cada cuánto). `ajustes.cadaCuantoProv { proveedor: semanas }` (1 a 26) reemplaza a `cadaCuanto` en el sugerido de sus productos (`inventario.js`, `entrega + cadaCuanto`); el producto devuelve `cadaCuanto`. El PDF de un pedido de un proveedor dice el suyo.
+- **Archivos tocados:** `server/inventario.js`, `server/pedidos.js`, `test/catalogo-motor.test.js` (una prueba nueva); web `proveedores.tsx`, `productos.tsx`, `catalogo.tsx`, `contexto.tsx`, `lib/tipos.ts`; docs `modelo-rotacion.md` §9.1, `ENTREGABLE_Y_APP.md` (fila 24), `CLAUDE.md`, `README.md`, este archivo.
+- **Base de datos:** sin cambios (JSON `empresas.inventario`).
+- **Verificación:** `npm test` 217 de 217; `tsc --noEmit` limpio; `npm run texto` sin frases nuevas propias. **No se probó en el navegador.**
+- **Siguiente paso exacto:** T14 (importadores y contenedores), la última.
+- **Notas y bloqueos:** cambia el sugerido de quien ponga un "cada cuánto" propio a un proveedor: no se publica con el piloto abierto. La frase "más X" del pedido armado desde lo sugerido (`pedido-sugerido.tsx`) y la del paso "Comparar con mi propia lista" siguen con el general (`shortcut`). No hay cómo volver un proveedor al general una vez que tiene el suyo.
+
+---
+
+## 2026-11-21 (67) — Claude — T13: condiciones de pedido por proveedor
+- **Rama:** `cambios-sinesc`, solo en local, sin commit (T5 a T12 tampoco).
+- **Estado:** T13 hecha. `ajustes.condiciones { proveedor: { minimoEnvio } }` en `leerAjustes`. **El paquete y el mínimo por producto son solo de cada producto**, por indicación del usuario (se habían hecho primero por proveedor y se quitó): la ficha del proveedor los deja editar por producto (`POST /api/catalogo/lote`, el mismo de la ficha del producto). El sugerido no cambia respecto a antes de T13. Web: tarjeta "Mínimo del pedido" y campos Paquete y Mínimo por producto en la ficha del proveedor; `pedido-preparar.tsx` avisa "Faltan N unidades para el mínimo de envío" en el grupo (solo avisa); 
+- **Archivos tocados:** `server/inventario.js`, `test/catalogo-motor.test.js` (una prueba nueva); web `proveedores.tsx`, `pedido-preparar.tsx`, `catalogo.tsx`, `contexto.tsx`, `lib/tipos.ts`; docs `modelo-rotacion.md` §9.1, `ENTREGABLE_Y_APP.md` (fila 25), `CLAUDE.md`, `README.md`, este archivo.
+- **Base de datos:** sin cambios (va dentro del JSON `empresas.inventario`).
+- **Verificación:** `npm test` 216 de 216; `tsc --noEmit` limpio; `npm run texto` sin frases nuevas propias. **No se probó en el navegador.**
+- **Siguiente paso exacto:** T14 (importadores y contenedores), la última.
+- **Notas y bloqueos:** T13 ya no cambia el sugerido por sí sola. El mínimo de envío va por nombre de proveedor. El mínimo del envío es en unidades, no en dinero. Sigue pendiente confirmar con el equipo lo de T5; T9 y T10 salen juntas.
+
+---
+
+## 2026-11-21 (66) — Claude — T12: pestaña Proveedores
+- **Rama:** `cambios-sinesc`, solo en local, sin commit (T5 a T11 tampoco).
+- **Estado:** T12 hecha. Nueva pestaña `/proveedores` (`proveedores.tsx`, solo gerente y administrador; en el menú del administrador y del gerente en vista maestro). Se movió ahí el componente de proveedores de Datos, con un selector de unidad por proveedor (días hábiles, calendario o semanas). `leerAjustes` guarda `unidades`; la web convierte al leer y al guardar y el servidor sigue con `entregasDias` en días hábiles. `Contador` suma la unidad `dias-calendario`. Los textos de Panel y Pedidos que mandaban a Datos para el tiempo del proveedor ahora dicen Proveedores.
+- **Ficha del proveedor (pedida después):** "Ver y asignar productos" en cada fila abre su ficha (`FichaProveedor`): sus productos y "Agregar productos" con filtro Todos / Sin proveedor / Con otro proveedor, buscador, casillas y "marcar los que se ven"; asigna o cambia de proveedor con un solo `guardarAjustes({ asignaciones })`. Sin cambios de servidor; muestra hasta 200 a la vez.
+- **Archivos tocados:** `server/inventario.js`, `test/catalogo-motor.test.js`; web `proveedores.tsx` (nuevo), `app/(app)/proveedores/page.tsx` (nuevo), `datos.tsx`, `ui.tsx`, `marco.tsx`, `panel.tsx`, `pedido-flujo.tsx`, `lib/tipos.ts`; docs.
+- **Base de datos:** sin cambios (`unidades` va dentro del JSON `empresas.inventario`).
+- **Verificación:** `npm test` 215 de 215; `tsc --noEmit` limpio; `npm run texto` solo falsos positivos. **No se probó en el navegador.**
+- **Siguiente paso exacto:** T13 (condiciones de pedido por proveedor), luego T14.
+- **Notas y bloqueos:** la demo ya no muestra proveedores (estaban en Datos). "Los demás" y el proveedor nuevo siguen en días hábiles. El umbral de "se agota" se quedó en Datos. Sigue pendiente confirmar con el equipo lo de T5; T9 y T10 salen juntas.
+
+---
+
+## 2026-11-21 (65) — Claude — T11: suspender y reactivar cuentas
+- **Rama:** `cambios-sinesc`, solo en local, sin commit (T5 a T10 tampoco).
+- **Estado:** T11 hecha. `usuarios.suspendida_en`; `cargarUsuario` ignora la sesión de una cuenta suspendida (401 en todas las rutas), `/entrar` responde 403 con "Su cuenta está suspendida…" solo si la clave es correcta, `/olvide` no envía el enlace, `/restablecer` la rechaza y el boletín diario la salta. El equipo usa `POST /api/equipo/cuentas/:id/suspender|reactivar` (no a cuentas del equipo ni a sí mismo; suspender borra sus sesiones; eventos con el correo enmascarado). Web: chip "Suspendida" y botón "Suspender/Reactivar cuenta" en el detalle de Cuentas.
+- **Archivos tocados:** `server/db.js`, `cuentas.js`, `cuentas-equipo.js`, `boletin.js`; web `cuentas-equipo.tsx`; prueba nueva en `test/cuentas-equipo.test.js`; docs `ENTREGABLE_Y_APP.md` (fila 23), `CLAUDE.md`, `README.md`, este archivo.
+- **Base de datos:** columna `usuarios.suspendida_en` (en `ESQUEMA`).
+- **Verificación:** `npm test` 214 de 214; `tsc --noEmit` limpio; `npm run texto` solo falsos positivos. **No se probó en el navegador.**
+- **Siguiente paso exacto:** T12 (pestaña Proveedores); T13 y T14 después.
+- **Notas y bloqueos:** se suspende por cuenta, una por una (`shortcut`: botón de toda la empresa si hace falta). Sigue pendiente confirmar con el equipo lo de T5; T9 y T10 salen juntas.
+
+---
+
+## 2026-11-21 (64) — Claude — T10: códigos de acceso de un solo uso
+- **Rama:** `cambios-sinesc`, solo en local, sin commit (T5 a T9 tampoco).
+- **Estado:** T10 hecha. `POST /api/cuenta/crear` exige `codigo` y lo consume en la misma `db.tx` (`UPDATE … WHERE usado_en IS NULL RETURNING`); si algo falla después, el código no se pierde. También lo pide quien entra por invitación. `cuentas-equipo.js`: `GET/POST /api/equipo/cuentas/codigos` (1 a 20 por vez, formato `XXXX-XXXX` sin 0/O/1/I) y `crearCodigos` exportado. Web: campo "Código de acceso" en `CrearCuenta` y tarjeta "Códigos de acceso" en Cuentas (generar, copiar, ver quién lo usó). Nadie se exime del código, ni `TEAM_EMAILS` (el correo no está verificado).
+- **Archivos tocados:** `server/db.js`, `server/cuentas.js`, `server/cuentas-equipo.js`; web `cuenta-formularios.tsx`, `cuentas-equipo.tsx`; pruebas: `test/codigo.js` (ayudante `conCodigo`, aplicado a todas las creaciones de cuenta de 11 archivos) y una prueba nueva en `cuentas-equipo.test.js`; docs `ENTREGABLE_Y_APP.md` (fila 22), `CLAUDE.md`, `README.md`, este archivo.
+- **Base de datos:** tabla `codigos_acceso` (en `ESQUEMA`, sin migración).
+- **Verificación:** `npm test` 213 de 213; `tsc --noEmit` limpio; `npm run texto` solo marca falsos positivos. **No se probó en el navegador.**
+- **Siguiente paso exacto:** T11 (suspender cuentas), o T12 antes de T13 y T14.
+- **Notas y bloqueos:** en una base nueva no hay con qué crear la primera cuenta: generar un código por consola (comando en CLAUDE.md). Los códigos no vencen ni se pueden anular desde la pantalla (`shortcut`). T9 y T10 salen juntas cuando cierre el piloto. Sigue pendiente confirmar con el equipo lo de T5.
+
+---
+
+## 2026-11-21 (63) — Claude — T9: precio en la página principal
+- **Rama:** `cambios-sinesc`, solo en local, sin commit (T5 a T8 tampoco).
+- **Estado:** T9 hecha. `components/landing/pricing-section.tsx` reescrita: tres tarjetas (82.500 una persona, 90.000 con un operador —la destacada, con "Crear mi cuenta"—, +10.000 por cada adicional), "Todos los planes incluyen" y la línea del código de acceso (lo implementa T10). Se quitó "Versión piloto" de `cta-section.tsx` y **todo lo que decía lo que SINESC no hace** en la landing (decisión del usuario, por recomendación): la tarjeta "Lo que no hace" y la reformulación en positivo de dos preguntas del FAQ, de `how-it-works.tsx` y de `calculator-section.tsx`. Los precios **no llevan IVA** (SaaS en línea): no se aclara en la página, solo aquí y en `ENTREGABLE_Y_APP.md`.
+- **Archivos tocados:** web `components/landing/` `pricing-section.tsx`, `cta-section.tsx`, `faq-section.tsx`, `how-it-works.tsx`, `calculator-section.tsx`; docs `ENTREGABLE_Y_APP.md` (fila 21), este archivo. Servidor sin cambios.
+- **Verificación:** `npm test` 212 de 212; `tsc --noEmit` limpio; `npm run texto` solo marca "incluyen" (falso positivo). **No se probó en el navegador.**
+- **Siguiente paso exacto:** T10 (códigos de acceso de un solo uso) o T11 (suspender cuentas); T12 antes de T13 y T14.
+- **Notas y bloqueos:** nada se publica mientras siga el piloto de Alpha 0.2, y T9 debe salir junto con T10 (la página ya habla del código). Sigue pendiente confirmar con el equipo lo de T5.
+
+---
+
+## 2026-11-21 (62) — Claude — T8: pantalla de Reportes
+- **Rama:** `cambios-sinesc`, solo en local, sin commit (T5, T6 y T7 tampoco).
+- **Estado:** T8 hecha. `app/(app)/reportes/page.tsx` (con `SoloRol` de gerente y administrador) y `components/app/reportes.tsx`: una `TarjetaReporte` por reporte, con su propio periodo (`Pildoras`: 7, 30, 90 días o entre fechas), "Ver" (`api` a `/reportes/:id`, tabla genérica de hasta 300 filas) y "Descargar" (`bajar` del `.xlsx`). Ítem "Reportes" en `itemsDe` (`marco.tsx`) para la vista principal y la maestro del gerente y para el administrador; el operador y la demo no lo llevan. Servidor sin cambios.
+- **Verificación:** `npm test` 212 de 212; `tsc --noEmit` limpio. **No se probó en el navegador.**
+- **Siguiente paso exacto:** T9 (precio en la página principal), T10 (códigos de acceso de un uso) o T11 (suspender cuentas), que no dependen de nada. T12 antes de T13 y T14.
+- **Notas y bloqueos:** nada se publica mientras siga el piloto de Alpha 0.2. Sigue pendiente confirmar con el equipo lo de T5.
+
+---
+
+## 2026-11-21 (61) — Claude — T7: reportes en el servidor
+- **Rama:** `cambios-sinesc`, solo en local, sin commit (T5 y T6 tampoco).
+- **Estado:** T7 hecha. `server/reportes.js` (nuevo, montado en `app.js` con `requiereRol('gerente','administrador')`): `GET /api/reportes/:tipo` y `/:tipo.xlsx` con `desde` y `hasta` (por defecto, últimos 30 días). Tipos: `mas-vendidos`, `menos-vendidos`, `proyectos`, `venta-unica`, `pedidos`. `ventasEnRango(series, desde, hasta)` es nueva en `server/series.js` (prorratea por días la semana que cruza el rango). `inventarioDeEmpresa` devuelve también `series`. Se desvía del plan en una cosa: la semana parcial se prorratea en vez de contar entera.
+- **Archivos tocados:** `server/` `reportes.js` (nuevo), `series.js`, `inventario-rutas.js` (una línea), `app.js`; `test/reportes.test.js` (nuevo, 5 pruebas); docs `CLAUDE.md`, `README.md`, `ENTREGABLE_Y_APP.md` (fila 19), este archivo.
+- **Verificación:** `npm test` 212 de 212; `tsc --noEmit` limpio. No se probó en el navegador; el servidor local hay que reiniciarlo para ver la ruta.
+- **Siguiente paso exacto:** T8 (pantalla de Reportes: `app/(app)/reportes/page.tsx`, `components/app/reportes.tsx`, ítem en `itemsDe`, usa `SoloRol`). Después T9, T10, T11; T12 antes de T13 y T14.
+- **Notas y bloqueos:** el reporte de pedidos no lleva valor (`lista_final` no guarda costo). Nada se publica mientras siga el piloto de Alpha 0.2. Sigue pendiente confirmar con el equipo lo de T5.
+
+---
+
+## 2026-11-21 (60) — Claude — T6: Movimientos abre en "Varios a la vez" con el archivo como acción principal
+- **Rama:** `cambios-sinesc`, solo en local, sin commit (T5 tampoco).
+- **Estado:** T6 hecha. `movimientos.tsx` arranca en `varios` (lo guardado en `localStorage['movimientos-modo']` se respeta) y las pildoras van "Varios a la vez" y "Un movimiento". En `PegarVarios`, `ImportarLista` sube arriba de las pildoras de qué registrar, con la prop nueva `principal` (botón primario, `clasesBoton`); el "Guardar N filas" es primario solo cuando hay filas. Pedidos usa `ImportarLista` sin la prop y no cambia.
+- **Archivos tocados:** web `components/app/` `movimientos.tsx`, `pedido-flujo.tsx`; docs `ENTREGABLE_Y_APP.md` (fila 18 y línea de Movimientos), este archivo. Servidor sin cambios.
+- **Verificación:** `npm test` 207 de 207; `tsc --noEmit` limpio. **No se probó en el navegador.**
+- **Siguiente paso exacto:** T9 (precio en la página principal), T10 (códigos de acceso de un uso) o T11 (suspender cuentas), que no dependen de nada. T12 antes de T13 y T14.
+- **Notas y bloqueos:** nada se publica mientras siga el piloto de Alpha 0.2. Sigue pendiente confirmar con el equipo lo de T5 (pedido aprobado cuenta en la estimación).
+
+---
+
+## 2026-11-20 (59) — Claude — T5: los pedidos no tocan el inventario; lo pedido cuenta en camino hasta que entra
+- **Rama:** `cambios-sinesc`, solo en local, sin commit.
+- **Estado:** T5 hecha, con una decisión tuya que se aparta del documento del equipo: se quitó "Registrar la llegada" (`server/recepcion.js`, `/recibir`, `/por-recibir`, `/:id/recepcion`, `recepcion.tsx`) y la alerta `porRecibir` ("Entregas atrasadas"), pero un pedido **cerrado** (aprobado, o cerrado por quien lo preparó si nadie aprueba) sigue contando "en camino" en el sugerido y el "pida ya" hasta que se registre la entrada en Movimientos (`pedido − entradas desde ese día`) o venza `máx(14 días, tiempo de entrega)`. Las existencias no cambian por un pedido. Nuevo `server/en-camino.js` (`pedidosRecientes`, `enCaminoDe`, `firmaEnCamino`); Existencias tiene la columna "Pedido: N". `server/inventario.js` no cambió (el `enCamino` sigue entrando a `construirInventario`).
+- **Archivos tocados:** `server/` `en-camino.js` (nuevo), `recepcion.js` (borrado), `pedidos.js`, `inventario-rutas.js`, `boletin.js`, `boletin-correo.js`, `alertas.js`, `db.js` (comentario), `inventario.js` (comentario); web `components/app/` `existencias.tsx`, `productos.tsx`, `pedidos.tsx`, `pedido-flujo.tsx`, `cuenta.tsx`, `recepcion.tsx` (borrado), `components/landing/equipo-section.tsx`, `lib/tipos.ts`; pruebas `recepcion-datos` (una nueva de entradas y ventana), `aprobacion`, `alertas`, `boletin`, `catalogo-motor`; `CLAUDE.md`, `README.md`, `docs/modelo-rotacion.md` (§10.1, §9.5, §11), `docs/ENTREGABLE_Y_APP.md` (fila 17), `docs/USO_DE_IA.md`, `docs/PLAN_ALPHA_02.md` (nota).
+- **Base de datos:** sin columnas nuevas; `pedidos.recibido` y `movimientos.pedido_id` quedan sin uso (y las llegadas viejas siguen en Movimientos).
+- **Verificación:** `npm test` 207 de 207; `tsc --noEmit` limpio; `npm run texto` solo falsos positivos de SQL. **No se probó en el navegador.**
+- **Siguiente paso exacto:** T6 (Movimientos: "Varios a la vez" por defecto e "Importar archivo" como acción principal) o T9/T10/T11, que no dependen de nada. T12 antes de T13 y T14.
+- **Notas y bloqueos:** hay que confirmar con el equipo que un pedido aprobado cuente en la estimación (el documento de cambios dice que no). Si prefieren lo del documento, es quitar `enCamino` de `construirInventario` y de las 4 llamadas (`pedidos.js`, `inventario-rutas.js` x2, `boletin.js`). Límite: si la mercancía entra solo por un archivo nuevo, el pedido sigue contando hasta que venza la ventana. No publicar mientras siga el piloto.
+
+## 2026-11-20 (58) — Claude — T4: el operador restringido en el servidor y sin dinero
+- **Rama:** `cambios-sinesc`, solo en local, sin commit (T2 y T3 tampoco están en un commit).
+- **Estado:** T4 hecha. `/api/pedidos/*` entero (`pedidos.js`), `PUT /api/inventario/ajustes` y `POST /api/catalogo`, `PUT /api/catalogo/:id` y `POST /api/catalogo/lote` llevan `requiereAdminEmpresa`. El operador no recibe `costo` (`vistaProducto(p, usuario)` en `movimientos.js`, `resumirParaOperador`), `alertasDe` le fuerza `dineroQuieto` y `sobran` en `nunca`, y no aprueba (`PUT /miembros/:id` lo deja en `false`; `tiposDeHoy` no le manda `porAprobar`). Subir el archivo de inventario exige `usuarios.sube_datos` para un operador (`permisos()` en `inventario-rutas.js`); la marca va por `PUT /api/empresa/miembros/:id { subeDatos }` y la web (Mi empresa) tiene "Puede subir datos". `sinDatos` ahora le llega a todos los roles. Web: Datos explica el permiso, Productos esconde el cambio de proveedor al operador, y el contexto y el menú no piden pedidos si es operador.
+- **Archivos tocados:** `server/` `db.js`, `cuentas.js`, `pedidos.js`, `inventario-rutas.js`, `movimientos.js`, `inventario.js`, `alertas.js`, `empresas.js`; web `lib/tipos.ts`, `components/app/` `empresa.tsx`, `datos.tsx`, `productos.tsx`, `contexto.tsx`, `marco.tsx`, `cuenta.tsx`; pruebas `empresas`, `aprobacion`, `alertas`, `boletin`, `recepcion-datos`; `CLAUDE.md`; `docs/ENTREGABLE_Y_APP.md` (fila 16).
+- **Base de datos:** `usuarios.sube_datos BOOLEAN NOT NULL DEFAULT false` (en `ESQUEMA`).
+- **Verificación:** `npm test` 210 de 210 (una prueba nueva en `empresas.test.js`, en una empresa aparte para no mover el catálogo ni los movimientos de las demás); `tsc --noEmit` limpio; `npm run texto` solo marca falsos positivos de SQL ("sube", "aprueba"). **No se probó en el navegador.**
+- **Siguiente paso exacto:** T5 (quitar la llegada de pedidos y lo "en camino"; el pedido solo da el documento y un aviso "Pedido: N" en Existencias). Borrar `server/recepcion.js`, `enCamino` de `inventario.js` y `CAMPOS_RESUMEN_OPERADOR`, y las 4 pruebas de llegada de `test/recepcion-datos.test.js`.
+- **Notas y bloqueos:** una prueba de `alertas.test.js` pasa a Carla de operadora a administradora por la base solo para crear un pedido (un operador ya no abre `/api/pedidos`); si molesta, se reescribe con otro administrador. `boletin.test.js` ahora afirma que el administrador sí recibe `sinDatos` (decisión mía en el plan; avísenme si no). No publicar mientras siga el piloto.
+
+## 2026-11-20 (57) — Claude — T3: menú por rol y vista principal/maestro del gerente
+- **Rama:** `cambios-sinesc`, solo en local, sin commit (T2 tampoco está en un commit).
+- **Estado:** T3 hecha en la web. `itemsDe` (`marco.tsx`) arma el menú por rol; el gerente alterna entre vista principal y maestro con `SelectorVistaGerente` (`vista.tsx`, guardado en `localStorage`, comentario `shortcut:`). `SoloRol` (`solo-rol.tsx`) guarda Panel, Mi empresa y `/pedidos/*` (`pedidos/layout.tsx`) y manda a `INICIO[rol]`; el enlace de la marca también. Decisión del equipo en esta sesión: el administrador sí ve Mi empresa, así que la vista maestro del gerente es igual al menú del administrador. `SelectorPerfil` y el nuevo selector comparten un `Segmentado`.
+- **Archivos tocados:** `components/app/` `vista.tsx`, `marco.tsx`, `solo-rol.tsx` (nuevo); `app/(app)/` `panel/page.tsx`, `empresa/page.tsx`, `pedidos/layout.tsx` (nuevo); `CLAUDE.md`; `docs/ENTREGABLE_Y_APP.md` (fila 16).
+- **Base de datos:** sin cambios.
+- **Verificación:** `tsc --noEmit` limpio; `npm test` 209 de 209; `npm run texto` sin hallazgos nuevos. **No se probó en el navegador.**
+- **Siguiente paso exacto:** T4 (operador restringido en el servidor y sin dinero: `requiereRol` en `/api/pedidos/*`, ajustes y escrituras del catálogo; `usuarios.sube_datos`; quitar `costo` al operador). Hasta T4 el operador puede pedir esas rutas a mano, y desde Productos el botón "Agregar al pedido" lo mandaría a `/pedidos`, que ahora lo devuelve a Movimientos.
+- **Notas y bloqueos:** Proveedores y Reportes se suman al menú con T12 y T8 (cada uno con su `SoloRol`). No publicar mientras siga el piloto.
+
+## 2026-11-20 (56) — Claude — T2: invitar con rol y gestionar miembros (web)
+- **Rama:** `cambios-sinesc`, solo en local, sin commit.
+- **Estado:** T2 de `docs/PLAN_CAMBIOS_SINESC.md` hecha. `FormInvitar` deja elegir el rol al gerente; Mi empresa muestra el rol de cada miembro y deja cambiarlo (select, solo el gerente), el cargo, "Puede aprobar" y "Sacar" solo sobre rangos menores; `sacar` ya no tumba la página con un 403. El registro ya no pide perfil y el operador invitado entra por `/movimientos` según la respuesta del servidor. `SelectorPerfil` solo se dibuja en la demo (`marco.tsx`); se quitó de Mi cuenta y `cambiarPerfil` ya no llama al servidor.
+- **Archivos tocados:** `lib/tipos.ts` (`RolEmpresa`, `Usuario.rolEmpresa`, `miembros[].rol`), `components/app/` `vista.tsx` (`RANGO_ROL`, `TEXTO_ROL`), `invitar.tsx`, `empresa.tsx`, `cuenta-formularios.tsx`, `cuenta.tsx`, `marco.tsx`, `contexto.tsx`; `CLAUDE.md`; `docs/ENTREGABLE_Y_APP.md` (fila 16).
+- **Base de datos:** sin cambios.
+- **Verificación:** `tsc --noEmit` limpio; `npm test` 209 de 209; `npm run texto` igual que antes (49 frases, 3 tuteo, falsos positivos de SQL). **No se probó en el navegador.**
+- **Siguiente paso exacto:** T3 (menú por rol y vista principal/maestro del gerente; `SoloRol`). Ahí el gerente reemplaza a `SelectorPerfil` en el pie del menú.
+- **Notas y bloqueos:** no se muestra el rol al abrir una invitación ni en las invitaciones abiertas (pide un cambio en `server/empresas.js`). La demo conserva su selector analista/operador. No publicar mientras siga el piloto.
+
+## 2026-11-20 (55) — Claude — T1: roles en el servidor (gerente, administrador, operador)
+- **Rama:** `main`, solo en local, sin commit.
+- **Estado:** T1 de `docs/PLAN_CAMBIOS_SINESC.md` hecha en el servidor. El rol sale de `admin_empresa` (gerente) y `perfil` (`analista` = administrador, `operador`); `requiereRol` y `rolEmpresa` en `cuentas.js`; invitar, cambiar y sacar solo a rango menor; no hay `PUT /api/cuenta/perfil`; fundar una empresa da gerente con `aprueba = true`. **La web no se tocó:** el selector de perfil (`SelectorPerfil`, `cambiarPerfil` en `contexto.tsx`) y `ElegirPerfil` del registro apuntan a una ruta que da 404 hasta que se haga T2.
+- **Archivos tocados:** `server/cuentas.js`, `server/empresas.js`, `server/borrar.js`, `server/db.js`; pruebas en `test/empresas.test.js` (prueba nueva de rangos), `aprobacion`, `alertas`, `pedidos-sugerido`, `cuentas-equipo`; `CLAUDE.md`, `docs/ENTREGABLE_Y_APP.md` (fila 16), `docs/PLAN_EMPRESAS_INVENTARIO.md` (D3 revertida).
+- **Base de datos:** `invitaciones.rol TEXT` y un `UPDATE` idempotente que deja a cada `admin_empresa` como `analista` con `aprueba = true`. Sin otras columnas.
+- **Verificación:** `npm test` → 209 de 209; `tsc --noEmit` limpio. No se miró en el navegador.
+- **Siguiente paso exacto:** T2 (selector de rol al invitar y en Mi empresa; quitar `SelectorPerfil`/`ElegirPerfil`; `rolEmpresa` en `lib/tipos.ts`). `vistaEmpresa` ya devuelve `rol` por miembro; falta `rol` en `invitacionesAbiertas` y en `GET /invitaciones/:token` si T2 lo muestra.
+- **Notas y bloqueos:** una invitación sin `rol` entra como operador. Hasta T4 el operador todavía puede escribir (ajustes, catálogo, pedidos). El administrador no recibe la alerta `sinDatos` (`alertas.js:89`, solo gerente y operador); decidir en T4. Como el gerente aprueba, en empresas de varias personas quien prepara un pedido lo envía en vez de cerrarlo: avisarlo antes de publicar. No publicar mientras siga el piloto.
+
+## 2026-11-20 (54) — Claude — Plan de los cambios de "Cambios SINESC"
+- **Rama:** `main`, solo en local. No se cambió código.
+- **Estado:** solo planeación. `docs/PLAN_CAMBIOS_SINESC.md` divide `../Cambios SINESC.md` en 14 tareas independientes (T1 a T14), con dependencias, archivos, pruebas y notas del análisis. El equipo ya decidió: contenedores con ocupación y recorte greedy; el color es cada código (mínimo por producto); reportes para el operador quedan para después.
+- **Archivos tocados:** `docs/PLAN_CAMBIOS_SINESC.md` (nuevo), `docs/HANDOFF.md`.
+- **Base de datos:** sin cambios.
+- **Verificación:** no aplica (sin código).
+- **Siguiente paso exacto:** empezar por T1 (roles en el servidor) o por cualquiera de las tareas sin dependencias (T5, T6, T9, T10, T11). Leer antes "Notas para las sesiones que implementen", al final del plan.
+- **Notas y bloqueos:** T1, T3, T4 y T5 cambian lo que ve un usuario del piloto, y T5 cambia el sugerido. No se publican mientras el piloto de Alpha 0.2 siga abierto.
+
 ## 2026-11-04 (53) — Claude (con David) — Listado de inventario de Helisa con encabezado en dos filas
 - **Rama:** `main`, en los dos remotos.
 - **Estado:** listo. El listado de inventario que sacan de Helisa no se leía: decía "Falta la columna de existencias". Tenía tres problemas:
