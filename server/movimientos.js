@@ -205,6 +205,7 @@ function vistaProducto(p, usuario) {
     multiplo: numeroONulo(p.multiplo),
     minimoPedido: numeroONulo(p.minimo_pedido),
     sobraSemanas: numeroONulo(p.sobra_semanas),
+    medidas: p.medidas_cm || null,
     activo: p.activo,
   };
 }
@@ -216,8 +217,8 @@ function vistaProducto(p, usuario) {
  */
 async function catalogoEscrito(empresaId) {
   const filas = await db.query(
-    `SELECT clave, familia, multiplo::float AS multiplo, minimo_pedido::float AS minimo, sobra_semanas::float AS sobra FROM productos
-      WHERE empresa_id = $1 AND (familia IS NOT NULL OR multiplo IS NOT NULL OR minimo_pedido IS NOT NULL OR sobra_semanas IS NOT NULL)`,
+    `SELECT clave, familia, multiplo::float AS multiplo, minimo_pedido::float AS minimo, sobra_semanas::float AS sobra, medidas_cm FROM productos
+      WHERE empresa_id = $1 AND (familia IS NOT NULL OR multiplo IS NOT NULL OR minimo_pedido IS NOT NULL OR sobra_semanas IS NOT NULL OR medidas_cm IS NOT NULL)`,
     [empresaId],
   );
   const out = {};
@@ -227,6 +228,7 @@ async function catalogoEscrito(empresaId) {
       ...(f.multiplo > 0 ? { multiplo: f.multiplo } : {}),
       ...(f.minimo > 0 ? { minimoPedido: f.minimo } : {}),
       ...(f.sobra > 0 ? { sobraSemanas: f.sobra } : {}),
+      ...(f.medidas_cm ? { medidas: f.medidas_cm, volumenPaquete: volumenDeMedidas(f.medidas_cm) } : {}),
     };
   }
   return out;
@@ -248,6 +250,17 @@ function leerCantidadCatalogo(v, nombre, donde = '') {
   if (n > 1e6) throw new ErrorUsuario(`${donde}${nombre} es demasiado grande.`);
   return n;
 }
+
+// Medidas de un paquete en cm, "largo x ancho x alto" (T14): se guardan como "40x30x20" y vacío las borra.
+function leerMedidas(v, donde = '') {
+  if (v === undefined || v === null || String(v).trim() === '') return null;
+  const lados = String(v).toLowerCase().replace(/,/g, '.').split(/\s*[x×*]\s*/).map(Number);
+  if (lados.length !== 3 || !lados.every((n) => Number.isFinite(n) && n > 0 && n <= 1000)) {
+    throw new ErrorUsuario(`${donde}Las medidas se escriben como largo × ancho × alto en centímetros, por ejemplo 40 × 30 × 20.`);
+  }
+  return lados.map((n) => Math.round(n * 10) / 10).join('x');
+}
+const volumenDeMedidas = (medidas) => (medidas ? medidas.split('x').reduce((a, n) => a * Number(n), 1) / 1e6 : null);
 
 // Desde cuántas semanas sobra: vacío = las 12 de siempre. Entre 1 y 104 (dos años).
 const MAX_SOBRA_SEMANAS = 104;
@@ -331,7 +344,7 @@ catalogo.put('/:id', requiereAdminEmpresa, async (req, res) => {
 // (código, familia, múltiplo, mínimo, sobra) o desde la ficha de un producto. Solo cambia lo que
 // viene en cada fila: una celda vacía borra ese dato; una columna que no viene lo deja como estaba.
 // Todo o nada.
-const CAMPOS_LOTE = { familia: 'familia', multiplo: 'multiplo', minimo: 'minimo_pedido', sobra: 'sobra_semanas' };
+const CAMPOS_LOTE = { familia: 'familia', multiplo: 'multiplo', minimo: 'minimo_pedido', sobra: 'sobra_semanas', medidas: 'medidas_cm' };
 
 catalogo.post('/lote', requiereAdminEmpresa, async (req, res) => {
   const filas = Array.isArray(req.body?.filas) ? req.body.filas : [];
@@ -340,7 +353,7 @@ catalogo.post('/lote', requiereAdminEmpresa, async (req, res) => {
   const empresaId = req.usuario.empresa_id;
   await asegurarCatalogo(empresaId);
   const claves = [...new Set(filas.map((f) => claveCodigo(f && f.codigo)).filter(Boolean))];
-  const existentes = new Map((await db.query('SELECT id, clave, codigo, familia, multiplo, minimo_pedido, sobra_semanas FROM productos WHERE empresa_id = $1 AND clave = ANY($2::text[])', [empresaId, claves])).map((p) => [p.clave, p]));
+  const existentes = new Map((await db.query('SELECT id, clave, codigo, familia, multiplo, minimo_pedido, sobra_semanas, medidas_cm FROM productos WHERE empresa_id = $1 AND clave = ANY($2::text[])', [empresaId, claves])).map((p) => [p.clave, p]));
   const errores = [];
   const faltan = [];
   const cambios = [];
@@ -356,6 +369,7 @@ catalogo.post('/lote', requiereAdminEmpresa, async (req, res) => {
       if (f.multiplo !== undefined) valores.multiplo = leerCantidadCatalogo(f.multiplo, 'el múltiplo', `Fila ${fila}: `);
       if (f.minimo !== undefined) valores.minimo = leerCantidadCatalogo(f.minimo, 'el mínimo', `Fila ${fila}: `);
       if (f.sobra !== undefined) valores.sobra = leerSobraSemanas(f.sobra, `Fila ${fila}: `);
+      if (f.medidas !== undefined) valores.medidas = leerMedidas(f.medidas, `Fila ${fila}: `);
       if (Object.keys(valores).length) cambios.push({ producto, valores });
     } catch (e) {
       if (!(e instanceof ErrorUsuario)) throw e;
@@ -371,7 +385,7 @@ catalogo.post('/lote', requiereAdminEmpresa, async (req, res) => {
   });
   await catalogoCambio(empresaId);
   // Trazabilidad (SP6): el antes y el después de cada producto.
-  const antesDe = (prod, k) => { const v = prod[CAMPOS_LOTE[k]]; return v === null || v === undefined ? null : k === 'familia' ? v : Number(v); };
+  const antesDe = (prod, k) => { const v = prod[CAMPOS_LOTE[k]]; return v === null || v === undefined ? null : k === 'familia' || k === 'medidas' ? v : Number(v); };
   await registrarEvento(req.usuario.id, 'catalogo_editado', {
     detalle: {
       productos: cambios.length,

@@ -28,6 +28,8 @@ export type Producto = {
   proveedor: string
   origenProveedor: 'producto' | 'archivo' | 'prefijo' | null
   cadaCuanto?: number // cada cuánto se le pide a su proveedor (semanas)
+  medidas?: string | null // largo x ancho x alto de un paquete, en cm (solo importadores, T14)
+  volumenPaquete?: number | null // m³ de un paquete
   entrega: number
   entregaDias?: number | null // si el tiempo de entrega se escribió en días hábiles
   familia?: string | null
@@ -75,8 +77,8 @@ export type Producto = {
   ventaHorizonte?: Pronostico | null
 }
 
-// Lo que pide cada proveedor (T13): el mínimo del envío completo, en unidades.
-export type Condiciones = { minimoEnvio?: number }
+// Lo que pide cada proveedor (T13): el mínimo del envío completo, en unidades; y, si importa (T14), sus contenedores.
+export type Condiciones = { minimoEnvio?: number; contenedores?: number; tipoContenedor?: '20' | '40' }
 
 export type Proveedor = { nombre: string; entrega: number; productos: number; pideYa: number; seAgotan: number }
 
@@ -108,7 +110,7 @@ export type Inventario = {
   horizonte?: number
   // 'operador': las métricas gruesas, con los detalles en null (server/inventario.js, resumirParaOperador).
   vista?: Perfil
-  ajustes: { entregaPorDefecto: number; entregaPorDefectoDias?: number | null; entregasDias?: Record<string, number>; unidades?: Record<string, 'habiles' | 'calendario' | 'semanas'>; condiciones?: Record<string, Condiciones>; cadaCuantoProv?: Record<string, number>; cadaCuanto: number; semanasAgota: number; entregas: Record<string, number>; asignaciones: Record<string, string>; prefijos: { prefijo: string; proveedor: string }[]; nivelServicio: number }
+  ajustes: { entregaPorDefecto: number; entregaPorDefectoDias?: number | null; entregasDias?: Record<string, number>; unidades?: Record<string, 'habiles' | 'calendario' | 'semanas'>; condiciones?: Record<string, Condiciones>; cadaCuantoProv?: Record<string, number>; importaciones?: boolean; cadaCuanto: number; semanasAgota: number; entregas: Record<string, number>; asignaciones: Record<string, string>; prefijos: { prefijo: string; proveedor: string }[]; nivelServicio: number }
   sugerencias: boolean
   alcance: 'completo' | 'prueba'
   temporada: number[] | null

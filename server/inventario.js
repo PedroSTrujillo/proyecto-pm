@@ -67,7 +67,15 @@ function leerAjustes(a) {
   const condiciones = {};
   for (const [k, v] of Object.entries(ajustes.condiciones && typeof ajustes.condiciones === 'object' ? ajustes.condiciones : {})) {
     const n = Number(v && v.minimoEnvio);
-    if (Number.isFinite(n) && n > 0 && n <= 1000000) condiciones[String(k).slice(0, 80)] = { minimoEnvio: n };
+    const c = {};
+    if (Number.isFinite(n) && n > 0 && n <= 1000000) c.minimoEnvio = n;
+    // Importadores (T14): cuántos contenedores piensa contratar y de qué tamaño.
+    const cont = Math.round(Number(v && v.contenedores));
+    if (cont >= 1 && cont <= 50) {
+      c.contenedores = cont;
+      c.tipoContenedor = String(v.tipoContenedor) === '20' ? '20' : '40';
+    }
+    if (Object.keys(c).length) condiciones[String(k).slice(0, 80)] = c;
   }
   // Cada cuánto se le pide a cada proveedor (semanas). Sin valor propio vale `cadaCuanto`, que es también el de los productos sin proveedor.
   const cadaCuantoProv = {};
@@ -96,6 +104,8 @@ function leerAjustes(a) {
     entregasDias,
     unidades,
     condiciones,
+    // La extensión de importadores (contenedores) es de las empresas que la encienden; apagada no se usa nada de ella.
+    importaciones: ajustes.importaciones === true,
     cadaCuantoProv,
     // Se guarda con 3 decimales: en días o meses (la unidad que eligió el usuario) no da un número entero de semanas.
     cadaCuanto: Math.round(num(ajustes.cadaCuanto, CADA_CUANTO_POR_DEFECTO, 1, 26) * 1000) / 1000,
@@ -399,6 +409,8 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
       nombre: f.nombre,
       proveedor,
       cadaCuanto,
+      medidas: datos.medidas || null,
+      volumenPaquete: datos.volumenPaquete > 0 ? datos.volumenPaquete : null,
       origenProveedor,
       entrega,
       entregaDias: ajustes.entregasDias[proveedor] ?? (proveedor === SIN_PROVEEDOR || ajustes.entregas[proveedor] === undefined ? ajustes.entregaPorDefectoDias : null),

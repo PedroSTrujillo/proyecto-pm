@@ -212,3 +212,35 @@ test('alguien de otra empresa no ve el pedido ni sus archivos', async () => {
   assert.equal((await beto.put(`/api/pedidos/${pedido.id}/lista-final`, { lineas: [] })).estado, 404);
   assert.equal((await beto.post('/api/pedidos', { modo: 'sugerido' })).estado, 403, 'su empresa no tiene inventario');
 });
+
+test('importadores: con los contenedores apagados el pedido sale igual; encendidos, se recorta para que quepa', async () => {
+  const ivo = await cuenta('Ivo Importa', 'ivo.importa@prueba.co', 'Importadora Prueba');
+  assert.equal((await ivo.subir('/api/inventario/export', [['inventario.xlsx', await plantillaExport()]])).ok, true);
+  await ivo.put('/api/inventario/ajustes', { asignaciones: { [claveCodigo('TOR-0610')]: 'Fábrica de Asia' }, condiciones: { 'Fábrica de Asia': { contenedores: 1, tipoContenedor: '20' } } });
+  const tor = (await ivo.get('/api/inventario')).inventario.productos.find((p) => p.codigo === 'TOR-0610');
+  assert.ok(tor.sugerido > 0, 'la plantilla sugiere pedir tornillos');
+  assert.equal(tor.volumenPaquete, null);
+
+  // Medidas por paquete que, con lo sugerido, ocupan el doble de lo que cabe en un contenedor de 20'.
+  const capacidad = 33 * 0.85;
+  const paquetes = tor.sugerido / tor.lote;
+  const lado = Math.cbrt(((2 * capacidad) / paquetes) * 1e6);
+  const medidas = `${lado.toFixed(1)}x${lado.toFixed(1)}x${lado.toFixed(1)}`;
+  assert.equal((await ivo.post('/api/catalogo/lote', { filas: [{ codigo: 'TOR-0610', medidas: '40 × x' }] })).estado, 400, 'medidas mal escritas');
+  assert.equal((await ivo.post('/api/catalogo/lote', { filas: [{ codigo: 'TOR-0610', medidas }] })).guardados, 1);
+  const conMedidas = (await ivo.get('/api/inventario')).inventario.productos.find((p) => p.codigo === 'TOR-0610');
+  assert.ok(conMedidas.volumenPaquete > 0);
+
+  const apagado = (await ivo.post('/api/pedidos', { modo: 'sugerido' })).pedido;
+  assert.equal(apagado.listaFinal.find((l) => l.codigo === 'TOR-0610').cantidad, tor.sugerido, 'sin la extensión no se recorta nada');
+
+  await ivo.put('/api/inventario/ajustes', { importaciones: true });
+  assert.equal((await ivo.get('/api/inventario')).inventario.ajustes.importaciones, true, 'la pantalla recibe la casilla encendida');
+  assert.deepEqual((await ivo.get('/api/inventario')).inventario.ajustes.condiciones['Fábrica de Asia'], { contenedores: 1, tipoContenedor: '20' });
+  const nuevo = await ivo.post('/api/pedidos', { modo: 'sugerido' });
+  assert.equal(nuevo.estado, 201, nuevo.error);
+  const linea = nuevo.pedido.listaFinal.find((l) => l.codigo === 'TOR-0610');
+  assert.ok(linea && linea.cantidad < tor.sugerido, `se recortó: ${linea && linea.cantidad} de ${tor.sugerido}`);
+  assert.ok((linea.cantidad / tor.lote) * conMedidas.volumenPaquete <= capacidad + 1e-6, 'ya cabe en el contenedor');
+  assert.equal(nuevo.pedido.sugerido.find((l) => l.codigo === 'TOR-0610').cantidad, linea.cantidad, 'la foto de lo sugerido también');
+});

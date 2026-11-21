@@ -27,6 +27,18 @@
 
 ---
 
+## 2026-11-21 (69) — Claude — T14: importadores y contenedores (última tarea del plan)
+- **Rama:** `cambios-sinesc`, solo en local, sin commit (T5 a T13 tampoco).
+- **Estado:** T14 hecha como **extensión opcional**: `ajustes.importaciones` (apagada por defecto, casilla discreta al final de Proveedores). Apagada, la ficha, el pedido y los productos se ven como siempre y el servidor no recorta nada. Encendida: `condiciones[prov].contenedores` + `tipoContenedor` (un proveedor es importado si tiene contenedores > 0; no hay campo aparte), medidas por producto en la ficha del proveedor (`productos.medidas_cm`, "40x30x20"), `server/contenedores.js` (`capacidadDe`, `volumenDe`, `ajustarAContenedores`), recorte en `crearDesdeSugerido` y "Ocupa X de N contenedores" en el grupo del pedido (rojo si pasa).
+- **Desvíos del plan:** se guardan las **medidas** (`medidas_cm`) y no `volumen_paquete`, para poder editarlas; no hay `importado` booleano; las medidas se editan solo en la ficha del proveedor (no en la del producto).
+- **Archivos tocados:** `server/contenedores.js` (nuevo), `db.js`, `movimientos.js`, `inventario.js`, `pedidos.js`; web `proveedores.tsx`, `pedido-preparar.tsx`, `contexto.tsx`, `lib/tipos.ts`; pruebas `test/contenedores.test.js` (nuevo), `pedidos-sugerido.test.js`, `catalogo-motor.test.js`; docs `modelo-rotacion.md` §9.1, `ENTREGABLE_Y_APP.md` (fila 26), `CLAUDE.md`, `README.md`.
+- **Base de datos:** columna `productos.medidas_cm TEXT` (en `ESQUEMA`).
+- **Verificación:** `npm test` 225 de 225; `tsc --noEmit` limpio; `npm run texto` sin frases nuevas propias. **No se probó en el navegador.**
+- **Siguiente paso exacto:** T1 a T14 están implementadas en local. Falta: probar todo en el navegador (recorrido de punta a punta de `docs/PLAN_CAMBIOS_SINESC.md`), confirmar con el equipo lo de T5 (un pedido aprobado cuenta en la estimación) y las capacidades de los contenedores, hacer commit, y publicar solo cuando cierre el piloto de Alpha 0.2 (T9 y T10 juntas).
+- **Notas y bloqueos:** capacidades 33 y 67 m³ y estiba 0,85 son supuestos de referencia. Solo cuenta el volumen (no el peso). Los pedidos armados a mano no se recortan: solo avisan. Nada de lo de T5 a T14 se publica con el piloto abierto.
+
+---
+
 ## 2026-11-21 (68) — Claude — Proveedores como tabla y "cada cuánto se pide" por proveedor
 - **Rama:** `cambios-sinesc`, solo en local, sin commit (T5 a T13 tampoco).
 - **Estado:** pedido del usuario sobre T12. La pantalla Proveedores muestra una tabla (proveedor, productos, tarda en llegar con su unidad, cada cuánto se le pide) y una tarjeta aparte "Productos sin proveedor" con los ajustes generales (tiempo por defecto y cada cuánto). `ajustes.cadaCuantoProv { proveedor: semanas }` (1 a 26) reemplaza a `cadaCuanto` en el sugerido de sus productos (`inventario.js`, `entrega + cadaCuanto`); el producto devuelve `cadaCuanto`. El PDF de un pedido de un proveedor dice el suyo.

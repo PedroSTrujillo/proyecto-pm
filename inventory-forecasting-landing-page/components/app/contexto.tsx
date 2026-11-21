@@ -99,7 +99,7 @@ type EstadoInventario = {
   cambiarTiempo: (t: { unidad?: Unidad; horizonte?: number }) => Promise<void>
 }
 
-export type Ajustes = Partial<{ entregas: Record<string, number>; entregasDias: Record<string, number>; entregaPorDefecto: number; entregaPorDefectoDias: number | null; cadaCuanto: number; semanasAgota: number; asignaciones: Record<string, string>; prefijos: { prefijo: string; proveedor: string }[]; condiciones: Record<string, Condiciones>; cadaCuantoProv: Record<string, number> }>
+export type Ajustes = Partial<{ entregas: Record<string, number>; entregasDias: Record<string, number>; entregaPorDefecto: number; entregaPorDefectoDias: number | null; cadaCuanto: number; semanasAgota: number; asignaciones: Record<string, string>; prefijos: { prefijo: string; proveedor: string }[]; condiciones: Record<string, Condiciones>; cadaCuantoProv: Record<string, number>; importaciones: boolean }>
 
 const InventarioCtx = createContext<EstadoInventario | null>(null)
 

@@ -149,6 +149,21 @@ export function PedidoPreparar({ pedido, alCambiar }: { pedido: Pedido; alCambia
   }
   const total = totales(filas)
   // El mínimo de todo el envío del proveedor (T13): solo avisa, no suma unidades por su cuenta.
+  // Importadores (T14): cuánto del contenedor ocupa lo marcado, con las cantidades editadas. Solo si la empresa
+  // encendió las importaciones y este proveedor tiene contenedores; las líneas sin medidas no cuentan.
+  const ocupacion = (proveedor: string, fs: Fila[]) => {
+    const c = inventario?.ajustes.condiciones?.[proveedor]
+    if (!inventario?.ajustes.importaciones || !c?.contenedores) return null
+    const capacidad = c.contenedores * (c.tipoContenedor === '20' ? 33 : 67) * 0.85 // igual que server/contenedores.js
+    let volumen = 0
+    let sinMedidas = 0
+    for (const f of fs.filter((x) => x.incluida)) {
+      const p = productos.get(f.clave)
+      if (!p?.volumenPaquete) { sinMedidas++; continue }
+      volumen += ((cantidadDe(f.cantidad) || 0) / (p.lote > 0 ? p.lote : 1)) * p.volumenPaquete
+    }
+    return { ocupa: (volumen / capacidad) * c.contenedores, total: c.contenedores, pasa: volumen > capacidad, sinMedidas }
+  }
   const faltaEnvio = (proveedor: string, unidades: number) => Math.max(0, (inventario?.ajustes.condiciones?.[proveedor]?.minimoEnvio ?? 0) - unidades)
   const malas = filas.filter((f) => f.incluida && !(cantidadDe(f.cantidad) > 0))
 
@@ -357,6 +372,7 @@ export function PedidoPreparar({ pedido, alCambiar }: { pedido: Pedido; alCambia
         <div className="flex flex-col gap-3">
           {grupos.map(([nombre, fs]) => {
             const t = totales(fs)
+            const oc = ocupacion(nombre, fs)
             const abierto = abiertos.has(nombre)
             return (
               <Desplegable
@@ -369,6 +385,11 @@ export function PedidoPreparar({ pedido, alCambiar }: { pedido: Pedido; alCambia
                     <span className="text-chico font-normal text-muted-foreground">
                       {t.lineas} de {fs.length} {fs.length === 1 ? 'línea' : 'líneas'} · {numero(t.unidades, 2)} unidades{conCosto ? ` · ${plata(t.valor)}` : ''}
                     </span>
+                    {oc && (
+                      <span className={cn('text-chico font-semibold', oc.pasa ? 'text-rojo-texto' : 'text-muted-foreground')}>
+                        Ocupa {numero(oc.ocupa, 1)} de {plural(oc.total, 'contenedor', 'contenedores')}{oc.sinMedidas ? ` · ${plural(oc.sinMedidas, 'línea sin medidas no cuenta', 'líneas sin medidas no cuentan')}` : ''}
+                      </span>
+                    )}
                     {t.lineas > 0 && faltaEnvio(nombre, t.unidades) > 0 && <span className="text-chico font-semibold text-ambar-texto">Faltan {numero(faltaEnvio(nombre, t.unidades), 2)} unidades para el mínimo de envío</span>}
                   </span>
                 }

@@ -104,6 +104,14 @@ test('el mínimo del envío de cada proveedor se guarda; el paquete y el mínimo
   assert.equal(con.sugerido, sin.sugerido, 'lo del proveedor no cambia las cantidades');
 });
 
+test('importadores: la extensión está apagada salvo que se encienda, y los contenedores se leen limpios', () => {
+  assert.equal(leerAjustes({}).importaciones, false);
+  assert.equal(leerAjustes({ importaciones: 'si' }).importaciones, false, 'solo un verdadero la enciende');
+  assert.equal(leerAjustes({ importaciones: true }).importaciones, true);
+  const c = leerAjustes({ condiciones: { Asia: { contenedores: 2.4, tipoContenedor: '20' }, Chile: { contenedores: 3, tipoContenedor: 'raro', minimoEnvio: 50 }, Cero: { contenedores: 0 }, Muchos: { contenedores: 99 } } }).condiciones;
+  assert.deepEqual(c, { Asia: { contenedores: 2, tipoContenedor: '20' }, Chile: { minimoEnvio: 50, contenedores: 3, tipoContenedor: '40' } });
+});
+
 test('cada cuánto se pide puede ser de cada proveedor; sin valor propio vale el general', () => {
   const sucio = leerAjustes({ cadaCuantoProv: { Andina: 8, Valle: 0.5, Costa: 'x', Sur: 30, Raro: null } });
   assert.deepEqual(sucio.cadaCuantoProv, { Andina: 8 });

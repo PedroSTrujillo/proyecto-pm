@@ -314,6 +314,8 @@ const ESQUEMA = [
   // aplica encima del reporte guardado, sin recalcularlo (server/inventario.js, conSobraPropia).
   // Las alertas del boletín van en usuarios.preferencias.alertas (server/alertas.js), sin columna.
   'ALTER TABLE productos ADD COLUMN IF NOT EXISTS sobra_semanas NUMERIC',
+  // Medidas de un paquete (largo x ancho x alto, en cm) para los importadores que calculan contenedores (T14): "40x30x20".
+  'ALTER TABLE productos ADD COLUMN IF NOT EXISTS medidas_cm TEXT',
   'CREATE INDEX IF NOT EXISTS pedidos_empresa ON pedidos(empresa_id)',
   'CREATE INDEX IF NOT EXISTS usuarios_empresa ON usuarios(empresa_id)',
   'CREATE INDEX IF NOT EXISTS exports_empresa ON exports(empresa_id, subido_en)',

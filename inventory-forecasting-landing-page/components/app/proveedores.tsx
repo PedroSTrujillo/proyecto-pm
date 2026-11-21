@@ -21,7 +21,7 @@ export function ProveedoresPantalla() {
   return (
     <>
       <Titulo sub="Cuánto tarda cada proveedor en entregar y qué productos son de cada uno. Con esto SINESC sabe qué pedir antes de que sea tarde.">Proveedores</Titulo>
-      {inventario ? <Proveedores inv={inventario} alVer={setAbierto} /> : <p className="rounded-2xl border border-dashed border-border p-8 text-center text-muted-foreground">Suba primero el inventario en Datos y aquí aparecen sus proveedores.</p>}
+      {inventario ? <><Proveedores inv={inventario} alVer={setAbierto} /><Importaciones inv={inventario} /></> : <p className="rounded-2xl border border-dashed border-border p-8 text-center text-muted-foreground">Suba primero el inventario en Datos y aquí aparecen sus proveedores.</p>}
     </>
   )
 }
@@ -288,7 +288,7 @@ const ORIGEN: Record<string, string> = { producto: 'asignado a mano', archivo: '
 // escribir en ajustes.asignaciones, que manda sobre el archivo y sobre el comienzo del código.
 function FichaProveedor({ inv, nombre, alVolver }: { inv: Inventario; nombre: string; alVolver: () => void }) {
   const { guardarAjustes, recargar } = useInventario()
-  const [cambios, setCambios] = useState<Record<string, { multiplo: string; minimo: string }>>({})
+  const [cambios, setCambios] = useState<Record<string, { multiplo: string; minimo: string; medidas: string }>>({})
   const [guardandoCat, setGuardandoCat] = useState(false)
   const [agregando, setAgregando] = useState(false)
   const [filtro, setFiltro] = useState<Filtro>('todos')
@@ -307,16 +307,22 @@ function FichaProveedor({ inv, nombre, alVolver }: { inv: Inventario; nombre: st
   const info = inv.proveedores.find((p) => p.nombre === nombre)
 
   // El paquete y el mínimo son de cada producto: se escriben aquí y se guardan en su catálogo, como en su ficha.
-  const valorDe = (p: (typeof suyos)[number]) => (cambios[p.codigo] ?? { multiplo: p.multiplo ? String(p.multiplo) : '', minimo: p.minimoPedido ? String(p.minimoPedido) : '' })
-  const pendientes = suyos.filter((p) => cambios[p.codigo] && (cambios[p.codigo].multiplo !== (p.multiplo ? String(p.multiplo) : '') || cambios[p.codigo].minimo !== (p.minimoPedido ? String(p.minimoPedido) : '')))
-  function editar(p: (typeof suyos)[number], campo: 'multiplo' | 'minimo', valor: string) {
+  const importa = Boolean(inv.ajustes.importaciones)
+  const original = (p: (typeof suyos)[number]) => ({ multiplo: p.multiplo ? String(p.multiplo) : '', minimo: p.minimoPedido ? String(p.minimoPedido) : '', medidas: p.medidas ? p.medidas.replaceAll('x', ' × ') : '' })
+  const valorDe = (p: (typeof suyos)[number]) => cambios[p.codigo] ?? original(p)
+  const pendientes = suyos.filter((p) => {
+    const c = cambios[p.codigo]
+    const o = original(p)
+    return c && (c.multiplo !== o.multiplo || c.minimo !== o.minimo || (importa && c.medidas !== o.medidas))
+  })
+  function editar(p: (typeof suyos)[number], campo: 'multiplo' | 'minimo' | 'medidas', valor: string) {
     setAviso(null)
     setCambios((c) => ({ ...c, [p.codigo]: { ...valorDe(p), [campo]: valor } }))
   }
   async function guardarCatalogo() {
     setGuardandoCat(true)
     try {
-      await api('POST', '/catalogo/lote', { filas: pendientes.map((p) => ({ codigo: p.codigo, multiplo: cambios[p.codigo].multiplo, minimo: cambios[p.codigo].minimo })) })
+      await api('POST', '/catalogo/lote', { filas: pendientes.map((p) => ({ codigo: p.codigo, multiplo: cambios[p.codigo].multiplo, minimo: cambios[p.codigo].minimo, ...(importa ? { medidas: cambios[p.codigo].medidas } : {}) })) })
       setAviso({ ok: true, texto: `Listo: ${plural(pendientes.length, 'producto actualizado', 'productos actualizados')}. Lo sugerido ya los tiene en cuenta.` })
       setCambios({})
       recargar()
@@ -384,6 +390,12 @@ function FichaProveedor({ inv, nombre, alVolver }: { inv: Inventario; nombre: st
                   Mínimo
                   <input className={cn(claseEntrada, 'w-24')} inputMode="decimal" value={valorDe(p).minimo} onChange={(e) => editar(p, 'minimo', e.target.value)} placeholder="—" />
                 </label>
+                {importa && (
+                  <label className="flex flex-col text-nota font-semibold">
+                    Medidas del paquete (cm){p.volumenPaquete ? <span className="font-normal text-muted-foreground"> · {numero(p.volumenPaquete, 3)} m³</span> : null}
+                    <input className={cn(claseEntrada, 'w-40')} value={valorDe(p).medidas} onChange={(e) => editar(p, 'medidas', e.target.value)} placeholder="largo × ancho × alto" />
+                  </label>
+                )}
               </li>
             ))}
             {suyos.length > MAX_VISIBLES && <li className="pt-2 text-nota text-muted-foreground">Se muestran {MAX_VISIBLES} de {numero(suyos.length)}.</li>}
@@ -450,21 +462,31 @@ function FichaProveedor({ inv, nombre, alVolver }: { inv: Inventario; nombre: st
 }
 
 // Lo que pide este proveedor (T13): el mínimo de todo el envío. El paquete y el mínimo por producto se
-// escriben en cada producto, arriba.
+// escriben en cada producto, arriba. Si la empresa encendió las importaciones (T14), también cuántos contenedores
+// piensa contratar para este proveedor.
 function CondicionesProveedor({ inv, nombre }: { inv: Inventario; nombre: string }) {
   const { guardarAjustes } = useInventario()
-  const inicial = () => (inv.ajustes.condiciones?.[nombre]?.minimoEnvio ? String(inv.ajustes.condiciones[nombre].minimoEnvio) : '')
+  const importa = Boolean(inv.ajustes.importaciones)
+  const c = inv.ajustes.condiciones?.[nombre]
+  const inicial = () => ({ envio: c?.minimoEnvio ? String(c.minimoEnvio) : '', contenedores: c?.contenedores ? String(c.contenedores) : '', tipo: c?.tipoContenedor ?? '40' })
   const [v, setV] = useState(inicial)
   const [guardando, setGuardando] = useState(false)
   const [guardado, setGuardado] = useState(false)
   useEffect(() => setV(inicial()), [inv, nombre]) // eslint-disable-line react-hooks/exhaustive-deps
+  const cambiado = JSON.stringify(v) !== JSON.stringify(inicial())
+  const poner = (cambio: Partial<typeof v>) => { setGuardado(false); setV({ ...v, ...cambio }) }
 
   async function guardar() {
     setGuardando(true)
     try {
-      const n = Number(v.replace(',', '.'))
+      const envio = Number(v.envio.replace(',', '.'))
+      const contenedores = Math.round(Number(v.contenedores))
+      const nueva: Condiciones = {}
+      if (envio > 0) nueva.minimoEnvio = envio
+      if (importa && contenedores > 0) Object.assign(nueva, { contenedores, tipoContenedor: v.tipo })
+      else if (c?.contenedores) Object.assign(nueva, { contenedores: c.contenedores, tipoContenedor: c.tipoContenedor }) // apagado: se conserva
       const condiciones = { ...inv.ajustes.condiciones }
-      if (n > 0) condiciones[nombre] = { minimoEnvio: n }
+      if (Object.keys(nueva).length) condiciones[nombre] = nueva
       else delete condiciones[nombre]
       await guardarAjustes({ condiciones })
       setGuardado(true)
@@ -476,15 +498,54 @@ function CondicionesProveedor({ inv, nombre }: { inv: Inventario; nombre: string
   return (
     <Tarjeta className="flex flex-col gap-3 p-5 sm:p-6">
       <h2 className="text-xl font-bold">Mínimo del pedido</h2>
-      <label className="flex max-w-xs flex-col gap-1 text-sm font-semibold">
-        Unidades mínimas por envío
-        <input className={claseEntrada} inputMode="decimal" value={v} onChange={(e) => { setGuardado(false); setV(e.target.value) }} placeholder="Sin mínimo" />
-        <span className="text-nota font-normal text-muted-foreground">Si el pedido a este proveedor no llega, se avisa al preparar el pedido. No se agregan unidades solas.</span>
-      </label>
+      <div className="flex flex-wrap gap-4">
+        <label className="flex max-w-xs flex-col gap-1 text-sm font-semibold">
+          Unidades mínimas por envío
+          <input className={claseEntrada} inputMode="decimal" value={v.envio} onChange={(e) => poner({ envio: e.target.value })} placeholder="Sin mínimo" />
+          <span className="text-nota font-normal text-muted-foreground">Si el pedido a este proveedor no llega, se avisa al preparar el pedido. No se agregan unidades solas.</span>
+        </label>
+        {importa && (
+          <div className="flex flex-col gap-1 text-sm font-semibold">
+            Contenedores que piensa contratar
+            <div className="flex gap-2">
+              <input className={cn(claseEntrada, 'w-24')} inputMode="numeric" aria-label="Cuántos contenedores" value={v.contenedores} onChange={(e) => poner({ contenedores: e.target.value })} placeholder="Ninguno" />
+              <select className={claseEntrada} aria-label="Tamaño del contenedor" value={v.tipo} onChange={(e) => poner({ tipo: e.target.value as '20' | '40' })}>
+                <option value="20">de 20 pies</option>
+                <option value="40">de 40 pies</option>
+              </select>
+            </div>
+            <span className="max-w-xs text-nota font-normal text-muted-foreground">El pedido a este proveedor se recorta para que quepa, según las medidas de cada producto (abajo).</span>
+          </div>
+        )}
+      </div>
       <div className="flex flex-wrap items-center gap-3">
-        <Boton variante="primario" onClick={guardar} disabled={v === inicial() || guardando}>{guardando ? 'Guardando…' : 'Guardar'}</Boton>
+        <Boton variante="primario" onClick={guardar} disabled={!cambiado || guardando}>{guardando ? 'Guardando…' : 'Guardar'}</Boton>
         {guardado && <span className="aparecer text-chico font-semibold text-verde">Listo.</span>}
       </div>
     </Tarjeta>
+  )
+}
+
+// Extensión opcional (T14): las empresas con solo envíos nacionales no la ven más que como esta casilla discreta.
+function Importaciones({ inv }: { inv: Inventario }) {
+  const { guardarAjustes } = useInventario()
+  const [guardando, setGuardando] = useState(false)
+  const activa = Boolean(inv.ajustes.importaciones)
+  async function cambiar(valor: boolean) {
+    setGuardando(true)
+    try {
+      await guardarAjustes({ importaciones: valor })
+    } finally {
+      setGuardando(false)
+    }
+  }
+  return (
+    <label className="flex items-start gap-2.5 rounded-2xl border border-dashed border-border p-4 text-cuerpo">
+      <input type="checkbox" className="mt-1 size-4 accent-[var(--primary)]" checked={activa} disabled={guardando} onChange={(e) => cambiar(e.target.checked)} />
+      <span>
+        <strong>Mi empresa importa y quiere calcular contenedores.</strong>
+        <span className="block text-chico text-muted-foreground">Es opcional. Si la activa, en cada proveedor podrá poner cuántos contenedores contrata y las medidas de cada producto, y el pedido se ajustará para que quepa.</span>
+      </span>
+    </label>
   )
 }

@@ -37,6 +37,7 @@ const { claveCodigo } = require('./valores');
 const { inventarioDelUsuario, guardarInventarioDelUsuario } = require('./empresas');
 const { inventarioAlDia, agregarAlCatalogo, catalogoConEscrito } = require('./movimientos');
 const { enCaminoDe } = require('./en-camino');
+const { capacidadDe, ajustarAContenedores } = require('./contenedores');
 
 const MAX_LINEAS = 5000;
 const subida = multer({
@@ -425,12 +426,31 @@ function fotoSugerido(inv) {
     }));
 }
 
+// Importadores (T14): si la empresa encendió los contenedores, el pedido a cada proveedor con contenedores se recorta
+// hasta que quepa (server/contenedores.js). Apagado, o sin contenedores, no se toca nada.
+function recortarAContenedores(inv, foto) {
+  if (!inv.ajustes.importaciones) return foto;
+  const productos = new Map(inv.productos.map((x) => [x.codigo, x]));
+  const nuevas = new Map(); // codigo → cantidad que queda, solo de los proveedores con contenedores
+  for (const [proveedor, lineas] of Map.groupBy(foto, (l) => l.proveedor)) {
+    const capacidad = capacidadDe(inv.ajustes.condiciones[proveedor]);
+    if (capacidad === null) continue;
+    const { lineas: quedan } = ajustarAContenedores(
+      lineas.map((l) => ({ codigo: l.codigo, cantidad: l.cantidad, semanas: l.semanas, lote: productos.get(l.codigo)?.lote || 1, volumenPaquete: productos.get(l.codigo)?.volumenPaquete || null })),
+      capacidad,
+    );
+    for (const l of lineas) nuevas.set(l.codigo, 0);
+    for (const q of quedan) nuevas.set(q.codigo, q.cantidad);
+  }
+  return foto.filter((l) => nuevas.get(l.codigo) !== 0).map((l) => (nuevas.has(l.codigo) ? { ...l, cantidad: nuevas.get(l.codigo) } : l));
+}
+
 async function crearDesdeSugerido(usuario) {
   // Aquí y no arriba: inventario-rutas.js usa este archivo.
   const { inventarioDeEmpresa } = require('./inventario-rutas');
   const base = await inventarioDeEmpresa(usuario.empresa_id);
   if (!base) throw new ErrorUsuario('Para preparar un pedido, primero suba el archivo de su programa contable en Datos o registre sus movimientos.', 403);
-  const foto = fotoSugerido(base.inv);
+  const foto = recortarAContenedores(base.inv, fotoSugerido(base.inv));
   const lista = foto.map(({ codigo, nombre, cantidad, proveedor }) => ({ codigo, nombre, cantidad, proveedor }));
   const p = await db.uno(
     `INSERT INTO pedidos (usuario_id, empresa_id, modo, tipo, export_id, sugerido, lista_final, semanas_agota)
