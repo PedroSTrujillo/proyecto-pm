@@ -9,7 +9,8 @@ import { Check, Copy, UserPlus, X } from 'lucide-react'
 import { api, textoErrores } from '@/lib/api'
 import type { Empresa } from '@/lib/tipos'
 import { useSesion } from './contexto'
-import { Boton, Campo, ErrorLista, Tarjeta, claseEntrada } from './ui'
+import { Boton, Campo, ErrorLista, Pildoras, Tarjeta, claseEntrada } from './ui'
+import { TEXTO_ROL } from './vista'
 
 type Invitacion = { enlace: string; dias: number; enviado: boolean; email: string }
 
@@ -18,6 +19,10 @@ export function FormInvitar({ deshabilitado = false, alInvitar }: { deshabilitad
   const [error, setError] = useState<ReturnType<typeof textoErrores> | null>(null)
   const [copiado, setCopiado] = useState(false)
   const [enviando, setEnviando] = useState(false)
+  const [rol, setRol] = useState<'administrador' | 'operador'>('operador')
+  const { usuario } = useSesion()
+  // El administrador solo invita operadores; el gerente elige (el servidor lo vuelve a revisar).
+  const puedeElegirRol = usuario?.rolEmpresa === 'gerente'
 
   async function invitar(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -26,7 +31,7 @@ export function FormInvitar({ deshabilitado = false, alInvitar }: { deshabilitad
     setCopiado(false)
     setEnviando(true)
     try {
-      const r = await api<{ enlace: string; dias: number; enviado: boolean; empresa: Empresa }>('POST', '/empresa/invitaciones', { email })
+      const r = await api<{ enlace: string; dias: number; enviado: boolean; empresa: Empresa }>('POST', '/empresa/invitaciones', { email, rol: puedeElegirRol ? rol : 'operador' })
       setInvitacion({ enlace: r.enlace, dias: r.dias, enviado: r.enviado, email })
       alInvitar?.(r.empresa)
     } catch (err) {
@@ -51,6 +56,18 @@ export function FormInvitar({ deshabilitado = false, alInvitar }: { deshabilitad
         <Campo etiqueta="Correo de la persona invitada" nota="(opcional: sin correo, el enlace sirve para cualquiera)">
           <input className={claseEntrada} type="email" name="email" autoComplete="off" placeholder="nombre@empresa.co" />
         </Campo>
+        {puedeElegirRol && (
+          <div className="flex flex-col gap-1.5">
+            <span className="text-cuerpo font-semibold">Rol de la persona</span>
+            <Pildoras
+              etiqueta="Rol de la persona"
+              opciones={[{ id: 'operador', texto: TEXTO_ROL.operador.titulo }, { id: 'administrador', texto: TEXTO_ROL.administrador.titulo }]}
+              valor={rol}
+              onCambio={setRol}
+            />
+            <span className="text-nota text-muted-foreground">{TEXTO_ROL[rol].corto}</span>
+          </div>
+        )}
         {error && <ErrorLista mensaje={error.mensaje} lista={error.lista} />}
         <Boton type="submit" variante="primario" className="self-start" disabled={deshabilitado || enviando}>
           <UserPlus /> {enviando ? 'Creando…' : 'Crear enlace de invitación'}

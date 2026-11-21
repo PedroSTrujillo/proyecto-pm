@@ -130,7 +130,7 @@ export function Marco({ children }: { children: ReactNode }) {
 
   const pie = (
     <div className="flex flex-col gap-2">
-      <SelectorPerfil />
+      {demo && <SelectorPerfil />}
       <div className="flex items-center gap-3 rounded-2xl border border-border p-3">
         <Iniciales nombre={persona} />
         <span className="flex min-w-0 flex-col">

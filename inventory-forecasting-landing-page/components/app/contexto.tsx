@@ -243,9 +243,8 @@ export function InventarioProvider({ fuente, children }: { fuente: Fuente; child
       },
       ...vista,
       cambiarPerfil: async (perfil) => {
-        if (fuente.tipo === 'demo') return guardarVistaDemo({ perfil })
-        const r = await api<{ usuario: Usuario }>('PUT', '/cuenta/perfil', { perfil })
-        fijar(r.usuario)
+        // Solo la demo: en una cuenta el rol lo da la invitación y no se cambia a sí mismo.
+        if (fuente.tipo === 'demo') guardarVistaDemo({ perfil })
       },
       cambiarTiempo: async (t) => {
         if (fuente.tipo === 'demo') return guardarVistaDemo(t)

@@ -6,7 +6,7 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { HORIZONTES, NOMBRE_UNIDAD, horizonteTexto, type Unidad } from '@/lib/formato'
-import type { Perfil } from '@/lib/tipos'
+import type { Perfil, RolEmpresa } from '@/lib/tipos'
 import { useInventario } from './contexto'
 import { Pildoras } from './ui'
 
@@ -15,6 +15,16 @@ export const TEXTO_PERFIL: Record<Perfil, { titulo: string; corto: string }> = {
   operador: { titulo: 'Operador', corto: 'Para registrar entradas y salidas y ver lo que se agota.' },
 }
 
+// Mismo orden que RANGO en server/cuentas.js: solo se actúa sobre alguien de rango menor al propio.
+export const RANGO_ROL: Record<RolEmpresa, number> = { operador: 1, administrador: 2, gerente: 3 }
+
+export const TEXTO_ROL: Record<RolEmpresa, { titulo: string; corto: string }> = {
+  gerente: { titulo: 'Gerente', corto: 'Quien fundó la empresa. Ve y maneja todo, y su rol no se puede cambiar.' },
+  administrador: { titulo: 'Administrador', corto: 'Ve el detalle, maneja proveedores y datos, e invita a operadores.' },
+  operador: { titulo: 'Operador', corto: 'Se ocupa de registrar entradas y salidas y de ver lo que se agota.' },
+}
+
+// Solo para la demo: quien la prueba elige cómo verla. En una cuenta el rol lo da la invitación.
 export function SelectorPerfil({ className }: { className?: string }) {
   const { perfil, cambiarPerfil } = useInventario()
   const [cambiando, setCambiando] = useState(false)

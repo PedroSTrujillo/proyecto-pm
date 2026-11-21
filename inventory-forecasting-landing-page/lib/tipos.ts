@@ -151,6 +151,8 @@ export type RespuestaInventario = {
 }
 
 export type Perfil = 'analista' | 'operador'
+// El rol en la empresa (server/cuentas.js, rolEmpresa): el servidor lo hace cumplir y nadie se lo cambia a sí mismo.
+export type RolEmpresa = 'gerente' | 'administrador' | 'operador'
 
 export type TipoAlerta = 'pideYa' | 'seAgota' | 'enCero' | 'porRecibir' | 'porAprobar' | 'dineroQuieto' | 'sobran' | 'sinDatos'
 export type Frecuencia = 'diario' | 'semanal' | 'mensual' | 'nunca'
@@ -162,6 +164,7 @@ export type Usuario = {
   rol: 'usuario' | 'equipo'
   sistema: string | null
   perfil: Perfil
+  rolEmpresa: RolEmpresa
   // alertas: la tabla completa del boletín (lo que eligió encima de lo de su perfil, server/alertas.js).
   preferencias: { unidad: 'dias' | 'semanas' | 'meses'; horizonte: number; alertas: Record<TipoAlerta, Frecuencia>; alertasPropias: boolean }
   boletin: boolean
@@ -177,7 +180,7 @@ export type Empresa = {
   vacia: boolean
   creadoEn: string
   logo: boolean
-  miembros: { id: number; nombre: string; email: string; perfil: Perfil; admin: boolean; aprueba: boolean; cargo: string; desde: string }[]
+  miembros: { id: number; nombre: string; email: string; perfil: Perfil; rol: RolEmpresa; admin: boolean; aprueba: boolean; cargo: string; desde: string }[]
   invitacionesAbiertas: { email: string | null; creadaEn: string; expiraEn: string }[]
 }
 

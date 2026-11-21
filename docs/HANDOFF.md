@@ -27,6 +27,15 @@
 
 ---
 
+## 2026-11-20 (56) — Claude — T2: invitar con rol y gestionar miembros (web)
+- **Rama:** `cambios-sinesc`, solo en local, sin commit.
+- **Estado:** T2 de `docs/PLAN_CAMBIOS_SINESC.md` hecha. `FormInvitar` deja elegir el rol al gerente; Mi empresa muestra el rol de cada miembro y deja cambiarlo (select, solo el gerente), el cargo, "Puede aprobar" y "Sacar" solo sobre rangos menores; `sacar` ya no tumba la página con un 403. El registro ya no pide perfil y el operador invitado entra por `/movimientos` según la respuesta del servidor. `SelectorPerfil` solo se dibuja en la demo (`marco.tsx`); se quitó de Mi cuenta y `cambiarPerfil` ya no llama al servidor.
+- **Archivos tocados:** `lib/tipos.ts` (`RolEmpresa`, `Usuario.rolEmpresa`, `miembros[].rol`), `components/app/` `vista.tsx` (`RANGO_ROL`, `TEXTO_ROL`), `invitar.tsx`, `empresa.tsx`, `cuenta-formularios.tsx`, `cuenta.tsx`, `marco.tsx`, `contexto.tsx`; `CLAUDE.md`; `docs/ENTREGABLE_Y_APP.md` (fila 16).
+- **Base de datos:** sin cambios.
+- **Verificación:** `tsc --noEmit` limpio; `npm test` 209 de 209; `npm run texto` igual que antes (49 frases, 3 tuteo, falsos positivos de SQL). **No se probó en el navegador.**
+- **Siguiente paso exacto:** T3 (menú por rol y vista principal/maestro del gerente; `SoloRol`). Ahí el gerente reemplaza a `SelectorPerfil` en el pie del menú.
+- **Notas y bloqueos:** no se muestra el rol al abrir una invitación ni en las invitaciones abiertas (pide un cambio en `server/empresas.js`). La demo conserva su selector analista/operador. No publicar mientras siga el piloto.
+
 ## 2026-11-20 (55) — Claude — T1: roles en el servidor (gerente, administrador, operador)
 - **Rama:** `main`, solo en local, sin commit.
 - **Estado:** T1 de `docs/PLAN_CAMBIOS_SINESC.md` hecha en el servidor. El rol sale de `admin_empresa` (gerente) y `perfil` (`analista` = administrador, `operador`); `requiereRol` y `rolEmpresa` en `cuentas.js`; invitar, cambiar y sacar solo a rango menor; no hay `PUT /api/cuenta/perfil`; fundar una empresa da gerente con `aprueba = true`. **La web no se tocó:** el selector de perfil (`SelectorPerfil`, `cambiarPerfil` en `contexto.tsx`) y `ElegirPerfil` del registro apuntan a una ruta que da 404 hasta que se haga T2.

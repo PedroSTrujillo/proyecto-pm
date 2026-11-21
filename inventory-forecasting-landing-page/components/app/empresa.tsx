@@ -9,11 +9,11 @@ import { ImageUp, Trash2, UserMinus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { api, textoErrores } from '@/lib/api'
 import { fecha } from '@/lib/formato'
-import type { Empresa as TEmpresa, Usuario } from '@/lib/tipos'
+import type { Empresa as TEmpresa, RolEmpresa, Usuario } from '@/lib/tipos'
 import { useConfirmar } from './confirmar'
 import { useSesion } from './contexto'
 import { Aviso, Boton, Campo, Cargando, ErrorLista, Tarjeta, Titulo, claseEntrada } from './ui'
-import { TEXTO_PERFIL } from './vista'
+import { RANGO_ROL, TEXTO_ROL } from './vista'
 import { FormInvitar } from './invitar'
 
 export function Empresa() {
@@ -32,7 +32,9 @@ export function Empresa() {
 
   if (error) return <ErrorLista mensaje={error.mensaje} lista={error.lista} />
   if (!empresa || !usuario) return <Cargando />
-  const admin = Boolean(usuario.empresa?.admin)
+  // Nombre, logo e invitar: gerente y administrador. Sobre cada miembro, solo quien tiene mayor rango (T1).
+  const admin = usuario.rolEmpresa !== 'operador'
+  const rolesQueDoy = (['administrador', 'operador'] as const).filter((r) => RANGO_ROL[r] < RANGO_ROL[usuario.rolEmpresa])
 
   async function guardar(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -50,7 +52,7 @@ export function Empresa() {
   }
 
   // Quién aprueba pedidos y el cargo de cada quien. Si es la persona misma, la sesión también cambia.
-  async function cambiarMiembro(id: number, cambio: { aprueba?: boolean; cargo?: string }) {
+  async function cambiarMiembro(id: number, cambio: { aprueba?: boolean; cargo?: string; rol?: RolEmpresa }) {
     setErrorMiembro(null)
     try {
       const r = await api<{ empresa: TEmpresa }>('PUT', `/empresa/miembros/${id}`, cambio)
@@ -100,7 +102,7 @@ export function Empresa() {
       const r = await api<{ empresa: TEmpresa }>('DELETE', `/empresa/miembros/${id}`)
       setEmpresa(r.empresa)
     } catch (err) {
-      setError(textoErrores(err))
+      setErrorMiembro(textoErrores(err))
     }
   }
 
@@ -170,34 +172,47 @@ export function Empresa() {
         </p>
         {errorMiembro && <ErrorLista mensaje={errorMiembro.mensaje} lista={errorMiembro.lista} />}
         <ul className="divide-y divide-border">
-          {empresa.miembros.map((m) => (
-            <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-              <span className="flex min-w-0 flex-col">
-                <strong className="truncate">{m.nombre}{m.id === usuario.id ? ' (usted)' : ''}</strong>
-                <span className="truncate text-chico text-muted-foreground">
-                  {m.email} · {TEXTO_PERFIL[m.perfil].titulo}{m.admin ? ' · administra' : ''}{!admin && m.cargo ? ` · ${m.cargo}` : ''}{!admin && m.aprueba ? ' · aprueba pedidos' : ''} · desde el {fecha(m.desde)}
+          {empresa.miembros.map((m) => {
+            const mio = RANGO_ROL[usuario.rolEmpresa] > RANGO_ROL[m.rol]
+            return (
+              <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                <span className="flex min-w-0 flex-col">
+                  <strong className="truncate">{m.nombre}{m.id === usuario.id ? ' (usted)' : ''}</strong>
+                  <span className="truncate text-chico text-muted-foreground">
+                    {m.email} · {TEXTO_ROL[m.rol].titulo}{!mio && m.cargo ? ` · ${m.cargo}` : ''}{!mio && m.aprueba ? ' · aprueba pedidos' : ''} · desde el {fecha(m.desde)}
+                  </span>
                 </span>
-              </span>
-              {admin && (
-                <span className="flex flex-wrap items-center gap-3">
-                  <input
-                    key={`${m.id}-${m.cargo}`}
-                    className={cn(claseEntrada, 'min-h-10 w-48')}
-                    defaultValue={m.cargo}
-                    maxLength={80}
-                    placeholder="Cargo"
-                    aria-label={`Cargo de ${m.nombre}`}
-                    onBlur={(e) => { if (e.target.value.trim() !== m.cargo) cambiarMiembro(m.id, { cargo: e.target.value }) }}
-                  />
-                  <label className="flex items-center gap-2 text-chico font-semibold">
-                    <input type="checkbox" checked={m.aprueba} onChange={(e) => cambiarMiembro(m.id, { aprueba: e.target.checked })} className="size-5 accent-[var(--primary)]" />
-                    Puede aprobar pedidos
-                  </label>
-                  {m.id !== usuario.id && <Boton tamano="chico" variante="peligro" onClick={() => sacar(m.id, m.nombre)}><UserMinus /> Sacar</Boton>}
-                </span>
-              )}
-            </li>
-          ))}
+                {mio && (
+                  <span className="flex flex-wrap items-center gap-3">
+                    {rolesQueDoy.length > 1 && (
+                      <select
+                        className={cn(claseEntrada, 'min-h-10 w-44')}
+                        value={m.rol}
+                        aria-label={`Rol de ${m.nombre}`}
+                        onChange={(e) => cambiarMiembro(m.id, { rol: e.target.value as RolEmpresa })}
+                      >
+                        {rolesQueDoy.map((r) => <option key={r} value={r}>{TEXTO_ROL[r].titulo}</option>)}
+                      </select>
+                    )}
+                    <input
+                      key={`${m.id}-${m.cargo}`}
+                      className={cn(claseEntrada, 'min-h-10 w-48')}
+                      defaultValue={m.cargo}
+                      maxLength={80}
+                      placeholder="Cargo"
+                      aria-label={`Cargo de ${m.nombre}`}
+                      onBlur={(e) => { if (e.target.value.trim() !== m.cargo) cambiarMiembro(m.id, { cargo: e.target.value }) }}
+                    />
+                    <label className="flex items-center gap-2 text-chico font-semibold">
+                      <input type="checkbox" checked={m.aprueba} onChange={(e) => cambiarMiembro(m.id, { aprueba: e.target.checked })} className="size-5 accent-[var(--primary)]" />
+                      Puede aprobar pedidos
+                    </label>
+                    <Boton tamano="chico" variante="peligro" onClick={() => sacar(m.id, m.nombre)}><UserMinus /> Sacar</Boton>
+                  </span>
+                )}
+              </li>
+            )
+          })}
         </ul>
       </Tarjeta>
       {ventana}

@@ -10,7 +10,7 @@ import type { Frecuencia, TipoAlerta, Usuario } from '@/lib/tipos'
 import { cn } from '@/lib/utils'
 import { useSesion } from './contexto'
 import { Aviso, Boton, Campo, ErrorLista, Tarjeta, Titulo, claseEntrada } from './ui'
-import { SelectorPerfil, SelectorTiempo } from './vista'
+import { SelectorTiempo, TEXTO_ROL } from './vista'
 
 export function Cuenta() {
   const { usuario, fijar } = useSesion()
@@ -85,8 +85,7 @@ export function Cuenta() {
           </form>
         </Tarjeta>
         <Tarjeta className="flex flex-col gap-4 p-5 sm:p-6">
-          <h2 className="text-xl font-bold">Cómo usa SINESC</h2>
-          <SelectorPerfil />
+          <h2 className="text-xl font-bold">Cómo ve el tiempo</h2>
           <div className="flex flex-col gap-2">
             <span className="text-cuerpo font-semibold">Para cuánto alcanza, en</span>
             <SelectorTiempo conHorizonte />
@@ -156,7 +155,7 @@ function TablaAlertas({ usuario }: { usuario: Usuario }) {
       <div>
         <h3 className="text-lg font-bold">Qué avisos trae y cada cuánto</h3>
         <p className="text-chico text-muted-foreground">
-          {usuario.boletin ? 'Se guarda al elegir.' : 'El boletín está apagado: puede dejar esto listo y activarlo después.'} Los valores de partida son los de su perfil ({usuario.perfil === 'operador' ? 'operador' : 'analista'}). Los festivos cuentan como días hábiles.
+          {usuario.boletin ? 'Se guarda al elegir.' : 'El boletín está apagado: puede dejar esto listo y activarlo después.'} Los valores de partida son los de su rol ({TEXTO_ROL[usuario.rolEmpresa].titulo.toLowerCase()}). Los festivos cuentan como días hábiles.
         </p>
       </div>
       <ul className="flex flex-col">
