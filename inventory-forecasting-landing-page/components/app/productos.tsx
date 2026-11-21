@@ -345,7 +345,7 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
       <ChipsProducto p={p} className="-mt-2" />
       {p.enCamino && (
         <p className="-mt-2 text-chico text-ambar-texto">
-          Ya pedido el {fecha(p.enCamino.fecha)}: {numero(p.enCamino.cantidad, 2)} que no han llegado. Lo sugerido ya los cuenta; cuando lleguen, registre la llegada en Pedidos.
+          Ya pedido el {fecha(p.enCamino.fecha)}: {numero(p.enCamino.cantidad, 2)} que no han entrado. Lo sugerido ya los cuenta; cuando lleguen, registre la entrada en Movimientos y dejan de contarse.
         </p>
       )}
       {p.pedidoReciente && !p.enCamino && (

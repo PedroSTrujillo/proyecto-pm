@@ -244,12 +244,12 @@ test('reenviado y aprobado: lo de quien aprueba se mide aparte y el PDF lleva su
   assert.equal(r.pedido.aprobacion.aprobado.nombre, 'Gloria Gerente');
   assert.equal(r.pedido.aprobacion.aprobado.cargo, 'Gerente general');
 
-  const p = await db.uno('SELECT comparacion, recibido, aprobado_por FROM pedidos WHERE id = $1', [pedido.id]);
+  const p = await db.uno('SELECT comparacion, aprobado_por FROM pedidos WHERE id = $1', [pedido.id]);
   assert.equal(p.aprobado_por, ids.gerente);
   assert.equal(p.comparacion.aprobacion.quitadas, 1, 'quien aprueba quitó una línea');
   assert.equal(p.comparacion.aprobacion.por, ids.gerente);
   assert.ok(p.comparacion.aceptacion, 'la aceptación de quien preparó sigue ahí');
-  assert.deepEqual(p.recibido, {}, 'aprobado, queda en camino');
+  assert.ok((await gerente.get('/api/inventario')).inventario.resumen.enCamino > 0, 'aprobado, queda en camino');
   assert.equal((await gerente.post(`/api/pedidos/${pedido.id}/aprobar`)).estado, 409);
 
   const pdf = await carlos.get(`/api/pedidos/${pedido.id}/pedido.pdf`);

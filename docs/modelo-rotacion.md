@@ -388,7 +388,7 @@ Sin ventas por semana (un informe con el total del periodo) o sin ventas, no se 
 
 ### 9.5 Pedido reciente
 
-Cada producto trae lo pedido en los últimos 14 días por cualquier persona de la empresa (pedidos cerrados, sin borrados ni anulados): fecha, cantidad, número del pedido y quién lo preparó. Se muestra como "Pedido hace 5 días" en Productos, el panel y Preparar pedido. Desde el SP5 lo que va en camino sí cambia el sugerido (§10.1).
+Cada producto trae lo pedido en los últimos 14 días, o lo que tarda su proveedor si es más (§10.1), por cualquier persona de la empresa (pedidos cerrados, sin borrados, anulados ni simulados): fecha, cantidad, número del pedido y quién lo preparó. Se muestra como "Pedido hace 5 días" en Productos, el panel y Preparar pedido, y como "Pedido: N" en Existencias. Lo que de eso no ha entrado sí cambia el sugerido (§10.1).
 
 ### 9.6 Cómo se calcula
 
@@ -396,16 +396,19 @@ La ficha de cada producto, y el paso 3 si el inventario es el mismo archivo del 
 
 ## 10. Entradas, salidas y datos al día (SP5, 2026-10-29)
 
-Código: `server/recepcion.js`, `server/saldos.js`, `server/movimientos.js`, `server/rotacion.js` (`revisarCodigos`) y `server/inventario.js`. Pruebas: `test/recepcion-datos.test.js`. Pedidos de la retroalimentación de las pruebas (Hito 1).
+Código: `server/en-camino.js`, `server/saldos.js`, `server/movimientos.js`, `server/rotacion.js` (`revisarCodigos`) y `server/inventario.js`. Pruebas: `test/recepcion-datos.test.js`. Pedidos de la retroalimentación de las pruebas (Hito 1).
 
-### 10.1 En camino y llegada de un pedido
+### 10.1 Lo pedido que todavía no entra ("en camino")
 
-Al cerrar un pedido real, cada línea queda **en camino** (`pedidos.recibido = {}`). "Registrar llegada" (por proveedor, con lo pedido precargado) crea una entrada en Movimientos por cada línea que llegó (`movimientos.pedido_id`) y marca la línea; una línea en 0 "no llegó" y se cierra sin entrada. Una llegada parcial también cierra la línea: lo que falte, si llega, se registra como entrada en Movimientos. Si alguien anula la entrada, la línea vuelve a estar en camino.
+Un pedido no cambia las existencias ni deja nada por marcar: SINESC informa, no lleva la contabilidad (T5 de `docs/PLAN_CAMBIOS_SINESC.md`, 2026-11-20; antes había una pantalla de "Registrar llegada"). Pero un pedido cerrado (aprobado, o cerrado por quien lo preparó si nadie aprueba) **sí cuenta en la estimación** mientras no entre la mercancía (`server/en-camino.js`):
 
+- **Cuánto:** lo pedido menos las entradas que se registren en Movimientos de ese producto desde el día del pedido (hora de Bogotá), sin bajar de 0. Si se anula una entrada, vuelve a contar.
+- **Hasta cuándo:** deja de contar solo, pasada la ventana `máx(14 días, tiempo de entrega del producto)`; la entrega es la de su proveedor (días hábiles × 7/5, o semanas × 7). Un importado con 40 días de entrega sigue contando a los 20.
+- **Qué pedido:** el más reciente de cada producto (el mismo que alimenta "Pedido: N" en Existencias y la etiqueta de §9.5). No cuentan los anulados, borrados ni simulados.
 - **Sugerido:** con E = existencias y C = lo que sigue en camino de ese producto, lo que falta es ⌈necesidad − E − C⌉ (posición de inventario), y de ahí el redondeo a paquete y al mínimo de §9.1. `detalleSugerido.enCamino` guarda C.
 - **"Pedir ya":** usa (E + C) ÷ ventas por semana en vez de S. "Se agota" no cambia: lo que hay hoy no alcanza, aunque venga algo.
 - **El riesgo de agotarse** sigue calculado con E solamente (no se sabe si llega a tiempo).
-- No cuentan: pedidos anulados, borrados o simulados, los cerrados antes del SP5 (`recibido` NULL) ni los de hace más de 120 días (un importado puede tardar 3 o 4 meses; un pedido que nunca se recibió no frena el sugerido para siempre).
+- **Límite conocido:** si la mercancía entra solo por un archivo de inventario nuevo, sin registrar la entrada, el pedido sigue contando hasta que venza la ventana.
 
 ### 10.2 Ventas de un periodo en Movimientos
 
@@ -421,7 +424,7 @@ El panel muestra "Datos de hoy", "de ayer" o "de hace N días" según el último
 
 ## 11. Alertas del boletín y sobrestock por producto (SP7, 2026-10-29)
 
-Código: `server/alertas.js`, `server/boletin.js`, `server/boletin-correo.js`, `server/recepcion.js` (`atrasadosDe`) y `server/inventario.js` (`conSobraPropia`). Pruebas: `test/boletin.test.js` y `test/alertas.test.js`. Pedido de la retroalimentación de las pruebas (Hito 6).
+Código: `server/alertas.js`, `server/boletin.js`, `server/boletin-correo.js` y `server/inventario.js` (`conSobraPropia`). Pruebas: `test/boletin.test.js` y `test/alertas.test.js`. Pedido de la retroalimentación de las pruebas (Hito 6).
 
 ### 11.1 Sobrestock con umbral por producto
 
@@ -434,15 +437,14 @@ Cada tipo de alerta es una sección del correo, con su frecuencia: a diario, los
 | Tipo | Qué dice | Cuándo tiene algo que decir |
 |---|---|---|
 | `enCero` | Productos en cero | Se agota y existencias ≤ 0 |
-| `pideYa` | Pedir ya, por proveedor | Estado "pide" (§7, con lo que viene en camino) |
+| `pideYa` | Pedir ya, por proveedor | Estado "pide" (§7, con lo que ya está pedido y no ha entrado) |
 | `seAgota` | Se van a agotar | Se agota y existencias > 0 |
 | `porAprobar` | Pedidos por aprobar | Pedidos enviados sin aprobar ni devolver (solo a quien aprueba) |
-| `porRecibir` | Entregas atrasadas | Un proveedor de un pedido en camino pasó su fecha: día del pedido + lo que tarda ese proveedor, en días hábiles (sus días escritos o sus semanas × 5) |
-| `sinDatos` | Datos sin actualizar | Más de 3 días hábiles desde el último movimiento registrado o el último archivo subido (solo a quien administra la empresa y a los operadores) |
+| `sinDatos` | Datos sin actualizar | Más de 3 días hábiles desde el último movimiento registrado o el último archivo subido (a todos los roles) |
 | `sobran` | Sobrestock | Estado "sobra" o sin ventas con existencias (§11.1) |
 | `dineroQuieto` | Dinero quieto | El archivo trae costos y hay dinero quieto |
 
-Valores por defecto: el analista recibe a diario `pideYa`, `seAgota` y `porAprobar`; los lunes `enCero`, `porRecibir`, `dineroQuieto` y `sinDatos`; `sobran` el primer día hábil del mes. El operador recibe todo a diario menos `dineroQuieto` y `sobran` (nunca). Lo que la persona cambia en Mi cuenta manda sobre su perfil.
+Valores por defecto: el analista recibe a diario `pideYa`, `seAgota` y `porAprobar`; los lunes `enCero`, `dineroQuieto` y `sinDatos`; `sobran` el primer día hábil del mes. El operador recibe todo a diario menos `dineroQuieto` y `sobran` (nunca). Lo que la persona cambia en Mi cuenta manda sobre su perfil.
 
 Si ese día no toca ninguna sección con algo que decir, no se manda nada. El asunto es la sección más urgente en el orden de la tabla. Cada sección dice qué es nuevo desde la última vez que se revisó (no desde ayer): `boletines.resumen.tipos` guarda, por tipo, la fecha y lo que había.
 

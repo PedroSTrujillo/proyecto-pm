@@ -20,9 +20,8 @@ import { Reporte, estadoDeFila, type FilaReporte, type ReporteRotacion } from '.
 import { FormularioColumnas, SubirArchivos, type HojaMapeo } from './subir'
 import { Aviso, Boton, BotonEnlace, Cargando, ChipAprobacion, Contador, Desplegable, ErrorLista, Tarjeta, claseEntrada } from './ui'
 import { PedidoPreparar } from './pedido-preparar'
-import { RecibirPedido } from './recepcion'
 import { useAutoguardado } from './autoguardado'
-import type { Aprobacion, Clase, EntradaHistorial, Estado, Recepcion } from '@/lib/tipos'
+import type { Aprobacion, Clase, EntradaHistorial, Estado } from '@/lib/tipos'
 
 export type LineaGuardada = { codigo: string; nombre?: string; cantidad: number | string; proveedor?: string; nota?: string }
 type Conteo = { agregadas: number; quitadas: number; cambiadas: number; total: number }
@@ -56,7 +55,6 @@ export type Pedido = {
   porQue: string | null
   terminadoEn: string | null
   anulado: { en: string; motivo: string } | null
-  recepcion?: Recepcion | null
   aprobacion?: Aprobacion | null // solo desde lo sugerido
   historial?: EntradaHistorial[] | null
 }
@@ -159,7 +157,6 @@ export function PedidoFlujo({ id }: { id: number }) {
         <div inert={Boolean(pedido.anulado)} className={cn('flex flex-col gap-7', pedido.anulado && 'opacity-60')}>
           {pedido.anulado && <AvisoAnulado pedido={pedido} reactivar={reactivar} />}
           <PedidoPreparar pedido={pedido} alCambiar={setPedido} />
-          {pedido.terminado && pedido.recepcion?.espera && <Tarjeta className="p-5 sm:p-6"><RecibirPedido recepcion={pedido.recepcion} /></Tarjeta>}
         </div>
       ) : <>
       {pedido.anulado && <AvisoAnulado pedido={pedido} reactivar={reactivar} />}
@@ -201,7 +198,6 @@ export function PedidoFlujo({ id }: { id: number }) {
         {paso === 3 && <Paso3 pedido={pedido} ir={ir} />}
         {paso === 4 && <Paso4 key={`${(pedido.listaFinal || []).length}-${pedido.finalGuardadaEn}`} pedido={pedido} ir={ir} />}
         {paso === 5 && <Paso5 pedido={pedido} recargar={cargar} />}
-        {paso === 5 && pedido.terminado && pedido.recepcion?.espera && <Tarjeta className="p-5 sm:p-6"><RecibirPedido recepcion={pedido.recepcion} /></Tarjeta>}
       </div>
       </>}
     </>

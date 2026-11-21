@@ -24,7 +24,7 @@ const { registrarEvento, ErrorUsuario, leerPreferencias } = require('./cuentas')
 const { enviarCorreo, correoConfigurado } = require('./correo');
 const { fechaBogota, urlApp } = require('./recordatorios');
 const { construirInventario } = require('./inventario');
-const { enCaminoDe, porRecibirAtrasados } = require('./recepcion');
+const { enCaminoDe } = require('./en-camino');
 const { inventarioAlDia, catalogoConEscrito } = require('./movimientos');
 const { tiposDeHoy, habilesEntre } = require('./alertas');
 const { armarBoletin, seccionesDelDia, resumenDelDia } = require('./boletin-correo');
@@ -109,7 +109,6 @@ function contextoDeEmpresa(empresaId, inv, hoy) {
   return async (tipos) => ({
     inv,
     porAprobar: tipos.includes('porAprobar') ? await una('porAprobar', () => pedidosPorAprobar(empresaId)) : null,
-    porRecibir: tipos.includes('porRecibir') ? await una('porRecibir', () => porRecibirAtrasados(empresaId, hoy, fechaBogota)) : null,
     sinDatos: tipos.includes('sinDatos') ? await una('sinDatos', () => sinDatosDe(empresaId, hoy)) : null,
   });
 }

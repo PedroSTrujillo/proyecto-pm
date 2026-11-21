@@ -254,9 +254,9 @@ const ESQUEMA = [
   'ALTER TABLE movimientos ADD COLUMN IF NOT EXISTS proyecto BOOLEAN NOT NULL DEFAULT false',
   // SP5: entradas, salidas y datos al día.
   //   movimientos.pedido_id: la entrada que se registró al recibir un pedido ("Registrar llegada").
+  //     Sin uso desde T5 (2026-11-20): ya no se registra la llegada; las filas viejas se conservan.
   //   movimientos.desde: una venta que es el total de un periodo (desde → fecha); se reparte por días.
-  //   pedidos.recibido: { clave: { cantidad, fecha, mov, por, en } } de lo que ya llegó. NULL en los
-  //     pedidos cerrados antes del SP5: de esos no se espera nada (no cuentan "en camino").
+  //   pedidos.recibido: sin uso desde T5; lo que está en camino se calcula en server/en-camino.js.
   //   empresas.mapeos: las columnas y documentos que se recordaron, de toda la empresa.
   'ALTER TABLE movimientos ADD COLUMN IF NOT EXISTS pedido_id INTEGER REFERENCES pedidos(id) ON DELETE SET NULL',
   'ALTER TABLE movimientos ADD COLUMN IF NOT EXISTS desde TEXT',

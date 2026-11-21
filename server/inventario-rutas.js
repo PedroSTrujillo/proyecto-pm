@@ -22,11 +22,11 @@ const { DIAS_PRUEBA } = require('./equipo');
 const { leerExport } = require('./lector');
 const { seriesSemanales } = require('./series');
 const { construirInventario, leerAjustes, resumirParaOperador, DIAS_HABILES_SEMANA } = require('./inventario');
-const { claveCodigo, leerNumero } = require('./valores');
+const { claveCodigo } = require('./valores');
 const { inventarioAlDia, agregarAlCatalogo, catalogoConEscrito } = require('./movimientos');
 const { inventarioDemo, sectores } = require('./demo');
 const { estadoDe } = require('./recordatorios');
-const { enCaminoDe, firmaEnCamino } = require('./recepcion');
+const { pedidosRecientes, enCaminoDe, firmaEnCamino } = require('./en-camino');
 
 // --- Demo (sin cuenta) -------------------------------------------------------------------
 
@@ -119,34 +119,6 @@ async function completarSeries(e) {
 // tarda y no cambia hasta que suben otro archivo o cambian sus ajustes.
 const calculados = new Map();
 const MAX_CALCULADOS = 40;
-const DIAS_PEDIDO_RECIENTE = 14;
-
-/**
- * Lo pedido en las últimas 2 semanas por cualquier persona de la empresa (pedidos cerrados, sin
- * borrados ni anulados): { clave: { fecha, cantidad, numero, por } }, el más reciente de cada
- * producto. Sirve para la etiqueta "Pedido hace 5 días" y para no pedir dos veces lo mismo.
- */
-async function pedidosRecientes(empresaId) {
-  const filas = await db.query(
-    `SELECT p.id, p.terminado_en, p.lista_final, u.nombre AS por,
-            (SELECT count(*)::int FROM pedidos q WHERE q.usuario_id = p.usuario_id AND q.id <= p.id AND q.borrado_en IS NULL) AS numero
-       FROM pedidos p LEFT JOIN usuarios u ON u.id = p.usuario_id
-      WHERE p.empresa_id = $1 AND p.terminado_en IS NOT NULL AND p.terminado_en >= now() - make_interval(days => $2::int)
-        AND p.borrado_en IS NULL AND p.anulado_en IS NULL
-      ORDER BY p.terminado_en DESC, p.id DESC`,
-    [empresaId, DIAS_PEDIDO_RECIENTE],
-  );
-  const out = new Map();
-  for (const f of filas) {
-    for (const l of Array.isArray(f.lista_final) ? f.lista_final : []) {
-      const k = claveCodigo(l && l.codigo);
-      const cantidad = leerNumero(l && l.cantidad);
-      if (!k || out.has(k) || !(cantidad > 0)) continue;
-      out.set(k, { fecha: f.terminado_en, cantidad, numero: f.numero, por: f.por || null });
-    }
-  }
-  return out;
-}
 
 // La etiqueta va encima del inventario guardado en memoria: un pedido recién cerrado se ve sin recalcular.
 function conPedidosRecientes(inv, recientes) {
@@ -170,7 +142,8 @@ rutas.get('/', async (req, res) => {
   // Lo que viene en camino cambia el sugerido: va en la llave para que una llegada se vea sin esperar.
   // subido_en también: el inventario de los movimientos se recalcula en el mismo export (mismo id,
   // inventarioAlDia), y sin la fecha el panel seguía con el cálculo de antes.
-  const enCamino = await enCaminoDe(empresaId);
+  const recientes = await pedidosRecientes(empresaId);
+  const enCamino = await enCaminoDe(empresaId, recientes);
   const llave = JSON.stringify([cab.id, new Date(cab.subido_en).getTime(), per.alcance, emp.inventario, emp.catalogo_cambio_en, req.usuario.sistema, req.usuario.nombre, horizonte, firmaEnCamino(enCamino)]);
   let inventario = calculados.get(llave);
   if (!inventario) {
@@ -198,7 +171,7 @@ rutas.get('/', async (req, res) => {
     calculados.set(llave, inventario);
     if (calculados.size > MAX_CALCULADOS) calculados.delete(calculados.keys().next().value);
   }
-  inventario = conPedidosRecientes(inventario, await pedidosRecientes(empresaId));
+  inventario = conPedidosRecientes(inventario, recientes);
   // El operador ve las métricas gruesas: se recorta la respuesta, el cálculo es el mismo (D3).
   res.json({ inventario: perfil === 'operador' ? resumirParaOperador(inventario) : inventario, ...per, perfil, recordatorio: await estadoDe(req.usuario.id) });
 });
@@ -211,8 +184,9 @@ async function inventarioDeEmpresa(empresaId) {
   if (!cab) return null;
   const e = await completarSeries(cab);
   const emp = await db.uno('SELECT inventario FROM empresas WHERE id = $1', [empresaId]);
-  const inv = construirInventario({ reporte: e.reporte, series: e.series, catalogo: await catalogoConEscrito(empresaId, e.catalogo), ajustes: emp && emp.inventario, alcance: 'completo', enCamino: await enCaminoDe(empresaId) });
-  return { exportId: e.id, inv: conPedidosRecientes(inv, await pedidosRecientes(empresaId)) };
+  const recientes = await pedidosRecientes(empresaId);
+  const inv = construirInventario({ reporte: e.reporte, series: e.series, catalogo: await catalogoConEscrito(empresaId, e.catalogo), ajustes: emp && emp.inventario, alcance: 'completo', enCamino: await enCaminoDe(empresaId, recientes) });
+  return { exportId: e.id, inv: conPedidosRecientes(inv, recientes) };
 }
 
 // Se mezcla con lo guardado: cambiar un tiempo de entrega no borra los proveedores asignados, y al revés.

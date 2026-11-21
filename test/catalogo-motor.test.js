@@ -281,7 +281,7 @@ test('una venta de proyecto registrada en Movimientos no sube el promedio', asyn
   assert.ok(Math.abs(despues.ventasSemana - antes.ventasSemana) < antes.ventasSemana * 0.2, `el promedio casi no cambia (${antes.ventasSemana} → ${despues.ventasSemana}): solo pasa el tiempo`);
 });
 
-test('pedido reciente: lo cerrado en los últimos 14 días por la empresa se marca en cada producto', async () => {
+test('pedido reciente: lo cerrado en los últimos 14 días (o lo que tarda el proveedor) se marca en cada producto', async () => {
   const leo = await cuenta('Leo Otra', 'leo.catalogo@prueba.co', 'Otra Empresa');
   assert.equal((await leo.subir('/api/inventario/export', [['inventario.xlsx', await plantillaExport()]])).ok, true);
 
@@ -298,6 +298,6 @@ test('pedido reciente: lo cerrado en los últimos 14 días por la empresa se mar
   assert.equal(p.pedidoReciente.por, 'Ana Catálogo');
   assert.equal((await producto(leo, linea.codigo)).pedidoReciente, null, 'otra empresa no lo ve');
 
-  await db.query("UPDATE pedidos SET terminado_en = now() - interval '15 days' WHERE id = $1", [r.pedido.id]);
-  assert.equal((await producto(ana, linea.codigo)).pedidoReciente, null, 'pasadas 2 semanas ya no es reciente');
+  await db.query("UPDATE pedidos SET terminado_en = now() - interval '60 days' WHERE id = $1", [r.pedido.id]);
+  assert.equal((await producto(ana, linea.codigo)).pedidoReciente, null, 'pasada la ventana (14 días o el tiempo de entrega) ya no es reciente');
 });

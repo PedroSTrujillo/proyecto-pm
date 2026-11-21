@@ -115,7 +115,6 @@ const ALERTAS: { tipo: TipoAlerta; texto: string; descripcion: string }[] = [
   { tipo: 'pideYa', texto: 'Pedir ya', descripcion: 'Lo que hay que pedir hoy para que llegue a tiempo.' },
   { tipo: 'seAgota', texto: 'Se van a agotar', descripcion: 'Lo que alcanza para menos de lo elegido para el aviso.' },
   { tipo: 'enCero', texto: 'En cero', descripcion: 'Productos sin existencias.' },
-  { tipo: 'porRecibir', texto: 'Entregas atrasadas', descripcion: 'Pedidos que ya debían llegar según lo que tarda el proveedor.' },
   { tipo: 'porAprobar', texto: 'Pedidos por aprobar', descripcion: 'Los que le enviaron para aprobar.' },
   { tipo: 'sobran', texto: 'Sobrestock', descripcion: 'Lo que alcanza para más de 12 semanas, o lo que diga la ficha de cada producto.' },
   { tipo: 'dineroQuieto', texto: 'Dinero quieto', descripcion: 'Cuánta plata hay en lo que sobra. Solo si el archivo trae costos.' },

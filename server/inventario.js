@@ -211,7 +211,7 @@ function conSobraPropia(f, sobraSemanas) {
  *   pronóstico, sin temporada, sin tiempo de entrega ("pide ya", riesgo) y sin cantidad
  *   sugerida. Así el tratamiento de la prueba es el que se declaró y M mide el reporte.
  * sugerencias: forma antigua de pedir el alcance (false = 'prueba').
- * enCamino: Map clave → { cantidad, fecha } de lo pedido que no ha llegado (server/recepcion.js). El
+ * enCamino: Map clave → { cantidad, fecha } de lo pedido que no ha entrado (server/en-camino.js). El
  *   sugerido descuenta existencias más en camino (posición de inventario, §7 del modelo).
  */
 function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos, fuente = {}, alcance = null, sugerencias = true, semanasPronostico = 4, enCamino = null }) {
