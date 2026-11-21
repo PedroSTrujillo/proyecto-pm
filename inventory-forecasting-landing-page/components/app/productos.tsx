@@ -7,10 +7,10 @@ import { useEffect, useId, useMemo, useState } from 'react'
 import { Download, Search, X } from 'lucide-react'
 import { descargar } from '@/lib/descargar'
 import { cn } from '@/lib/utils'
-import { alcance, alcancePartes, claveCodigo, duracion, fecha, horizonteTexto, mesAnio, numero, plata, plural, porcentaje, ventasSemana } from '@/lib/formato'
+import { alcance, alcancePartes, claveCodigo, duracion, fecha, fechaCorta, horizonteTexto, mesAnio, numero, plata, plural, porcentaje, sumarDias, ventasSemana, tarda } from '@/lib/formato'
 import type { Clase, Estado, Inventario, Producto } from '@/lib/tipos'
 import { useInventario } from './contexto'
-import { BarraRiesgo, GraficoVentas, LeyendaVentas, Sparkline } from './graficos'
+import { BarraRiesgo, GraficoAlcance, GraficoMeses, Sparkline, proyectarExistencias, ventasPorMes } from './graficos'
 import { Boton, BotonEnlace, CLASES, Cargando, ChipEstado, ChipsProducto, ESTADOS, ErrorLista, Pildoras, Tarjeta, Titulo, claseEntrada, diasDesde } from './ui'
 import { CatalogoEnLote, ComoSeCalcula, EditarCatalogo } from './catalogo'
 import { SelectorTiempo } from './vista'
@@ -98,6 +98,9 @@ function ProductosCon({ inv }: { inv: Inventario }) {
   // Pronóstico y cuánto pedir en la lista; con la ficha abierta, solo en pantallas grandes.
   const pronostica = inv.alcance !== 'prueba' && inv.productos.some((p) => p.pronostico)
   const claseExtra = producto ? 'hidden 2xl:table-cell' : 'hidden lg:table-cell'
+  // Con la ficha abierta en una pantalla de 1280 a 1535 px (un portátil), ventas y existencias se ven en la ficha y la
+  // lista queda con el producto y para cuánto alcanza: si no, no cabe.
+  const claseVentas = producto ? 'hidden sm:table-cell xl:hidden 2xl:table-cell' : 'hidden sm:table-cell'
   const claseSerie = producto ? 'hidden md:table-cell xl:hidden 2xl:table-cell' : 'hidden md:table-cell'
 
   function abrir(codigo: string | null) {
@@ -175,13 +178,13 @@ function ProductosCon({ inv }: { inv: Inventario }) {
       <div className="flex items-start gap-5">
         <Tarjeta aria-label="Lista de productos" className="min-w-0 flex-1 px-3 py-1 sm:px-4">
           <div className="overflow-x-auto">
-            <table className={cn('w-full border-collapse', producto ? 'sm:min-w-[500px]' : 'sm:min-w-[620px]')}>
+            <table className={cn('w-full border-collapse', producto ? 'sm:min-w-[500px] xl:min-w-0 2xl:min-w-[500px]' : 'sm:min-w-[620px]')}>
               <thead>
                 <tr className="text-left text-nota text-muted-foreground">
                   <th scope="col" className="border-b border-border px-2 py-3 font-semibold">Producto</th>
                   <th scope="col" className={cn('border-b border-border px-2 py-3 font-semibold', claseSerie)}>Últimas 16 semanas</th>
-                  <th scope="col" className="hidden border-b border-border px-2 py-3 text-right font-semibold sm:table-cell">Ventas/semana</th>
-                  <th scope="col" className="hidden border-b border-border px-2 py-3 text-right font-semibold sm:table-cell">Existencias</th>
+                  <th scope="col" className={cn('border-b border-border px-2 py-3 text-right font-semibold', claseVentas)}>Ventas/semana</th>
+                  <th scope="col" className={cn('border-b border-border px-2 py-3 text-right font-semibold', claseVentas)}>Existencias</th>
                   <th scope="col" className="border-b border-border px-2 py-3 text-right font-semibold">Alcanza para</th>
                   {pronostica && <th scope="col" className={cn('border-b border-border px-2 py-3 text-right leading-tight font-semibold', claseExtra)}>Venta en<br />{horizonteTexto(inv.horizonte ?? 4)}</th>}
                   {inv.sugerencias && <th scope="col" className={cn('border-b border-border px-2 py-3 text-right font-semibold', claseExtra)}>Pedir</th>}
@@ -207,8 +210,8 @@ function ProductosCon({ inv }: { inv: Inventario }) {
                     <td className={cn('border-b border-[#f0f1ee] px-2 py-3', claseSerie)}>
                       {p.serie ? <Sparkline valores={p.serie.slice(-16)} color={p.estado === 'sobra' || p.estado === 'sin_ventas' ? '#6b8bb8' : undefined} /> : <span className="text-muted-foreground">—</span>}
                     </td>
-                    <td className="hidden border-b border-[#f0f1ee] px-2 py-3 text-right font-semibold tabular-nums sm:table-cell">{ventasSemana(p.ventasSemana)}</td>
-                    <td className="hidden border-b border-[#f0f1ee] px-2 py-3 text-right tabular-nums sm:table-cell">{numero(p.existencias)}</td>
+                    <td className={cn('border-b border-[#f0f1ee] px-2 py-3 text-right font-semibold tabular-nums', claseVentas)}>{ventasSemana(p.ventasSemana)}</td>
+                    <td className={cn('border-b border-[#f0f1ee] px-2 py-3 text-right tabular-nums', claseVentas)}>{numero(p.existencias)}</td>
                     <td className="border-b border-[#f0f1ee] px-2 py-3 text-right whitespace-nowrap">
                       {p.semanas === null ? (
                         <span className="text-muted-foreground">sin ventas</span>
@@ -253,7 +256,7 @@ function ProductosCon({ inv }: { inv: Inventario }) {
         {producto && (
           <>
             {/* Escritorio: al lado de la lista */}
-            <aside className="entrar-lado sticky top-6 hidden max-h-[calc(100dvh-3rem)] w-[400px] shrink-0 overflow-y-auto rounded-2xl border border-border bg-card xl:block" aria-label={`Ficha de ${producto.nombre}`}>
+            <aside className="entrar-lado sticky top-6 hidden max-h-[calc(100dvh-3rem)] w-[420px] shrink-0 2xl:w-[520px] overflow-y-auto rounded-2xl border border-border bg-card xl:block" aria-label={`Ficha de ${producto.nombre}`}>
               <Ficha p={producto} inv={inv} alCerrar={() => abrir(null)} />
             </aside>
             {/* Celular y tableta: hoja desde abajo */}
@@ -277,13 +280,35 @@ function consejo(p: Producto, inv: Inventario) {
   if (p.ventaUnica) return `Venta única: ${numero(p.ventaUnica.vendido)} en la semana del ${fecha(p.ventaUnica.desde)} y nada más. Parece un proyecto; no se sugiere pedirlo.`
   if (p.existencias <= 0 && p.ventasSemana > 0) return `Agotado. Vende unas ${ventasSemana(p.ventasSemana)} por semana. ${inv.sugerencias && p.sugerido ? `Sugerido para este pedido: ${numero(p.sugerido)}.` : 'Inclúyalo en este pedido.'}`
   if (p.estado === 'agota' && (inv.alcance === 'prueba' || inv.vista === 'operador')) return `Se agota en menos de ${duracion(u)} al ritmo actual. Revíselo en su pedido.`
+  // Sin sugerido y con algo en camino, lo que cubre es el pedido que ya se hizo: decirlo, o parece que se contradice con "se agota".
+  if (p.estado === 'agota' && inv.sugerencias && !p.sugerido && p.enCamino) return `Se agota en menos de ${duracion(u)} con lo que hay, pero ya vienen ${numero(p.enCamino.cantidad, 2)} del pedido del ${fecha(p.enCamino.fecha)}: con eso alcanza hasta el próximo pedido. Registre la entrada en Movimientos cuando lleguen.`
   if (p.estado === 'agota' && inv.sugerencias && !p.sugerido) return `Se agota en menos de ${duracion(u)}, pero cubre la entrega de ${p.proveedor === 'Sin proveedor' ? 'su proveedor' : p.proveedor} hasta el próximo pedido.`
-  if (p.estado === 'agota') return `Se agota en menos de ${duracion(u)}${p.entrega > 0 ? ` y ${p.proveedor === 'Sin proveedor' ? 'su proveedor' : p.proveedor} tarda ${duracion(p.entrega)}` : ''}. Inclúyalo en este pedido.`
-  if (p.estado === 'pide' && p.semanas !== null && p.semanas < p.entrega) return `Alcanza para ${alcance(p.semanas)} y el proveedor tarda ${duracion(p.entrega)}. Pídalo ya.`
-  if (p.estado === 'pide') return `Alcanza para ${alcance(p.semanas)} y el proveedor tarda ${duracion(p.entrega)}. Si espera al próximo pedido, llega tarde.`
+  if (p.estado === 'agota') return `Se agota en menos de ${duracion(u)}${p.entrega > 0 ? ` y ${p.proveedor === 'Sin proveedor' ? 'su proveedor' : p.proveedor} tarda ${tarda(p.entrega)}` : ''}. Inclúyalo en este pedido.`
+  if (p.estado === 'pide' && p.semanas !== null && p.semanas < p.entrega) return `Alcanza para ${alcance(p.semanas)} y el proveedor tarda ${tarda(p.entrega)}. Pídalo ya.`
+  if (p.estado === 'pide') return `Alcanza para ${alcance(p.semanas)} y el proveedor tarda ${tarda(p.entrega)}. Si espera al próximo pedido, llega tarde.`
   if (p.estado === 'sobra') return `Alcanza para ${alcance(p.semanas)}. No lo pida por ahora${p.ventasSemana < 1 ? '; se vende muy poco: evalúe si se sigue trayendo' : ''}.`
   if (p.estado === 'sin_ventas') return 'Sin ventas en el periodo del archivo. Candidato a promoción o a salir del catálogo.'
   return `Bien surtido. ${inv.sugerencias && p.sugerido ? 'Si pide esta semana, use lo sugerido.' : 'Revíselo en el próximo pedido.'}`
+}
+
+// La gráfica de alcance dicha en palabras, con fechas (no depende de si la cuenta ve días, semanas o meses).
+function resumenAlcance(p: Producto, pr: ReturnType<typeof proyectarExistencias>, hoy: string, semanasPronostico: number) {
+  const dia = (k: number) => fechaCorta(sumarDias(hoy, Math.round(k * 7)))
+  if (p.existencias <= 0) return p.enCamino ? `Ya está en cero. Vienen en camino ${numero(p.enCamino.cantidad, 2)} del pedido del ${fecha(p.enCamino.fecha)}.` : 'Ya está en cero: cada semana sin él son ventas perdidas.'
+  const partes: string[] = []
+  if (pr.seAcaba === null) partes.push(`Con lo de siempre, alcanza más allá del ${dia(semanasPronostico)}.`)
+  else {
+    const rango = pr.seAcabaPronto !== null && pr.seAcabaTarde !== null && Math.round(pr.seAcabaPronto * 7) !== Math.round(pr.seAcabaTarde * 7)
+      ? ` (entre el ${dia(pr.seAcabaPronto)} y el ${dia(pr.seAcabaTarde)})`
+      : pr.seAcabaPronto !== null && pr.seAcabaTarde === null ? ` (si vende más de lo normal, desde el ${dia(pr.seAcabaPronto)})` : ''
+    partes.push(`Al ritmo de venta de siempre se acaba hacia el ${dia(pr.seAcaba)}${rango}.`)
+  }
+  if (p.entrega > 0) {
+    const llega = dia(p.entrega)
+    partes.push(pr.seAcaba !== null && pr.seAcaba < p.entrega ? `Un pedido hecho hoy llega el ${llega}: tarde.` : `Un pedido hecho hoy llega el ${llega}.`)
+  }
+  if (p.enCamino) partes.push(pr.seAcabaConCamino === null ? `Con los ${numero(p.enCamino.cantidad, 2)} que vienen en camino alcanza más allá del ${dia(semanasPronostico)}.` : `Con los ${numero(p.enCamino.cantidad, 2)} que vienen en camino, hasta el ${dia(pr.seAcabaConCamino)}.`)
+  return partes.join(' ')
 }
 
 function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: () => void }) {
@@ -295,6 +320,10 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
   const enPedido = pedido[p.codigo]
   const historia = (p.serie ?? []).map((v, i) => ({ inicio: inv.grafico?.semanas[inv.grafico.semanas.length - (p.serie?.length ?? 0) + i]?.inicio ?? '', valor: v }))
   const pronostico = (p.pronostico ?? []).map((x, i) => ({ ...x, inicio: inv.grafico?.pronostico[i]?.inicio ?? '' }))
+  const idFicha = useId()
+  const meses = useMemo(() => ventasPorMes(historia, p.semanasPico, inv.fuente.hasta), [historia, p.semanasPico, inv.fuente.hasta])
+  // Sin pronóstico (operador, venta única o sin ventas) no hay proyección que mostrar.
+  const proyeccion = pronostico.length && p.ventasSemana > 0 && !p.ventaUnica ? proyectarExistencias(p.existencias, pronostico, p.enCamino?.cantidad ?? null) : null
 
   return (
     <div className="flex flex-col gap-5 p-5 sm:p-6">
@@ -343,21 +372,40 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
 
       <p className="rounded-xl bg-muted px-4 py-3 text-cuerpo">{consejo(p, inv)}</p>
       <ChipsProducto p={p} className="-mt-2" />
-      {p.enCamino && (
-        <p className="-mt-2 text-chico text-ambar-texto">
-          Ya pedido el {fecha(p.enCamino.fecha)}: {numero(p.enCamino.cantidad, 2)} que no han entrado. Lo sugerido ya los cuenta; cuando lleguen, registre la entrada en Movimientos y dejan de contarse.
-        </p>
-      )}
+      {/* Lo que viene en camino ya lo dicen el consejo, la etiqueta y la gráfica de alcance: un párrafo más lo repetía. */}
       {p.pedidoReciente && !p.enCamino && (
         <p className="-mt-2 text-chico text-muted-foreground">
           Ya se pidió {diasDesde(p.pedidoReciente.fecha) === 0 ? 'hoy' : `hace ${plural(diasDesde(p.pedidoReciente.fecha), 'día', 'días')}`}: {numero(p.pedidoReciente.cantidad, 2)} en el pedido {p.pedidoReciente.numero}{p.pedidoReciente.por ? ` de ${p.pedidoReciente.por}` : ''}. Si todavía no ha llegado, téngalo en cuenta antes de pedir otra vez.
         </p>
       )}
 
-      {p.serie && p.serie.length > 4 && (
-        <div className="flex flex-col gap-2">
-          <h3 className="text-base font-bold">Ventas por semana y pronóstico</h3>
-          <GraficoVentas historia={historia} pronostico={pronostico} marcas={p.semanasPico} alto={200} descripcion={`Ventas semanales de ${p.nombre} y pronóstico de las próximas 8 semanas`} />
+      {proyeccion && (
+        <section className="flex flex-col gap-2" aria-labelledby={`${idFicha}-alcance`}>
+          <h3 id={`${idFicha}-alcance`} className="text-base font-bold">¿Hasta cuándo alcanza?</h3>
+          <p className="text-chico text-muted-foreground">Las existencias de las próximas semanas si se vende lo de siempre.</p>
+          <GraficoAlcance
+            existencias={p.existencias}
+            pronostico={pronostico}
+            enCamino={p.enCamino?.cantidad ?? null}
+            entrega={p.entrega}
+            minimo={p.minimo}
+            hoy={inv.fuente.hasta}
+            descripcion={`Existencias proyectadas de ${p.nombre} para las próximas ${pronostico.length} semanas`}
+          />
+          <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-nota text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5"><svg width="20" height="8" aria-hidden="true"><line x1="0" y1="4" x2="20" y2="4" stroke="var(--primary)" strokeWidth="2.75" /></svg>Lo más probable</span>
+            <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-5 rounded-sm bg-primary/15" />Si vende más o menos de lo normal</span>
+            {p.enCamino && <span className="inline-flex items-center gap-1.5"><svg width="20" height="8" aria-hidden="true"><line x1="0" y1="4" x2="20" y2="4" stroke="var(--primary)" strokeWidth="2" strokeDasharray="5 4" /></svg>Con lo que viene en camino</span>}
+          </div>
+          <p className="text-chico">{resumenAlcance(p, proyeccion, inv.fuente.hasta, pronostico.length)}</p>
+        </section>
+      )}
+
+      {meses.length >= 3 && (
+        <section className="flex flex-col gap-2" aria-labelledby={`${idFicha}-meses`}>
+          <h3 id={`${idFicha}-meses`} className="text-base font-bold">Ventas por mes</h3>
+          <GraficoMeses meses={meses} hasta={inv.fuente.hasta} descripcion={`Unidades vendidas de ${p.nombre} en cada uno de los últimos ${meses.length} meses`} />
+          {meses[meses.length - 1].parcial && <p className="text-nota text-muted-foreground">La barra clara es el mes en curso: llega hasta el {fecha(inv.fuente.hasta)}.</p>}
           {p.pico && (
             <p className="text-chico text-ambar-texto">
               En {mesAnio(p.pico.mes)} vendió {numero(p.pico.vendido)}, mucho más de lo normal (un proyecto o un cliente puntual). Para el promedio se contaron {numero(p.pico.contado)}.
@@ -365,14 +413,14 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
           )}
           {p.ventaHorizonte ? (
             <p className="text-chico text-muted-foreground">
-              Próximas {horizonteTexto(inv.horizonte ?? 4)}: lo más probable es vender {numero(Math.round(p.ventaHorizonte.media))} (entre {numero(Math.round(p.ventaHorizonte.bajo))} y {numero(Math.round(p.ventaHorizonte.alto))}).
+              De aquí a {horizonteTexto(inv.horizonte ?? 4)}, lo más probable es vender {numero(Math.round(p.ventaHorizonte.media))} (entre {numero(Math.round(p.ventaHorizonte.bajo))} y {numero(Math.round(p.ventaHorizonte.alto))}).
             </p>
           ) : prox4.length > 0 && (
             <p className="text-chico text-muted-foreground">
-              Próximas 4 semanas: lo más probable es vender {numero(Math.round(media4))}.
+              De aquí a 4 semanas, lo más probable es vender {numero(Math.round(media4))}.
             </p>
           )}
-        </div>
+        </section>
       )}
 
       <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-2 text-cuerpo">
@@ -383,7 +431,7 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
         {inv.alcance !== 'prueba' && (
           <>
             <dt className="text-muted-foreground">El proveedor tarda</dt>
-            <dd className="text-right font-semibold tabular-nums">{p.entregaDias != null ? plural(p.entregaDias, 'día hábil', 'días hábiles') : duracion(p.entrega)}</dd>
+            <dd className="text-right font-semibold tabular-nums">{tarda(p.entrega)}</dd>
           </>
         )}
         {p.minimo !== null && p.maximo !== null && (
@@ -427,8 +475,8 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
         <div className="flex flex-col gap-3 rounded-2xl border border-[#cfe5e1] bg-secondary p-4">
           <p className="text-cuerpo text-[#0b3f3b]">
             {p.sugerido > 0
-              ? <>Sugerido: <strong>{numero(p.sugerido, 2)}</strong>. Cubre la entrega ({duracion(p.entrega)}) y {duracion(p.cadaCuanto ?? inv.ajustes.cadaCuanto)} más hasta el próximo pedido.{p.multiplo ? ` Va en cajas de ${numero(p.multiplo, 2)}.` : p.lote > 1 ? ` Va en paquetes de ${numero(p.lote)}, como se vende.` : ''}{p.detalleSugerido?.minimoPedido ? ` Subió al mínimo de pedido (${numero(p.detalleSugerido.minimoPedido, 2)}).` : ''}</>
-              : <>Con lo que hay se cubre la entrega y {duracion(p.cadaCuanto ?? inv.ajustes.cadaCuanto)} más: no hace falta pedir.</>}
+              ? <>Sugerido: <strong>{numero(p.sugerido, 2)}</strong>. Cubre la entrega ({tarda(p.entrega)}) y {duracion(p.cadaCuanto ?? inv.ajustes.cadaCuanto)} más hasta el próximo pedido.{p.multiplo ? ` Va en cajas de ${numero(p.multiplo, 2)}.` : p.lote > 1 ? ` Va en paquetes de ${numero(p.lote)}, como se vende.` : ''}{p.detalleSugerido?.minimoPedido ? ` Subió al mínimo de pedido (${numero(p.detalleSugerido.minimoPedido, 2)}).` : ''}</>
+              : <>Con lo que hay{p.enCamino ? ` y los ${numero(p.enCamino.cantidad, 2)} que vienen en camino` : ''} se cubre la entrega y {duracion(p.cadaCuanto ?? inv.ajustes.cadaCuanto)} más: no hace falta pedir.</>}
           </p>
           {enPedido ? (
             <div className="flex flex-wrap items-center gap-2.5">

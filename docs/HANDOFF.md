@@ -27,6 +27,21 @@
 
 ---
 
+## 2026-11-21 (72) — Claude (David) — Revisión en computador como cliente: gráficas de la ficha, cálculo de la última semana y textos
+- **Rama:** `main`.
+- **Estado:** la app se usa en computador; se recorrió a 1280 y 1440 px. Hecho:
+  - **Ficha del producto** (`productos.tsx`, `graficos.tsx`): `GraficoAlcance` + `proyectarExistencias` (existencias proyectadas con el pronóstico, franja de venta alta/baja, se acaba ~fecha, "si pide hoy, llega aquí", mínimo, línea con lo en camino) y `GraficoMeses` + `ventasPorMes` (barras por mes, promedio arriba, mes en curso punteado). `resumenAlcance` lo dice en palabras con fechas cortas. Ficha de 420 px (520 en 2xl); con la ficha abierta entre 1280 y 1535 px la lista oculta ventas y existencias (`claseVentas`). `GraficoVentas` sigue en el flujo de 5 pasos y en el panel, con marcas de eje redondas.
+  - **Cálculo** (`saldos.ventasDeExport`, `rotacion.calcularRotacion` con `desdeDia`, `VERSION_CALCULO = 3`): las semanas del archivo se rearman en su último día; antes la última semana combinada quedaba solo con los movimientos (6 en vez de 74) y la tendencia salía −28 % en vez de −3,5 %. Prueba nueva en `test/saldos.test.js`.
+  - **Pedidos** (`pedido-preparar.tsx`): etiquetas con el inventario de hoy (`conVivo`; antes vacías porque el estado inicial se armaba sin inventario) y aviso de productos que ya van en camino por otro pedido aprobado después de empezar este.
+  - **Textos:** `tarda()` en `lib/formato.ts` (días hábiles en todas partes), consejo y "no hace falta pedir" con lo en camino, Existencias "En camino", panel con el boletín en vez del recordatorio de 5 pasos y acierto verde solo si llega al 70 %, reportes con fechas en palabras (`fechaLarga`), de a dos en `xl` y encabezado fijo, aviso del código de acceso al invitar.
+- **Archivos tocados:** web `graficos.tsx`, `productos.tsx`, `pedido-preparar.tsx`, `panel.tsx`, `datos.tsx`, `existencias.tsx`, `reportes.tsx`, `invitar.tsx`, `lib/formato.ts`; servidor `saldos.js`, `rotacion.js`, `movimientos.js`, `reportes.js`; pruebas `saldos.test.js`; docs `modelo-rotacion.md` §8.1, `ENTREGABLE_Y_APP.md` (fila 28).
+- **Base de datos:** nada nuevo; `VERSION_CALCULO = 3` hace que cada empresa con movimientos recalcule su inventario la próxima vez que se pida.
+- **Verificación:** `npm test` 226 de 226; `tsc` limpio; `npm run texto` 0 con tuteo. En el navegador: ficha con las dos gráficas y su texto, panel con la última semana correcta, aviso de pedido doble, reportes en dos columnas.
+- **Siguiente paso exacto:** redeploy en Vercel del último commit y, con los datos reales del piloto, abrir la ficha de 3 productos (uno agotado, uno con pedido en camino y uno bien) para confirmar que las fechas tienen sentido.
+- **Notas y bloqueos:** la proyección usa el pronóstico de 8 semanas; si el producto alcanza más, se dice en palabras ("alcanza más allá del …").
+
+---
+
 ## 2026-11-21 (71) — Claude (David) — Revisión de experiencia y accesibilidad antes de las pruebas
 - **Rama:** `main`.
 - **Estado:** recorrido como usuario (gerente, administrador y operador) en celular de 375 px y en escritorio, con una revisión automática por pantalla (botones sin nombre, campos sin etiqueta, contraste, letra menor de 12 px, toque menor de 28 px, desborde horizontal) y el flujo de la prueba H2 completo. Arreglado: tarjetas por producto en Preparar pedido en el celular (`TarjetasGrupo` en `pedido-preparar.tsx`; la tabla queda desde `sm`); Existencias, panel, Mis pedidos y Movimientos sin deslizar de lado; confirmación flotante al guardar un movimiento en el celular (`ConfirmacionFlotante`); código de acceso primero en Crear cuenta y validación del servidor en el mismo orden; `exigirLineas` en `/enviar` y `/por-que` (un pedido vacío llegaba a quien aprueba); "Saltar al contenido", Escape en el menú del celular, foco en "Cerrar/Aprobar/Enviar" con `irAlCierre`, área de toque de 44 px en `Ayuda`; textos ("lápiz, escriba", "valores de su rol", sin el aviso de "perfil operador").

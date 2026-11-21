@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { useMemo, useState, type ReactNode } from 'react'
 import { ArrowRight, BellRing, CalendarDays, Sparkles, TriangleAlert, Truck, Wallet } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { alcance, alcancePartes, dia, duracion, fecha, mesAnio, numero, plata, plural, porcentaje, sumarDias, ventasSemana } from '@/lib/formato'
+import { alcance, alcancePartes, dia, duracion, fecha, mesAnio, numero, plata, plural, porcentaje, sumarDias, ventasSemana, tarda } from '@/lib/formato'
 import { nombrePrograma } from '@/lib/sistemas'
 import type { Inventario, Producto } from '@/lib/tipos'
 import { useInventario } from './contexto'
@@ -116,7 +116,7 @@ function PanelCon({ inv }: { inv: Inventario }) {
             tono="text-ambar"
             etiqueta="text-ambar-texto"
             valor={numero(r.pideYa)}
-            detalle={pideTop ? `${pideTop.pideYa} de ${pideTop.nombre}: tarda ${duracion(pideTop.entrega)}` : 'Ninguno tarda más de lo que queda'}
+            detalle={pideTop ? `${pideTop.pideYa} de ${pideTop.nombre}: tarda ${tarda(pideTop.entrega)}` : 'Ninguno tarda más de lo que queda'}
             ayuda="Alcanzan para más de 2 semanas, pero no para la entrega del proveedor más una semana de margen."
             href={`${rutas.productos}?filtro=pide`}
           />
@@ -277,7 +277,7 @@ function FilaPrimero({ p, href }: { p: Producto; href: string }) {
           p.riesgo !== null && <BarraRiesgo valor={p.riesgo} />
         )}
         <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          <ChipEstado estado={p.estado} existencias={p.existencias} texto={p.estado === 'pide' ? `Pedir ya: tarda ${duracion(p.entrega)}` : undefined} />
+          <ChipEstado estado={p.estado} existencias={p.existencias} texto={p.estado === 'pide' ? `Pedir ya: tarda ${tarda(p.entrega)}` : undefined} />
           {/* Solo "pedido hace poco": en el panel importa no pedir dos veces lo que ya va en camino. */}
           {(p.pedidoReciente || p.enCamino) && <ChipsProducto p={{ pedidoReciente: p.pedidoReciente, enCamino: p.enCamino }} />}
         </span>
@@ -333,7 +333,7 @@ function AtenderHoy({ inv }: { inv: Inventario }) {
   if (pide) {
     tarjetas.push(
       <Tarjetita key="pide" icono={<Truck />} titulo="Pedir ya: tarda en llegar" tono="ambar" accion={<BotonEnlace href={fuente.tipo === 'cuenta' ? '/pedidos/sugerido' : rutas.pedido} variante="primario" tamano="chico" className="self-start">Preparar pedido</BotonEnlace>}>
-        <strong>{pide.nombre}</strong> alcanza para {alcance(pide.semanas)} y {pide.proveedor} tarda {duracion(pide.entrega)}. Se acaba hacia el {fecha(sumarDias(hoy, Math.round((pide.semanas ?? 0) * 7)))}: pídalo ya para que llegue a tiempo.
+        <strong>{pide.nombre}</strong> alcanza para {alcance(pide.semanas)} y {pide.proveedor} tarda {tarda(pide.entrega)}. Se acaba hacia el {fecha(sumarDias(hoy, Math.round((pide.semanas ?? 0) * 7)))}: pídalo ya para que llegue a tiempo.
       </Tarjetita>,
     )
   }
@@ -369,9 +369,9 @@ function AtenderHoy({ inv }: { inv: Inventario }) {
         icono={<BellRing />}
         titulo="Lo que viene"
         tono="neutro"
-        accion={fuente.tipo === 'cuenta' ? <Link href={rutas.pedido} className="text-chico font-semibold text-primary hover:text-primary-hover">Pida el recordatorio al ver el reporte de su pedido</Link> : undefined}
+        accion={fuente.tipo === 'cuenta' ? <Link href="/cuenta" className="text-chico font-semibold text-primary hover:text-primary-hover">Recibir estos avisos en el boletín de cada mañana</Link> : undefined}
       >
-        {plural(avisos.productos, 'producto que hoy está bien llega', 'productos que hoy están bien llegan')} a {inv.umbrales.seAgota} semanas en los próximos 3 meses. El primero, <strong>{avisos.primero.nombre}</strong>, hacia el {dia(avisos.primero.fechaUmbral)}.
+        {plural(avisos.productos, 'producto que hoy está bien llega', 'productos que hoy están bien llegan')} a {duracion(inv.umbrales.seAgota)} de inventario en los próximos 3 meses. El primero, <strong>{avisos.primero.nombre}</strong>, hacia el {dia(avisos.primero.fechaUmbral)}.
         {fuente.tipo === 'demo' ? ' Con su cuenta se lo dejamos en el calendario, 3 días antes.' : ''}
       </Tarjetita>,
     )
@@ -385,8 +385,9 @@ function AtenderHoy({ inv }: { inv: Inventario }) {
   }
   if (a) {
     tarjetas.push(
-      <Tarjetita key="acierto" icono={<Sparkles />} titulo="Qué tan bien acierta" tono="verde">
-        Escondimos las últimas {a.semanas} semanas de su archivo y las pronosticamos con lo anterior: lo vendido cayó dentro del rango en {a.aciertos} de {a.productos} productos.
+      // Verde solo si acierta en la mayoría: en verde, "3 de 7" se leía como un logro.
+      <Tarjetita key="acierto" icono={<Sparkles />} titulo="Qué tan bien acierta" tono={a.aciertos / Math.max(a.productos, 1) >= 0.7 ? 'verde' : 'neutro'}>
+        Para medirlo, se apartaron las últimas {a.semanas} semanas de su archivo y se pronosticaron con lo anterior: lo vendido cayó dentro del rango en {a.aciertos} de {a.productos} productos ({Math.round((a.aciertos / Math.max(a.productos, 1)) * 100)} %).
       </Tarjetita>,
     )
   } else if (nuevo) {

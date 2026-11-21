@@ -67,11 +67,12 @@ function avisosDelPeriodo(ventas, hasta, mensual, hoy) {
  *   así que se usa el promedio simple Q ÷ T.
  * semanasAgota: el umbral de "se agota" que eligió el usuario (2 si no eligió). Queda guardado
  *   en el reporte, así que cada pedido conserva el umbral con el que se vio.
+ * desdeDia: el primer día del periodo si es antes de la primera venta (el comienzo del archivo base).
  * hastaDia: el último día del periodo si es después de la última venta. Lo usa el inventario
  *   calculado con movimientos (server/movimientos.js): las existencias son las del último día
  *   con movimientos, aunque ese día no se haya vendido nada.
  */
-function calcularRotacion({ ventas, existencias, mensual = false, periodo: totales = null, semanasAgota = SEMANAS_SE_AGOTA, hoy, hastaDia }) {
+function calcularRotacion({ ventas, existencias, mensual = false, periodo: totales = null, semanasAgota = SEMANAS_SE_AGOTA, hoy, hastaDia, desdeDia }) {
   if (!ventas.length) throw new Error('No hay ventas para calcular.');
 
   let desde = Infinity;
@@ -82,6 +83,8 @@ function calcularRotacion({ ventas, existencias, mensual = false, periodo: total
   }
   if (mensual) hasta = finDeMes(hasta); // el último mes cuenta completo
   if (hastaDia !== undefined && hastaDia > hasta) hasta = hastaDia;
+  // El primer día del archivo base cuando sus ventas se rearman por semana (saldos.ventasDeExport).
+  if (desdeDia != null && desdeDia < desde) desde = desdeDia;
   if (totales) ({ desde, hasta } = totales);
   const dias = hasta - desde + 1;
   const semanasHistorico = dias / 7;

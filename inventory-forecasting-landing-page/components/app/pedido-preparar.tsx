@@ -120,7 +120,17 @@ export function PedidoPreparar({ pedido, alCambiar }: { pedido: Pedido; alCambia
 
   // Filtros: por código o nombre, proveedor y estado.
   const texto = q.trim().toLowerCase()
-  const visibles = filas.filter((f) =>
+  // "En camino", "pedido hace poco" y "venta alta" salen del inventario de HOY, no del momento en que se abrió la
+  // pantalla: el estado inicial se arma antes de que cargue el inventario y se quedaban vacías. Así también se ve si,
+  // mientras este borrador esperaba, se aprobó otro pedido con los mismos productos.
+  const conVivo = (f: Fila): Fila => {
+    const p = productos.get(f.clave)
+    return p ? { ...f, ventaAlta: Boolean(p.ventaAlta), pedidoReciente: p.pedidoReciente ?? null, enCamino: p.enCamino ?? null, familia: f.familia ?? p.familia ?? null, clase: f.clase ?? p.clase ?? null } : f
+  }
+  const vivas = filas.map(conVivo)
+  // Lo que otro pedido ya cerró después de empezar este: pedirlo aquí sería pedirlo dos veces.
+  const yaEnCamino = editable ? vivas.filter((f) => f.incluida && f.enCamino && f.enCamino.fecha > pedido.creadoEn) : []
+  const visibles = vivas.filter((f) =>
     (proveedor === 'todos' || f.proveedor === proveedor) &&
     (familia === 'todas' || f.familia === familia) &&
     (clase === 'todas' || (clase === 'ventaAlta' ? f.ventaAlta : clase === 'reciente' ? Boolean(f.pedidoReciente) : f.clase === clase)) &&
@@ -136,7 +146,7 @@ export function PedidoPreparar({ pedido, alCambiar }: { pedido: Pedido; alCambia
   }, [visibles])
   const nombresProveedores = [...new Set(filas.map((f) => f.proveedor))].sort((a, b) => a.localeCompare(b, 'es'))
   const familias = [...new Set(filas.map((f) => f.familia).filter((x): x is string => Boolean(x)))].sort((a, b) => a.localeCompare(b, 'es'))
-  const hayClases = filas.some((f) => f.clase || f.ventaAlta || f.pedidoReciente)
+  const hayClases = vivas.some((f) => f.clase || f.ventaAlta || f.pedidoReciente)
 
   const conCosto = filas.some((f) => f.costo && f.costo > 0)
   const totales = (fs: Fila[]) => {
@@ -305,6 +315,11 @@ export function PedidoPreparar({ pedido, alCambiar }: { pedido: Pedido; alCambia
           <Boton onClick={() => descargar('xlsx')} disabled={!total.lineas}><FileSpreadsheet /> Excel por proveedor</Boton>
           {editable && <span className="text-sm text-muted-foreground" aria-live="polite">{auto.estado}</span>}
         </div>
+        {yaEnCamino.length > 0 && (
+          <Aviso tono="cuidado" titulo={yaEnCamino.length === 1 ? '1 producto ya va en camino en otro pedido' : `${yaEnCamino.length} productos ya van en camino en otro pedido`}>
+            Se aprobó otro pedido después de empezar este: {yaEnCamino.slice(0, 3).map((f) => `${f.nombre || f.codigo} (${numero(f.enCamino!.cantidad, 2)})`).join(', ')}{yaEnCamino.length > 3 ? ' y otros' : ''}. Quítelos o ajústelos para no pedirlos dos veces.
+          </Aviso>
+        )}
         {aviso && <Aviso tono="ok">{aviso}</Aviso>}
       </Tarjeta>
 

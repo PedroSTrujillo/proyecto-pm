@@ -17,6 +17,10 @@ const { fechaBogota } = require('./recordatorios');
 const TOP = 50;
 const dia = (d) => new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10);
 
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+// "2026-10-23" → "23 de octubre de 2026": el subtítulo lo lee una persona, en pantalla y en el Excel.
+const fechaLarga = (d) => `${Number(d.slice(8, 10))} de ${MESES[Number(d.slice(5, 7)) - 1]} de ${d.slice(0, 4)}`;
+
 const fechaValida = (f) => /^\d{4}-\d{2}-\d{2}$/.test(f) && !Number.isNaN(Date.parse(f)) && dia(f) === f;
 
 // Sin fechas: los últimos 30 días hasta hoy.
@@ -41,7 +45,7 @@ function deVentas(titulo, nota, campo, elegir) {
       .map(({ p, v }) => [p.codigo, p.nombre, v, p.existencias, p.pedidoReciente ? p.pedidoReciente.cantidad : '', ...(conCosto ? [Math.round(v * (p.costo || 0))] : [])]);
     return {
       titulo,
-      subtitulo: `Del ${desde} al ${hasta}. ${nota}${e.series ? '' : ' Su archivo trae el total de un periodo y no las ventas por semana: no se puede armar este reporte.'}`,
+      subtitulo: `Del ${fechaLarga(desde)} al ${fechaLarga(hasta)}. ${nota}${e.series ? '' : ' Su archivo trae el total de un periodo y no las ventas por semana: no se puede armar este reporte.'}`,
       columnas: ['Código', 'Producto', 'Unidades vendidas', 'Existencias', 'Pedido', ...(conCosto ? ['Valor vendido'] : [])],
       formatos: ['', '', 'decimal', 'decimal', 'decimal', ...(conCosto ? ['plata'] : [])],
       filas,
@@ -65,7 +69,7 @@ async function deLosPedidos(empresaId, desde, hasta) {
   const filas = pedidos.flatMap((f) => (Array.isArray(f.lista_final) ? f.lista_final : []).map((l) => [fechaBogota(new Date(f.terminado_en)), `N.º ${f.numero}`, f.por || '', l.codigo, l.nombre || '', l.proveedor || '', Number(l.cantidad)]));
   return {
     titulo: 'Pedidos',
-    subtitulo: `Del ${desde} al ${hasta}. Los pedidos cerrados, una fila por producto pedido.`,
+    subtitulo: `Del ${fechaLarga(desde)} al ${fechaLarga(hasta)}. Los pedidos cerrados, una fila por producto pedido.`,
     columnas: ['Fecha', 'Pedido', 'Preparó', 'Código', 'Producto', 'Proveedor', 'Cantidad'],
     formatos: ['', '', '', '', '', '', 'decimal'],
     filas,
