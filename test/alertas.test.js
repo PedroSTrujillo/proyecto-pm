@@ -11,6 +11,7 @@ process.env.CORREO_REMITENTE = 'avisos@prueba.co';
 process.env.BOLETIN_SECRETO = 'secreto-boletin';
 
 const test = require('node:test');
+const { conCodigo } = require('./codigo');
 const assert = require('node:assert/strict');
 const db = require('../server/db');
 const { crearApp } = require('../server/app');
@@ -69,7 +70,7 @@ function cliente() {
 
 async function cuenta(nombre, email, extra) {
   const c = cliente();
-  const r = await c.post('/api/cuenta/crear', { nombre, email, clave: 'clave-segura', boletin: true, ...extra });
+  const r = await c.post('/api/cuenta/crear', await conCodigo({ nombre, email, clave: 'clave-segura', boletin: true, ...extra }));
   assert.equal(r.estado, 201, r.error);
   return { c, usuario: r.usuario };
 }

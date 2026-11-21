@@ -12,6 +12,7 @@ process.env.CRON_SECRET = 'secreto-cron';
 process.env.BOLETIN_SECRETO = 'secreto-boletin';
 
 const test = require('node:test');
+const { conCodigo } = require('./codigo');
 const assert = require('node:assert/strict');
 const db = require('../server/db');
 const { crearApp } = require('../server/app');
@@ -73,7 +74,7 @@ function cliente() {
 
 async function cuenta(nombre, email, extra = {}) {
   const c = cliente();
-  const r = await c.post('/api/cuenta/crear', { nombre, email, clave: 'clave-segura', ...extra });
+  const r = await c.post('/api/cuenta/crear', await conCodigo({ nombre, email, clave: 'clave-segura', ...extra }));
   assert.equal(r.estado, 201, r.error);
   return { c, usuario: r.usuario };
 }
@@ -114,7 +115,7 @@ test('los usuarios de antes de las empresas quedan cada uno con su empresa vací
 });
 
 test('una cuenta nueva siempre entra a una empresa: la que crea o la de su invitación', async () => {
-  const sin = await cliente().post('/api/cuenta/crear', { nombre: 'Sin', email: 'sin@prueba.co', clave: 'clave-segura' });
+  const sin = await cliente().post('/api/cuenta/crear', await conCodigo({ nombre: 'Sin', email: 'sin@prueba.co', clave: 'clave-segura' }));
   assert.equal(sin.estado, 400);
   assert.match(sin.error, /nombre de su empresa/);
 
@@ -130,13 +131,13 @@ test('una cuenta nueva siempre entra a una empresa: la que crea o la de su invit
   const token = new URL(inv.enlace).searchParams.get('invitacion');
   assert.equal((await cliente().get(`/api/empresa/invitaciones/${token}`)).empresa, 'Ferretería Ana');
 
-  const otroCorreo = await cliente().post('/api/cuenta/crear', { nombre: 'Intrusa', email: 'otra@prueba.co', clave: 'clave-segura', invitacion: token });
+  const otroCorreo = await cliente().post('/api/cuenta/crear', await conCodigo({ nombre: 'Intrusa', email: 'otra@prueba.co', clave: 'clave-segura', invitacion: token }));
   assert.equal(otroCorreo.estado, 400);
   const { usuario: carla } = await cuenta('Carla', 'carla@prueba.co', { invitacion: token });
   assert.equal(carla.empresa.id, usuario.empresa.id);
   assert.equal(carla.empresa.admin, false);
   assert.equal(carla.rolEmpresa, 'administrador', 'toma el rol de la invitación, no uno que mande el formulario');
-  const otraVez = await cliente().post('/api/cuenta/crear', { nombre: 'Carla 2', email: 'carla2@prueba.co', clave: 'clave-segura', invitacion: token });
+  const otraVez = await cliente().post('/api/cuenta/crear', await conCodigo({ nombre: 'Carla 2', email: 'carla2@prueba.co', clave: 'clave-segura', invitacion: token }));
   assert.equal(otraVez.estado, 400, 'una invitación sirve una sola vez');
 
   const { empresa } = await ana.get('/api/empresa');

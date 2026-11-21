@@ -7,6 +7,7 @@ process.env.DATA_DIR = 'memory://';
 process.env.SIN_LIMITES = '1';
 
 const test = require('node:test');
+const { conCodigo } = require('./codigo');
 const assert = require('node:assert/strict');
 const db = require('../server/db');
 const { crearApp } = require('../server/app');
@@ -118,7 +119,7 @@ test('la encuesta en la app: aparece cuando el equipo la abre y no se repite des
     return { estado: r.status, ...(await r.json().catch(() => ({}))) };
   };
   try {
-    assert.equal((await pedir('POST', '/api/cuenta/crear', { nombre: 'Clara', email: 'clara.piloto@prueba.co', clave: 'clave-segura', empresa: 'Clara SAS' })).estado, 201);
+    assert.equal((await pedir('POST', '/api/cuenta/crear', await conCodigo({ nombre: 'Clara', email: 'clara.piloto@prueba.co', clave: 'clave-segura', empresa: 'Clara SAS' }))).estado, 201);
     assert.equal((await pedir('GET', '/api/encuesta')).mostrar, false);
     assert.equal((await pedir('POST', '/api/encuesta', { puntaje: 5 })).estado, 409, 'cerrada no se responde');
 

@@ -27,6 +27,28 @@
 
 ---
 
+## 2026-11-21 (65) — Claude — T11: suspender y reactivar cuentas
+- **Rama:** `cambios-sinesc`, solo en local, sin commit (T5 a T10 tampoco).
+- **Estado:** T11 hecha. `usuarios.suspendida_en`; `cargarUsuario` ignora la sesión de una cuenta suspendida (401 en todas las rutas), `/entrar` responde 403 con "Su cuenta está suspendida…" solo si la clave es correcta, `/olvide` no envía el enlace, `/restablecer` la rechaza y el boletín diario la salta. El equipo usa `POST /api/equipo/cuentas/:id/suspender|reactivar` (no a cuentas del equipo ni a sí mismo; suspender borra sus sesiones; eventos con el correo enmascarado). Web: chip "Suspendida" y botón "Suspender/Reactivar cuenta" en el detalle de Cuentas.
+- **Archivos tocados:** `server/db.js`, `cuentas.js`, `cuentas-equipo.js`, `boletin.js`; web `cuentas-equipo.tsx`; prueba nueva en `test/cuentas-equipo.test.js`; docs `ENTREGABLE_Y_APP.md` (fila 23), `CLAUDE.md`, `README.md`, este archivo.
+- **Base de datos:** columna `usuarios.suspendida_en` (en `ESQUEMA`).
+- **Verificación:** `npm test` 214 de 214; `tsc --noEmit` limpio; `npm run texto` solo falsos positivos. **No se probó en el navegador.**
+- **Siguiente paso exacto:** T12 (pestaña Proveedores); T13 y T14 después.
+- **Notas y bloqueos:** se suspende por cuenta, una por una (`shortcut`: botón de toda la empresa si hace falta). Sigue pendiente confirmar con el equipo lo de T5; T9 y T10 salen juntas.
+
+---
+
+## 2026-11-21 (64) — Claude — T10: códigos de acceso de un solo uso
+- **Rama:** `cambios-sinesc`, solo en local, sin commit (T5 a T9 tampoco).
+- **Estado:** T10 hecha. `POST /api/cuenta/crear` exige `codigo` y lo consume en la misma `db.tx` (`UPDATE … WHERE usado_en IS NULL RETURNING`); si algo falla después, el código no se pierde. También lo pide quien entra por invitación. `cuentas-equipo.js`: `GET/POST /api/equipo/cuentas/codigos` (1 a 20 por vez, formato `XXXX-XXXX` sin 0/O/1/I) y `crearCodigos` exportado. Web: campo "Código de acceso" en `CrearCuenta` y tarjeta "Códigos de acceso" en Cuentas (generar, copiar, ver quién lo usó). Nadie se exime del código, ni `TEAM_EMAILS` (el correo no está verificado).
+- **Archivos tocados:** `server/db.js`, `server/cuentas.js`, `server/cuentas-equipo.js`; web `cuenta-formularios.tsx`, `cuentas-equipo.tsx`; pruebas: `test/codigo.js` (ayudante `conCodigo`, aplicado a todas las creaciones de cuenta de 11 archivos) y una prueba nueva en `cuentas-equipo.test.js`; docs `ENTREGABLE_Y_APP.md` (fila 22), `CLAUDE.md`, `README.md`, este archivo.
+- **Base de datos:** tabla `codigos_acceso` (en `ESQUEMA`, sin migración).
+- **Verificación:** `npm test` 213 de 213; `tsc --noEmit` limpio; `npm run texto` solo marca falsos positivos. **No se probó en el navegador.**
+- **Siguiente paso exacto:** T11 (suspender cuentas), o T12 antes de T13 y T14.
+- **Notas y bloqueos:** en una base nueva no hay con qué crear la primera cuenta: generar un código por consola (comando en CLAUDE.md). Los códigos no vencen ni se pueden anular desde la pantalla (`shortcut`). T9 y T10 salen juntas cuando cierre el piloto. Sigue pendiente confirmar con el equipo lo de T5.
+
+---
+
 ## 2026-11-21 (63) — Claude — T9: precio en la página principal
 - **Rama:** `cambios-sinesc`, solo en local, sin commit (T5 a T8 tampoco).
 - **Estado:** T9 hecha. `components/landing/pricing-section.tsx` reescrita: tres tarjetas (82.500 una persona, 90.000 con un operador —la destacada, con "Crear mi cuenta"—, +10.000 por cada adicional), "Todos los planes incluyen" y la línea del código de acceso (lo implementa T10). Se quitó "Versión piloto" de `cta-section.tsx` y **todo lo que decía lo que SINESC no hace** en la landing (decisión del usuario, por recomendación): la tarjeta "Lo que no hace" y la reformulación en positivo de dos preguntas del FAQ, de `how-it-works.tsx` y de `calculator-section.tsx`. Los precios **no llevan IVA** (SaaS en línea): no se aclara en la página, solo aquí y en `ENTREGABLE_Y_APP.md`.

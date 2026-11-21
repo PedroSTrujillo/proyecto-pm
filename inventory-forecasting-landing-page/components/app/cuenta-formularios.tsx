@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { api, textoErrores } from '@/lib/api'
 import type { Usuario } from '@/lib/tipos'
+import { cn } from '@/lib/utils'
 import { Marca } from './marco'
 import { Aviso, Boton, Campo, ErrorLista, claseEntrada } from './ui'
 
@@ -129,6 +130,7 @@ export function CrearCuenta() {
               <Campo etiqueta="NIT" nota="(opcional)"><input className={claseEntrada} type="text" name="nit" inputMode="numeric" /></Campo>
             </>
           )}
+          <Campo etiqueta="Código de acceso" nota="(se lo entrega el equipo de SINESC)"><input className={cn(claseEntrada, 'font-mono uppercase')} type="text" name="codigo" required autoComplete="off" placeholder="XXXX-XXXX" /></Campo>
           <Campo etiqueta="Su nombre"><input className={claseEntrada} type="text" name="nombre" required autoComplete="name" autoFocus={Boolean(invitacion)} /></Campo>
           <Campo etiqueta="Su cargo" nota="(opcional, va en el PDF de sus pedidos)"><input className={claseEntrada} type="text" name="cargo" maxLength={80} placeholder="Por ejemplo, jefe de compras" autoComplete="organization-title" /></Campo>
           <Campo etiqueta="Correo"><input className={claseEntrada} type="email" name="email" required autoComplete="email" defaultValue={invitada?.email || ''} key={invitada?.email || ''} /></Campo>

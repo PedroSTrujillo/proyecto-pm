@@ -166,6 +166,15 @@ const ESQUEMA = [
   )`,
   // Rol con el que entra quien usa la invitación: 'administrador' u 'operador' (NULL = operador).
   'ALTER TABLE invitaciones ADD COLUMN IF NOT EXISTS rol TEXT',
+  // Códigos de acceso de un solo uso: sin uno no se crea una cuenta (T10). Los entrega el equipo.
+  `CREATE TABLE IF NOT EXISTS codigos_acceso (
+    codigo TEXT PRIMARY KEY,
+    nota TEXT,
+    creado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT now(),
+    usado_en TIMESTAMPTZ,
+    usado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL
+  )`,
   // Catálogo de la empresa: la identidad es claveCodigo (valores.js), igual que en el reporte.
   `CREATE TABLE IF NOT EXISTS productos (
     id SERIAL PRIMARY KEY,
@@ -275,6 +284,8 @@ const ESQUEMA = [
   'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cargo TEXT',
   // Un operador solo sube el archivo de inventario si quien administra se lo marca (T4 de docs/PLAN_CAMBIOS_SINESC.md).
   'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS sube_datos BOOLEAN NOT NULL DEFAULT false',
+  // Cuenta suspendida por el equipo (T11): no entra ni recibe el boletín, pero sus datos se quedan.
+  'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS suspendida_en TIMESTAMPTZ',
   // El gerente (quien fundó la empresa) siempre es administrador y aprueba; nadie le cambia el rol.
   "UPDATE usuarios SET perfil = 'analista', aprueba = true WHERE admin_empresa AND (perfil <> 'analista' OR NOT aprueba)",
   'ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS enviado_en TIMESTAMPTZ',

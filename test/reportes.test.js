@@ -7,6 +7,7 @@ process.env.DATA_DIR = 'memory://';
 process.env.SIN_LIMITES = '1';
 
 const test = require('node:test');
+const { conCodigo } = require('./codigo');
 const assert = require('node:assert/strict');
 const ExcelJS = require('exceljs');
 const db = require('../server/db');
@@ -80,14 +81,14 @@ async function libro(r) {
 
 test('sin inventario los de ventas piden subirlo, y fuera de gerente y administrador no se abren', async () => {
   ana = cliente();
-  const r = await ana.post('/api/cuenta/crear', { nombre: 'Ana', email: 'ana-rep@ejemplo.co', clave: 'clave-segura', empresa: 'Reportes SAS' });
+  const r = await ana.post('/api/cuenta/crear', await conCodigo({ nombre: 'Ana', email: 'ana-rep@ejemplo.co', clave: 'clave-segura', empresa: 'Reportes SAS' }));
   assert.equal(r.estado, 201, r.error);
   assert.equal((await ana.get('/api/reportes/mas-vendidos')).estado, 409);
   assert.equal((await ana.get('/api/reportes/pedidos')).estado, 200, 'los pedidos no necesitan inventario');
 
   const { enlace } = await ana.post('/api/empresa/invitaciones', { rol: 'operador' });
   operador = cliente();
-  const o = await operador.post('/api/cuenta/crear', { nombre: 'Omar', email: 'omar-rep@ejemplo.co', clave: 'clave-segura', invitacion: new URL(enlace).searchParams.get('invitacion') });
+  const o = await operador.post('/api/cuenta/crear', await conCodigo({ nombre: 'Omar', email: 'omar-rep@ejemplo.co', clave: 'clave-segura', invitacion: new URL(enlace).searchParams.get('invitacion') }));
   assert.equal(o.estado, 201, o.error);
   assert.equal((await operador.get('/api/reportes/mas-vendidos')).estado, 403);
   assert.equal((await operador.get('/api/reportes/mas-vendidos.xlsx')).estado, 403);

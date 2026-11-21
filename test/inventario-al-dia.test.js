@@ -8,6 +8,7 @@ process.env.DATA_DIR = 'memory://';
 process.env.SIN_LIMITES = '1';
 
 const test = require('node:test');
+const { conCodigo } = require('./codigo');
 const assert = require('node:assert/strict');
 const db = require('../server/db');
 const { crearApp } = require('../server/app');
@@ -58,7 +59,7 @@ const productoDe = (inv, codigo) => inv.inventario.productos.find((p) => p.codig
 
 test('una empresa que solo cuenta (sin registrar ventas): lo que baja el conteo cuenta como vendido y el panel lo explica', async () => {
   const leo = cliente();
-  assert.equal((await leo.post('/api/cuenta/crear', { nombre: 'Leo', email: 'leo.conteos@prueba.co', clave: 'clave-segura', empresa: 'Ferretería Conteos' })).estado, 201);
+  assert.equal((await leo.post('/api/cuenta/crear', await conCodigo({ nombre: 'Leo', email: 'leo.conteos@prueba.co', clave: 'clave-segura', empresa: 'Ferretería Conteos' }))).estado, 201);
   const { pedido } = await leo.post('/api/pedidos');
   await leo.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: [{ codigo: 'TOR-0610', cantidad: '60' }], tipo: 'real' });
   assert.equal((await leo.subir(`/api/pedidos/${pedido.id}/export`, [['export.xlsx', await plantillaExport()]])).ok, true);
@@ -76,7 +77,7 @@ test('una empresa que solo cuenta (sin registrar ventas): lo que baja el conteo 
 
 test('cada movimiento que se guarda se ve en el panel, aunque el panel ya se haya calculado antes', async () => {
   const ana = cliente();
-  const r = await ana.post('/api/cuenta/crear', { nombre: 'Ana', email: 'ana.dia@prueba.co', clave: 'clave-segura', empresa: 'Ferretería Al Día' });
+  const r = await ana.post('/api/cuenta/crear', await conCodigo({ nombre: 'Ana', email: 'ana.dia@prueba.co', clave: 'clave-segura', empresa: 'Ferretería Al Día' }));
   assert.equal(r.estado, 201, r.error);
   const { pedido } = await ana.post('/api/pedidos');
   await ana.post(`/api/pedidos/${pedido.id}/lista-inicial`, { lineas: [{ codigo: 'TOR-0610', cantidad: '60' }], tipo: 'real' });
@@ -104,7 +105,7 @@ test('cada movimiento que se guarda se ve en el panel, aunque el panel ya se hay
   const inv = await ana.post('/api/empresa/invitaciones', { email: 'carla.dia@prueba.co' });
   const token = new URL(inv.enlace).searchParams.get('invitacion');
   const carla = cliente();
-  assert.equal((await carla.post('/api/cuenta/crear', { nombre: 'Carla', email: 'carla.dia@prueba.co', clave: 'clave-segura', invitacion: token })).estado, 201);
+  assert.equal((await carla.post('/api/cuenta/crear', await conCodigo({ nombre: 'Carla', email: 'carla.dia@prueba.co', clave: 'clave-segura', invitacion: token }))).estado, 201);
   assert.equal(existenciasDe(await carla.get('/api/inventario'), 'TOR-0610'), 40);
   // Y lo que ella registra lo ve Ana.
   await carla.post('/api/movimientos', { movimientos: [{ codigo: 'TOR-0610', tipo: 'entrada', cantidad: 10, fecha: hoy }] });

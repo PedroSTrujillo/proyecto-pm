@@ -108,7 +108,7 @@ async function cargarUsuario(req, _res, next) {
   const fila = await db.uno(
     `SELECT ${COLUMNAS_USUARIO}, s.token_hash, s.ultima_actividad_en
        FROM sesiones s JOIN usuarios u ON u.id = s.usuario_id LEFT JOIN empresas e ON e.id = u.empresa_id
-      WHERE s.token_hash = $1 AND s.expira_en > now()`,
+      WHERE s.token_hash = $1 AND s.expira_en > now() AND u.suspendida_en IS NULL`,
     [hashToken(token)],
   );
   if (!fila) return next();
@@ -225,6 +225,8 @@ function baseDe(req) {
   return process.env.APP_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : `${req.protocol}://${req.get('host')}`);
 }
 
+const CUENTA_SUSPENDIDA = 'Su cuenta está suspendida. Escriba al equipo de SINESC para reactivarla.';
+
 // --- Rutas -----------------------------------------------------------------------
 
 const rutas = express.Router();
@@ -248,7 +250,12 @@ rutas.post('/crear', async (req, res) => {
   const existe = await db.uno('SELECT id FROM usuarios WHERE email = $1', [email]);
   if (existe) throw new ErrorUsuario('Ya hay una cuenta con ese correo. Inicie sesión.');
   const rol = esEmailDeEquipo(email) ? 'equipo' : 'usuario';
+  const codigo = String(req.body?.codigo || '').replace(/\s+/g, '').toUpperCase();
+  if (!codigo) throw new ErrorUsuario('Escriba su código de acceso. Se lo entrega el equipo de SINESC.');
   const id = await db.tx(async (t) => {
+    // Cada persona lleva el suyo, también quien entra por invitación; si algo falla abajo, el tx lo devuelve.
+    const { rows: usados } = await t.query('UPDATE codigos_acceso SET usado_en = now() WHERE codigo = $1 AND usado_en IS NULL RETURNING codigo', [codigo]);
+    if (!usados[0]) throw new ErrorUsuario('El código de acceso no es válido o ya se usó. Pídalo al equipo de SINESC.');
     let empresaId;
     // Quien funda la empresa es su gerente y aprueba; quien entra por invitación toma el rol de la
     // invitación (sin rol, el más bajo), nunca uno que mande el formulario.
@@ -279,6 +286,7 @@ rutas.post('/crear', async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb) RETURNING id`,
       [email, nombre, hashClave(clave), rol, empresaId, admin, perfil, aprueba, boletin, cargo, JSON.stringify({ unidad: UNIDAD_CUENTA_NUEVA })],
     );
+    await t.query('UPDATE codigos_acceso SET usado_por = $1 WHERE codigo = $2', [rows[0].id, codigo]);
     if (invitacion) await t.query('UPDATE invitaciones SET usada_por = $1 WHERE token_hash = $2', [rows[0].id, hashToken(invitacion)]);
     return rows[0].id;
   });
@@ -292,8 +300,9 @@ rutas.post('/crear', async (req, res) => {
 rutas.post('/entrar', async (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
   const clave = String(req.body?.clave || '');
-  const u = await db.uno('SELECT id, email, nombre, rol, sistema, clave_hash, es_equipo FROM usuarios WHERE email = $1', [email]);
+  const u = await db.uno('SELECT id, email, nombre, rol, sistema, clave_hash, es_equipo, suspendida_en FROM usuarios WHERE email = $1', [email]);
   if (!u || !verificarClave(clave, u.clave_hash)) throw new ErrorUsuario('El correo o la contraseña no coinciden.', 401);
+  if (u.suspendida_en) throw new ErrorUsuario(CUENTA_SUSPENDIDA, 403);
   const rol = esEmailDeEquipo(email) || u.es_equipo ? 'equipo' : u.rol === 'equipo' && !process.env.TEAM_EMAILS ? 'equipo' : 'usuario';
   if (rol !== u.rol) await db.query('UPDATE usuarios SET rol = $1 WHERE id = $2', [rol, u.id]);
   u.rol = rol;
@@ -376,7 +385,7 @@ rutas.put('/clave', requiereUsuario, async (req, res) => {
 rutas.post('/olvide', async (req, res) => {
   if (!correoConfigurado()) return res.json({ correo: false });
   const email = String(req.body?.email || '').trim().toLowerCase();
-  const u = await db.uno('SELECT id, nombre, email FROM usuarios WHERE email = $1', [email]);
+  const u = await db.uno('SELECT id, nombre, email FROM usuarios WHERE email = $1 AND suspendida_en IS NULL', [email]);
   if (u) {
     const { enlace, horas } = await crearEnlaceRestablecer(u.id, baseDe(req));
     await enviarCorreo({
@@ -398,6 +407,7 @@ rutas.post('/restablecer', async (req, res) => {
     [hashToken(token)],
   );
   if (!r) throw new ErrorUsuario('Este enlace ya se usó o se venció. Pida uno nuevo.', 400);
+  if ((await db.uno('SELECT suspendida_en FROM usuarios WHERE id = $1', [r.usuario_id]))?.suspendida_en) throw new ErrorUsuario(CUENTA_SUSPENDIDA, 403);
   await db.query('UPDATE usuarios SET clave_hash = $1 WHERE id = $2', [hashClave(clave), r.usuario_id]);
   await db.query('DELETE FROM sesiones WHERE usuario_id = $1', [r.usuario_id]);
   await registrarEvento(r.usuario_id, 'clave_restablecida');

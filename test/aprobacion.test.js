@@ -8,6 +8,7 @@ process.env.DATA_DIR = 'memory://';
 process.env.SIN_LIMITES = '1';
 
 const test = require('node:test');
+const { conCodigo } = require('./codigo');
 const assert = require('node:assert/strict');
 const zlib = require('zlib');
 const db = require('../server/db');
@@ -87,14 +88,14 @@ async function invitado(nombre, email, cargo, rol = 'administrador') {
   const { enlace } = await gerente.post('/api/empresa/invitaciones', { rol });
   const token = new URL(enlace).searchParams.get('invitacion');
   const c = cliente();
-  const r = await c.post('/api/cuenta/crear', { nombre, email, clave: 'clave-segura', invitacion: token, cargo });
+  const r = await c.post('/api/cuenta/crear', await conCodigo({ nombre, email, clave: 'clave-segura', invitacion: token, cargo }));
   assert.equal(r.estado, 201, r.error);
   return { c, id: r.usuario.id, usuario: r.usuario };
 }
 
 test('el administrador marca quién aprueba y el cargo de cada persona', async () => {
   gerente = cliente();
-  const r = await gerente.post('/api/cuenta/crear', { nombre: 'Gloria Gerente', email: 'gloria@aprueba.co', clave: 'clave-segura', empresa: 'Distribuidora Aprueba', cargo: 'Gerente general' });
+  const r = await gerente.post('/api/cuenta/crear', await conCodigo({ nombre: 'Gloria Gerente', email: 'gloria@aprueba.co', clave: 'clave-segura', empresa: 'Distribuidora Aprueba', cargo: 'Gerente general' }));
   assert.equal(r.estado, 201, r.error);
   assert.equal(r.usuario.cargo, 'Gerente general');
   assert.equal(r.usuario.aprueba, true, 'quien funda la empresa es su gerente y aprueba');
@@ -156,7 +157,7 @@ test('quien no aprueba recibe 403 y alguien de otra empresa 404', async () => {
   assert.deepEqual((await lucia.get('/api/pedidos/por-aprobar')).pedidos, []);
 
   const otra = cliente();
-  await otra.post('/api/cuenta/crear', { nombre: 'Otro Jefe', email: 'otro@aprueba-otra.co', clave: 'clave-segura', empresa: 'Otra Empresa' });
+  await otra.post('/api/cuenta/crear', await conCodigo({ nombre: 'Otro Jefe', email: 'otro@aprueba-otra.co', clave: 'clave-segura', empresa: 'Otra Empresa' }));
   assert.equal((await otra.post(`/api/pedidos/${pedido.id}/aprobar`)).estado, 404);
   assert.equal((await otra.get(`/api/pedidos/${pedido.id}`)).estado, 404);
   assert.equal((await otra.put(`/api/pedidos/${pedido.id}/lista-final`, { lineas: [] })).estado, 404);
