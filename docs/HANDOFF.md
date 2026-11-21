@@ -27,6 +27,24 @@
 
 ---
 
+## 2026-11-20 (55) — Claude — T1: roles en el servidor (gerente, administrador, operador)
+- **Rama:** `main`, solo en local, sin commit.
+- **Estado:** T1 de `docs/PLAN_CAMBIOS_SINESC.md` hecha en el servidor. El rol sale de `admin_empresa` (gerente) y `perfil` (`analista` = administrador, `operador`); `requiereRol` y `rolEmpresa` en `cuentas.js`; invitar, cambiar y sacar solo a rango menor; no hay `PUT /api/cuenta/perfil`; fundar una empresa da gerente con `aprueba = true`. **La web no se tocó:** el selector de perfil (`SelectorPerfil`, `cambiarPerfil` en `contexto.tsx`) y `ElegirPerfil` del registro apuntan a una ruta que da 404 hasta que se haga T2.
+- **Archivos tocados:** `server/cuentas.js`, `server/empresas.js`, `server/borrar.js`, `server/db.js`; pruebas en `test/empresas.test.js` (prueba nueva de rangos), `aprobacion`, `alertas`, `pedidos-sugerido`, `cuentas-equipo`; `CLAUDE.md`, `docs/ENTREGABLE_Y_APP.md` (fila 16), `docs/PLAN_EMPRESAS_INVENTARIO.md` (D3 revertida).
+- **Base de datos:** `invitaciones.rol TEXT` y un `UPDATE` idempotente que deja a cada `admin_empresa` como `analista` con `aprueba = true`. Sin otras columnas.
+- **Verificación:** `npm test` → 209 de 209; `tsc --noEmit` limpio. No se miró en el navegador.
+- **Siguiente paso exacto:** T2 (selector de rol al invitar y en Mi empresa; quitar `SelectorPerfil`/`ElegirPerfil`; `rolEmpresa` en `lib/tipos.ts`). `vistaEmpresa` ya devuelve `rol` por miembro; falta `rol` en `invitacionesAbiertas` y en `GET /invitaciones/:token` si T2 lo muestra.
+- **Notas y bloqueos:** una invitación sin `rol` entra como operador. Hasta T4 el operador todavía puede escribir (ajustes, catálogo, pedidos). El administrador no recibe la alerta `sinDatos` (`alertas.js:89`, solo gerente y operador); decidir en T4. Como el gerente aprueba, en empresas de varias personas quien prepara un pedido lo envía en vez de cerrarlo: avisarlo antes de publicar. No publicar mientras siga el piloto.
+
+## 2026-11-20 (54) — Claude — Plan de los cambios de "Cambios SINESC"
+- **Rama:** `main`, solo en local. No se cambió código.
+- **Estado:** solo planeación. `docs/PLAN_CAMBIOS_SINESC.md` divide `../Cambios SINESC.md` en 14 tareas independientes (T1 a T14), con dependencias, archivos, pruebas y notas del análisis. El equipo ya decidió: contenedores con ocupación y recorte greedy; el color es cada código (mínimo por producto); reportes para el operador quedan para después.
+- **Archivos tocados:** `docs/PLAN_CAMBIOS_SINESC.md` (nuevo), `docs/HANDOFF.md`.
+- **Base de datos:** sin cambios.
+- **Verificación:** no aplica (sin código).
+- **Siguiente paso exacto:** empezar por T1 (roles en el servidor) o por cualquiera de las tareas sin dependencias (T5, T6, T9, T10, T11). Leer antes "Notas para las sesiones que implementen", al final del plan.
+- **Notas y bloqueos:** T1, T3, T4 y T5 cambian lo que ve un usuario del piloto, y T5 cambia el sugerido. No se publican mientras el piloto de Alpha 0.2 siga abierto.
+
 ## 2026-11-04 (53) — Claude (con David) — Listado de inventario de Helisa con encabezado en dos filas
 - **Rama:** `main`, en los dos remotos.
 - **Estado:** listo. El listado de inventario que sacan de Helisa no se leía: decía "Falta la columna de existencias". Tenía tres problemas:

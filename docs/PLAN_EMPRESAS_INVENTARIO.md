@@ -27,7 +27,7 @@ Se aceptaron las ocho recomendaciones tal como estaban. Lo que sigue del plan ya
 |---|---|---|---|
 | D1 | ¿La "empresa vacía" de los usuarios de hoy es una por usuario o una sola para todos? | **Una por usuario**, sin nombre (`vacia = true`). | Una sola empresa compartida mezclaría inventarios de negocios distintos. Con una por usuario nadie ve datos de otro, y cada uno puede ponerle nombre e invitar a su gente después. |
 | D2 | ¿Cómo entra un usuario nuevo a una empresa "creada previamente"? | Dos caminos en `/crear-cuenta`: **crear la empresa** (quien la crea queda como administrador) o **unirse con una invitación** (enlace de un solo uso que manda el administrador). | Es lo mínimo que cumple "empresa creada antes del usuario" sin un panel de administración. Disferral (Orlando Álvarez y Nohora Rodríguez) sería el primer caso real. |
-| D3 | ¿El perfil se hace cumplir en el servidor? | **No para leer**: el perfil es una preferencia guardada en la cuenta, se cambia con un clic y el servidor devuelve la vista resumida para el operador (menos datos, no seguridad). Las escrituras de inventario se dejan a los dos perfiles. | Se pidió explícitamente que no se separe por autenticación. Bloquear en el servidor algo que el usuario puede desbloquear con un clic no protege nada y complica las pruebas. |
+| D3 | ¿El perfil se hace cumplir en el servidor? (**Revertida el 2026-11-20 por T1 de `docs/PLAN_CAMBIOS_SINESC.md`: el rol ahora es gerente, administrador u operador y lo hace cumplir el servidor.**) | **No para leer**: el perfil es una preferencia guardada en la cuenta, se cambia con un clic y el servidor devuelve la vista resumida para el operador (menos datos, no seguridad). Las escrituras de inventario se dejan a los dos perfiles. | Se pidió explícitamente que no se separe por autenticación. Bloquear en el servidor algo que el usuario puede desbloquear con un clic no protege nada y complica las pruebas. |
 | D4 | ¿Quién ve el flujo de 5 pasos de los pedidos? | **Los dos perfiles**, sin cambios. | Es el instrumento de medición y "no debe reemplazar a los servicios existentes". |
 | D5 | El boletín necesita una tarea programada; el equipo decidió no tener cron (2026-10-11). | **Revertir esa decisión solo para el boletín**: un Vercel Cron al día que llama a una ruta protegida con `CRON_SECRET`. | Un correo diario no se puede mandar desde un archivo de calendario. Hay que escribirlo en `CLAUDE.md` y en "Cambios". |
 | D6 | ¿El boletín llega a todos o a quien lo pida? | **A quien lo active.** Al crear una empresa nueva viene marcado; a los usuarios de hoy, desmarcado. Cada correo trae "Dejar de recibirlo" de un clic. | Ley 1581 de 2012 (datos personales) y el límite gratuito de Brevo (300 correos al día). |
@@ -181,7 +181,7 @@ Se llama `perfil` para no confundirlo con `rol` (`usuario` / `equipo`), que deci
 
 ### Servidor
 
-- `PUT /api/cuenta/perfil` `{ perfil }`; registra el evento `perfil_cambiado`.
+- `PUT /api/cuenta/perfil` `{ perfil }`; registra el evento `perfil_cambiado`. *(Quitada el 2026-11-20 por T1.)*
 - `GET /api/inventario`: si el perfil es operador, responde `resumirParaOperador(inventario)` (nueva función en `inventario.js`, pura y con pruebas): quita `detalleSugerido`, `pronostico`, `riesgo`, `acierto`, series y desgloses. Sigue calculándose igual (misma caché); solo se recorta la respuesta. La llave de caché no cambia.
 - Ninguna ruta de escritura se bloquea por perfil (D3).
 

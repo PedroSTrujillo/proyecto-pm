@@ -167,8 +167,9 @@ test('borrar a una persona de una empresa compartida no le quita el inventario a
 
   const r = await eq.post(`/api/equipo/cuentas/${anaU.id}/borrar`, { confirmacion: 'ana@prueba.co', clave: 'clave-segura' });
   assert.equal(r.estado, 200, r.error);
-  const c = await db.uno('SELECT admin_empresa, empresa_id FROM usuarios WHERE id = $1', [carlaU.id]);
+  const c = await db.uno('SELECT admin_empresa, empresa_id, perfil, aprueba FROM usuarios WHERE id = $1', [carlaU.id]);
   assert.equal(c.admin_empresa, true, 'la empresa no queda sin quien la administre');
+  assert.deepEqual([c.perfil, c.aprueba], ['analista', true], 'y el ascenso la deja como gerente');
   assert.equal(c.empresa_id, anaU.empresa.id);
   assert.equal((await db.uno('SELECT count(*)::int AS n FROM exports WHERE empresa_id = $1', [c.empresa_id])).n > 0, true, 'el archivo de la empresa se queda');
   assert.equal((await db.uno('SELECT count(*)::int AS n FROM archivos WHERE usuario_id = $1', [carlaU.id])).n, 1);

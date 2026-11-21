@@ -96,7 +96,7 @@ test('el administrador marca quién aprueba y el cargo de cada persona', async (
   const r = await gerente.post('/api/cuenta/crear', { nombre: 'Gloria Gerente', email: 'gloria@aprueba.co', clave: 'clave-segura', empresa: 'Distribuidora Aprueba', cargo: 'Gerente general' });
   assert.equal(r.estado, 201, r.error);
   assert.equal(r.usuario.cargo, 'Gerente general');
-  assert.equal(r.usuario.aprueba, false, 'nadie aprueba hasta que se marque');
+  assert.equal(r.usuario.aprueba, true, 'quien funda la empresa es su gerente y aprueba');
   ids.gerente = r.usuario.id;
   const c = await invitado('Carlos Compras', 'carlos@aprueba.co', 'Auxiliar de compras');
   carlos = c.c;
@@ -108,10 +108,6 @@ test('el administrador marca quién aprueba y el cargo de cada persona', async (
 
   // Solo quien administra cambia esto.
   assert.equal((await carlos.put(`/api/empresa/miembros/${ids.carlos}`, { aprueba: true })).estado, 403);
-  const e = await gerente.put(`/api/empresa/miembros/${ids.gerente}`, { aprueba: true });
-  assert.equal(e.estado, 200, e.error);
-  const g = e.empresa.miembros.find((m) => m.id === ids.gerente);
-  assert.equal(g.aprueba, true);
   const cargo = await gerente.put(`/api/empresa/miembros/${ids.lucia}`, { cargo: '  Jefe de   bodega ' });
   assert.equal(cargo.empresa.miembros.find((m) => m.id === ids.lucia).cargo, 'Jefe de bodega');
   // Cada quien también cambia el suyo en Mi cuenta.
@@ -160,7 +156,6 @@ test('quien no aprueba recibe 403 y alguien de otra empresa 404', async () => {
 
   const otra = cliente();
   await otra.post('/api/cuenta/crear', { nombre: 'Otro Jefe', email: 'otro@aprueba-otra.co', clave: 'clave-segura', empresa: 'Otra Empresa' });
-  await otra.put(`/api/empresa/miembros/${(await otra.get('/api/cuenta/yo')).usuario.id}`, { aprueba: true });
   assert.equal((await otra.post(`/api/pedidos/${pedido.id}/aprobar`)).estado, 404);
   assert.equal((await otra.get(`/api/pedidos/${pedido.id}`)).estado, 404);
   assert.equal((await otra.put(`/api/pedidos/${pedido.id}/lista-final`, { lineas: [] })).estado, 404);
@@ -305,7 +300,7 @@ test('el logo: PNG o JPG de hasta 300 KB, solo quien administra, y va en el PDF'
 });
 
 test('sin nadie que apruebe, quien prepara lo cierra sin aprobación (como antes)', async () => {
-  await gerente.put(`/api/empresa/miembros/${ids.gerente}`, { aprueba: false });
+  await db.query('UPDATE usuarios SET aprueba = false WHERE id = $1', [ids.gerente]); // al gerente nadie lo edita por la API
   const p = (await carlos.post('/api/pedidos', { modo: 'sugerido' })).pedido;
   assert.equal(p.aprobacion.puedoCerrar, true);
   assert.equal(p.aprobacion.puedoEnviar, false);

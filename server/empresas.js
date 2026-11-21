@@ -17,7 +17,7 @@
 const crypto = require('crypto');
 const express = require('express');
 const db = require('./db');
-const { requiereUsuario, requiereAdminEmpresa, registrarEvento, ErrorUsuario, hashToken, baseDe, leerCargo, DIAS_INVITACION } = require('./cuentas');
+const { requiereUsuario, requiereAdminEmpresa, rolEmpresa, RANGO, registrarEvento, ErrorUsuario, hashToken, baseDe, leerCargo, DIAS_INVITACION } = require('./cuentas');
 const { abrirImagen } = require('./pdf');
 
 // El logo va en el PDF y el Excel del pedido: PNG o JPG pequeño, para que el archivo no pese.
@@ -54,6 +54,18 @@ rutas.get('/invitaciones/:token', async (req, res) => {
 
 rutas.use(requiereUsuario);
 
+// Solo se actúa sobre alguien de rango menor al propio: así nadie toca al gerente, ni a su igual, ni a sí mismo.
+function exigirRangoSobre(req, miembro) {
+  if (RANGO[rolEmpresa(miembro)] >= RANGO[rolEmpresa(req.usuario)]) throw new ErrorUsuario('Usted no puede cambiar a alguien de su mismo rango o de uno mayor.', 403);
+}
+
+// El rol que se le da a otra persona: administrador u operador, siempre menor al propio.
+function leerRol(req, rol) {
+  if (rol !== 'administrador' && rol !== 'operador') throw new ErrorUsuario('Elija el rol: administrador u operador.');
+  if (RANGO[rol] >= RANGO[rolEmpresa(req.usuario)]) throw new ErrorUsuario('Usted solo puede dar un rol menor al suyo.', 403);
+  return rol;
+}
+
 async function vistaEmpresa(empresaId) {
   const e = await db.uno('SELECT id, nombre, nit, vacia, creado_en, logo IS NOT NULL AS con_logo FROM empresas WHERE id = $1', [empresaId]);
   const miembros = await db.query('SELECT aprueba, id, nombre, email, perfil, admin_empresa, cargo, creado_en FROM usuarios WHERE empresa_id = $1 ORDER BY creado_en', [empresaId]);
@@ -68,7 +80,7 @@ async function vistaEmpresa(empresaId) {
     vacia: e.vacia,
     creadoEn: e.creado_en,
     logo: Boolean(e.con_logo),
-    miembros: miembros.map((m) => ({ id: m.id, nombre: m.nombre, email: m.email, perfil: m.perfil, admin: m.admin_empresa, aprueba: m.aprueba, cargo: m.cargo || '', desde: m.creado_en })),
+    miembros: miembros.map((m) => ({ id: m.id, nombre: m.nombre, email: m.email, perfil: m.perfil, rol: rolEmpresa(m), admin: m.admin_empresa, aprueba: m.aprueba, cargo: m.cargo || '', desde: m.creado_en })),
     invitacionesAbiertas: invitaciones.map((i) => ({ email: i.email, creadaEn: i.creada_en, expiraEn: i.expira_en })),
   };
 }
@@ -93,11 +105,12 @@ rutas.post('/invitaciones', requiereAdminEmpresa, async (req, res) => {
   if (email && (await db.uno('SELECT id FROM usuarios WHERE email = $1', [email]))) {
     throw new ErrorUsuario('Ya hay una cuenta con ese correo. Por ahora una cuenta no se puede pasar de una empresa a otra.');
   }
+  const rol = leerRol(req, req.body?.rol ?? 'operador');
   const token = crypto.randomBytes(24).toString('base64url');
   await db.query(
-    `INSERT INTO invitaciones (token_hash, empresa_id, creada_por, email, expira_en)
-     VALUES ($1, $2, $3, $4, now() + interval '${DIAS_INVITACION} days')`,
-    [hashToken(token), req.usuario.empresa_id, req.usuario.id, email],
+    `INSERT INTO invitaciones (token_hash, empresa_id, creada_por, email, rol, expira_en)
+     VALUES ($1, $2, $3, $4, $5, now() + interval '${DIAS_INVITACION} days')`,
+    [hashToken(token), req.usuario.empresa_id, req.usuario.id, email, rol],
   );
   const enlace = `${baseDe(req).replace(/\/+$/, '')}/crear-cuenta?invitacion=${token}`;
   let enviado = false;
@@ -111,18 +124,20 @@ rutas.post('/invitaciones', requiereAdminEmpresa, async (req, res) => {
       .then(() => { enviado = true; })
       .catch((e) => console.error('No se pudo enviar la invitación:', e.message));
   }
-  await registrarEvento(req.usuario.id, 'invitacion_creada', { detalle: { conCorreo: Boolean(email), enviado } });
+  await registrarEvento(req.usuario.id, 'invitacion_creada', { detalle: { conCorreo: Boolean(email), enviado, rol } });
   res.status(201).json({ enlace, dias: DIAS_INVITACION, enviado, empresa: await vistaEmpresa(req.usuario.empresa_id) });
 });
 
-// Quién aprueba pedidos (D11) y el cargo de cada persona. Solo cambia lo que viene.
+// El rol de cada persona (T1), quién aprueba pedidos (D11) y su cargo. Solo cambia lo que viene.
 rutas.put('/miembros/:id', requiereAdminEmpresa, async (req, res) => {
-  const m = await db.uno('SELECT aprueba, id, nombre, cargo FROM usuarios WHERE id = $1 AND empresa_id = $2', [Number(req.params.id), req.usuario.empresa_id]);
+  const m = await db.uno('SELECT aprueba, id, nombre, cargo, perfil, admin_empresa FROM usuarios WHERE id = $1 AND empresa_id = $2', [Number(req.params.id), req.usuario.empresa_id]);
   if (!m) throw new ErrorUsuario('Esa persona no está en su empresa.', 404);
+  exigirRangoSobre(req, m);
+  const rol = req.body?.rol === undefined ? rolEmpresa(m) : leerRol(req, req.body.rol);
   const aprueba = typeof req.body?.aprueba === 'boolean' ? req.body.aprueba : m.aprueba;
   const cargo = req.body?.cargo === undefined ? m.cargo : leerCargo(req.body.cargo);
-  await db.query('UPDATE usuarios SET aprueba = $1, cargo = $2 WHERE id = $3', [aprueba, cargo, m.id]);
-  await registrarEvento(req.usuario.id, 'miembro_editado', { detalle: { usuario: m.id, antes: { aprueba: m.aprueba, cargo: m.cargo }, despues: { aprueba, cargo } } });
+  await db.query('UPDATE usuarios SET aprueba = $1, cargo = $2, perfil = $3 WHERE id = $4', [aprueba, cargo, rol === 'administrador' ? 'analista' : 'operador', m.id]);
+  await registrarEvento(req.usuario.id, 'miembro_editado', { detalle: { usuario: m.id, antes: { aprueba: m.aprueba, cargo: m.cargo, rol: rolEmpresa(m) }, despues: { aprueba, cargo, rol } } });
   res.json({ empresa: await vistaEmpresa(req.usuario.empresa_id) });
 });
 
@@ -160,11 +175,12 @@ rutas.delete('/logo', requiereAdminEmpresa, async (req, res) => {
 rutas.delete('/miembros/:id', requiereAdminEmpresa, async (req, res) => {
   const id = Number(req.params.id);
   if (id === req.usuario.id) throw new ErrorUsuario('Usted no puede sacarse de la empresa.');
-  const m = await db.uno('SELECT id FROM usuarios WHERE id = $1 AND empresa_id = $2', [id, req.usuario.empresa_id]);
+  const m = await db.uno('SELECT id, perfil, admin_empresa FROM usuarios WHERE id = $1 AND empresa_id = $2', [id, req.usuario.empresa_id]);
   if (!m) throw new ErrorUsuario('Esa persona no está en su empresa.', 404);
+  exigirRangoSobre(req, m);
   await db.tx(async (t) => {
     const { rows } = await t.query('INSERT INTO empresas (vacia) VALUES (true) RETURNING id');
-    await t.query('UPDATE usuarios SET aprueba = false, empresa_id = $1, admin_empresa = true WHERE id = $2', [rows[0].id, id]);
+    await t.query("UPDATE usuarios SET aprueba = true, perfil = 'analista', empresa_id = $1, admin_empresa = true WHERE id = $2", [rows[0].id, id]);
   });
   await registrarEvento(req.usuario.id, 'miembro_retirado', { detalle: { usuario: id } });
   res.json({ empresa: await vistaEmpresa(req.usuario.empresa_id) });

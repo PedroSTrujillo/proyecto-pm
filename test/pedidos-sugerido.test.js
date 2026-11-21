@@ -180,7 +180,7 @@ test('el PDF y el Excel de un proveedor traen solo sus líneas y el nombre de la
   assert.equal(todo.tipo, 'application/pdf');
   const texto = textoDePdf(todo.archivo);
   assert.match(texto, /Ferretería La Prueba/);
-  assert.match(texto, /Pedido \d+ para aprobar/);
+  assert.match(texto, /Pedido \d+ aprobado/, 'quien funda la empresa aprueba su propio pedido');
   assert.match(texto, /Preparado por Ana Prepara/);
   assert.match(texto, /Entregar en la bodega de la 13/);
   assert.match(texto, /Nota: Llega en caja de 10/);

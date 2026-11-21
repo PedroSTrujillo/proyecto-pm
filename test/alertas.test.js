@@ -99,7 +99,8 @@ test('Mi cuenta: la tabla de alertas sigue el perfil y guarda solo lo que la per
   assert.equal(u.preferencias.alertasPropias, true);
 
   // Al pasar a operador cambia lo que no tocó; lo suyo se queda.
-  u = (await ana.put('/api/cuenta/perfil', { perfil: 'operador' })).usuario;
+  await db.query("UPDATE usuarios SET perfil = 'operador' WHERE id = $1", [u.id]); // el perfil ya no se cambia por la API
+  u = (await ana.get('/api/cuenta/yo')).usuario;
   assert.equal(u.preferencias.alertas.sobran, 'semanal');
   assert.equal(u.preferencias.alertas.dineroQuieto, 'nunca');
   assert.equal(u.preferencias.alertas.enCero, 'diario');
@@ -109,7 +110,7 @@ test('Mi cuenta: la tabla de alertas sigue el perfil y guarda solo lo que la per
   u = (await ana.put('/api/cuenta/preferencias', { alertas: null })).usuario;
   assert.equal(u.preferencias.alertas.sobran, 'nunca', 'vuelve a lo del perfil (operador)');
   assert.equal(u.preferencias.alertasPropias, false);
-  await ana.put('/api/cuenta/perfil', { perfil: 'analista' });
+  await db.query("UPDATE usuarios SET perfil = 'analista' WHERE id = $1", [u.id]);
 });
 
 test('desde cuántas semanas sobra cada producto: en la ficha, por lote y en el inventario', async () => {
@@ -149,8 +150,8 @@ test('boletín de un lunes: cada quien recibe sus secciones, y nunca dos veces e
   assert.equal((await ana.post(`/api/pedidos/${p1.id}/por-que`, { respuesta: '' })).estado, 200);
   await db.query("UPDATE pedidos SET terminado_en = now() - interval '40 days' WHERE id = $1", [p1.id]);
 
-  const inv = await ana.post('/api/empresa/invitaciones', { email: 'carla.alertas@prueba.co' });
-  ({ c: carla } = await cuenta('Carla Bodega', 'carla.alertas@prueba.co', { invitacion: new URL(inv.enlace).searchParams.get('invitacion'), perfil: 'operador' }));
+  const inv = await ana.post('/api/empresa/invitaciones', { email: 'carla.alertas@prueba.co', rol: 'operador' });
+  ({ c: carla } = await cuenta('Carla Bodega', 'carla.alertas@prueba.co', { invitacion: new URL(inv.enlace).searchParams.get('invitacion') }));
   const { id: anaId } = await db.uno("SELECT id FROM usuarios WHERE email = 'ana.alertas@prueba.co'");
   await db.query('UPDATE usuarios SET aprueba = true WHERE id = $1', [anaId]);
   const p2 = (await carla.post('/api/pedidos', { modo: 'sugerido' })).pedido;

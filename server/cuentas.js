@@ -97,8 +97,8 @@ async function usuarioPorId(id) {
 async function asegurarEmpresa(u) {
   if (u.empresa_id) return u;
   const e = await db.uno('INSERT INTO empresas (vacia) VALUES (true) RETURNING id');
-  await db.query('UPDATE usuarios SET empresa_id = $1, admin_empresa = true WHERE id = $2', [e.id, u.id]);
-  return { ...u, empresa_id: e.id, admin_empresa: true, empresa_nombre: '', empresa_vacia: true };
+  await db.query("UPDATE usuarios SET empresa_id = $1, admin_empresa = true, perfil = 'analista', aprueba = true WHERE id = $2", [e.id, u.id]);
+  return { ...u, empresa_id: e.id, admin_empresa: true, perfil: 'analista', aprueba: true, empresa_nombre: '', empresa_vacia: true };
 }
 
 // Carga req.usuario si hay sesión válida.
@@ -136,11 +136,25 @@ function requiereEquipo(req, _res, next) {
   next();
 }
 
-function requiereAdminEmpresa(req, _res, next) {
-  if (!req.usuario) return next(new ErrorUsuario('Su sesión se cerró. Vuelva a iniciar sesión.', 401));
-  if (!req.usuario.admin_empresa) return next(new ErrorUsuario('Solo quien administra la empresa puede hacer esto.', 403));
-  next();
+// El rol sale de dos columnas que ya existían: el gerente es quien fundó la empresa (admin_empresa) y
+// el perfil guardado distingue al administrador ('analista') del operador. Una persona solo invita,
+// cambia o saca a alguien de rango menor al suyo (docs/PLAN_CAMBIOS_SINESC.md, T1).
+const RANGO = { operador: 1, administrador: 2, gerente: 3 };
+
+function rolEmpresa(u) {
+  if (u.admin_empresa) return 'gerente';
+  return u.perfil === 'operador' ? 'operador' : 'administrador';
 }
+
+function requiereRol(...roles) {
+  return (req, _res, next) => {
+    if (!req.usuario) return next(new ErrorUsuario('Su sesión se cerró. Vuelva a iniciar sesión.', 401));
+    if (!roles.includes(rolEmpresa(req.usuario))) return next(new ErrorUsuario('Solo quien administra la empresa puede hacer esto.', 403));
+    next();
+  };
+}
+
+const requiereAdminEmpresa = requiereRol('gerente', 'administrador');
 
 const UNIDADES = ['dias', 'semanas', 'meses'];
 const UNIDAD_CUENTA_NUEVA = 'dias';
@@ -168,6 +182,7 @@ function publico(u) {
     rol: u.rol,
     sistema: u.sistema || null,
     perfil: u.perfil || 'analista',
+    rolEmpresa: rolEmpresa(u),
     // alertas: la tabla completa del boletín; alertasPropias: si cambió algo de lo de su perfil.
     preferencias: { ...leerPreferencias(u.preferencias), alertas: alertasDe(u.preferencias, u.perfil || 'analista'), alertasPropias: Object.keys(leerPreferencias(u.preferencias).alertas).length > 0 },
     boletin: Boolean(u.boletin),
@@ -222,7 +237,6 @@ rutas.post('/crear', async (req, res) => {
   const empresa = typeof req.body?.empresa === 'object' && req.body.empresa ? req.body.empresa : { nombre: req.body?.empresa, nit: req.body?.nit };
   const nombreEmpresa = String(empresa.nombre || '').trim().slice(0, 120);
   const nit = String(empresa.nit || '').trim().slice(0, 30) || null;
-  const perfil = req.body?.perfil === 'operador' ? 'operador' : 'analista';
   const cargo = leerCargo(req.body?.cargo);
   const boletin = req.body?.boletin === true || req.body?.boletin === 'on' || req.body?.boletin === 'true';
   if (!nombre) throw new ErrorUsuario('Escriba su nombre.');
@@ -234,37 +248,43 @@ rutas.post('/crear', async (req, res) => {
   const rol = esEmailDeEquipo(email) ? 'equipo' : 'usuario';
   const id = await db.tx(async (t) => {
     let empresaId;
-    let admin;
+    // Quien funda la empresa es su gerente y aprueba; quien entra por invitación toma el rol de la
+    // invitación (sin rol, el más bajo), nunca uno que mande el formulario.
+    let admin = true;
+    let perfil = 'analista';
+    let aprueba = true;
     if (invitacion) {
       const { rows } = await t.query(
         `UPDATE invitaciones SET usada_en = now()
           WHERE token_hash = $1 AND usada_en IS NULL AND expira_en > now() AND (email IS NULL OR email = $2)
-          RETURNING empresa_id`,
+          RETURNING empresa_id, rol`,
         [hashToken(invitacion), email],
       );
       if (!rows[0]) throw new ErrorUsuario('Este enlace de invitación ya se usó, se venció o es para otro correo. Pida uno nuevo a quien lo invitó.');
       empresaId = rows[0].empresa_id;
       admin = false;
+      aprueba = false;
+      perfil = rows[0].rol === 'administrador' ? 'analista' : 'operador';
     } else {
       const { rows } = await t.query('INSERT INTO empresas (nombre, nit) VALUES ($1, $2) RETURNING id', [nombreEmpresa, nit]);
       empresaId = rows[0].id;
-      admin = true;
     }
     // Las cuentas nuevas ven el tiempo en días (Francisco Lozano, entrevista de la semana 12: los
     // indicadores de inventario se miden en días, y mezclar días y semanas confundía). Las de antes siguen
     // como estaban, y cada quien lo cambia en Mi cuenta.
     const { rows } = await t.query(
-      `INSERT INTO usuarios (email, nombre, clave_hash, rol, empresa_id, admin_empresa, perfil, boletin, cargo, preferencias)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb) RETURNING id`,
-      [email, nombre, hashClave(clave), rol, empresaId, admin, perfil, boletin, cargo, JSON.stringify({ unidad: UNIDAD_CUENTA_NUEVA })],
+      `INSERT INTO usuarios (email, nombre, clave_hash, rol, empresa_id, admin_empresa, perfil, aprueba, boletin, cargo, preferencias)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb) RETURNING id`,
+      [email, nombre, hashClave(clave), rol, empresaId, admin, perfil, aprueba, boletin, cargo, JSON.stringify({ unidad: UNIDAD_CUENTA_NUEVA })],
     );
     if (invitacion) await t.query('UPDATE invitaciones SET usada_por = $1 WHERE token_hash = $2', [rows[0].id, hashToken(invitacion)]);
     return rows[0].id;
   });
-  await registrarEvento(id, 'cuenta_creada', { detalle: { como: invitacion ? 'invitacion' : 'empresa_nueva', perfil } });
+  const usuario = await publicoPorId(id);
+  await registrarEvento(id, 'cuenta_creada', { detalle: { como: invitacion ? 'invitacion' : 'empresa_nueva', rol: usuario.rolEmpresa } });
   await registrarEvento(id, 'ingreso', { detalle: { como: 'cuenta_nueva' } });
   await abrirSesion(req, res, id);
-  res.status(201).json({ usuario: await publicoPorId(id) });
+  res.status(201).json({ usuario });
 });
 
 rutas.post('/entrar', async (req, res) => {
@@ -302,15 +322,6 @@ rutas.put('/datos', requiereUsuario, async (req, res) => {
   if (sistema !== null && !/^[a-z0-9-]{1,40}$/.test(String(sistema))) throw new ErrorUsuario('Elija su programa contable de la lista.');
   const cargo = req.body?.cargo === undefined ? req.usuario.cargo : leerCargo(req.body.cargo);
   await db.query('UPDATE usuarios SET nombre = $1, sistema = $2, cargo = $3 WHERE id = $4', [nombre, sistema, cargo, req.usuario.id]);
-  res.json({ usuario: await publicoPorId(req.usuario.id) });
-});
-
-// Analista u operador: lo elige cada quien, sin contraseña aparte (D3).
-rutas.put('/perfil', requiereUsuario, async (req, res) => {
-  const perfil = req.body?.perfil;
-  if (perfil !== 'analista' && perfil !== 'operador') throw new ErrorUsuario('Elija analista u operador.');
-  await db.query('UPDATE usuarios SET perfil = $1 WHERE id = $2', [perfil, req.usuario.id]);
-  if (perfil !== req.usuario.perfil) await registrarEvento(req.usuario.id, 'perfil_cambiado', { detalle: { perfil } });
   res.json({ usuario: await publicoPorId(req.usuario.id) });
 });
 
@@ -398,6 +409,9 @@ module.exports = {
   requiereUsuario,
   requiereEquipo,
   requiereAdminEmpresa,
+  requiereRol,
+  rolEmpresa,
+  RANGO,
   leerPreferencias,
   hashToken,
   esEmailDeEquipo,

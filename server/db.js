@@ -141,8 +141,9 @@ const ESQUEMA = [
   )`,
   'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS empresa_id INTEGER REFERENCES empresas(id) ON DELETE SET NULL',
   'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS admin_empresa BOOLEAN NOT NULL DEFAULT false',
-  // analista: métricas detalladas; operador: métricas gruesas e ingreso de inventario. No es un
-  // permiso: cada persona lo elige y lo cambia cuando quiera. No confundir con rol (probador o equipo).
+  // analista (en pantalla, administrador): métricas detalladas; operador: métricas gruesas e ingreso de
+  // inventario. Junto con admin_empresa (el gerente) es el rol de la empresa y el servidor lo hace cumplir
+  // (cuentas.js, rolEmpresa). No confundir con rol (probador o equipo).
   "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS perfil TEXT NOT NULL DEFAULT 'analista' CHECK (perfil IN ('analista', 'operador'))",
   // { unidad: 'dias' | 'semanas' | 'meses', horizonte: semanas del pronóstico }
   "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS preferencias JSONB NOT NULL DEFAULT '{}'::jsonb",
@@ -163,6 +164,8 @@ const ESQUEMA = [
     usada_en TIMESTAMPTZ,
     usada_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL
   )`,
+  // Rol con el que entra quien usa la invitación: 'administrador' u 'operador' (NULL = operador).
+  'ALTER TABLE invitaciones ADD COLUMN IF NOT EXISTS rol TEXT',
   // Catálogo de la empresa: la identidad es claveCodigo (valores.js), igual que en el reporte.
   `CREATE TABLE IF NOT EXISTS productos (
     id SERIAL PRIMARY KEY,
@@ -270,6 +273,8 @@ const ESQUEMA = [
   //   empresas.logo: PNG o JPG de hasta 300 KB para el PDF y el Excel.
   'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS aprueba BOOLEAN NOT NULL DEFAULT false',
   'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cargo TEXT',
+  // El gerente (quien fundó la empresa) siempre es administrador y aprueba; nadie le cambia el rol.
+  "UPDATE usuarios SET perfil = 'analista', aprueba = true WHERE admin_empresa AND (perfil <> 'analista' OR NOT aprueba)",
   'ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS enviado_en TIMESTAMPTZ',
   'ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS lista_enviada JSONB',
   'ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS aprobado_en TIMESTAMPTZ',
