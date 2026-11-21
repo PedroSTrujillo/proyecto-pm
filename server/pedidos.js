@@ -1114,7 +1114,7 @@ async function documentoDelPedido(req) {
       aprobadoPor: aprobo ? { ...aprobo, fecha: X.fechaHoy(p.aprobado_en) } : null,
       logo: emp && emp.logo ? abrirImagen(emp.logo) : null,
       observaciones: p.observaciones || '',
-      cadaCuanto: `${ajustes.cadaCuanto} ${ajustes.cadaCuanto === 1 ? 'semana' : 'semanas'}`,
+      cadaCuanto: ((n) => `${n} ${n === 1 ? 'semana' : 'semanas'}`)((proveedor && ajustes.cadaCuantoProv[proveedor]) || ajustes.cadaCuanto),
       proveedor,
       lineas,
     },

@@ -4,9 +4,9 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { Check, Minus, Plus } from 'lucide-react'
+import { Check } from 'lucide-react'
 import { api } from '@/lib/api'
-import { DIAS_POR_MES, duracion, fecha, fechaHora, numero, plural, unidadDeTiempo } from '@/lib/formato'
+import { duracion, fecha, fechaHora, numero, plural } from '@/lib/formato'
 import { nombrePrograma } from '@/lib/sistemas'
 import type { Inventario, RevisionCodigos } from '@/lib/tipos'
 import { useInventario, useSesion } from './contexto'
@@ -71,13 +71,6 @@ function DatosCon({ inv }: { inv: Inventario | null }) {
         )}
         {inv && perfil !== 'operador' && (
           <div className="flex min-w-0 flex-col gap-5">
-            {inv.alcance !== 'prueba' && <Proveedores inv={inv} />}
-            {inv.alcance === 'prueba' && (
-              <Tarjeta className="flex flex-col gap-2 p-5 sm:p-6">
-                <h2 className="text-xl font-bold">Sus proveedores</h2>
-                <p className="text-cuerpo text-muted-foreground">Pronto podrá indicar cuánto tarda cada proveedor para saber qué y cuánto pedir a tiempo.</p>
-              </Tarjeta>
-            )}
             <UmbralAgota inv={inv} />
           </div>
         )}
@@ -178,192 +171,6 @@ function UmbralAgota({ inv }: { inv: Inventario }) {
         {guardado && <span className="aparecer text-chico font-semibold text-verde">{guardado}</span>}
       </div>
     </Tarjeta>
-  )
-}
-
-// El tiempo de entrega se escribe en días hábiles (lunes a viernes) y el servidor lo pasa a semanas
-// (÷ 5). Los proveedores guardados antes en semanas se muestran convertidos.
-type Tiempos = { dias: Record<string, number>; diasDefecto: number; cadaCuanto: number }
-type Prefijo = { prefijo: string; proveedor: string }
-const MAX_DIAS = 130
-const aDias = (semanasEntrega: number) => Math.round(semanasEntrega * 5)
-
-// Un paso de "cada cuánto pide" en la unidad elegida: un día, una semana o un mes (en semanas).
-function pasoCadaCuanto() {
-  const u = unidadDeTiempo()
-  return u === 'dias' ? 1 / 7 : u === 'meses' ? DIAS_POR_MES / 7 : 1
-}
-
-function Proveedores({ inv }: { inv: Inventario }) {
-  const { guardarAjustes } = useInventario()
-  const inicial = (): Tiempos => ({
-    dias: Object.fromEntries([...new Set([...inv.proveedores.filter((p) => p.nombre !== 'Sin proveedor').map((p) => p.nombre), ...Object.keys(inv.ajustes.entregas)])].map((n) => [n, inv.ajustes.entregasDias?.[n] ?? aDias(inv.ajustes.entregas[n] ?? inv.proveedores.find((p) => p.nombre === n)?.entrega ?? inv.ajustes.entregaPorDefecto)])),
-    diasDefecto: inv.ajustes.entregaPorDefectoDias ?? aDias(inv.ajustes.entregaPorDefecto),
-    cadaCuanto: inv.ajustes.cadaCuanto,
-  })
-  const [aj, setAj] = useState<Tiempos>(inicial)
-  const [guardando, setGuardando] = useState(false)
-  const [guardado, setGuardado] = useState<string | null>(null)
-  const [agregando, setAgregando] = useState(false)
-  const cambiado = JSON.stringify(aj) !== JSON.stringify(inicial())
-
-  useEffect(() => setAj(inicial()), [inv]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  function mover(nombre: string, delta: number) {
-    setGuardado(null)
-    setAj((a) => {
-      const actual = nombre === '*' ? a.diasDefecto : a.dias[nombre] ?? a.diasDefecto
-      const nuevo = Math.min(MAX_DIAS, Math.max(0, actual + delta))
-      return nombre === '*' ? { ...a, diasDefecto: nuevo } : { ...a, dias: { ...a.dias, [nombre]: nuevo } }
-    })
-  }
-
-  const enviar = (a: Tiempos) => ({ entregasDias: a.dias, entregaPorDefectoDias: a.diasDefecto, cadaCuanto: a.cadaCuanto })
-
-  async function guardar(extra: Partial<{ prefijos: Prefijo[] }> = {}, mensaje = 'Listo: el panel y el pedido ya usan estos tiempos.') {
-    setGuardando(true)
-    try {
-      await guardarAjustes({ ...enviar(aj), ...extra })
-      setGuardado(mensaje)
-    } finally {
-      setGuardando(false)
-    }
-  }
-
-  const nombres = Object.keys(aj.dias).sort((a, b) => {
-    const pa = inv.proveedores.find((p) => p.nombre === a)?.productos ?? 0
-    const pb = inv.proveedores.find((p) => p.nombre === b)?.productos ?? 0
-    return pb - pa || a.localeCompare(b, 'es')
-  })
-  const sinProveedor = inv.resumen.sinProveedor
-
-  return (
-    <Tarjeta aria-labelledby="t-prov" className="flex min-w-0 flex-col gap-4 p-5 sm:p-6">
-      <div>
-        <h2 id="t-prov" className="text-xl font-bold">¿Cuánto tarda cada proveedor?</h2>
-        <p className="mt-1 text-cuerpo text-muted-foreground">En días hábiles (de lunes a viernes), desde que se pide hasta que llega a su bodega. Con esto sabemos qué pedir antes de que sea tarde.</p>
-        <p className="mt-1 text-chico text-muted-foreground">Por ejemplo, un distribuidor de Bogotá recibe en 1 día lo de Bogotá, en 2 lo de Cali y en 3 o 4 lo de Barranquilla; casi nada tarda más de 8.</p>
-      </div>
-      <ul className="flex flex-col">
-        {nombres.map((nombre) => {
-          const info = inv.proveedores.find((p) => p.nombre === nombre)
-          return (
-            <FilaTiempo
-              key={nombre}
-              nombre={nombre}
-              detalle={info ? `${plural(info.productos, 'producto', 'productos')}${info.pideYa ? ` · ${info.pideYa} para pedir ya` : ''}` : 'Todavía sin productos'}
-              valor={aj.dias[nombre] ?? aj.diasDefecto}
-              onMover={(d) => mover(nombre, d)}
-            />
-          )
-        })}
-        <FilaTiempo
-          nombre={nombres.length ? 'Los demás' : 'Su proveedor'}
-          detalle={sinProveedor ? `${plural(sinProveedor, 'producto', 'productos')} sin proveedor` : 'Si aparece un producto sin proveedor'}
-          valor={aj.diasDefecto}
-          onMover={(d) => mover('*', d)}
-        />
-        <li className="flex items-center gap-3 border-t border-[#f0f1ee] py-3">
-          <div className="min-w-0 flex-1">
-            <strong className="block text-cuerpo">Cada cuánto hace pedido</strong>
-            <span className="text-nota text-muted-foreground">Lo sugerido alcanza hasta el siguiente.</span>
-          </div>
-          <Contador valor={aj.cadaCuanto} etiqueta="cada cuánto pide" unidad="tiempo" onMover={(d) => { setGuardado(null); setAj((a) => ({ ...a, cadaCuanto: Math.round(Math.min(26, Math.max(1, a.cadaCuanto + d)) * 1000) / 1000 })) }} paso={pasoCadaCuanto()} />
-        </li>
-      </ul>
-      <div className="flex flex-wrap items-center gap-3">
-        <Boton variante="primario" onClick={() => guardar()} disabled={!cambiado || guardando}>{guardando ? 'Recalculando…' : 'Guardar y recalcular'}</Boton>
-        {!agregando && <Boton variante="fantasma" onClick={() => setAgregando(true)}><Plus /> Agregar proveedor</Boton>}
-        {guardado && <span className="aparecer text-chico font-semibold text-verde">{guardado}</span>}
-      </div>
-      {agregando && (
-        <NuevoProveedor
-          prefijos={inv.ajustes.prefijos}
-          alCancelar={() => setAgregando(false)}
-          alGuardar={async (nombre, diasEntrega, prefijo) => {
-            const nuevo = { ...aj, dias: { ...aj.dias, [nombre]: diasEntrega } }
-            setAj(nuevo)
-            const prefijos = prefijo ? [...inv.ajustes.prefijos.filter((x) => x.prefijo !== prefijo.toUpperCase()), { prefijo, proveedor: nombre }] : inv.ajustes.prefijos
-            setGuardando(true)
-            try {
-              await guardarAjustes({ ...enviar(nuevo), prefijos })
-              setGuardado(prefijo ? `Listo: los códigos que empiezan por "${prefijo}" son de ${nombre}.` : `Listo: ${nombre} agregado. Asígnele productos desde su ficha.`)
-              setAgregando(false)
-            } finally {
-              setGuardando(false)
-            }
-          }}
-        />
-      )}
-      {inv.ajustes.prefijos.length > 0 && (
-        <div className="flex flex-col gap-1.5 border-t border-[#f0f1ee] pt-3">
-          <strong className="text-chico">Por el comienzo del código</strong>
-          <ul className="flex flex-wrap gap-2">
-            {inv.ajustes.prefijos.map((x) => (
-              <li key={x.prefijo} className="inline-flex items-center gap-1.5 rounded-full bg-muted py-1 pr-1 pl-3 text-nota">
-                <span><strong>{x.prefijo}…</strong> → {x.proveedor}</span>
-                <button
-                  type="button"
-                  aria-label={`Quitar la regla ${x.prefijo}`}
-                  className="inline-flex size-6 items-center justify-center rounded-full hover:bg-card"
-                  onClick={() => guardar({ prefijos: inv.ajustes.prefijos.filter((y) => y.prefijo !== x.prefijo) }, 'Listo: regla quitada.')}
-                >
-                  <Minus className="size-3.5" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </Tarjeta>
-  )
-}
-
-function NuevoProveedor({ prefijos, alGuardar, alCancelar }: { prefijos: Prefijo[]; alGuardar: (nombre: string, dias: number, prefijo: string | null) => Promise<void>; alCancelar: () => void }) {
-  const [nombre, setNombre] = useState('')
-  const [tiempo, setTiempo] = useState(5)
-  const [prefijo, setPrefijo] = useState('')
-  const ya = prefijos.find((x) => x.prefijo === prefijo.trim().toUpperCase())
-  return (
-    <form
-      className="aparecer flex flex-col gap-3 rounded-xl border border-border p-4"
-      onSubmit={(e) => {
-        e.preventDefault()
-        if (nombre.trim()) alGuardar(nombre.trim(), tiempo, prefijo.trim() || null)
-      }}
-    >
-      <label className="flex flex-col gap-1 text-sm font-semibold">
-        Nombre del proveedor
-        <input className={claseEntrada} value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Ej.: Tornillería Central" autoFocus />
-      </label>
-      <div className="flex flex-wrap items-end gap-4">
-        <div className="flex flex-col gap-1 text-sm font-semibold">
-          Tarda
-          <Contador valor={tiempo} etiqueta="el tiempo del proveedor nuevo" unidad="dias-habiles" onMover={(d) => setTiempo((t) => Math.min(MAX_DIAS, Math.max(0, t + d)))} paso={1} />
-        </div>
-        <label className="flex min-w-48 flex-1 flex-col gap-1 text-sm font-semibold">
-          <span>Sus códigos empiezan por <span className="font-normal text-muted-foreground">(opcional)</span></span>
-          <input className={claseEntrada} value={prefijo} onChange={(e) => setPrefijo(e.target.value.slice(0, 30))} placeholder="Ej.: TOR-" />
-        </label>
-      </div>
-      {ya && <p className="text-nota text-ambar-texto">Ese comienzo ya es de {ya.proveedor}: se cambiará a este proveedor.</p>}
-      <div className="flex flex-wrap gap-2">
-        <Boton type="submit" variante="primario" tamano="chico" disabled={!nombre.trim()}>Agregar</Boton>
-        <Boton tamano="chico" variante="fantasma" onClick={alCancelar}>Cancelar</Boton>
-      </div>
-    </form>
-  )
-}
-
-function FilaTiempo({ nombre, detalle, valor, onMover }: { nombre: string; detalle: string; valor: number; onMover: (d: number) => void }) {
-  return (
-    <li className="flex items-center gap-3 border-t border-[#f0f1ee] py-3 first:border-t-0">
-      <div className="min-w-0 flex-1">
-        <strong className="block text-cuerpo leading-snug">{nombre}</strong>
-        <span className="text-nota text-muted-foreground">{detalle}</span>
-      </div>
-      <Contador valor={valor} etiqueta={`el tiempo de ${nombre}`} unidad="dias-habiles" onMover={onMover} paso={1} />
-    </li>
   )
 }
 

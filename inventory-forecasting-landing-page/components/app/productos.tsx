@@ -427,8 +427,8 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
         <div className="flex flex-col gap-3 rounded-2xl border border-[#cfe5e1] bg-secondary p-4">
           <p className="text-cuerpo text-[#0b3f3b]">
             {p.sugerido > 0
-              ? <>Sugerido: <strong>{numero(p.sugerido, 2)}</strong>. Cubre la entrega ({duracion(p.entrega)}) y {duracion(inv.ajustes.cadaCuanto)} más hasta el próximo pedido.{p.multiplo ? ` Va en cajas de ${numero(p.multiplo, 2)}.` : p.lote > 1 ? ` Va en paquetes de ${numero(p.lote)}, como se vende.` : ''}{p.detalleSugerido?.minimoPedido ? ` Subió al mínimo de pedido (${numero(p.detalleSugerido.minimoPedido, 2)}).` : ''}</>
-              : <>Con lo que hay se cubre la entrega y {duracion(inv.ajustes.cadaCuanto)} más: no hace falta pedir.</>}
+              ? <>Sugerido: <strong>{numero(p.sugerido, 2)}</strong>. Cubre la entrega ({duracion(p.entrega)}) y {duracion(p.cadaCuanto ?? inv.ajustes.cadaCuanto)} más hasta el próximo pedido.{p.multiplo ? ` Va en cajas de ${numero(p.multiplo, 2)}.` : p.lote > 1 ? ` Va en paquetes de ${numero(p.lote)}, como se vende.` : ''}{p.detalleSugerido?.minimoPedido ? ` Subió al mínimo de pedido (${numero(p.detalleSugerido.minimoPedido, 2)}).` : ''}</>
+              : <>Con lo que hay se cubre la entrega y {duracion(p.cadaCuanto ?? inv.ajustes.cadaCuanto)} más: no hace falta pedir.</>}
           </p>
           {enPedido ? (
             <div className="flex flex-wrap items-center gap-2.5">

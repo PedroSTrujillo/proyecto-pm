@@ -148,6 +148,8 @@ export function PedidoPreparar({ pedido, alCambiar }: { pedido: Pedido; alCambia
     }
   }
   const total = totales(filas)
+  // El mínimo de todo el envío del proveedor (T13): solo avisa, no suma unidades por su cuenta.
+  const faltaEnvio = (proveedor: string, unidades: number) => Math.max(0, (inventario?.ajustes.condiciones?.[proveedor]?.minimoEnvio ?? 0) - unidades)
   const malas = filas.filter((f) => f.incluida && !(cantidadDe(f.cantidad) > 0))
 
   function marcarTodas(fs: Fila[], valor: boolean) {
@@ -367,6 +369,7 @@ export function PedidoPreparar({ pedido, alCambiar }: { pedido: Pedido; alCambia
                     <span className="text-chico font-normal text-muted-foreground">
                       {t.lineas} de {fs.length} {fs.length === 1 ? 'línea' : 'líneas'} · {numero(t.unidades, 2)} unidades{conCosto ? ` · ${plata(t.valor)}` : ''}
                     </span>
+                    {t.lineas > 0 && faltaEnvio(nombre, t.unidades) > 0 && <span className="text-chico font-semibold text-ambar-texto">Faltan {numero(faltaEnvio(nombre, t.unidades), 2)} unidades para el mínimo de envío</span>}
                   </span>
                 }
               >

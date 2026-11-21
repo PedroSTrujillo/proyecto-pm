@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState, type ReactNode } from 'react'
 import { api } from '@/lib/api'
-import { ArrowLeftRight, BarChart3, Boxes, Building2, ClipboardList, Database, FlaskConical, LayoutDashboard, LogOut, Menu, Package, ShieldCheck, UserRound, X } from 'lucide-react'
+import { ArrowLeftRight, BarChart3, Boxes, Building2, ClipboardList, Database, FlaskConical, LayoutDashboard, LogOut, Menu, Package, ShieldCheck, Truck, UserRound, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useInventario, useSesion } from './contexto'
 import { reportarError } from './pantalla-error'
@@ -85,12 +85,13 @@ function itemsDe(demo: boolean, rutas: ReturnType<typeof useInventario>['rutas']
   const [productos, pedidos, datos] = resto
   const [movimientos, existencias] = diario
   const empresa: Item = { href: '/empresa', texto: 'Mi empresa', icono: <Building2 /> }
+  const proveedores: Item = { href: '/proveedores', texto: 'Proveedores', icono: <Truck /> }
   const reportes: Item = { href: '/reportes', texto: 'Reportes', icono: <BarChart3 /> }
   let base: Item[]
   if (demo) base = perfil === 'operador' ? [panel, ...resto] : [panel, productos, pedidos, datos]
   else if (rol === 'operador') base = [productos, movimientos, existencias, datos]
   else if (rol === 'gerente' && vista === 'principal') base = [panel, productos, pedidos, reportes, empresa]
-  else base = [panel, productos, pedidos, reportes, movimientos, existencias, datos, empresa]
+  else base = [panel, productos, pedidos, proveedores, reportes, movimientos, existencias, datos, empresa]
   if (!demo && equipo) base.push({ href: '/ejemplos', texto: 'Ejemplos', icono: <FlaskConical /> }, { href: '/cuentas', texto: 'Cuentas', icono: <ShieldCheck /> })
   if (!demo) base.push({ href: '/cuenta', texto: 'Mi cuenta', icono: <UserRound /> })
   return base

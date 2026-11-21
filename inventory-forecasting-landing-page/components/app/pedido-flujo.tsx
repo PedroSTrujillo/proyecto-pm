@@ -381,7 +381,7 @@ function Paso1({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
       <ImportarLista pedidoId={pedido.id} para="inicial" hoja={hoja} alImportar={cambioLista} />
       <ProveedoresPedido enLista={enLista} />
       <Hoja ref={hoja} inicial={pedido.listaInicial} alCambiar={cambioLista} conProveedor proveedores={nombresProveedores} />
-      <p className="text-sm text-muted-foreground">Cada línea necesita código y cantidad. El nombre y el proveedor son opcionales: el proveedor queda atado al producto, también en Datos.</p>
+      <p className="text-sm text-muted-foreground">Cada línea necesita código y cantidad. El nombre y el proveedor son opcionales: el proveedor queda atado al producto, también en Proveedores.</p>
       {error && <ErrorLista mensaje={error.mensaje} lista={error.lista} />}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <Boton variante="primario" onClick={guardar} disabled={guardando}>{guardando ? 'Revisando…' : 'Guardar lista inicial'}</Boton>
@@ -401,7 +401,7 @@ function contarProveedores(ls: { proveedor?: string }[]) {
   return m
 }
 
-// Los proveedores que ya tiene (los mismos de Datos) más los que escribió en la lista.
+// Los proveedores que ya tiene (los mismos de Proveedores) más los que escribió en la lista.
 function useNombresProveedores(enLista: Map<string, number>) {
   const { inventario, respuesta } = useInventario()
   const aj = inventario?.ajustes ?? respuesta?.ajustes
@@ -410,7 +410,7 @@ function useNombresProveedores(enLista: Map<string, number>) {
 }
 
 // Panel del paso 1: cada proveedor con cuánto tarda. Se guarda en los ajustes de la cuenta, así
-// que es lo mismo que en Datos y lo usan el sugerido y la orden de compra.
+// que es lo mismo que en Proveedores y lo usan el sugerido y la orden de compra.
 function ProveedoresPedido({ enLista }: { enLista: Map<string, number> }) {
   const { inventario, respuesta, recargar } = useInventario()
   const aj = inventario?.ajustes ?? respuesta?.ajustes
@@ -439,7 +439,7 @@ function ProveedoresPedido({ enLista }: { enLista: Map<string, number> }) {
     <div className="flex flex-col gap-3 rounded-2xl border border-border bg-muted/40 p-4">
       <div>
         <strong className="text-cuerpo">Proveedores</strong>
-        <p className="text-chico text-muted-foreground">Los mismos de Datos. Escriba el proveedor de cada producto en la tabla; uno nuevo se agrega solo. Ajuste aquí cuánto tarda en llegar cada pedido.</p>
+        <p className="text-chico text-muted-foreground">Los mismos de Proveedores. Escriba el proveedor de cada producto en la tabla; uno nuevo se agrega solo. Ajuste aquí cuánto tarda en llegar cada pedido.</p>
       </div>
       {todos.length > 0 && (
         <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
@@ -813,7 +813,7 @@ function RecuadroSugerido({ sug, hoja, alCambiarLista, alCambiarAjustes }: { sug
   const urgentes = faltan.slice(0, 10)
   const porCodigo = new Map(sug.productos.map((p) => [claveCodigo(p.codigo), p]))
 
-  // Los proveedores de este archivo, con cuánto tarda cada uno (de Datos, o el de todos).
+  // Los proveedores de este archivo, con cuánto tarda cada uno (de Proveedores, o el de todos).
   const proveedores = [...new Map(sug.productos.filter((p) => p.proveedor && p.proveedor !== 'Sin proveedor').map((p) => [p.proveedor, p.entrega])).entries()]
     .map(([nombre, entrega]) => ({ nombre, entrega, productos: sug.productos.filter((p) => p.proveedor === nombre).length }))
     .sort((a, b) => b.productos - a.productos)
@@ -879,10 +879,10 @@ function RecuadroSugerido({ sug, hoja, alCambiarLista, alCambiarAjustes }: { sug
               </li>
             ))}
           </ul>
-          <p className="mt-1 text-nota text-muted-foreground">"Por defecto" aplica a los proveedores sin tiempo propio. Se guarda también en Datos.</p>
+          <p className="mt-1 text-nota text-muted-foreground">"Por defecto" aplica a los proveedores sin tiempo propio. Se guarda también en Proveedores.</p>
         </Desplegable>
       ) : (
-        <p className="text-nota text-muted-foreground">Los proveedores con tiempo propio en Datos usan ese.</p>
+        <p className="text-nota text-muted-foreground">Los proveedores con tiempo propio en Proveedores usan ese.</p>
       )}
       <div className="flex flex-wrap gap-2">
         <Boton tamano="chico" className="py-1.5 text-left whitespace-normal" onClick={usarSugeridas}>Usar las cantidades sugeridas en mi lista</Boton>

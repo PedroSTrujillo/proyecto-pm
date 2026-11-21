@@ -27,6 +27,40 @@
 
 ---
 
+## 2026-11-21 (68) — Claude — Proveedores como tabla y "cada cuánto se pide" por proveedor
+- **Rama:** `cambios-sinesc`, solo en local, sin commit (T5 a T13 tampoco).
+- **Estado:** pedido del usuario sobre T12. La pantalla Proveedores muestra una tabla (proveedor, productos, tarda en llegar con su unidad, cada cuánto se le pide) y una tarjeta aparte "Productos sin proveedor" con los ajustes generales (tiempo por defecto y cada cuánto). `ajustes.cadaCuantoProv { proveedor: semanas }` (1 a 26) reemplaza a `cadaCuanto` en el sugerido de sus productos (`inventario.js`, `entrega + cadaCuanto`); el producto devuelve `cadaCuanto`. El PDF de un pedido de un proveedor dice el suyo.
+- **Archivos tocados:** `server/inventario.js`, `server/pedidos.js`, `test/catalogo-motor.test.js` (una prueba nueva); web `proveedores.tsx`, `productos.tsx`, `catalogo.tsx`, `contexto.tsx`, `lib/tipos.ts`; docs `modelo-rotacion.md` §9.1, `ENTREGABLE_Y_APP.md` (fila 24), `CLAUDE.md`, `README.md`, este archivo.
+- **Base de datos:** sin cambios (JSON `empresas.inventario`).
+- **Verificación:** `npm test` 217 de 217; `tsc --noEmit` limpio; `npm run texto` sin frases nuevas propias. **No se probó en el navegador.**
+- **Siguiente paso exacto:** T14 (importadores y contenedores), la última.
+- **Notas y bloqueos:** cambia el sugerido de quien ponga un "cada cuánto" propio a un proveedor: no se publica con el piloto abierto. La frase "más X" del pedido armado desde lo sugerido (`pedido-sugerido.tsx`) y la del paso "Comparar con mi propia lista" siguen con el general (`shortcut`). No hay cómo volver un proveedor al general una vez que tiene el suyo.
+
+---
+
+## 2026-11-21 (67) — Claude — T13: condiciones de pedido por proveedor
+- **Rama:** `cambios-sinesc`, solo en local, sin commit (T5 a T12 tampoco).
+- **Estado:** T13 hecha. `ajustes.condiciones { proveedor: { minimoEnvio } }` en `leerAjustes`. **El paquete y el mínimo por producto son solo de cada producto**, por indicación del usuario (se habían hecho primero por proveedor y se quitó): la ficha del proveedor los deja editar por producto (`POST /api/catalogo/lote`, el mismo de la ficha del producto). El sugerido no cambia respecto a antes de T13. Web: tarjeta "Mínimo del pedido" y campos Paquete y Mínimo por producto en la ficha del proveedor; `pedido-preparar.tsx` avisa "Faltan N unidades para el mínimo de envío" en el grupo (solo avisa); 
+- **Archivos tocados:** `server/inventario.js`, `test/catalogo-motor.test.js` (una prueba nueva); web `proveedores.tsx`, `pedido-preparar.tsx`, `catalogo.tsx`, `contexto.tsx`, `lib/tipos.ts`; docs `modelo-rotacion.md` §9.1, `ENTREGABLE_Y_APP.md` (fila 25), `CLAUDE.md`, `README.md`, este archivo.
+- **Base de datos:** sin cambios (va dentro del JSON `empresas.inventario`).
+- **Verificación:** `npm test` 216 de 216; `tsc --noEmit` limpio; `npm run texto` sin frases nuevas propias. **No se probó en el navegador.**
+- **Siguiente paso exacto:** T14 (importadores y contenedores), la última.
+- **Notas y bloqueos:** T13 ya no cambia el sugerido por sí sola. El mínimo de envío va por nombre de proveedor. El mínimo del envío es en unidades, no en dinero. Sigue pendiente confirmar con el equipo lo de T5; T9 y T10 salen juntas.
+
+---
+
+## 2026-11-21 (66) — Claude — T12: pestaña Proveedores
+- **Rama:** `cambios-sinesc`, solo en local, sin commit (T5 a T11 tampoco).
+- **Estado:** T12 hecha. Nueva pestaña `/proveedores` (`proveedores.tsx`, solo gerente y administrador; en el menú del administrador y del gerente en vista maestro). Se movió ahí el componente de proveedores de Datos, con un selector de unidad por proveedor (días hábiles, calendario o semanas). `leerAjustes` guarda `unidades`; la web convierte al leer y al guardar y el servidor sigue con `entregasDias` en días hábiles. `Contador` suma la unidad `dias-calendario`. Los textos de Panel y Pedidos que mandaban a Datos para el tiempo del proveedor ahora dicen Proveedores.
+- **Ficha del proveedor (pedida después):** "Ver y asignar productos" en cada fila abre su ficha (`FichaProveedor`): sus productos y "Agregar productos" con filtro Todos / Sin proveedor / Con otro proveedor, buscador, casillas y "marcar los que se ven"; asigna o cambia de proveedor con un solo `guardarAjustes({ asignaciones })`. Sin cambios de servidor; muestra hasta 200 a la vez.
+- **Archivos tocados:** `server/inventario.js`, `test/catalogo-motor.test.js`; web `proveedores.tsx` (nuevo), `app/(app)/proveedores/page.tsx` (nuevo), `datos.tsx`, `ui.tsx`, `marco.tsx`, `panel.tsx`, `pedido-flujo.tsx`, `lib/tipos.ts`; docs.
+- **Base de datos:** sin cambios (`unidades` va dentro del JSON `empresas.inventario`).
+- **Verificación:** `npm test` 215 de 215; `tsc --noEmit` limpio; `npm run texto` solo falsos positivos. **No se probó en el navegador.**
+- **Siguiente paso exacto:** T13 (condiciones de pedido por proveedor), luego T14.
+- **Notas y bloqueos:** la demo ya no muestra proveedores (estaban en Datos). "Los demás" y el proveedor nuevo siguen en días hábiles. El umbral de "se agota" se quedó en Datos. Sigue pendiente confirmar con el equipo lo de T5; T9 y T10 salen juntas.
+
+---
+
 ## 2026-11-21 (65) — Claude — T11: suspender y reactivar cuentas
 - **Rama:** `cambios-sinesc`, solo en local, sin commit (T5 a T10 tampoco).
 - **Estado:** T11 hecha. `usuarios.suspendida_en`; `cargarUsuario` ignora la sesión de una cuenta suspendida (401 en todas las rutas), `/entrar` responde 403 con "Su cuenta está suspendida…" solo si la clave es correcta, `/olvide` no envía el enlace, `/restablecer` la rechaza y el boletín diario la salta. El equipo usa `POST /api/equipo/cuentas/:id/suspender|reactivar` (no a cuentas del equipo ni a sí mismo; suspender borra sus sesiones; eventos con el correo enmascarado). Web: chip "Suspendida" y botón "Suspender/Reactivar cuenta" en el detalle de Cuentas.

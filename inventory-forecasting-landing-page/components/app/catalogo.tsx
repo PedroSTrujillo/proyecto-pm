@@ -215,7 +215,7 @@ export function ComoSeCalcula({ p, inv, titulo = 'Cómo se calcula', children }:
               {inv.temporada ? 'Su negocio vende más en unos meses que en otros: las próximas semanas se ajustan con la temporada de todo su catálogo.' : 'Con menos de 18 meses de ventas no se ajusta por temporada: se supone que las próximas semanas se venden como las de ahora.'}
             </li>
             <li>
-              <strong>Lo que se puede vender.</strong> El pedido tiene que cubrir {duracion(d.semanasCubrir)}: lo que tarda {p.proveedor === 'Sin proveedor' ? 'el proveedor' : p.proveedor} ({p.entregaDias != null ? `${plural(p.entregaDias, 'día hábil', 'días hábiles')}` : duracion(p.entrega)}) más {duracion(inv.ajustes.cadaCuanto)} hasta el siguiente pedido.
+              <strong>Lo que se puede vender.</strong> El pedido tiene que cubrir {duracion(d.semanasCubrir)}: lo que tarda {p.proveedor === 'Sin proveedor' ? 'el proveedor' : p.proveedor} ({p.entregaDias != null ? `${plural(p.entregaDias, 'día hábil', 'días hábiles')}` : duracion(p.entrega)}) más {duracion(p.cadaCuanto ?? inv.ajustes.cadaCuanto)} hasta el siguiente pedido.
               Lo más probable es vender {n1(d.media)}{d.bajo !== undefined ? `; en 8 de cada 10 casos, entre ${n1(d.bajo)} y ${n1(d.alto)}` : ''}.
             </li>
             <li>

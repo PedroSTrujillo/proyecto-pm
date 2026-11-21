@@ -243,10 +243,11 @@ export const claseEntrada =
 // Número de semanas con botones − y +.
 // Un número de semanas con botones de más y menos. `unidad`: cómo se muestra ('semanas' por
 // defecto; 'tiempo' = la unidad que eligió el usuario, guardando igual en semanas; 'dias-habiles'
-// = el valor ya viene en días hábiles).
-export function Contador({ valor, etiqueta, onMover, paso, unidad = 'semanas' }: { valor: number; etiqueta: string; onMover: (d: number) => void; paso: number; unidad?: 'semanas' | 'tiempo' | 'dias-habiles' }) {
+// = el valor ya viene en días hábiles; 'dias-calendario' = en días corridos).
+export function Contador({ valor, etiqueta, onMover, paso, unidad = 'semanas' }: { valor: number; etiqueta: string; onMover: (d: number) => void; paso: number; unidad?: 'semanas' | 'tiempo' | 'dias-habiles' | 'dias-calendario' }) {
   const u = unidad === 'tiempo' ? unidadDeTiempo() : unidad
   const mostrar = u === 'dias-habiles' ? { n: numero(valor), t: valor === 1 ? 'día hábil' : 'días hábiles' }
+    : u === 'dias-calendario' ? { n: numero(valor), t: valor === 1 ? 'día calendario' : 'días calendario' }
     : u === 'dias' ? { n: numero(Math.round(valor * 7)), t: Math.round(valor * 7) === 1 ? 'día' : 'días' }
       : u === 'meses' ? { n: numero((valor * 7) / DIAS_POR_MES, 1), t: Math.round(((valor * 7) / DIAS_POR_MES) * 10) === 10 ? 'mes' : 'meses' }
         : { n: semanas(valor), t: valor === 1 ? 'semana' : 'semanas' }

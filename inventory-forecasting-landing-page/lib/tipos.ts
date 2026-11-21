@@ -27,6 +27,7 @@ export type Producto = {
   nombre: string
   proveedor: string
   origenProveedor: 'producto' | 'archivo' | 'prefijo' | null
+  cadaCuanto?: number // cada cuánto se le pide a su proveedor (semanas)
   entrega: number
   entregaDias?: number | null // si el tiempo de entrega se escribió en días hábiles
   familia?: string | null
@@ -74,6 +75,9 @@ export type Producto = {
   ventaHorizonte?: Pronostico | null
 }
 
+// Lo que pide cada proveedor (T13): el mínimo del envío completo, en unidades.
+export type Condiciones = { minimoEnvio?: number }
+
 export type Proveedor = { nombre: string; entrega: number; productos: number; pideYa: number; seAgotan: number }
 
 export type Inventario = {
@@ -104,7 +108,7 @@ export type Inventario = {
   horizonte?: number
   // 'operador': las métricas gruesas, con los detalles en null (server/inventario.js, resumirParaOperador).
   vista?: Perfil
-  ajustes: { entregaPorDefecto: number; entregaPorDefectoDias?: number | null; entregasDias?: Record<string, number>; cadaCuanto: number; semanasAgota: number; entregas: Record<string, number>; asignaciones: Record<string, string>; prefijos: { prefijo: string; proveedor: string }[]; nivelServicio: number }
+  ajustes: { entregaPorDefecto: number; entregaPorDefectoDias?: number | null; entregasDias?: Record<string, number>; unidades?: Record<string, 'habiles' | 'calendario' | 'semanas'>; condiciones?: Record<string, Condiciones>; cadaCuantoProv?: Record<string, number>; cadaCuanto: number; semanasAgota: number; entregas: Record<string, number>; asignaciones: Record<string, string>; prefijos: { prefijo: string; proveedor: string }[]; nivelServicio: number }
   sugerencias: boolean
   alcance: 'completo' | 'prueba'
   temporada: number[] | null

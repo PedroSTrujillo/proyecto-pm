@@ -55,6 +55,13 @@ test('días hábiles: se convierten a semanas (÷ 5) y los ajustes guardados en 
   assert.deepEqual(nuevo.entregasDias, { Andina: 3, Costa: 8 });
 });
 
+test('la unidad del tiempo de entrega de cada proveedor se guarda y lo desconocido se descarta', () => {
+  const a = leerAjustes({ unidades: { Andina: 'semanas', Valle: 'calendario', Costa: 'habiles', Raro: 'meses', Otro: 5, Nulo: null } });
+  assert.deepEqual(a.unidades, { Andina: 'semanas', Valle: 'calendario', Costa: 'habiles' });
+  assert.deepEqual(leerAjustes({}).unidades, {});
+  assert.deepEqual(leerAjustes({ unidades: 'semanas' }).unidades, {});
+});
+
 test('cada cuánto pide se guarda con decimales: viene de días o meses', () => {
   assert.equal(leerAjustes({ cadaCuanto: 10 / 7 }).cadaCuanto, 1.429);
   assert.equal(leerAjustes({ cadaCuanto: 0.2 }).cadaCuanto, 4, 'menos de una semana no se acepta');
@@ -83,6 +90,36 @@ test('múltiplo de empaque y mínimo de pedido cambian el sugerido, y el desglos
   const lleno = negocio({ existenciasA: 5000 });
   const nada = construirInventario({ reporte: lleno.reporte, series: lleno.series, catalogo: { A: { minimoPedido: 500 } }, ajustes: {} }).productos.find((p) => p.codigo === 'A');
   assert.equal(nada.sugerido, 0, 'si no hace falta pedir, el mínimo no lo obliga');
+});
+
+test('el mínimo del envío de cada proveedor se guarda; el paquete y el mínimo por producto no son del proveedor', () => {
+  const sucio = leerAjustes({ condiciones: { Andina: { minimoEnvio: 200, multiplo: 10, minimoProducto: 30 }, Valle: { minimoEnvio: 'x' }, Costa: { minimoEnvio: 0 }, Raro: 7 } });
+  assert.deepEqual(sucio.condiciones, { Andina: { minimoEnvio: 200 } });
+  assert.deepEqual(leerAjustes({}).condiciones, {});
+  assert.deepEqual(leerAjustes({ condiciones: 'x' }).condiciones, {});
+
+  const { reporte, series } = negocio();
+  const sin = construirInventario({ reporte, series, catalogo: { A: { proveedor: 'Andina' } }, ajustes: {} }).productos.find((p) => p.codigo === 'A');
+  const con = construirInventario({ reporte, series, catalogo: { A: { proveedor: 'Andina' } }, ajustes: { condiciones: { Andina: { multiplo: 80, minimoProducto: 500, minimoEnvio: 900 } } } }).productos.find((p) => p.codigo === 'A');
+  assert.equal(con.sugerido, sin.sugerido, 'lo del proveedor no cambia las cantidades');
+});
+
+test('cada cuánto se pide puede ser de cada proveedor; sin valor propio vale el general', () => {
+  const sucio = leerAjustes({ cadaCuantoProv: { Andina: 8, Valle: 0.5, Costa: 'x', Sur: 30, Raro: null } });
+  assert.deepEqual(sucio.cadaCuantoProv, { Andina: 8 });
+  assert.deepEqual(leerAjustes({}).cadaCuantoProv, {});
+
+  const { reporte, series } = negocio();
+  const de = (ajustes, proveedor = 'Andina') => construirInventario({ reporte, series, catalogo: { A: { proveedor } }, ajustes }).productos.find((p) => p.codigo === 'A');
+  const general = de({ cadaCuanto: 4 });
+  const propio = de({ cadaCuanto: 4, cadaCuantoProv: { Andina: 8 } });
+  assert.equal(general.cadaCuanto, 4);
+  assert.equal(propio.cadaCuanto, 8);
+  assert.ok(propio.sugerido > general.sugerido, 'pedir cada 8 semanas necesita más que cada 4');
+  assert.equal(propio.detalleSugerido.semanasCubrir, general.detalleSugerido.semanasCubrir + 4);
+  const otro = de({ cadaCuanto: 4, cadaCuantoProv: { Andina: 8 } }, 'Valle');
+  assert.equal(otro.cadaCuanto, 4, 'otro proveedor sigue con el general');
+  assert.equal(otro.sugerido, general.sugerido);
 });
 
 test('clasificación: frecuente, esporádico, de proyecto y venta única', () => {

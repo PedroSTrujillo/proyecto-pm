@@ -359,6 +359,8 @@ Cada producto del catálogo de la empresa (`productos.multiplo`, `productos.mini
 
 - Con múltiplo, el paquete de §7.4 es ese número y no el que se deduce de las ventas. La cantidad sugerida y el máximo se redondean hacia arriba a cajas completas. El múltiplo puede ser decimal (bultos de 2,5 kg).
 - Con mínimo, un sugerido que queda entre 0 y el mínimo sube al mínimo (redondeado a la caja). Un sugerido de 0 sigue en 0: el mínimo no obliga a pedir lo que no hace falta.
+- **Del proveedor (T13, 2026-11-21):** el paquete y el mínimo por producto son siempre **de cada producto**; la ficha del proveedor solo ofrece escribirlos cómodamente para sus productos. Lo que sí es del proveedor es `ajustes.condiciones[proveedor].minimoEnvio` (unidades del pedido completo), que no cambia ninguna cantidad: solo avisa en el pedido cuánto falta.
+- **Cada cuánto se pide, por proveedor (2026-11-21):** `ajustes.cadaCuantoProv[proveedor]` (semanas, entre 1 y 26) reemplaza a `ajustes.cadaCuanto` para los productos de ese proveedor, tanto en lo que hay que cubrir (`entrega + cada cuánto`) como en el sugerido. `cadaCuanto` queda para los productos sin proveedor y para los proveedores sin valor propio. El producto devuelve el que le tocó en `cadaCuanto`.
 - El desglose (`detalleSugerido`) guarda lo que faltaba antes de redondear, el paquete, de dónde salió (catálogo o ventas) y si subió al mínimo, para explicarlo.
 
 ### 9.2 Tiempo de entrega en días hábiles
