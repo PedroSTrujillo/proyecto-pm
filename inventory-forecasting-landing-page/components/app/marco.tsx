@@ -12,8 +12,8 @@ import { cn } from '@/lib/utils'
 import { useInventario, useSesion } from './contexto'
 import { reportarError } from './pantalla-error'
 import { clasesBoton } from './ui'
-import { SelectorPerfil } from './vista'
-import type { Perfil } from '@/lib/tipos'
+import { INICIO, SelectorPerfil, SelectorVistaGerente, type VistaGerente } from './vista'
+import type { Perfil, RolEmpresa } from '@/lib/tipos'
 
 function Monograma({ className }: { className?: string }) {
   return (
@@ -35,6 +35,7 @@ export function Marca({ href = '/' }: { href?: string }) {
 
 // Al aprobar o devolver un pedido, el contador del menú se vuelve a pedir sin cambiar de pantalla.
 export const EVENTO_POR_APROBAR = 'sinesc:por-aprobar'
+const CLAVE_VISTA_GERENTE = 'sinesc-vista-gerente'
 
 type Item = { href: string; texto: string; icono: ReactNode; exacto?: boolean; cuenta?: number }
 
@@ -69,8 +70,8 @@ function Navegacion({ items, alElegir }: { items: Item[]; alElegir?: () => void 
   )
 }
 
-// El operador empieza por lo que registra (movimientos y existencias); el analista, por el panel.
-function itemsDe(demo: boolean, rutas: ReturnType<typeof useInventario>['rutas'], equipo: boolean, perfil: Perfil): Item[] {
+// Cada rol ve lo suyo (T3 de docs/PLAN_CAMBIOS_SINESC.md). La demo, sin cuenta, sigue el perfil que elige quien la prueba.
+function itemsDe(demo: boolean, rutas: ReturnType<typeof useInventario>['rutas'], equipo: boolean, perfil: Perfil, rol: RolEmpresa | undefined, vista: VistaGerente): Item[] {
   const panel: Item = { href: rutas.panel, texto: perfil === 'operador' ? 'Resumen' : 'Panel', icono: <LayoutDashboard />, exacto: true }
   const diario: Item[] = demo ? [] : [
     { href: '/movimientos', texto: 'Movimientos', icono: <ArrowLeftRight /> },
@@ -81,8 +82,14 @@ function itemsDe(demo: boolean, rutas: ReturnType<typeof useInventario>['rutas']
     { href: rutas.pedido, texto: demo ? 'Preparar pedido' : 'Pedidos', icono: <ClipboardList /> },
     { href: rutas.datos, texto: 'Datos', icono: <Database /> },
   ]
-  const base = perfil === 'operador' ? [...diario, panel, ...resto] : [panel, ...resto.slice(0, 2), ...diario, ...resto.slice(2)]
-  if (!demo) base.push({ href: '/empresa', texto: 'Mi empresa', icono: <Building2 /> })
+  const [productos, pedidos, datos] = resto
+  const [movimientos, existencias] = diario
+  const empresa: Item = { href: '/empresa', texto: 'Mi empresa', icono: <Building2 /> }
+  let base: Item[]
+  if (demo) base = perfil === 'operador' ? [panel, ...resto] : [panel, productos, pedidos, datos]
+  else if (rol === 'operador') base = [productos, movimientos, existencias, datos]
+  else if (rol === 'gerente' && vista === 'principal') base = [panel, productos, pedidos, empresa]
+  else base = [panel, productos, pedidos, movimientos, existencias, datos, empresa]
   if (!demo && equipo) base.push({ href: '/ejemplos', texto: 'Ejemplos', icono: <FlaskConical /> }, { href: '/cuentas', texto: 'Cuentas', icono: <ShieldCheck /> })
   if (!demo) base.push({ href: '/cuenta', texto: 'Mi cuenta', icono: <UserRound /> })
   return base
@@ -98,7 +105,16 @@ export function Marco({ children }: { children: ReactNode }) {
   const { usuario, salir } = useSesion()
   const demo = fuente.tipo === 'demo'
   const [porAprobar, setPorAprobar] = useState(0)
-  const items = itemsDe(demo, rutas, usuario?.rol === 'equipo', perfil).map((it) => (it.href === '/pedidos' ? { ...it, cuenta: porAprobar } : it))
+  // shortcut: la vista del gerente se guarda en este navegador y no se sincroniza entre dispositivos; subirla al servidor si lo piden.
+  const [vistaGerente, setVistaGerente] = useState<VistaGerente>('principal')
+  useEffect(() => {
+    try { if (localStorage.getItem(CLAVE_VISTA_GERENTE) === 'maestro') setVistaGerente('maestro') } catch {}
+  }, [])
+  function elegirVista(v: VistaGerente) {
+    setVistaGerente(v)
+    try { localStorage.setItem(CLAVE_VISTA_GERENTE, v) } catch {}
+  }
+  const items = itemsDe(demo, rutas, usuario?.rol === 'equipo', perfil, usuario?.rolEmpresa, vistaGerente).map((it) => (it.href === '/pedidos' ? { ...it, cuenta: porAprobar } : it))
   const [abierto, setAbierto] = useState(false)
   const ruta = usePathname()!
   const aprueba = !demo && Boolean(usuario?.aprueba)
@@ -125,12 +141,14 @@ export function Marco({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const inicio = demo ? '/' : INICIO[usuario?.rolEmpresa ?? 'administrador']
   const persona = demo ? inventario?.fuente.persona || 'Datos de ejemplo' : usuario?.nombre || ''
   const empresa = demo ? inventario?.fuente.empresa || '' : usuario?.empresa && !usuario.empresa.vacia ? usuario.empresa.nombre : usuario?.email || ''
 
   const pie = (
     <div className="flex flex-col gap-2">
       {demo && <SelectorPerfil />}
+      {usuario?.rolEmpresa === 'gerente' && <SelectorVistaGerente vista={vistaGerente} cambiar={elegirVista} />}
       <div className="flex items-center gap-3 rounded-2xl border border-border p-3">
         <Iniciales nombre={persona} />
         <span className="flex min-w-0 flex-col">
@@ -152,14 +170,14 @@ export function Marco({ children }: { children: ReactNode }) {
     <div className="tema-app min-h-dvh bg-background lg:flex lg:bg-[linear-gradient(to_right,var(--card)_calc(16rem-1px),var(--border)_calc(16rem-1px),var(--border)_16rem,transparent_16rem)]">
       {/* Menú lateral (escritorio). El fondo del contenedor sigue su franja hasta el final de una página larga. */}
       <aside className="no-imprimir hidden w-64 shrink-0 flex-col gap-7 border-r border-border bg-card px-4 py-6 lg:sticky lg:top-0 lg:flex lg:h-dvh">
-        <Marca href={demo ? '/' : rutas.panel} />
+        <Marca href={inicio} />
         <Navegacion items={items} />
         <div className="mt-auto">{pie}</div>
       </aside>
 
       {/* Barra superior (celular y tableta) */}
       <div className="no-imprimir sticky top-0 z-30 flex items-center justify-between border-b border-border bg-card/95 px-4 py-2.5 backdrop-blur lg:hidden">
-        <Marca href={demo ? '/' : rutas.panel} />
+        <Marca href={inicio} />
         <button type="button" className={clasesBoton('fantasma', 'chico')} aria-expanded={abierto} aria-controls="menu-movil" onClick={() => setAbierto((v) => !v)}>
           {abierto ? <X className="size-5" /> : <Menu className="size-5" />}
           <span className="sr-only">{abierto ? 'Cerrar el menú' : 'Abrir el menú'}</span>

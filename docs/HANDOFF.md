@@ -27,6 +27,15 @@
 
 ---
 
+## 2026-11-20 (57) — Claude — T3: menú por rol y vista principal/maestro del gerente
+- **Rama:** `cambios-sinesc`, solo en local, sin commit (T2 tampoco está en un commit).
+- **Estado:** T3 hecha en la web. `itemsDe` (`marco.tsx`) arma el menú por rol; el gerente alterna entre vista principal y maestro con `SelectorVistaGerente` (`vista.tsx`, guardado en `localStorage`, comentario `shortcut:`). `SoloRol` (`solo-rol.tsx`) guarda Panel, Mi empresa y `/pedidos/*` (`pedidos/layout.tsx`) y manda a `INICIO[rol]`; el enlace de la marca también. Decisión del equipo en esta sesión: el administrador sí ve Mi empresa, así que la vista maestro del gerente es igual al menú del administrador. `SelectorPerfil` y el nuevo selector comparten un `Segmentado`.
+- **Archivos tocados:** `components/app/` `vista.tsx`, `marco.tsx`, `solo-rol.tsx` (nuevo); `app/(app)/` `panel/page.tsx`, `empresa/page.tsx`, `pedidos/layout.tsx` (nuevo); `CLAUDE.md`; `docs/ENTREGABLE_Y_APP.md` (fila 16).
+- **Base de datos:** sin cambios.
+- **Verificación:** `tsc --noEmit` limpio; `npm test` 209 de 209; `npm run texto` sin hallazgos nuevos. **No se probó en el navegador.**
+- **Siguiente paso exacto:** T4 (operador restringido en el servidor y sin dinero: `requiereRol` en `/api/pedidos/*`, ajustes y escrituras del catálogo; `usuarios.sube_datos`; quitar `costo` al operador). Hasta T4 el operador puede pedir esas rutas a mano, y desde Productos el botón "Agregar al pedido" lo mandaría a `/pedidos`, que ahora lo devuelve a Movimientos.
+- **Notas y bloqueos:** Proveedores y Reportes se suman al menú con T12 y T8 (cada uno con su `SoloRol`). No publicar mientras siga el piloto.
+
 ## 2026-11-20 (56) — Claude — T2: invitar con rol y gestionar miembros (web)
 - **Rama:** `cambios-sinesc`, solo en local, sin commit.
 - **Estado:** T2 de `docs/PLAN_CAMBIOS_SINESC.md` hecha. `FormInvitar` deja elegir el rol al gerente; Mi empresa muestra el rol de cada miembro y deja cambiarlo (select, solo el gerente), el cargo, "Puede aprobar" y "Sacar" solo sobre rangos menores; `sacar` ya no tumba la página con un 403. El registro ya no pide perfil y el operador invitado entra por `/movimientos` según la respuesta del servidor. `SelectorPerfil` solo se dibuja en la demo (`marco.tsx`); se quitó de Mi cuenta y `cambiarPerfil` ya no llama al servidor.
