@@ -99,9 +99,9 @@ test('al cerrar un pedido, lo pedido cuenta en camino y el sugerido lo descuenta
 });
 
 test('"Por recibir" lo ve cualquiera de la empresa, y otra empresa no puede recibirlo', async () => {
-  const inv = await ana.post('/api/empresa/invitaciones', { email: 'carla.recibe@prueba.co' });
+  const inv = await ana.post('/api/empresa/invitaciones', { email: 'carla.recibe@prueba.co', rol: 'administrador' });
   const token = new URL(inv.enlace).searchParams.get('invitacion');
-  carla = await cuenta('Carla Bodega', 'carla.recibe@prueba.co', { invitacion: token, perfil: 'operador' });
+  carla = await cuenta('Carla Bodega', 'carla.recibe@prueba.co', { invitacion: token });
   const lista = await carla.get('/api/pedidos/por-recibir');
   assert.equal(lista.pedidos.length, 1);
   assert.equal(lista.pedidos[0].pedidoId, pedido.id);

@@ -77,13 +77,14 @@ function textoDePdf(buf) {
 }
 
 let gerente; // administra y aprueba
-let carlos; // prepara, no aprueba
-let lucia; // de la misma empresa, no aprueba
+let carlos; // administrador: prepara, no aprueba
+let lucia; // administradora de la misma empresa, no aprueba
 let ids = {};
 let pedido;
 
-async function invitado(nombre, email, cargo) {
-  const { enlace } = await gerente.post('/api/empresa/invitaciones', {});
+// Quien prepara y consulta pedidos es administrador; un operador no los abre (T4).
+async function invitado(nombre, email, cargo, rol = 'administrador') {
+  const { enlace } = await gerente.post('/api/empresa/invitaciones', { rol });
   const token = new URL(enlace).searchParams.get('invitacion');
   const c = cliente();
   const r = await c.post('/api/cuenta/crear', { nombre, email, clave: 'clave-segura', invitacion: token, cargo });
@@ -279,7 +280,10 @@ test('el logo: PNG o JPG de hasta 300 KB, solo quien administra, y va en el PDF'
   assert.equal(r.estado, 413);
   assert.match(r.error, /300 KB/);
   assert.equal((await gerente.put('/api/empresa/logo', { datos: Buffer.from('GIF89a…').toString('base64') })).estado, 400);
-  assert.equal((await carlos.put('/api/empresa/logo', { datos: LOGO.toString('base64') })).estado, 403);
+  assert.equal((await carlos.put('/api/empresa/logo', { datos: LOGO.toString('base64') })).estado, 200, 'un administrador también cambia el logo');
+  const oscar = (await invitado('Óscar Operador', 'oscar@aprueba.co', undefined, 'operador')).c;
+  assert.equal((await oscar.put('/api/empresa/logo', { datos: LOGO.toString('base64') })).estado, 403);
+  assert.equal((await oscar.get('/api/pedidos')).estado, 403, 'un operador no abre los pedidos');
 
   const ok = await gerente.put('/api/empresa/logo', { datos: `data:image/png;base64,${LOGO.toString('base64')}` });
   assert.equal(ok.estado, 200, ok.error);

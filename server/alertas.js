@@ -39,7 +39,10 @@ function limpiarAlertas(a) {
 // La tabla completa: lo elegido encima de los valores del perfil.
 function alertasDe(preferencias, perfil) {
   const propias = limpiarAlertas(preferencias && preferencias.alertas);
-  return { ...(POR_PERFIL[perfil] || POR_PERFIL.analista), ...propias };
+  const tabla = { ...(POR_PERFIL[perfil] || POR_PERFIL.analista), ...propias };
+  // El operador no recibe dinero ni sobrestock, aunque lo haya pedido (T4).
+  if (perfil === 'operador') tabla.dineroQuieto = tabla.sobran = 'nunca';
+  return tabla;
 }
 
 // El primer día de lunes a viernes del mes. Los festivos no cuentan (decisión del equipo).
@@ -79,14 +82,13 @@ function sumarHabiles(desde, dias) {
 /**
  * Los tipos que van hoy en el boletín de esta persona.
  * usuario: { perfil, preferencias, aprueba, admin }.
- * porAprobar solo a quien aprueba; sinDatos solo a quien administra la empresa y a los operadores
- * (son los que registran los movimientos).
+ * porAprobar solo a quien aprueba (y nunca a un operador, que no abre los pedidos). sinDatos le llega
+ * a todos los roles: el administrador mantiene los datos y el operador registra los movimientos.
  */
 function tiposDeHoy(usuario, hoy) {
   const alertas = alertasDe(usuario.preferencias, usuario.perfil);
   return TIPOS.filter((t) => {
-    if (t === 'porAprobar' && !usuario.aprueba) return false;
-    if (t === 'sinDatos' && !usuario.admin && usuario.perfil !== 'operador') return false;
+    if (t === 'porAprobar' && (!usuario.aprueba || usuario.perfil === 'operador')) return false;
     return tocaHoy(alertas[t], hoy);
   });
 }

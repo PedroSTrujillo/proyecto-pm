@@ -133,9 +133,10 @@ function TablaAlertas({ usuario }: { usuario: Usuario }) {
   const { fijar } = useSesion()
   const [error, setError] = useState<ReturnType<typeof textoErrores> | null>(null)
   const [guardando, setGuardando] = useState<TipoAlerta | 'todas' | null>(null)
-  // Pedidos por aprobar solo le llega a quien aprueba; datos sin actualizar, a quien administra la
-  // empresa y a los operadores (los que registran los movimientos). Lo demás no se muestra.
-  const visibles = ALERTAS.filter((a) => (a.tipo !== 'porAprobar' || usuario.aprueba) && (a.tipo !== 'sinDatos' || usuario.empresa?.admin || usuario.perfil === 'operador'))
+  // Pedidos por aprobar solo le llega a quien aprueba, y nunca a un operador. El operador tampoco recibe
+  // dinero quieto ni sobrestock (el servidor lo fuerza en "nunca"); lo demás le llega a todos los roles.
+  const operador = usuario.rolEmpresa === 'operador'
+  const visibles = ALERTAS.filter((a) => (a.tipo !== 'porAprobar' || (usuario.aprueba && !operador)) && !(operador && (a.tipo === 'dineroQuieto' || a.tipo === 'sobran')))
 
   async function guardar(alertas: Partial<Record<TipoAlerta, Frecuencia>> | null, cual: TipoAlerta | 'todas') {
     setError(null)

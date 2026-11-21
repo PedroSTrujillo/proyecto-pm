@@ -161,7 +161,8 @@ export function InventarioProvider({ fuente, children }: { fuente: Fuente; child
         const resp: RespuestaInventario = 'puedeSubir' in r ? r : { inventario: r.inventario, puedeSubir: false, sugerencias: true, finPrueba: null }
         setRespuesta(resp)
         if (fuente.tipo === 'cuenta') {
-          if (resp.inventario) {
+          // Un operador no abre los pedidos (el servidor responde 403): no hay borrador que pedir.
+          if (resp.inventario && usuario?.rolEmpresa !== 'operador') {
             api<{ pedido: { lineas: { codigo: string; cantidad: number | string }[] } | null }>('GET', '/pedidos/borrador')
               .then((b) => vivo && setPedido(Object.fromEntries((b.pedido?.lineas || []).map((l) => [l.codigo, Number(l.cantidad) || 0]))))
               .catch(() => {})

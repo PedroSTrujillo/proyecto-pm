@@ -68,19 +68,20 @@ test('valores por defecto de cada perfil: qué sale un día cualquiera, un lunes
   const ana = { perfil: 'analista', preferencias: {}, aprueba: false, admin: false };
   const carla = { perfil: 'operador', preferencias: {}, aprueba: false, admin: false };
   assert.deepEqual(A.tiposDeHoy(ana, MIERCOLES), ['pideYa', 'seAgota']);
-  assert.deepEqual(A.tiposDeHoy(ana, LUNES), ['pideYa', 'seAgota', 'enCero', 'porRecibir', 'dineroQuieto', 'sobran'], 'el lunes 2 de noviembre también es el primer día hábil');
-  assert.deepEqual(A.tiposDeHoy(ana, '2026-11-09'), ['pideYa', 'seAgota', 'enCero', 'porRecibir', 'dineroQuieto']);
+  assert.deepEqual(A.tiposDeHoy(ana, LUNES), ['pideYa', 'seAgota', 'enCero', 'porRecibir', 'dineroQuieto', 'sobran', 'sinDatos'], 'el lunes 2 de noviembre también es el primer día hábil');
+  assert.deepEqual(A.tiposDeHoy(ana, '2026-11-09'), ['pideYa', 'seAgota', 'enCero', 'porRecibir', 'dineroQuieto', 'sinDatos']);
   assert.deepEqual(A.tiposDeHoy(ana, PRIMER_HABIL), ['pideYa', 'seAgota', 'sobran']);
   assert.deepEqual(A.tiposDeHoy(carla, MIERCOLES), ['pideYa', 'seAgota', 'enCero', 'porRecibir', 'sinDatos']);
   assert.ok(!A.tiposDeHoy(carla, PRIMER_HABIL).includes('sobran'), 'el operador no recibe lo que sobra');
   assert.ok(!A.tiposDeHoy(carla, LUNES).includes('dineroQuieto'));
 });
 
-test('porAprobar solo a quien aprueba y sinDatos solo a quien administra o es operador', () => {
+test('porAprobar solo a quien aprueba (nunca a un operador) y sinDatos a todos los roles', () => {
   const ana = { perfil: 'analista', preferencias: {}, aprueba: false, admin: false };
   assert.ok(!A.tiposDeHoy(ana, MIERCOLES).includes('porAprobar'));
   assert.ok(A.tiposDeHoy({ ...ana, aprueba: true }, MIERCOLES).includes('porAprobar'));
-  assert.ok(!A.tiposDeHoy(ana, '2026-11-09').includes('sinDatos'), 'la analista que no administra no lo recibe');
+  assert.ok(!A.tiposDeHoy({ ...ana, perfil: 'operador', aprueba: true }, MIERCOLES).includes('porAprobar'), 'un operador no abre los pedidos');
+  assert.ok(A.tiposDeHoy(ana, '2026-11-09').includes('sinDatos'), 'el administrador mantiene los datos');
   assert.ok(A.tiposDeHoy({ ...ana, admin: true }, '2026-11-09').includes('sinDatos'));
 });
 
@@ -88,7 +89,8 @@ test('lo que la persona cambia manda sobre su perfil; con todo en nunca no sale 
   const nunca = Object.fromEntries(A.TIPOS.map((t) => [t, 'nunca']));
   assert.deepEqual(A.tiposDeHoy({ perfil: 'operador', preferencias: { alertas: nunca }, aprueba: true, admin: true }, LUNES), []);
   const propias = { alertas: { sobran: 'diario', pideYa: 'cada hora' } };
-  assert.equal(A.alertasDe(propias, 'operador').sobran, 'diario');
+  assert.equal(A.alertasDe(propias, 'operador').sobran, 'nunca', 'el operador no recibe sobrestock aunque lo pida');
+  assert.equal(A.alertasDe(propias, 'analista').sobran, 'diario');
   assert.equal(A.alertasDe(propias, 'operador').pideYa, 'diario', 'una frecuencia que no existe se ignora');
   assert.equal(A.alertasDe(propias, 'analista').enCero, 'semanal', 'lo que no tocó sigue su perfil');
 });

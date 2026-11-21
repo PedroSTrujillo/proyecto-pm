@@ -513,7 +513,7 @@ function construirInventario({ reporte, series, catalogo, ajustes: ajustesCrudos
 // Lo que ve el operador (D3): cuántos productos hay en cada estado y, por producto, existencias,
 // estado y para cuánto alcanza. Sin pronóstico, probabilidades, sugeridos ni dinero. Es la misma
 // respuesta con los detalles en null, para que las pantallas usen los mismos tipos.
-const CAMPOS_RESUMEN_OPERADOR = ['productos', 'seAgotan', 'enCero', 'pideYa', 'sobran', 'sinVentas', 'cobertura', 'sinProveedor', 'tieneCostos', 'enCamino'];
+const CAMPOS_RESUMEN_OPERADOR = ['productos', 'seAgotan', 'enCero', 'pideYa', 'sobran', 'sinVentas', 'cobertura', 'sinProveedor', 'enCamino'];
 
 function resumirParaOperador(inv) {
   const resumen = {};
@@ -533,6 +533,7 @@ function resumirParaOperador(inv) {
       detalleSugerido: null,
       minimo: null,
       maximo: null,
+      costo: null,
       valor: null,
       quieto: null,
       tendencia: null,

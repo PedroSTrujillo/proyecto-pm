@@ -226,6 +226,50 @@ test('los roles se hacen cumplir: nadie invita, cambia ni saca a alguien de su r
   assert.equal((await dani.get('/api/cuenta/yo')).usuario.rolEmpresa, 'operador');
 });
 
+// T4: lo que el operador no ve ni escribe lo cierra el servidor, no solo la pantalla. Va en una empresa
+// aparte para no cambiar el catálogo ni los movimientos de las otras pruebas.
+test('el operador no abre pedidos, ajustes ni catálogo, no recibe dinero y subir datos pide permiso', async () => {
+  const { c: gina } = await cuenta('Gina', 'gina@prueba.co', { empresa: 'Gina y Cía' });
+  const inv = await gina.post('/api/empresa/invitaciones', { email: 'hugo@prueba.co', rol: 'operador' });
+  const { c: hugo, usuario: u } = await cuenta('Hugo', 'hugo@prueba.co', { invitacion: new URL(inv.enlace).searchParams.get('invitacion') });
+  assert.equal(u.rolEmpresa, 'operador');
+
+  // El costo es dinero: quien administra lo ve y el operador no.
+  const creado = await gina.post('/api/catalogo', { codigo: 'T4-COSTO', nombre: 'Producto con costo', costo: 1500 });
+  assert.equal(creado.estado, 201);
+  assert.equal((await gina.get('/api/catalogo?q=T4-COSTO')).productos[0].costo, 1500);
+  const deHugo = (await hugo.get('/api/catalogo?q=T4-COSTO')).productos[0];
+  assert.equal(deHugo.costo, null);
+
+  // No abre pedidos, no cambia ajustes ni escribe el catálogo; el gerente sí.
+  for (const ruta of ['/api/pedidos', '/api/pedidos/por-aprobar', '/api/pedidos/borrador']) assert.equal((await hugo.get(ruta)).estado, 403, ruta);
+  assert.equal((await hugo.post('/api/pedidos', { modo: 'sugerido' })).estado, 403);
+  assert.equal((await hugo.put('/api/inventario/ajustes', { cadaCuanto: 3 })).estado, 403);
+  assert.equal((await hugo.put(`/api/catalogo/${deHugo.id}`, { nombre: 'Otro' })).estado, 403);
+  assert.equal((await hugo.post('/api/catalogo/lote', { filas: [{ codigo: 'T4-COSTO', familia: 'X' }] })).estado, 403);
+  assert.equal((await hugo.post('/api/catalogo', { codigo: 'T4-OTRO', nombre: 'Otro' })).estado, 403);
+  assert.equal((await gina.put('/api/inventario/ajustes', { cadaCuanto: 6 })).estado, 200);
+  assert.equal((await gina.put(`/api/catalogo/${deHugo.id}`, { nombre: 'Producto con costo' })).estado, 200);
+
+  // Lo del día sigue abierto para el operador.
+  assert.equal((await hugo.get('/api/empresa')).estado, 200);
+  // Una fila mala llega a la validación (400), no al guardia (403), y no guarda nada.
+  assert.equal((await hugo.post('/api/movimientos', { movimientos: [{ tipo: 'venta', codigo: 'T4-COSTO', cantidad: 'diez' }] })).estado, 400);
+
+  // Subir el archivo de inventario pide que quien administra se lo marque.
+  assert.equal((await hugo.subir('/api/inventario/export', [['inventario.xlsx', await plantillaExport()]])).estado, 403);
+  assert.equal((await hugo.get('/api/cuenta/yo')).usuario.subeDatos, false);
+  assert.equal((await gina.put(`/api/empresa/miembros/${u.id}`, { subeDatos: true })).empresa.miembros.find((m) => m.id === u.id).subeDatos, true);
+  assert.equal((await hugo.get('/api/cuenta/yo')).usuario.subeDatos, true);
+  assert.equal((await hugo.subir('/api/inventario/export', [['inventario.xlsx', await plantillaExport()]])).ok, true);
+  // Con el archivo ya subido, el operador recibe el inventario sin costos.
+  for (const p of (await hugo.get('/api/inventario')).inventario.productos) assert.equal(p.costo, null, `${p.codigo}.costo`);
+
+  // Un operador no aprueba pedidos, aunque se lo marquen.
+  const marcado = await gina.put(`/api/empresa/miembros/${u.id}`, { aprueba: true });
+  assert.equal(marcado.empresa.miembros.find((m) => m.id === u.id).aprueba, false);
+});
+
 test('el horizonte y la unidad de tiempo se eligen; el cálculo sigue en semanas', async () => {
   const ana = cliente();
   await ana.post('/api/cuenta/entrar', { email: 'ana@prueba.co', clave: 'clave-segura' });

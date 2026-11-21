@@ -98,15 +98,17 @@ test('Mi cuenta: la tabla de alertas sigue el perfil y guarda solo lo que la per
   assert.equal(u.preferencias.alertas.sobran, 'semanal');
   assert.equal(u.preferencias.alertasPropias, true);
 
-  // Al pasar a operador cambia lo que no tocó; lo suyo se queda.
+  // Al pasar a operador cambia lo que no tocó. Sobrestock y dinero quieto salen en 'nunca' aunque los
+  // haya pedido: el operador no recibe dinero (T4), pero lo que eligió queda guardado.
   await db.query("UPDATE usuarios SET perfil = 'operador' WHERE id = $1", [u.id]); // el perfil ya no se cambia por la API
   u = (await ana.get('/api/cuenta/yo')).usuario;
-  assert.equal(u.preferencias.alertas.sobran, 'semanal');
+  assert.equal(u.preferencias.alertas.sobran, 'nunca');
   assert.equal(u.preferencias.alertas.dineroQuieto, 'nunca');
   assert.equal(u.preferencias.alertas.enCero, 'diario');
+  assert.equal((await ana.put('/api/cuenta/preferencias', { alertas: { dineroQuieto: 'diario' } })).usuario.preferencias.alertas.dineroQuieto, 'nunca');
   // Cambiar la unidad no borra las alertas.
   u = (await ana.put('/api/cuenta/preferencias', { unidad: 'dias' })).usuario;
-  assert.equal(u.preferencias.alertas.sobran, 'semanal');
+  assert.equal(u.preferencias.alertasPropias, true);
   u = (await ana.put('/api/cuenta/preferencias', { alertas: null })).usuario;
   assert.equal(u.preferencias.alertas.sobran, 'nunca', 'vuelve a lo del perfil (operador)');
   assert.equal(u.preferencias.alertasPropias, false);
@@ -154,9 +156,12 @@ test('boletín de un lunes: cada quien recibe sus secciones, y nunca dos veces e
   ({ c: carla } = await cuenta('Carla Bodega', 'carla.alertas@prueba.co', { invitacion: new URL(inv.enlace).searchParams.get('invitacion') }));
   const { id: anaId } = await db.uno("SELECT id FROM usuarios WHERE email = 'ana.alertas@prueba.co'");
   await db.query('UPDATE usuarios SET aprueba = true WHERE id = $1', [anaId]);
+  // Un operador no abre los pedidos (T4): Carla prepara este como administradora y vuelve a ser operadora.
+  await db.query("UPDATE usuarios SET perfil = 'analista' WHERE email = 'carla.alertas@prueba.co'");
   const p2 = (await carla.post('/api/pedidos', { modo: 'sugerido' })).pedido;
   await carla.post(`/api/pedidos/${p2.id}/lista-final`, { lineas: p2.listaFinal });
   assert.equal((await carla.post(`/api/pedidos/${p2.id}/enviar`, {})).estado, 200);
+  await db.query("UPDATE usuarios SET perfil = 'operador' WHERE email = 'carla.alertas@prueba.co'");
 
   // Nadie ha registrado nada en 15 días.
   await db.query("UPDATE exports SET subido_en = now() - interval '15 days' WHERE empresa_id = (SELECT empresa_id FROM usuarios WHERE id = $1)", [anaId]);

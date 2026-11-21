@@ -117,7 +117,7 @@ export function Marco({ children }: { children: ReactNode }) {
   const items = itemsDe(demo, rutas, usuario?.rol === 'equipo', perfil, usuario?.rolEmpresa, vistaGerente).map((it) => (it.href === '/pedidos' ? { ...it, cuenta: porAprobar } : it))
   const [abierto, setAbierto] = useState(false)
   const ruta = usePathname()!
-  const aprueba = !demo && Boolean(usuario?.aprueba)
+  const aprueba = !demo && Boolean(usuario?.aprueba) && usuario?.rolEmpresa !== 'operador'
 
   useEffect(() => setAbierto(false), [ruta])
   // Cuántos pedidos esperan aprobación (D11): se vuelve a contar al cambiar de pantalla.

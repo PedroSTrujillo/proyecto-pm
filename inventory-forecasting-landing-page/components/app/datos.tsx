@@ -21,9 +21,11 @@ export function Datos() {
 }
 
 function DatosCon({ inv }: { inv: Inventario | null }) {
-  const { fuente, recargar, perfil } = useInventario()
+  const { fuente, recargar, perfil, respuesta } = useInventario()
   const { usuario, fijar } = useSesion()
   const demo = fuente.tipo === 'demo'
+  // Un operador sube el archivo solo si quien administra se lo marcó (el servidor también lo exige).
+  const puedeSubir = respuesta?.puedeSubir !== false
   const [listo, setListo] = useState<string | null>(null)
   const [codigos, setCodigos] = useState<RevisionCodigos | null>(null)
 
@@ -41,7 +43,9 @@ function DatosCon({ inv }: { inv: Inventario | null }) {
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
         <Tarjeta aria-labelledby="t-subir" className="flex min-w-0 flex-col gap-5 p-5 sm:p-6">
           <h2 id="t-subir" className="text-xl font-bold">{inv ? 'Actualizar datos' : 'Suba su inventario'}</h2>
-          {demo ? <SubirDemo inv={inv} /> : (
+          {demo ? <SubirDemo inv={inv} /> : !puedeSubir ? (
+            <p className="text-cuerpo text-muted-foreground">Pídale a quien administra la empresa que le dé permiso para subir datos. Mientras tanto puede registrar las entradas y salidas del día en <Link href="/movimientos" className="font-semibold text-primary underline underline-offset-2">Movimientos</Link>.</p>
+          ) : (
             <>
               {listo && <Aviso tono="ok">{listo}</Aviso>}
               {codigos && codigos.totalSoloVentas > 0 && <CodigosQueNoCoinciden codigos={codigos} />}
@@ -62,7 +66,7 @@ function DatosCon({ inv }: { inv: Inventario | null }) {
           <Tarjeta className="flex min-w-0 flex-col gap-2 p-5 sm:p-6">
             <h2 className="text-xl font-bold">Ajustes de su empresa</h2>
             <p className="text-cuerpo">Un producto se va a agotar si alcanza para menos de <strong>{duracion(inv.umbrales.seAgota)}</strong>. Si el proveedor no está dicho, se asume que tarda <strong>{duracion(inv.ajustes.entregaPorDefecto)}</strong>, y se pide cada <strong>{duracion(inv.ajustes.cadaCuanto)}</strong>.</p>
-            <p className="text-chico text-muted-foreground">Los tiempos de cada proveedor y estos ajustes los cambia quien usa el perfil analista.</p>
+            <p className="text-chico text-muted-foreground">Los tiempos de cada proveedor y estos ajustes los cambia quien administra la empresa.</p>
           </Tarjeta>
         )}
         {inv && perfil !== 'operador' && (

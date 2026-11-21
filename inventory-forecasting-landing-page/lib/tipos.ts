@@ -170,6 +170,7 @@ export type Usuario = {
   boletin: boolean
   cargo: string
   aprueba: boolean // aprueba los pedidos de su empresa (lo marca quien administra)
+  subeDatos: boolean // un operador sube el archivo de inventario solo si quien administra se lo marcó
   empresa: { id: number; nombre: string; vacia: boolean; admin: boolean } | null
 }
 
@@ -180,7 +181,7 @@ export type Empresa = {
   vacia: boolean
   creadoEn: string
   logo: boolean
-  miembros: { id: number; nombre: string; email: string; perfil: Perfil; rol: RolEmpresa; admin: boolean; aprueba: boolean; cargo: string; desde: string }[]
+  miembros: { id: number; nombre: string; email: string; perfil: Perfil; rol: RolEmpresa; admin: boolean; aprueba: boolean; subeDatos: boolean; cargo: string; desde: string }[]
   invitacionesAbiertas: { email: string | null; creadaEn: string; expiraEn: string }[]
 }
 

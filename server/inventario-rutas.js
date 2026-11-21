@@ -16,7 +16,7 @@
 
 const express = require('express');
 const db = require('./db');
-const { requiereUsuario, registrarEvento, ErrorUsuario, leerPreferencias } = require('./cuentas');
+const { requiereUsuario, requiereAdminEmpresa, rolEmpresa, registrarEvento, ErrorUsuario, leerPreferencias } = require('./cuentas');
 const { procesarExport, leerPeriodo, leerMapeoManual, subida, archivoSubido, leerDocumentos, leerCanales, mapeosDe } = require('./pedidos');
 const { DIAS_PRUEBA } = require('./equipo');
 const { leerExport } = require('./lector');
@@ -78,7 +78,8 @@ async function permisos(usuario) {
   // el pedido por defecto arranca con lo sugerido: cualquiera sube su inventario desde el comienzo,
   // sin la lista inicial de un pedido de 5 pasos.
   return {
-    puedeSubir: true,
+    // Un operador sube el archivo de inventario solo si quien administra se lo marcó (T4).
+    puedeSubir: rolEmpresa(usuario) !== 'operador' || Boolean(usuario.sube_datos),
     sugerencias: true,
     alcance: 'completo',
     finPrueba: terminada ? null : fin,
@@ -216,7 +217,7 @@ async function inventarioDeEmpresa(empresaId) {
 
 // Se mezcla con lo guardado: cambiar un tiempo de entrega no borra los proveedores asignados, y al revés.
 // Son de la empresa: lo que cambie una persona lo ven las demás.
-rutas.put('/ajustes', async (req, res) => {
+rutas.put('/ajustes', requiereAdminEmpresa, async (req, res) => {
   const e = await db.uno('SELECT inventario FROM empresas WHERE id = $1', [req.usuario.empresa_id]);
   const cuerpo = req.body && typeof req.body === 'object' ? { ...req.body } : {};
   const guardados = (e && e.inventario) || {};
@@ -243,7 +244,7 @@ rutas.put('/ajustes', async (req, res) => {
 
 async function exigirPuedeSubir(req) {
   const per = await permisos(req.usuario);
-  if (!per.puedeSubir) throw new ErrorUsuario('Todavía no puede subir su inventario.', 403);
+  if (!per.puedeSubir) throw new ErrorUsuario('Quien administra la empresa tiene que darle permiso para subir datos.', 403);
 }
 
 async function exportSuelto(req) {

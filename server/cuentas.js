@@ -86,7 +86,7 @@ function esEmailDeEquipo(email) {
 
 // Lo que se sabe de un usuario en cada petición: sus datos, su empresa y sus preferencias.
 const COLUMNAS_USUARIO = `u.id, u.email, u.nombre, u.rol, u.sistema, u.empresa_id, u.admin_empresa, u.perfil,
-  u.preferencias, u.boletin, u.aprueba, u.cargo, e.nombre AS empresa_nombre, e.vacia AS empresa_vacia`;
+  u.preferencias, u.boletin, u.aprueba, u.sube_datos, u.cargo, e.nombre AS empresa_nombre, e.vacia AS empresa_vacia`;
 
 async function usuarioPorId(id) {
   return db.uno(`SELECT ${COLUMNAS_USUARIO} FROM usuarios u LEFT JOIN empresas e ON e.id = u.empresa_id WHERE u.id = $1`, [id]);
@@ -189,6 +189,8 @@ function publico(u) {
     cargo: u.cargo || '',
     // Aprueba los pedidos de su empresa (lo marca quien administra, D11).
     aprueba: Boolean(u.aprueba),
+    // Un operador sube el archivo de inventario solo si quien administra se lo marcó.
+    subeDatos: Boolean(u.sube_datos),
     empresa: u.empresa_id ? { id: u.empresa_id, nombre: u.empresa_nombre || '', vacia: Boolean(u.empresa_vacia), admin: Boolean(u.admin_empresa) } : null,
   };
 }

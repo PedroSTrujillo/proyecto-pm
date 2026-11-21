@@ -21,7 +21,7 @@
 
 const express = require('express');
 const db = require('./db');
-const { requiereUsuario, registrarEvento, ErrorUsuario } = require('./cuentas');
+const { requiereUsuario, requiereAdminEmpresa, rolEmpresa, registrarEvento, ErrorUsuario } = require('./cuentas');
 const { calcularRotacion } = require('./rotacion');
 const { seriesSemanales } = require('./series');
 const { leerAjustes } = require('./inventario');
@@ -192,13 +192,14 @@ catalogo.use(requiereUsuario);
 
 const numeroONulo = (v) => (v === null || v === undefined ? null : Number(v));
 
-function vistaProducto(p) {
+// El costo es dinero: el operador no lo recibe (T4).
+function vistaProducto(p, usuario) {
   return {
     id: p.id,
     codigo: p.codigo,
     nombre: p.nombre,
     unidad: p.unidad,
-    costo: numeroONulo(p.costo),
+    costo: usuario && rolEmpresa(usuario) === 'operador' ? null : numeroONulo(p.costo),
     proveedor: p.proveedor,
     familia: p.familia || null,
     multiplo: numeroONulo(p.multiplo),
@@ -269,7 +270,7 @@ catalogo.get('/', async (req, res) => {
     )
     : await db.query('SELECT * FROM productos WHERE empresa_id = $1 AND activo ORDER BY codigo LIMIT $2', [req.usuario.empresa_id, limite]);
   const { n } = await db.uno('SELECT count(*)::int AS n FROM productos WHERE empresa_id = $1 AND activo', [req.usuario.empresa_id]);
-  res.json({ productos: filas.map(vistaProducto), total: n });
+  res.json({ productos: filas.map((f) => vistaProducto(f, req.usuario)), total: n });
 });
 
 function leerProducto(body, parcial = false) {
@@ -298,7 +299,7 @@ async function catalogoCambio(empresaId) {
   await db.query('UPDATE empresas SET movimientos_cambiaron_en = now() WHERE id = $1 AND movimientos_cambiaron_en IS NOT NULL', [empresaId]);
 }
 
-catalogo.post('/', async (req, res) => {
+catalogo.post('/', requiereAdminEmpresa, async (req, res) => {
   const p = leerProducto(req.body);
   const r = await db.uno(
     `INSERT INTO productos (empresa_id, clave, codigo, nombre, costo, proveedor, unidad, familia, multiplo, minimo_pedido, sobra_semanas)
@@ -308,13 +309,13 @@ catalogo.post('/', async (req, res) => {
   );
   if (!r) throw new ErrorUsuario(`Ya hay un producto con el código ${p.codigo}.`, 409);
   await registrarEvento(req.usuario.id, 'producto_creado', { detalle: { codigo: p.codigo } });
-  res.status(201).json({ producto: vistaProducto(r) });
+  res.status(201).json({ producto: vistaProducto(r, req.usuario) });
 });
 
-catalogo.put('/:id', async (req, res) => {
+catalogo.put('/:id', requiereAdminEmpresa, async (req, res) => {
   const actual = await db.uno('SELECT * FROM productos WHERE id = $1 AND empresa_id = $2', [Number(req.params.id), req.usuario.empresa_id]);
   if (!actual) throw new ErrorUsuario('Ese producto no está en su catálogo.', 404);
-  const antes = vistaProducto(actual);
+  const antes = vistaProducto(actual, req.usuario);
   const p = leerProducto({ ...antes, ...req.body }, true);
   const r = await db.uno(
     `UPDATE productos SET nombre = $1, costo = $2, proveedor = $3, unidad = $4, activo = $5, familia = $6, multiplo = $7, minimo_pedido = $8, sobra_semanas = $9
@@ -322,8 +323,8 @@ catalogo.put('/:id', async (req, res) => {
     [p.nombre || actual.nombre, p.costo, p.proveedor, p.unidad, typeof req.body?.activo === 'boolean' ? req.body.activo : actual.activo, p.familia, p.multiplo, p.minimoPedido, p.sobraSemanas, actual.id],
   );
   await catalogoCambio(req.usuario.empresa_id);
-  await registrarEvento(req.usuario.id, 'producto_editado', { detalle: { codigo: actual.codigo, antes, despues: vistaProducto(r) } });
-  res.json({ producto: vistaProducto(r) });
+  await registrarEvento(req.usuario.id, 'producto_editado', { detalle: { codigo: actual.codigo, antes, despues: vistaProducto(r, req.usuario) } });
+  res.json({ producto: vistaProducto(r, req.usuario) });
 });
 
 // Familia, múltiplo, mínimo y semanas para que sobre de varios productos a la vez: pegados de Excel
@@ -332,7 +333,7 @@ catalogo.put('/:id', async (req, res) => {
 // Todo o nada.
 const CAMPOS_LOTE = { familia: 'familia', multiplo: 'multiplo', minimo: 'minimo_pedido', sobra: 'sobra_semanas' };
 
-catalogo.post('/lote', async (req, res) => {
+catalogo.post('/lote', requiereAdminEmpresa, async (req, res) => {
   const filas = Array.isArray(req.body?.filas) ? req.body.filas : [];
   if (!filas.length) throw new ErrorUsuario('Escriba al menos un producto.');
   if (filas.length > MAX_LINEAS) throw new ErrorUsuario(`Son más de ${MAX_LINEAS} productos. Péguelos en partes.`);
@@ -635,7 +636,7 @@ existencias.get('/:codigo', async (req, res) => {
   const inicial = base ? { dia: S.diaDeFecha(base.reporte.periodo.hasta), fecha: base.reporte.periodo.hasta, existencias: fila ? fila.existencias : 0 } : null;
   const movimientos = (await movimientosDe(empresaId, { conAnulados: true, productoId: p.id })).map((m) => ({ ...vistaMovimiento(m), anulado: Boolean(m.anulado_en) }));
   const k = S.kardex({ inicial, movimientos });
-  res.json({ producto: vistaProducto(p), inicial: inicial && { fecha: inicial.fecha, existencias: inicial.existencias }, filas: k.filas.reverse(), existencias: k.saldo });
+  res.json({ producto: vistaProducto(p, req.usuario), inicial: inicial && { fecha: inicial.fecha, existencias: inicial.existencias }, filas: k.filas.reverse(), existencias: k.saldo });
 });
 
 module.exports = { rutas, catalogo, existencias, inventarioAlDia, agregarAlCatalogo, catalogoEscrito, catalogoConEscrito, revisarMovimientos };

@@ -273,6 +273,8 @@ const ESQUEMA = [
   //   empresas.logo: PNG o JPG de hasta 300 KB para el PDF y el Excel.
   'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS aprueba BOOLEAN NOT NULL DEFAULT false',
   'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cargo TEXT',
+  // Un operador solo sube el archivo de inventario si quien administra se lo marca (T4 de docs/PLAN_CAMBIOS_SINESC.md).
+  'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS sube_datos BOOLEAN NOT NULL DEFAULT false',
   // El gerente (quien fundó la empresa) siempre es administrador y aprueba; nadie le cambia el rol.
   "UPDATE usuarios SET perfil = 'analista', aprueba = true WHERE admin_empresa AND (perfil <> 'analista' OR NOT aprueba)",
   'ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS enviado_en TIMESTAMPTZ',

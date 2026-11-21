@@ -20,7 +20,7 @@ const express = require('express');
 const multer = require('multer');
 const zlib = require('zlib');
 const db = require('./db');
-const { requiereUsuario, registrarEvento, ErrorUsuario } = require('./cuentas');
+const { requiereUsuario, requiereAdminEmpresa, registrarEvento, ErrorUsuario } = require('./cuentas');
 const { leerExport, leerLista } = require('./lector');
 const { soloEjemplo } = require('./plantillas');
 const { calcularRotacion, conUmbral, SEMANAS_SE_AGOTA } = require('./rotacion');
@@ -64,6 +64,8 @@ function archivoSubido(f) {
 
 const rutas = express.Router();
 rutas.use(requiereUsuario);
+// Los pedidos (y con ellos costos y sugeridos) son de gerente y administrador; el operador no los abre (T4).
+rutas.use(requiereAdminEmpresa);
 
 // --- Utilidades --------------------------------------------------------------------
 

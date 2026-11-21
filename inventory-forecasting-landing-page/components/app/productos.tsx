@@ -408,7 +408,7 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
         )}
       </dl>
 
-      {inv.alcance !== 'prueba' && <CambiarProveedor p={p} inv={inv} />}
+      {inv.alcance !== 'prueba' && inv.vista !== 'operador' && <CambiarProveedor p={p} inv={inv} />}
       {fuente.tipo === 'cuenta' && inv.vista !== 'operador' && <EditarCatalogo p={p} />}
 
       <ComoSeCalcula p={p} inv={inv}>

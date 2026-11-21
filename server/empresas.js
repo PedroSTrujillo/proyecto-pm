@@ -68,7 +68,7 @@ function leerRol(req, rol) {
 
 async function vistaEmpresa(empresaId) {
   const e = await db.uno('SELECT id, nombre, nit, vacia, creado_en, logo IS NOT NULL AS con_logo FROM empresas WHERE id = $1', [empresaId]);
-  const miembros = await db.query('SELECT aprueba, id, nombre, email, perfil, admin_empresa, cargo, creado_en FROM usuarios WHERE empresa_id = $1 ORDER BY creado_en', [empresaId]);
+  const miembros = await db.query('SELECT aprueba, sube_datos, id, nombre, email, perfil, admin_empresa, cargo, creado_en FROM usuarios WHERE empresa_id = $1 ORDER BY creado_en', [empresaId]);
   const invitaciones = await db.query(
     'SELECT email, creada_en, expira_en FROM invitaciones WHERE empresa_id = $1 AND usada_en IS NULL AND expira_en > now() ORDER BY creada_en DESC',
     [empresaId],
@@ -80,7 +80,7 @@ async function vistaEmpresa(empresaId) {
     vacia: e.vacia,
     creadoEn: e.creado_en,
     logo: Boolean(e.con_logo),
-    miembros: miembros.map((m) => ({ id: m.id, nombre: m.nombre, email: m.email, perfil: m.perfil, rol: rolEmpresa(m), admin: m.admin_empresa, aprueba: m.aprueba, cargo: m.cargo || '', desde: m.creado_en })),
+    miembros: miembros.map((m) => ({ id: m.id, nombre: m.nombre, email: m.email, perfil: m.perfil, rol: rolEmpresa(m), admin: m.admin_empresa, aprueba: m.aprueba, subeDatos: m.sube_datos, cargo: m.cargo || '', desde: m.creado_en })),
     invitacionesAbiertas: invitaciones.map((i) => ({ email: i.email, creadaEn: i.creada_en, expiraEn: i.expira_en })),
   };
 }
@@ -130,14 +130,16 @@ rutas.post('/invitaciones', requiereAdminEmpresa, async (req, res) => {
 
 // El rol de cada persona (T1), quién aprueba pedidos (D11) y su cargo. Solo cambia lo que viene.
 rutas.put('/miembros/:id', requiereAdminEmpresa, async (req, res) => {
-  const m = await db.uno('SELECT aprueba, id, nombre, cargo, perfil, admin_empresa FROM usuarios WHERE id = $1 AND empresa_id = $2', [Number(req.params.id), req.usuario.empresa_id]);
+  const m = await db.uno('SELECT aprueba, sube_datos, id, nombre, cargo, perfil, admin_empresa FROM usuarios WHERE id = $1 AND empresa_id = $2', [Number(req.params.id), req.usuario.empresa_id]);
   if (!m) throw new ErrorUsuario('Esa persona no está en su empresa.', 404);
   exigirRangoSobre(req, m);
   const rol = req.body?.rol === undefined ? rolEmpresa(m) : leerRol(req, req.body.rol);
-  const aprueba = typeof req.body?.aprueba === 'boolean' ? req.body.aprueba : m.aprueba;
+  // Un operador no abre los pedidos, así que no aprueba; y solo sube el archivo de inventario si se le marca.
+  const aprueba = rol === 'operador' ? false : typeof req.body?.aprueba === 'boolean' ? req.body.aprueba : m.aprueba;
+  const subeDatos = typeof req.body?.subeDatos === 'boolean' ? req.body.subeDatos : m.sube_datos;
   const cargo = req.body?.cargo === undefined ? m.cargo : leerCargo(req.body.cargo);
-  await db.query('UPDATE usuarios SET aprueba = $1, cargo = $2, perfil = $3 WHERE id = $4', [aprueba, cargo, rol === 'administrador' ? 'analista' : 'operador', m.id]);
-  await registrarEvento(req.usuario.id, 'miembro_editado', { detalle: { usuario: m.id, antes: { aprueba: m.aprueba, cargo: m.cargo, rol: rolEmpresa(m) }, despues: { aprueba, cargo, rol } } });
+  await db.query('UPDATE usuarios SET aprueba = $1, cargo = $2, perfil = $3, sube_datos = $4 WHERE id = $5', [aprueba, cargo, rol === 'administrador' ? 'analista' : 'operador', subeDatos, m.id]);
+  await registrarEvento(req.usuario.id, 'miembro_editado', { detalle: { usuario: m.id, antes: { aprueba: m.aprueba, subeDatos: m.sube_datos, cargo: m.cargo, rol: rolEmpresa(m) }, despues: { aprueba, subeDatos, cargo, rol } } });
   res.json({ empresa: await vistaEmpresa(req.usuario.empresa_id) });
 });
 

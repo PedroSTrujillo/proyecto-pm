@@ -52,7 +52,7 @@ export function Empresa() {
   }
 
   // Quién aprueba pedidos y el cargo de cada quien. Si es la persona misma, la sesión también cambia.
-  async function cambiarMiembro(id: number, cambio: { aprueba?: boolean; cargo?: string; rol?: RolEmpresa }) {
+  async function cambiarMiembro(id: number, cambio: { aprueba?: boolean; subeDatos?: boolean; cargo?: string; rol?: RolEmpresa }) {
     setErrorMiembro(null)
     try {
       const r = await api<{ empresa: TEmpresa }>('PUT', `/empresa/miembros/${id}`, cambio)
@@ -179,7 +179,7 @@ export function Empresa() {
                 <span className="flex min-w-0 flex-col">
                   <strong className="truncate">{m.nombre}{m.id === usuario.id ? ' (usted)' : ''}</strong>
                   <span className="truncate text-chico text-muted-foreground">
-                    {m.email} · {TEXTO_ROL[m.rol].titulo}{!mio && m.cargo ? ` · ${m.cargo}` : ''}{!mio && m.aprueba ? ' · aprueba pedidos' : ''} · desde el {fecha(m.desde)}
+                    {m.email} · {TEXTO_ROL[m.rol].titulo}{!mio && m.cargo ? ` · ${m.cargo}` : ''}{!mio && m.aprueba ? ' · aprueba pedidos' : ''}{!mio && m.subeDatos ? ' · sube datos' : ''} · desde el {fecha(m.desde)}
                   </span>
                 </span>
                 {mio && (
@@ -203,10 +203,18 @@ export function Empresa() {
                       aria-label={`Cargo de ${m.nombre}`}
                       onBlur={(e) => { if (e.target.value.trim() !== m.cargo) cambiarMiembro(m.id, { cargo: e.target.value }) }}
                     />
-                    <label className="flex items-center gap-2 text-chico font-semibold">
-                      <input type="checkbox" checked={m.aprueba} onChange={(e) => cambiarMiembro(m.id, { aprueba: e.target.checked })} className="size-5 accent-[var(--primary)]" />
-                      Puede aprobar pedidos
-                    </label>
+                    {/* Un operador no abre los pedidos: no aprueba, y sube el archivo de inventario solo si se le marca. */}
+                    {m.rol === 'operador' ? (
+                      <label className="flex items-center gap-2 text-chico font-semibold">
+                        <input type="checkbox" checked={m.subeDatos} onChange={(e) => cambiarMiembro(m.id, { subeDatos: e.target.checked })} className="size-5 accent-[var(--primary)]" />
+                        Puede subir datos
+                      </label>
+                    ) : (
+                      <label className="flex items-center gap-2 text-chico font-semibold">
+                        <input type="checkbox" checked={m.aprueba} onChange={(e) => cambiarMiembro(m.id, { aprueba: e.target.checked })} className="size-5 accent-[var(--primary)]" />
+                        Puede aprobar pedidos
+                      </label>
+                    )}
                     <Boton tamano="chico" variante="peligro" onClick={() => sacar(m.id, m.nombre)}><UserMinus /> Sacar</Boton>
                   </span>
                 )}
