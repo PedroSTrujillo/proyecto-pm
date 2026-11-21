@@ -27,6 +27,21 @@
 
 ---
 
+## 2026-11-21 (73) — Claude (David) — Lo que dice PostHog y lo que se arregló con eso
+- **Rama:** `main`.
+- **Lo que se vio en PostHog** (proyecto 663594, consultas HogQL de solo lectura, desde el 2026-10-14):
+  - 72 rage clicks. El mayor (23 en "Crear producto" de Movimientos, 2026-11-03) ya estaba resuelto: ese botón se quitó 40 minutos después (597316b). Los demás son ráfagas en los botones + / − ("Subir el tiempo de…" en Datos, cantidades del pedido de la demo).
+  - Web vitals p75: `/pedidos/:id` LCP 3,2 s; `/demo/ferreteria` LCP 6,6 s y CLS 0,26; `/cuenta` CLS 0,155; `/movimientos` CLS 0,105. INP bien en todas.
+  - Registro: de 43 personas que abrieron crear cuenta, 31 llegaron al panel. Ninguna visita todavía a Reportes ni Proveedores (son nuevas).
+  - **Uso diario de las cuentas de usuario desde el 2026-11-04:** 6, 13 y 8 personas los tres primeros días; después 1 por día (7 al 13 de nov) y 1 a 4 (17 al 21). Nadie pasa de 6 días de 17. Es el riesgo principal de H2 (registro diario).
+  - No había ningún evento de error del navegador (la captura estaba apagada).
+- **Arreglado:** `Contador` (`ui.tsx`) deja escribir el número cuando lo mostrado es lo guardado (días hábiles, días calendario, semanas: tiempos de los proveedores); `PedidoFlujo` pedía el pedido dos veces al abrirlo (dos efectos); PostHog con `capture_exceptions` y `capture_dead_clicks` (`instrumentation-client.ts`).
+- **Verificación:** `npm test` 226 de 226; `tsc` limpio; en local se escribió 12 en el tiempo de los productos sin proveedor y el + lo llevó a 13.
+- **Siguiente paso exacto:** revisar en Cuentas (o en la tabla `boletines`) si el boletín de cada mañana está saliendo a las cuentas de la prueba: con el uso cayendo después del tercer día, es lo que debería traerlas de vuelta. Pendientes de velocidad: CLS de `/cuenta` y `/movimientos` (contenido que aparece al cargar) y la demo de ferretería.
+- **Notas y bloqueos:** las consultas de PostHog se hicieron desde la sesión del usuario en su navegador; no se creó ni cambió nada en PostHog.
+
+---
+
 ## 2026-11-21 (72) — Claude (David) — Revisión en computador como cliente: gráficas de la ficha, cálculo de la última semana y textos
 - **Rama:** `main`.
 - **Estado:** la app se usa en computador; se recorrió a 1280 y 1440 px. Hecho:

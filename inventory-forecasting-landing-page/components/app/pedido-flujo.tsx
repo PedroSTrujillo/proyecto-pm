@@ -79,8 +79,8 @@ export function PedidoFlujo({ id }: { id: number }) {
     }
   }, [id])
 
-  useEffect(() => { cargar() }, [cargar])
-  // Al cambiar de paso se recarga: en el paso 3 se pueden agregar productos a la lista final.
+  // Al abrir y al cambiar de paso (en el paso 3 se pueden agregar productos a la lista final). Antes había otro
+  // efecto igual solo con `cargar`: al abrir, el pedido se pedía dos veces a la vez (PostHog: 3,2 s para mostrarse).
   const pasoPedido = params.get('paso')
   useEffect(() => { cargar() }, [pasoPedido, cargar])
 
