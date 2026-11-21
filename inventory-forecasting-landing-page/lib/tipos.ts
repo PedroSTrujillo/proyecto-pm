@@ -78,7 +78,7 @@ export type Producto = {
 }
 
 // Lo que pide cada proveedor (T13): el mínimo del envío completo, en unidades; y, si importa (T14), sus contenedores.
-export type Condiciones = { minimoEnvio?: number; contenedores?: number; tipoContenedor?: '20' | '40' }
+export type Condiciones = { minimoEnvio?: number; internacional?: boolean; contenedores?: number; tipoContenedor?: '20' | '40' }
 
 export type Proveedor = { nombre: string; entrega: number; productos: number; pideYa: number; seAgotan: number }
 

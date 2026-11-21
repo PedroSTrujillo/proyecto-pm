@@ -216,7 +216,7 @@ test('alguien de otra empresa no ve el pedido ni sus archivos', async () => {
 test('importadores: con los contenedores apagados el pedido sale igual; encendidos, se recorta para que quepa', async () => {
   const ivo = await cuenta('Ivo Importa', 'ivo.importa@prueba.co', 'Importadora Prueba');
   assert.equal((await ivo.subir('/api/inventario/export', [['inventario.xlsx', await plantillaExport()]])).ok, true);
-  await ivo.put('/api/inventario/ajustes', { asignaciones: { [claveCodigo('TOR-0610')]: 'Fábrica de Asia' }, condiciones: { 'Fábrica de Asia': { contenedores: 1, tipoContenedor: '20' } } });
+  await ivo.put('/api/inventario/ajustes', { asignaciones: { [claveCodigo('TOR-0610')]: 'Fábrica de Asia' }, condiciones: { 'Fábrica de Asia': { internacional: true, contenedores: 1, tipoContenedor: '20' } } });
   const tor = (await ivo.get('/api/inventario')).inventario.productos.find((p) => p.codigo === 'TOR-0610');
   assert.ok(tor.sugerido > 0, 'la plantilla sugiere pedir tornillos');
   assert.equal(tor.volumenPaquete, null);
@@ -236,7 +236,7 @@ test('importadores: con los contenedores apagados el pedido sale igual; encendid
 
   await ivo.put('/api/inventario/ajustes', { importaciones: true });
   assert.equal((await ivo.get('/api/inventario')).inventario.ajustes.importaciones, true, 'la pantalla recibe la casilla encendida');
-  assert.deepEqual((await ivo.get('/api/inventario')).inventario.ajustes.condiciones['Fábrica de Asia'], { contenedores: 1, tipoContenedor: '20' });
+  assert.deepEqual((await ivo.get('/api/inventario')).inventario.ajustes.condiciones['Fábrica de Asia'], { internacional: true, contenedores: 1, tipoContenedor: '20' });
   const nuevo = await ivo.post('/api/pedidos', { modo: 'sugerido' });
   assert.equal(nuevo.estado, 201, nuevo.error);
   const linea = nuevo.pedido.listaFinal.find((l) => l.codigo === 'TOR-0610');

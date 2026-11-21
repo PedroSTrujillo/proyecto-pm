@@ -108,8 +108,8 @@ test('importadores: la extensión está apagada salvo que se encienda, y los con
   assert.equal(leerAjustes({}).importaciones, false);
   assert.equal(leerAjustes({ importaciones: 'si' }).importaciones, false, 'solo un verdadero la enciende');
   assert.equal(leerAjustes({ importaciones: true }).importaciones, true);
-  const c = leerAjustes({ condiciones: { Asia: { contenedores: 2.4, tipoContenedor: '20' }, Chile: { contenedores: 3, tipoContenedor: 'raro', minimoEnvio: 50 }, Cero: { contenedores: 0 }, Muchos: { contenedores: 99 } } }).condiciones;
-  assert.deepEqual(c, { Asia: { contenedores: 2, tipoContenedor: '20' }, Chile: { minimoEnvio: 50, contenedores: 3, tipoContenedor: '40' } });
+  const c = leerAjustes({ condiciones: { Asia: { internacional: true, contenedores: 2.4, tipoContenedor: '20' }, Chile: { internacional: true, contenedores: 3, tipoContenedor: 'raro', minimoEnvio: 50 }, Nacional: { contenedores: 4, minimoEnvio: 10 }, Cero: { internacional: true, contenedores: 0 }, Muchos: { internacional: true, contenedores: 99 } } }).condiciones;
+  assert.deepEqual(c, { Asia: { internacional: true, contenedores: 2, tipoContenedor: '20' }, Chile: { minimoEnvio: 50, internacional: true, contenedores: 3, tipoContenedor: '40' }, Nacional: { minimoEnvio: 10 }, Cero: { internacional: true }, Muchos: { internacional: true } });
 });
 
 test('cada cuánto se pide puede ser de cada proveedor; sin valor propio vale el general', () => {

@@ -69,11 +69,14 @@ function leerAjustes(a) {
     const n = Number(v && v.minimoEnvio);
     const c = {};
     if (Number.isFinite(n) && n > 0 && n <= 1000000) c.minimoEnvio = n;
-    // Importadores (T14): cuántos contenedores piensa contratar y de qué tamaño.
-    const cont = Math.round(Number(v && v.contenedores));
-    if (cont >= 1 && cont <= 50) {
-      c.contenedores = cont;
-      c.tipoContenedor = String(v.tipoContenedor) === '20' ? '20' : '40';
+    // Importadores (T14): solo un proveedor internacional lleva contenedores (cuántos y de qué tamaño) y medidas.
+    if (v && v.internacional === true) {
+      c.internacional = true;
+      const cont = Math.round(Number(v.contenedores));
+      if (cont >= 1 && cont <= 50) {
+        c.contenedores = cont;
+        c.tipoContenedor = String(v.tipoContenedor) === '20' ? '20' : '40';
+      }
     }
     if (Object.keys(c).length) condiciones[String(k).slice(0, 80)] = c;
   }
