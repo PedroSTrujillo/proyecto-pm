@@ -224,7 +224,7 @@ function TablaAlertas({ usuario }: { usuario: Usuario }) {
       {error && <ErrorLista mensaje={error.mensaje} lista={error.lista} />}
       {usuario.preferencias.alertasPropias && (
         <Boton tamano="chico" variante="fantasma" className="self-start" disabled={guardando !== null} onClick={() => guardar(null, 'todas')}>
-          {guardando === 'todas' ? 'Restableciendo…' : 'Volver a los valores de su perfil'}
+          {guardando === 'todas' ? 'Restableciendo…' : 'Volver a los valores de su rol'}
         </Boton>
       )}
     </div>

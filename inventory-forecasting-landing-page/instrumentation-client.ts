@@ -30,6 +30,10 @@ if (clave && !w.posthog) {
         // Core Web Vitals de los usuarios reales (LCP, CLS, INP y FCP), en vez de Vercel Speed
         // Insights: entran en el plan gratis de PostHog y se ven en Web analytics → Web vitals.
         capture_performance: { web_vitals: true },
+        // Hasta el 2026-11-21 PostHog no tenía ningún error del navegador ni sabía de los clics que no hacen nada:
+        // los errores salen en Error tracking y los clics muertos ($dead_click) señalan lo que parece botón y no lo es.
+        capture_exceptions: true,
+        capture_dead_clicks: true,
       },
       'posthog',
     ])

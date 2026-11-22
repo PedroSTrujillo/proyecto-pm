@@ -1,6 +1,6 @@
 # Resumen de cambios SINESC
 
-Rama `cambios-sinesc`. Todo está implementado en local y **sin publicar** hasta que cierre el piloto de Alpha 0.2. Detalle técnico: `docs/PLAN_CAMBIOS_SINESC.md`, `docs/ENTREGABLE_Y_APP.md` (filas 18 a 26) y `docs/HANDOFF.md`.
+Entró a `main` con el PR 4 y se publicó el 2026-11-21. Detalle técnico: `docs/PLAN_CAMBIOS_SINESC.md`, `docs/ENTREGABLE_Y_APP.md` (filas 18 a 26) y `docs/HANDOFF.md`.
 
 ## 1. Roles
 

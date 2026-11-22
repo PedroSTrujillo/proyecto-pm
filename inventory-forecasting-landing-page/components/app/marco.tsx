@@ -71,7 +71,7 @@ function Navegacion({ items, alElegir }: { items: Item[]; alElegir?: () => void 
 }
 
 // Cada rol ve lo suyo (T3 de docs/PLAN_CAMBIOS_SINESC.md). La demo, sin cuenta, sigue el perfil que elige quien la prueba.
-function itemsDe(demo: boolean, rutas: ReturnType<typeof useInventario>['rutas'], equipo: boolean, perfil: Perfil, rol: RolEmpresa | undefined, vista: VistaGerente, registra: boolean): Item[] {
+function itemsDe(demo: boolean, rutas: ReturnType<typeof useInventario>['rutas'], equipo: boolean, perfil: Perfil, rol: RolEmpresa | undefined, vista: VistaGerente, conMovimientos: boolean): Item[] {
   const panel: Item = { href: rutas.panel, texto: perfil === 'operador' ? 'Resumen' : 'Panel', icono: <LayoutDashboard />, exacto: true }
   const diario: Item[] = demo ? [] : [
     { href: '/movimientos', texto: 'Movimientos', icono: <ArrowLeftRight /> },
@@ -91,7 +91,7 @@ function itemsDe(demo: boolean, rutas: ReturnType<typeof useInventario>['rutas']
   const noticias: Item = { href: '/noticias', texto: 'Noticias', icono: <Newspaper /> }
   let base: Item[]
   if (demo) base = perfil === 'operador' ? [panel, ...resto] : [panel, productos, pedidos, datos]
-  else if (rol === 'operador') base = registra ? [productos, movimientos, existencias, datos] : [productos, existencias, datos]
+  else if (rol === 'operador') base = conMovimientos ? [productos, movimientos, existencias, datos] : [productos, existencias, datos]
   else if (rol === 'gerente' && vista === 'principal') base = [panel, productos, pedidos, reportes, actividad, noticias, empresa]
   else base = [panel, productos, pedidos, proveedores, reportes, movimientos, existencias, datos, empresa, ...(rol === 'gerente' ? [actividad, noticias] : [])]
   if (!demo && equipo) base.push({ href: '/ejemplos', texto: 'Ejemplos', icono: <FlaskConical /> }, { href: '/cuentas', texto: 'Cuentas', icono: <ShieldCheck /> })
@@ -124,6 +124,13 @@ export function Marco({ children }: { children: ReactNode }) {
   const aprueba = !demo && Boolean(usuario?.aprueba) && usuario?.rolEmpresa !== 'operador'
 
   useEffect(() => setAbierto(false), [ruta])
+  // El menú del celular también se cierra con Escape, como cualquier ventana.
+  useEffect(() => {
+    if (!abierto) return
+    const alTecla = (e: KeyboardEvent) => { if (e.key === 'Escape') setAbierto(false) }
+    window.addEventListener('keydown', alTecla)
+    return () => window.removeEventListener('keydown', alTecla)
+  }, [abierto])
   // Cuántos pedidos esperan aprobación (D11): se vuelve a contar al cambiar de pantalla.
   useEffect(() => {
     if (!aprueba) return setPorAprobar(0)
@@ -172,6 +179,10 @@ export function Marco({ children }: { children: ReactNode }) {
 
   return (
     <div className="tema-app min-h-dvh bg-background lg:flex lg:bg-[linear-gradient(to_right,var(--card)_calc(16rem-1px),var(--border)_calc(16rem-1px),var(--border)_16rem,transparent_16rem)]">
+      {/* Con teclado, el primer Tab salta el menú (WCAG 2.4.1). Solo se ve al recibir el foco. */}
+      <a href="#contenido" className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:font-semibold focus:text-primary-foreground">
+        Saltar al contenido
+      </a>
       {/* Menú lateral (escritorio). El fondo del contenedor sigue su franja hasta el final de una página larga. */}
       <aside className="no-imprimir hidden w-64 shrink-0 flex-col gap-7 border-r border-border bg-card px-4 py-6 lg:sticky lg:top-0 lg:flex lg:h-dvh">
         <Marca href={inicio} />
@@ -199,7 +210,7 @@ export function Marco({ children }: { children: ReactNode }) {
 
       <div className="min-w-0 flex-1">
         {demo && <AvisoDemo />}
-        <main className="mx-auto flex w-full max-w-[1240px] flex-col gap-7 px-4 py-7 sm:px-8 lg:py-9">{children}</main>
+        <main id="contenido" tabIndex={-1} className="mx-auto flex w-full outline-none max-w-[1240px] flex-col gap-7 px-4 py-7 sm:px-8 lg:py-9">{children}</main>
       </div>
     </div>
   )

@@ -9,6 +9,7 @@ import { Download, Eye, EyeOff } from 'lucide-react'
 import { api, textoErrores } from '@/lib/api'
 import { bajar } from '@/lib/descargar'
 import { numero, plata, sumarDias } from '@/lib/formato'
+import { cn } from '@/lib/utils'
 import { Boton, Campo, ErrorLista, Pildoras, Tarjeta, Titulo, claseEntrada } from './ui'
 
 type Reporte = { titulo: string; subtitulo: string; columnas: string[]; formatos: string[]; filas: (string | number)[][] }
@@ -51,7 +52,8 @@ function TarjetaReporte({ id, titulo, sub, hoy }: { id: string; titulo: string; 
   const cambiar = (poner: () => void) => { poner(); setReporte(null); setError(null) }
 
   return (
-    <Tarjeta className="flex min-w-0 flex-col gap-4 p-5 sm:p-6">
+    // En computador van de a dos; el que se abre ocupa todo el ancho para que la tabla se lea.
+    <Tarjeta className={cn('flex min-w-0 flex-col gap-4 p-5 sm:p-6', reporte && 'xl:col-span-2')}>
       <div>
         <h2 className="text-xl font-bold">{titulo}</h2>
         <p className="text-muted-foreground">{sub}</p>
@@ -77,9 +79,10 @@ function TarjetaReporte({ id, titulo, sub, hoy }: { id: string; titulo: string; 
         <div className="aparecer flex flex-col gap-2">
           <p className="text-nota text-muted-foreground">{reporte.subtitulo}</p>
           {reporte.filas.length === 0 ? <p className="text-muted-foreground">No hay nada en esas fechas.</p> : (
-            <div className="overflow-x-auto">
+            // Alto fijo con el encabezado quieto: con 300 filas, al bajar se perdía qué era cada columna.
+            <div className="max-h-[65vh] overflow-auto rounded-lg border border-border">
               <table className="w-full min-w-[520px] border-separate border-spacing-0 text-cuerpo" data-privado>
-                <thead>
+                <thead className="sticky top-0 z-10 bg-card">
                   <tr className="text-left text-sm text-muted-foreground">
                     {reporte.columnas.map((c, i) => <th key={c} scope="col" className={`border-b border-border px-2 py-2 font-semibold${reporte.formatos[i] ? ' text-right' : ''}`}>{c}</th>)}
                   </tr>
@@ -106,7 +109,9 @@ export function Reportes() {
   return (
     <>
       <Titulo sub="Elija el reporte y las fechas, véalo aquí o descárguelo en Excel. Los reportes solo informan: no cambian las existencias ni los pedidos.">Reportes</Titulo>
-      {REPORTES.map((r) => <TarjetaReporte key={r.id} {...r} hoy={hoy} />)}
+      <div className="grid items-start gap-5 xl:grid-cols-2">
+        {REPORTES.map((r) => <TarjetaReporte key={r.id} {...r} hoy={hoy} />)}
+      </div>
     </>
   )
 }

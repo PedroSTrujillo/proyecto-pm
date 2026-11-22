@@ -127,21 +127,28 @@ function ventasDeExport({ reporte, series }) {
   const porClave = new Map(filas.map((f) => [claveCodigo(f.codigo), f]));
   const ventas = [];
   let hasta;
+  let desde = null;
   if (series) {
     hasta = diaDeFecha(series.hasta);
     const n = series.semanas;
+    // El comienzo real del archivo (el reporte lo guarda); la cuadrícula de semanas puede empezar un día después.
+    desde = reporte.periodo && reporte.periodo.desde ? diaDeFecha(reporte.periodo.desde) : hasta - n * 7 + 1;
     const rearmar = (porProducto, extra) => {
       for (const [k, s] of Object.entries(porProducto || {})) {
         const f = porClave.get(k) || { codigo: k, nombre: '' };
         s.forEach((x, i) => {
-          if (x) ventas.push({ codigo: f.codigo, nombre: f.nombre, dia: hasta - (n - i) * 7 + 1, cantidad: x, ...extra });
+          // En el ÚLTIMO día de su semana, no en el primero: al sumar movimientos de los días siguientes, las semanas
+          // se vuelven a contar terminando en el último movimiento. Puesta el primer día, cada semana del archivo caía
+          // una semana antes y la última quedaba solo con los movimientos (una caída falsa en la gráfica, en la
+          // tendencia y en lo reciente). El comienzo del periodo sigue siendo el del archivo (desde, abajo).
+          if (x) ventas.push({ codigo: f.codigo, nombre: f.nombre, dia: hasta - (n - 1 - i) * 7, cantidad: x, ...extra });
         });
       }
     };
     rearmar(series.porProducto, {});
     rearmar(series.proyecto, { proyecto: true });
   } else {
-    const desde = diaDeFecha(reporte.periodo.desde);
+    desde = diaDeFecha(reporte.periodo.desde);
     hasta = diaDeFecha(reporte.periodo.hasta);
     const semanas = Math.max(1, Math.floor((hasta - desde + 1) / 7));
     for (const f of filas) {
@@ -153,7 +160,7 @@ function ventasDeExport({ reporte, series }) {
     }
   }
   const existencias = filas.map((f) => ({ codigo: f.codigo, nombre: f.nombre, existencias: f.existencias }));
-  return { ventas, existencias, hasta };
+  return { ventas, existencias, hasta, desde };
 }
 
 function fechaTexto(dia) {
@@ -216,7 +223,7 @@ function combinar({ base = null, movimientos }) {
   if (negativos.length) {
     avisos.push(`${negativos.length === 1 ? '1 producto quedó' : `${negativos.length} productos quedaron`} con existencias negativas (por ejemplo ${negativos[0].codigo}: ${negativos[0].existencias}). Casi siempre falta registrar una entrada o un conteo.`);
   }
-  return { ventas, existencias, hasta, avisos, usados: usados.length, ignorados: ignorados.length, negativos: negativos.map((e) => e.codigo), deConteos: deConteos.length };
+  return { ventas, existencias, hasta, desde: base ? base.desde ?? null : null, avisos, usados: usados.length, ignorados: ignorados.length, negativos: negativos.map((e) => e.codigo), deConteos: deConteos.length };
 }
 
 /**

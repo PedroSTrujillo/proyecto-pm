@@ -119,6 +119,22 @@ test('combinar + calcularRotacion: el periodo llega hasta el último movimiento 
   assert.equal(series.hasta, lejos);
 });
 
+test('combinar: una venta al día siguiente del archivo no deja la última semana solo con los movimientos', () => {
+  const e = exportDePrueba();
+  const base = S.ventasDeExport(e);
+  const manana = new Date(Date.parse(`${e.series.hasta}T12:00:00Z`) + 86400000).toISOString().slice(0, 10);
+  const r = S.combinar({ base, movimientos: [mov(1, 'A', 'venta', 2, manana)] });
+  const series = seriesSemanales(r.ventas, { hastaDia: r.hasta });
+  const antes = e.series.porProducto.A;
+  const despues = series.porProducto.A;
+  // Antes de corregirlo, cada semana del archivo caía una semana antes y la última quedaba en 2.
+  assert.equal(despues[despues.length - 1], antes[antes.length - 1] + 2);
+  assert.equal(despues[despues.length - 2], antes[antes.length - 2]);
+  // El periodo sigue empezando donde empieza el archivo: el promedio no cambia por rearmarlo.
+  const rot = calcularRotacion({ ventas: r.ventas, existencias: r.existencias, hastaDia: r.hasta, desdeDia: r.desde });
+  assert.equal(rot.periodo.desde, e.reporte.periodo.desde);
+});
+
 test('combinar: sin archivo, el inventario sale solo de los movimientos y avisa saldos negativos', () => {
   const r = S.combinar({ movimientos: [mov(1, 'A', 'venta', 3, '2026-10-02'), mov(2, 'B', 'entrada', 5, '2026-10-02')] });
   assert.equal(r.existencias.find((x) => x.codigo === 'A').existencias, -3);

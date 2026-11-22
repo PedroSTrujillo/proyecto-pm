@@ -128,23 +128,26 @@ export function Pedidos() {
       ) : (
         <Tarjeta className="overflow-hidden">
           <div className="relative overflow-x-auto">
-            <table className="w-full min-w-[640px] border-collapse">
+            <table className="w-full border-collapse sm:min-w-[640px]">
               <thead className="bg-muted text-left text-nota text-muted-foreground">
                 <tr>
                   <th className="px-4 py-2.5 font-semibold">Pedido</th>
-                  <th className="px-4 py-2.5 font-semibold">Empezado</th>
-                  <th className="px-4 py-2.5 font-semibold">Cómo</th>
+                  <th className="hidden px-4 py-2.5 font-semibold sm:table-cell">Empezado</th>
+                  <th className="hidden px-4 py-2.5 font-semibold sm:table-cell">Cómo</th>
                   <th className="px-4 py-2.5 font-semibold">Estado</th>
-                  <th className="px-4 py-2.5 text-right font-semibold">Productos</th>
+                  <th className="hidden px-4 py-2.5 text-right font-semibold sm:table-cell">Productos</th>
                   <th className="px-4 py-2.5"><span className="sr-only">Abrir</span></th>
                 </tr>
               </thead>
               <tbody>
                 {pedidos.map((p) => (
                   <tr key={p.id} className="border-t border-border">
-                    <td className="px-4 py-3 font-semibold">Pedido {numeros.get(p.id)}{p.proveedor ? ` · ${p.proveedor}` : ''}</td>
-                    <td className="px-4 py-3">{fecha(p.creadoEn)}</td>
-                    <td className="px-4 py-3 text-chico">{p.modo === 'sugerido' ? 'Desde lo sugerido' : 'Con mi lista'}</td>
+                    <td className="px-4 py-3 font-semibold">
+                      Pedido {numeros.get(p.id)}{p.proveedor ? ` · ${p.proveedor}` : ''}
+                      <span className="block text-nota font-normal text-muted-foreground sm:hidden">{fecha(p.creadoEn)}{p.lineas === null ? '' : ` · ${numero(p.lineas)} productos`}</span>
+                    </td>
+                    <td className="hidden px-4 py-3 sm:table-cell">{fecha(p.creadoEn)}</td>
+                    <td className="hidden px-4 py-3 text-chico sm:table-cell">{p.modo === 'sugerido' ? 'Desde lo sugerido' : 'Con mi lista'}</td>
                     <td className="px-4 py-3">
                       {p.anulado ? (
                         <span title={p.anulado.motivo || undefined} className="rounded-full bg-rojo-fondo px-2.5 py-0.5 text-nota font-bold text-rojo-texto">Anulado</span>
@@ -152,7 +155,7 @@ export function Pedidos() {
                         : p.modo === 'sugerido' ? <ChipAprobacion estado={p.aprobacion ?? 'preparando'} />
                         : <span className="text-chico">Paso {p.paso} de 5: {NOMBRES_PASOS[p.paso - 1]}</span>}
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums">{p.lineas === null ? '—' : numero(p.lineas)}</td>
+                    <td className="hidden px-4 py-3 text-right tabular-nums sm:table-cell">{p.lineas === null ? '—' : numero(p.lineas)}</td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       <Link href={`/pedidos/${p.id}`} className="font-semibold text-primary hover:text-primary-hover">{p.paso === 6 || p.anulado ? 'Ver' : 'Continuar'}</Link>
                       {p.anulado ? (

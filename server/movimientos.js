@@ -71,7 +71,8 @@ async function movimientosDe(empresaId, { conAnulados = false, productoId = null
  */
 // Súbala cuando cambie cómo se combinan los movimientos (server/saldos.js): así cada empresa se
 // recalcula en su siguiente visita, aunque no haya registrado nada nuevo. 2: ventas de los conteos.
-const VERSION_CALCULO = 2;
+// 3: las semanas del archivo van en su último día al combinarlas (saldos.ventasDeExport). Subirla recalcula todo.
+const VERSION_CALCULO = 3;
 
 async function inventarioAlDia(empresaId) {
   const emp = await db.uno('SELECT movimientos_cambiaron_en, inventario_firma, inventario FROM empresas WHERE id = $1', [empresaId]);
@@ -97,6 +98,7 @@ async function inventarioAlDia(empresaId) {
       semanasAgota,
       hoy: diaHoy(),
       hastaDia: combinado.hasta,
+      desdeDia: combinado.desde,
     });
     const reporte = {
       ...rotacion,

@@ -78,6 +78,8 @@ export function FormInvitar({ deshabilitado = false, alInvitar }: { deshabilitad
           <p className="text-chico">
             {invitacion.enviado ? `Le enviamos el enlace a ${invitacion.email}. También lo puede copiar:` : 'Copie el enlace y envíelo por correo o WhatsApp.'} Sirve una sola vez durante {invitacion.dias} días.
           </p>
+          {/* Crear la cuenta pide un código de acceso, también con invitación (T10): sin avisarlo, la persona se quedaba en el registro sin saber por qué. */}
+          <p className="text-chico font-semibold">Para crear la cuenta, la persona necesita además su propio código de acceso: pídaselo al equipo de SINESC y envíeselo junto con el enlace.</p>
           <div className="flex gap-2">
             <input className={claseEntrada} readOnly value={invitacion.enlace} onFocus={(e) => e.currentTarget.select()} aria-label="Enlace de invitación" />
             <Boton tamano="chico" onClick={() => copiar(invitacion.enlace)}>

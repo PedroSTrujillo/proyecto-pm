@@ -239,7 +239,9 @@ const rutas = express.Router();
 // Cada persona lleva su código de un solo uso, también quien entra por invitación (T10, T16).
 // Dentro de una transacción: si algo falla después, el código no se gasta.
 async function consumirCodigo(t, texto, usuarioId) {
-  const codigo = String(texto || '').replace(/\s+/g, '').toUpperCase();
+  // Con o sin guion, con espacios o en minúsculas (el código se dicta o se copia de un chat).
+  const limpio = String(texto || '').replace(/[^0-9a-z]/gi, '').toUpperCase();
+  const codigo = limpio.length === 8 ? `${limpio.slice(0, 4)}-${limpio.slice(4)}` : limpio;
   if (!codigo) throw new ErrorUsuario('Escriba su código de acceso.');
   const { rows } = await t.query('UPDATE codigos_acceso SET usado_en = now(), usado_por = $2 WHERE codigo = $1 AND usado_en IS NULL RETURNING codigo', [codigo, usuarioId]);
   if (!rows[0]) throw new ErrorUsuario('El código de acceso no es válido o ya se usó. Pídalo de nuevo a su asesor.');
@@ -257,10 +259,11 @@ rutas.post('/crear', async (req, res) => {
   const nit = String(empresa.nit || '').trim().slice(0, 30) || null;
   const cargo = leerCargo(req.body?.cargo);
   const boletin = req.body?.boletin === true || req.body?.boletin === 'on' || req.body?.boletin === 'true';
+  // En el orden del formulario (empresa, nombre, correo, contraseña): el primer error es el de más arriba.
+  if (!invitacion && !nombreEmpresa) throw new ErrorUsuario('Escriba el nombre de su empresa o abra el enlace de invitación que le enviaron.');
   if (!nombre) throw new ErrorUsuario('Escriba su nombre.');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new ErrorUsuario('Escriba un correo válido.');
   validarClave(clave);
-  if (!invitacion && !nombreEmpresa) throw new ErrorUsuario('Escriba el nombre de su empresa o abra el enlace de invitación que le enviaron.');
   const existe = await db.uno('SELECT id FROM usuarios WHERE email = $1', [email]);
   if (existe) throw new ErrorUsuario('Ya hay una cuenta con ese correo. Inicie sesión.');
   const rol = esEmailDeEquipo(email) ? 'equipo' : 'usuario';

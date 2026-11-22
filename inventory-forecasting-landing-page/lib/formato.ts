@@ -129,6 +129,15 @@ export function duracion(n: number | null | undefined) {
   return `${semanas(n)} semanas`
 }
 
+// Lo que tarda un proveedor (en semanas de 5 días hábiles, como lo guarda el modelo). En días se dice en días hábiles,
+// igual que en Proveedores: antes la ficha decía "7 días" y Proveedores "5 días hábiles" para lo mismo.
+export function tarda(n: number | null | undefined) {
+  if (n === null || n === undefined) return '—'
+  if (unidadActual !== 'dias') return duracion(n)
+  const d = Math.round(n * 5)
+  return `${numero(d)} ${d === 1 ? 'día hábil' : 'días hábiles'}`
+}
+
 // Un horizonte de pronóstico en semanas, dicho en la unidad elegida ("4 semanas", "28 días", "1 mes").
 export function horizonteTexto(n: number) {
   if (unidadActual === 'dias') return `${numero(Math.round(n * 7))} días`

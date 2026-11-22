@@ -70,6 +70,8 @@ function fragmentos(fuente) {
   while ((m = re.exec(sinComentarios))) {
     const t = (m[2] || m[3] || m[4] || '').replace(/\s+/g, ' ').trim();
     // Lo que parece código (flechas, operadores, llamadas a métodos) no es texto.
+    // Las consultas SQL tampoco: "aprueba" o "sube_datos" son columnas, no tuteo.
+    if (/^(SELECT|UPDATE|INSERT|DELETE|ALTER|CREATE|WITH)\b|^'::/.test(t)) continue;
     if (/\p{L}{2,}/u.test(t) && !/^[\w.@/-]+$/.test(t) && !/=>|&&|\|\||\.\w+\(/.test(t)) out.push(t);
   }
   return out;

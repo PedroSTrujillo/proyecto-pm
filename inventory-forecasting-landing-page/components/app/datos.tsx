@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Check } from 'lucide-react'
 import { api } from '@/lib/api'
-import { duracion, fecha, fechaHora, numero, plural } from '@/lib/formato'
+import { duracion, fecha, fechaHora, numero, plural, tarda } from '@/lib/formato'
 import { nombrePrograma } from '@/lib/sistemas'
 import type { Inventario, RevisionCodigos } from '@/lib/tipos'
 import { useInventario, useSesion } from './contexto'
@@ -65,7 +65,7 @@ function DatosCon({ inv }: { inv: Inventario | null }) {
         {inv && perfil === 'operador' && (
           <Tarjeta className="flex min-w-0 flex-col gap-2 p-5 sm:p-6">
             <h2 className="text-xl font-bold">Ajustes de su empresa</h2>
-            <p className="text-cuerpo">Un producto se va a agotar si alcanza para menos de <strong>{duracion(inv.umbrales.seAgota)}</strong>. Si el proveedor no está dicho, se asume que tarda <strong>{duracion(inv.ajustes.entregaPorDefecto)}</strong>, y se pide cada <strong>{duracion(inv.ajustes.cadaCuanto)}</strong>.</p>
+            <p className="text-cuerpo">Un producto se va a agotar si alcanza para menos de <strong>{duracion(inv.umbrales.seAgota)}</strong>. Si el proveedor no está dicho, se asume que tarda <strong>{tarda(inv.ajustes.entregaPorDefecto)}</strong>, y se pide cada <strong>{duracion(inv.ajustes.cadaCuanto)}</strong>.</p>
             <p className="text-chico text-muted-foreground">Los tiempos de cada proveedor y estos ajustes los cambia quien administra la empresa.</p>
           </Tarjeta>
         )}

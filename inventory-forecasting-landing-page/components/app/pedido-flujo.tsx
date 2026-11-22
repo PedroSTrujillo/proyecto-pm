@@ -79,8 +79,8 @@ export function PedidoFlujo({ id }: { id: number }) {
     }
   }, [id])
 
-  useEffect(() => { cargar() }, [cargar])
-  // Al cambiar de paso se recarga: en el paso 3 se pueden agregar productos a la lista final.
+  // Al abrir y al cambiar de paso (en el paso 3 se pueden agregar productos a la lista final). Antes había otro
+  // efecto igual solo con `cargar`: al abrir, el pedido se pedía dos veces a la vez (PostHog: 3,2 s para mostrarse).
   const pasoPedido = params.get('paso')
   useEffect(() => { cargar() }, [pasoPedido, cargar])
 
@@ -1186,7 +1186,7 @@ function Paso4({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
       <ol className="grid gap-3 sm:grid-cols-3">
         {[
           ['Revise cada producto', 'Para cuánto alcanza hoy, lo que iba a pedir y lo que sugiere SINESC. Haga clic en el sugerido para ver por qué.'],
-          ['Escriba su cantidad final', 'En la columna verde con el lápiz escribe con cuánto se queda, o elija «Usar» en el sugerido.'],
+          ['Escriba su cantidad final', 'En la columna verde con el lápiz, escriba con cuánto se queda, o elija «Usar» en el sugerido.'],
           ['Guarde su lista', 'En «Cambio» ve la diferencia con lo que iba a pedir y en «Con su cantidad, dura», para cuánto alcanza.'],
         ].map(([t, d], k) => (
           <li key={t} className="flex gap-3 rounded-xl border border-border p-3">

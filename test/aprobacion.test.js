@@ -131,6 +131,11 @@ test('con alguien que aprueba, quien prepara no lo puede cerrar solo: lo envía'
   // Quita la primera línea y deja el resto tal cual.
   const [, ...resto] = pedido.sugerido;
   const lista = resto.map(({ codigo, nombre, cantidad, proveedor }) => ({ codigo, nombre, cantidad, proveedor }));
+  // Vacío no se envía: le llegaba a quien aprueba un pedido de 0 productos.
+  assert.equal((await carlos.post(`/api/pedidos/${pedido.id}/lista-final`, { lineas: [] })).estado, 200);
+  const vacio = await carlos.post(`/api/pedidos/${pedido.id}/enviar`);
+  assert.equal(vacio.estado, 409);
+  assert.match(vacio.error, /no tiene productos/);
   assert.equal((await carlos.post(`/api/pedidos/${pedido.id}/lista-final`, { lineas: lista })).estado, 200);
   const solo = await carlos.post(`/api/pedidos/${pedido.id}/por-que`, {});
   assert.equal(solo.estado, 403);

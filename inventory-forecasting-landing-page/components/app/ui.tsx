@@ -3,7 +3,7 @@
 // Piezas pequeñas de la aplicación: botones, tarjetas, etiquetas de estado y mensajes.
 
 import Link from 'next/link'
-import type { ComponentProps, ReactNode } from 'react'
+import { useState, type ComponentProps, type ReactNode } from 'react'
 import { ChevronDown, Minus, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DIAS_POR_MES, fechaCorta, numero, semanas, unidadDeTiempo } from '@/lib/formato'
@@ -197,7 +197,8 @@ export function Cargando({ texto = 'Cargando…' }: { texto?: string }) {
 export function Ayuda({ texto }: { texto: string }) {
   return (
     <span className="group inline-flex">
-      <button type="button" aria-label={texto} className="inline-flex size-7 items-center justify-center rounded-full border border-border bg-card text-nota font-bold text-muted-foreground hover:text-foreground">
+      {/* El círculo se ve de 28 px, pero el dedo tiene 44 (after:-inset-2). */}
+      <button type="button" aria-label={texto} className="relative inline-flex size-7 items-center after:absolute after:-inset-2 after:content-[''] justify-center rounded-full border border-border bg-card text-nota font-bold text-muted-foreground hover:text-foreground">
         ?
       </button>
       <span role="tooltip" className="pointer-events-none absolute inset-x-3 top-12 z-20 rounded-xl bg-foreground px-3 py-2 text-left text-nota leading-snug font-normal text-background opacity-0 shadow-lg transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100">
@@ -251,15 +252,40 @@ export function Contador({ valor, etiqueta, onMover, paso, unidad = 'semanas' }:
     : u === 'dias' ? { n: numero(Math.round(valor * 7)), t: Math.round(valor * 7) === 1 ? 'día' : 'días' }
       : u === 'meses' ? { n: numero((valor * 7) / DIAS_POR_MES, 1), t: Math.round(((valor * 7) / DIAS_POR_MES) * 10) === 10 ? 'mes' : 'meses' }
         : { n: semanas(valor), t: valor === 1 ? 'semana' : 'semanas' }
+  // PostHog mostró ráfagas de hasta 9 clics en "Subir el tiempo de…" (de 5 a 60 días son 55 clics). Cuando lo que se
+  // muestra es lo mismo que se guarda (días hábiles, días calendario o semanas), el número también se escribe.
+  const escribible = u === 'dias-habiles' || u === 'dias-calendario' || u === 'semanas'
   return (
     <span className="flex items-center gap-2">
       <button type="button" aria-label={`Bajar ${etiqueta}`} onClick={() => onMover(-paso)} className="presionable inline-flex size-9 items-center justify-center rounded-lg border border-input bg-card hover:bg-muted"><Minus className="size-4" /></button>
       <span className="w-24 text-center">
-        <strong className="text-[1.05rem] tabular-nums">{mostrar.n}</strong>
+        {escribible ? <NumeroEscrito valor={valor} etiqueta={etiqueta} onPoner={(n) => onMover(n - valor)} /> : <strong className="text-[1.05rem] tabular-nums">{mostrar.n}</strong>}
         <span className="block text-nota text-muted-foreground">{mostrar.t}</span>
       </span>
       <button type="button" aria-label={`Subir ${etiqueta}`} onClick={() => onMover(paso)} className="presionable inline-flex size-9 items-center justify-center rounded-lg border border-input bg-card hover:bg-muted"><Plus className="size-4" /></button>
     </span>
+  )
+}
+
+// El número del contador, editable: se aplica al salir del campo o con Enter (quien llama lo limita a su rango).
+function NumeroEscrito({ valor, etiqueta, onPoner }: { valor: number; etiqueta: string; onPoner: (n: number) => void }) {
+  const [texto, setTexto] = useState<string | null>(null)
+  const aplicar = () => {
+    const n = Number(String(texto ?? '').replace(',', '.'))
+    if (texto !== null && texto.trim() !== '' && Number.isFinite(n) && n >= 0 && n !== valor) onPoner(n)
+    setTexto(null)
+  }
+  return (
+    <input
+      inputMode="decimal"
+      aria-label={etiqueta.charAt(0).toUpperCase() + etiqueta.slice(1)}
+      value={texto ?? numero(valor, 1)}
+      onFocus={(e) => { setTexto(numero(valor, 1)); e.currentTarget.select() }}
+      onChange={(e) => setTexto(e.target.value.replace(/[^\d.,]/g, ''))}
+      onBlur={aplicar}
+      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur() } if (e.key === 'Escape') { setTexto(null); e.currentTarget.blur() } }}
+      className="h-8 w-16 rounded-md border border-transparent bg-transparent text-center text-[1.05rem] font-bold tabular-nums hover:border-input focus:border-primary focus:bg-card focus:outline-3 focus:outline-ring"
+    />
   )
 }
 
