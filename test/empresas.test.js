@@ -254,7 +254,9 @@ test('el operador no abre pedidos, ajustes ni catálogo, no recibe dinero y subi
 
   // Lo del día sigue abierto para el operador.
   assert.equal((await hugo.get('/api/empresa')).estado, 200);
-  // Una fila mala llega a la validación (400), no al guardia (403), y no guarda nada.
+  // Registrar movimientos y hacer conteos también piden permiso (T18); con él, una fila mala llega a la validación (400).
+  assert.equal((await hugo.post('/api/movimientos', { movimientos: [{ tipo: 'venta', codigo: 'T4-COSTO', cantidad: 'diez' }] })).estado, 403);
+  assert.equal((await gina.put(`/api/empresa/miembros/${u.id}`, { registraMovimientos: true })).estado, 200);
   assert.equal((await hugo.post('/api/movimientos', { movimientos: [{ tipo: 'venta', codigo: 'T4-COSTO', cantidad: 'diez' }] })).estado, 400);
 
   // Subir el archivo de inventario pide que quien administra se lo marque.
@@ -453,4 +455,140 @@ test('los resultados del equipo traen la empresa, el perfil y el boletín de cad
   assert.ok(ana.movimientos >= 4);
   const carla = r.usuarios.find((u) => u.email === 'carla@prueba.co');
   assert.equal(carla.empresa.id, ana.empresa.id, 'dos probadores de la misma empresa se ven juntos');
+});
+
+// --- T17: pasar la gerencia y borrar la propia cuenta ---------------------------------------------
+
+async function conMiembro(prefijo, rol) {
+  const { c: gerente, usuario: g } = await cuenta(`Gerente ${prefijo}`, `${prefijo}-g@prueba.co`, { empresa: `Empresa ${prefijo}` });
+  const inv = await gerente.post('/api/empresa/invitaciones', { email: `${prefijo}-m@prueba.co`, rol });
+  const token = new URL(inv.enlace).searchParams.get('invitacion');
+  const { c: miembro, usuario: m } = await cuenta(`Miembro ${prefijo}`, `${prefijo}-m@prueba.co`, { invitacion: token });
+  return { gerente, g, miembro, m };
+}
+
+const borrar = (c, email, clave = 'clave-segura') => c.post('/api/cuenta/borrar', { confirmacion: email, clave });
+
+test('borrar la cuenta: pide el correo y la clave, y el gerente con miembros no puede', async () => {
+  const { gerente, g, m } = await conMiembro('b1', 'administrador');
+  const mala = await borrar(gerente, g.email, 'otra-clave');
+  assert.equal(mala.estado, 403);
+  assert.equal((await borrar(gerente, 'otro@prueba.co')).estado, 400);
+  const con = await borrar(gerente, g.email);
+  assert.equal(con.estado, 409);
+  assert.match(con.error, /pase la gerencia/);
+  assert.ok(await db.uno('SELECT 1 AS x FROM usuarios WHERE id = $1', [g.id]), 'no se borró nada');
+
+  // Solo el gerente pasa la gerencia, y solo a alguien de su empresa.
+  const { c: ajena } = await cuenta('Ajena', 'ajena-b1@prueba.co', { empresa: 'Otra SAS' });
+  assert.equal((await gerente.put('/api/empresa/gerente', { usuarioId: g.id })).estado, 400, 'a sí mismo');
+  assert.equal((await gerente.put('/api/empresa/gerente', { usuarioId: (await db.uno("SELECT id FROM usuarios WHERE email = 'ajena-b1@prueba.co'")).id })).estado, 404, 'a otra empresa');
+  assert.equal((await ajena.put('/api/empresa/gerente', { usuarioId: m.id })).estado, 404);
+});
+
+test('pasar la gerencia: el otro queda gerente, quien la pasa administrador y ya puede borrarse', async () => {
+  const { gerente, g, miembro, m } = await conMiembro('b2', 'administrador');
+  assert.equal((await miembro.put('/api/empresa/gerente', { usuarioId: g.id })).estado, 403, 'un administrador no la pasa');
+  const r = await gerente.put('/api/empresa/gerente', { usuarioId: m.id });
+  assert.equal(r.estado, 200, r.error);
+  assert.equal((await gerente.get('/api/cuenta/yo')).usuario.rolEmpresa, 'administrador');
+  assert.equal((await miembro.get('/api/cuenta/yo')).usuario.rolEmpresa, 'gerente');
+  assert.equal((await borrar(gerente, g.email)).estado, 200);
+  assert.equal((await gerente.get('/api/cuenta/yo')).usuario, null, 'la sesión se cerró');
+  assert.equal(await db.uno('SELECT 1 AS x FROM usuarios WHERE id = $1', [g.id]), null);
+  assert.ok(await db.uno('SELECT 1 AS x FROM empresas WHERE id = $1', [m.empresa.id]), 'la empresa sigue');
+});
+
+test('un operador se borra y sus archivos pasan al gerente; el gerente único se lleva la empresa', async () => {
+  const { gerente, g, miembro, m } = await conMiembro('b3', 'operador');
+  await db.query("INSERT INTO archivos (usuario_id, tipo, nombre, tamano, contenido) VALUES ($1, 'export', 'inventario-b3.xlsx', 1, 'x')", [m.id]);
+  assert.equal((await borrar(miembro, m.email)).estado, 200);
+  assert.equal((await db.uno('SELECT usuario_id FROM archivos WHERE nombre = $1', ['inventario-b3.xlsx'])).usuario_id, g.id);
+  assert.equal((await borrar(gerente, g.email)).estado, 200);
+  assert.equal(await db.uno('SELECT 1 AS x FROM empresas WHERE id = $1', [g.empresa.id]), null, 'sin nadie, la empresa se borra');
+});
+
+test('las cuentas del equipo no se borran solas, y una cuenta sin activar sí', async () => {
+  const { c: eq, usuario } = await cuenta('Equipo T17', 'equipo-t17@prueba.co', { empresa: 'Equipo SAS' });
+  await db.query("UPDATE usuarios SET rol = 'equipo', es_equipo = true WHERE id = $1", [usuario.id]);
+  assert.equal((await borrar(eq, usuario.email)).estado, 403);
+  const c = cliente();
+  const r = await c.post('/api/cuenta/crear', { nombre: 'Sin activar', email: 'sin-activar@prueba.co', clave: 'clave-segura', empresa: 'Sin SAS' });
+  assert.equal(r.usuario.pendienteCodigo, true);
+  assert.equal((await borrar(c, 'sin-activar@prueba.co')).estado, 200);
+});
+
+// --- T18: registrar movimientos y hacer conteos se marcan por aparte ------------------------------
+
+test('un operador registra y cuenta solo con el permiso de cada cosa', async () => {
+  const { gerente, miembro, m } = await conMiembro('t18', 'operador');
+  const hoyT18 = fechaBogota();
+  const venta = { codigo: 'T18-A', nombre: 'Producto T18', tipo: 'venta', cantidad: 1, fecha: hoyT18 };
+  const conteo = { codigo: 'T18-A', tipo: 'conteo', cantidad: 5, fecha: hoyT18 };
+  const marcar = (cambio) => gerente.put(`/api/empresa/miembros/${m.id}`, cambio);
+
+  // El gerente registra una entrada y una venta que el operador intentará anular.
+  assert.equal((await gerente.post('/api/movimientos', { movimientos: [{ ...venta, tipo: 'entrada', cantidad: 20 }, venta, conteo] })).estado, 201);
+  const lista = (await gerente.get(`/api/movimientos?desde=${hoyT18}&hasta=${hoyT18}&codigo=T18-A`)).movimientos;
+  const idVenta = lista.find((x) => x.tipo === 'venta').id;
+  const idConteo = lista.find((x) => x.tipo === 'conteo').id;
+
+  // Sin permisos: nada de lo que escribe pasa, ni anular, ni importar.
+  assert.equal((await miembro.post('/api/movimientos', { movimientos: [venta] })).estado, 403);
+  assert.equal((await miembro.post('/api/movimientos', { movimientos: [conteo] })).estado, 403);
+  assert.equal((await miembro.post(`/api/movimientos/${idVenta}/anular`)).estado, 403);
+  assert.equal((await miembro.post('/api/movimientos/importar')).estado, 403);
+  assert.deepEqual([(await miembro.get('/api/cuenta/yo')).usuario.registraMovimientos, (await miembro.get('/api/cuenta/yo')).usuario.haceConteos], [false, false]);
+
+  // Solo conteos: el conteo y anular un conteo pasan; la venta y anular una venta, no.
+  const solo = await marcar({ haceConteos: true });
+  assert.equal(solo.empresa.miembros.find((x) => x.id === m.id).haceConteos, true);
+  assert.equal((await miembro.post('/api/movimientos', { movimientos: [conteo] })).estado, 201);
+  assert.equal((await miembro.post('/api/movimientos', { movimientos: [venta] })).estado, 403);
+  assert.equal((await miembro.post('/api/movimientos', { movimientos: [conteo, venta] })).estado, 403, 'una venta mezclada también se rechaza');
+  assert.equal((await miembro.post(`/api/movimientos/${idVenta}/anular`)).estado, 403);
+  assert.equal((await miembro.post(`/api/movimientos/${idConteo}/anular`)).estado, 200);
+
+  // Con los dos permisos, todo.
+  assert.equal((await marcar({ registraMovimientos: true })).estado, 200);
+  assert.equal((await miembro.post('/api/movimientos', { movimientos: [venta, conteo] })).estado, 201);
+  assert.equal((await miembro.post(`/api/movimientos/${idVenta}/anular`)).estado, 200);
+});
+
+// --- T20: actividad del equipo, solo para el gerente ----------------------------------------------
+
+test('el gerente ve los archivos y pedidos de su equipo con nombre; los demás no', async () => {
+  const { registrarEvento } = require('../server/cuentas');
+  const { gerente, miembro, m } = await conMiembro('t20', 'operador');
+  const otra = await conMiembro('t20b', 'administrador');
+  await registrarEvento(m.id, 'archivo_subido', { detalle: { tipo: 'export', archivos: ['ventas-octubre.xlsx', 'saldos.csv'] } });
+  await registrarEvento(m.id, 'movimientos_registrados', { detalle: { cantidad: 4, tipos: { venta: 4 } } });
+  await registrarEvento(m.id, 'login_raro', { detalle: {} });
+  const pedido = await db.uno("INSERT INTO pedidos (usuario_id, empresa_id, modo, tipo) VALUES ($1, $2, 'sugerido', 'real') RETURNING id", [m.id, m.empresa.id]);
+  await registrarEvento(m.id, 'pedido_enviado', { pedidoId: pedido.id, detalle: { lineas: 7 } });
+  await registrarEvento(otra.m.id, 'archivo_subido', { detalle: { tipo: 'export', archivos: ['de-otra-empresa.xlsx'] } });
+  await db.query("INSERT INTO eventos (usuario_id, tipo, detalle, creado_en) VALUES ($1, 'archivo_subido', '{\"archivos\":[\"viejo.xlsx\"]}'::jsonb, now() - interval '40 days')", [m.id]);
+  await gerente.put(`/api/empresa/miembros/${m.id}`, { cargo: 'Bodeguero' });
+
+  const r = await gerente.get('/api/empresa/actividad');
+  assert.equal(r.estado, 200);
+  const archivo = r.eventos.find((e) => e.tipo === 'archivo_subido');
+  assert.equal(archivo.archivo, 'ventas-octubre.xlsx, saldos.csv');
+  assert.equal(archivo.quien, m.nombre);
+  assert.equal(archivo.cargo, 'Bodeguero');
+  assert.equal(r.eventos.find((e) => e.tipo === 'movimientos_registrados').cantidad, 4);
+  const enviado = r.eventos.find((e) => e.tipo === 'pedido_enviado');
+  assert.deepEqual([enviado.pedido, enviado.cantidad], [1, 7]);
+  assert.ok(!r.eventos.some((e) => e.tipo === 'login_raro'), 'solo los tipos de la lista');
+  assert.ok(!r.eventos.some((e) => e.archivo === 'de-otra-empresa.xlsx'), 'nada de otra empresa');
+  assert.ok(!r.eventos.some((e) => e.archivo === 'viejo.xlsx'), 'a 30 días no sale lo de 40');
+  assert.ok((await gerente.get('/api/empresa/actividad?dias=90')).eventos.some((e) => e.archivo === 'viejo.xlsx'));
+  assert.equal((await gerente.get('/api/empresa/actividad?dias=9999')).dias, 30, 'un periodo fuera de rango vuelve a 30');
+
+  // Quien no es gerente no la ve, tampoco un administrador.
+  assert.equal((await miembro.get('/api/empresa/actividad')).estado, 403);
+  assert.equal((await otra.miembro.get('/api/empresa/actividad')).estado, 403);
+  // El gerente de la otra empresa solo ve lo suyo.
+  const suyas = await otra.gerente.get('/api/empresa/actividad');
+  assert.deepEqual(suyas.eventos.map((e) => e.archivo), ['de-otra-empresa.xlsx']);
 });

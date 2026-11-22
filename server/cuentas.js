@@ -5,6 +5,7 @@
 const crypto = require('crypto');
 const express = require('express');
 const db = require('./db');
+const { borrarDatos } = require('./borrar');
 const { enviarCorreo, correoConfigurado } = require('./correo');
 const { limpiarAlertas, alertasDe, TIPOS: TIPOS_ALERTA, FRECUENCIAS } = require('./alertas');
 
@@ -86,7 +87,7 @@ function esEmailDeEquipo(email) {
 
 // Lo que se sabe de un usuario en cada petición: sus datos, su empresa y sus preferencias.
 const COLUMNAS_USUARIO = `u.id, u.email, u.nombre, u.rol, u.sistema, u.empresa_id, u.admin_empresa, u.perfil,
-  u.preferencias, u.boletin, u.aprueba, u.sube_datos, u.cargo, e.nombre AS empresa_nombre, e.vacia AS empresa_vacia`;
+  u.preferencias, u.boletin, u.aprueba, u.sube_datos, u.registra_movimientos, u.hace_conteos, u.pendiente_codigo, u.cargo, e.nombre AS empresa_nombre, e.vacia AS empresa_vacia`;
 
 async function usuarioPorId(id) {
   return db.uno(`SELECT ${COLUMNAS_USUARIO} FROM usuarios u LEFT JOIN empresas e ON e.id = u.empresa_id WHERE u.id = $1`, [id]);
@@ -191,6 +192,10 @@ function publico(u) {
     aprueba: Boolean(u.aprueba),
     // Un operador sube el archivo de inventario solo si quien administra se lo marcó.
     subeDatos: Boolean(u.sube_datos),
+    registraMovimientos: Boolean(u.registra_movimientos),
+    haceConteos: Boolean(u.hace_conteos),
+    // Creó la cuenta pero falta su código de acceso: la web le muestra solo la ventana para activarla.
+    pendienteCodigo: Boolean(u.pendiente_codigo),
     empresa: u.empresa_id ? { id: u.empresa_id, nombre: u.empresa_nombre || '', vacia: Boolean(u.empresa_vacia), admin: Boolean(u.admin_empresa) } : null,
   };
 }
@@ -231,6 +236,15 @@ const CUENTA_SUSPENDIDA = 'Su cuenta está suspendida. Escriba al equipo de SINE
 
 const rutas = express.Router();
 
+// Cada persona lleva su código de un solo uso, también quien entra por invitación (T10, T16).
+// Dentro de una transacción: si algo falla después, el código no se gasta.
+async function consumirCodigo(t, texto, usuarioId) {
+  const codigo = String(texto || '').replace(/\s+/g, '').toUpperCase();
+  if (!codigo) throw new ErrorUsuario('Escriba su código de acceso.');
+  const { rows } = await t.query('UPDATE codigos_acceso SET usado_en = now(), usado_por = $2 WHERE codigo = $1 AND usado_en IS NULL RETURNING codigo', [codigo, usuarioId]);
+  if (!rows[0]) throw new ErrorUsuario('El código de acceso no es válido o ya se usó. Pídalo de nuevo a su asesor.');
+}
+
 // Una cuenta nueva siempre entra a una empresa: la que crea en el mismo formulario o la de la
 // invitación que le mandaron (docs/PLAN_EMPRESAS_INVENTARIO.md, D2).
 rutas.post('/crear', async (req, res) => {
@@ -250,12 +264,9 @@ rutas.post('/crear', async (req, res) => {
   const existe = await db.uno('SELECT id FROM usuarios WHERE email = $1', [email]);
   if (existe) throw new ErrorUsuario('Ya hay una cuenta con ese correo. Inicie sesión.');
   const rol = esEmailDeEquipo(email) ? 'equipo' : 'usuario';
-  const codigo = String(req.body?.codigo || '').replace(/\s+/g, '').toUpperCase();
-  if (!codigo) throw new ErrorUsuario('Escriba su código de acceso. Se lo entrega el equipo de SINESC.');
+  // La web no manda código: la cuenta queda esperándolo (T16). Si llega uno (las pruebas), se gasta aquí mismo.
+  const conCodigo = Boolean(req.body?.codigo);
   const id = await db.tx(async (t) => {
-    // Cada persona lleva el suyo, también quien entra por invitación; si algo falla abajo, el tx lo devuelve.
-    const { rows: usados } = await t.query('UPDATE codigos_acceso SET usado_en = now() WHERE codigo = $1 AND usado_en IS NULL RETURNING codigo', [codigo]);
-    if (!usados[0]) throw new ErrorUsuario('El código de acceso no es válido o ya se usó. Pídalo al equipo de SINESC.');
     let empresaId;
     // Quien funda la empresa es su gerente y aprueba; quien entra por invitación toma el rol de la
     // invitación (sin rol, el más bajo), nunca uno que mande el formulario.
@@ -282,11 +293,11 @@ rutas.post('/crear', async (req, res) => {
     // indicadores de inventario se miden en días, y mezclar días y semanas confundía). Las de antes siguen
     // como estaban, y cada quien lo cambia en Mi cuenta.
     const { rows } = await t.query(
-      `INSERT INTO usuarios (email, nombre, clave_hash, rol, empresa_id, admin_empresa, perfil, aprueba, boletin, cargo, preferencias)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb) RETURNING id`,
-      [email, nombre, hashClave(clave), rol, empresaId, admin, perfil, aprueba, boletin, cargo, JSON.stringify({ unidad: UNIDAD_CUENTA_NUEVA })],
+      `INSERT INTO usuarios (email, nombre, clave_hash, rol, empresa_id, admin_empresa, perfil, aprueba, boletin, cargo, preferencias, pendiente_codigo)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12) RETURNING id`,
+      [email, nombre, hashClave(clave), rol, empresaId, admin, perfil, aprueba, boletin, cargo, JSON.stringify({ unidad: UNIDAD_CUENTA_NUEVA }), !conCodigo],
     );
-    await t.query('UPDATE codigos_acceso SET usado_por = $1 WHERE codigo = $2', [rows[0].id, codigo]);
+    if (conCodigo) await consumirCodigo(t, req.body.codigo, rows[0].id);
     if (invitacion) await t.query('UPDATE invitaciones SET usada_por = $1 WHERE token_hash = $2', [rows[0].id, hashToken(invitacion)]);
     return rows[0].id;
   });
@@ -295,6 +306,35 @@ rutas.post('/crear', async (req, res) => {
   await registrarEvento(id, 'ingreso', { detalle: { como: 'cuenta_nueva' } });
   await abrirSesion(req, res, id);
   res.status(201).json({ usuario });
+});
+
+// Quien creó la cuenta escribe aquí el código que le dio su asesor. Sin él, solo ve esta ventana (app.js).
+rutas.post('/activar', requiereUsuario, async (req, res) => {
+  if (req.usuario.pendiente_codigo) {
+    await db.tx(async (t) => {
+      await consumirCodigo(t, req.body?.codigo, req.usuario.id);
+      await t.query('UPDATE usuarios SET pendiente_codigo = false WHERE id = $1', [req.usuario.id]);
+    });
+    await registrarEvento(req.usuario.id, 'cuenta_activada');
+  }
+  res.json({ usuario: await publicoPorId(req.usuario.id) });
+});
+
+// Cada quien elimina su cuenta. Sus pedidos se borran con ella; el inventario es de la empresa y se
+// queda con quien sigue (borrarDatos). Un gerente con más personas pasa antes la gerencia (empresas.js).
+// Sin evento: los eventos se borran en cascada con la cuenta.
+rutas.post('/borrar', requiereUsuario, async (req, res) => {
+  const u = req.usuario;
+  if (u.rol === 'equipo') throw new ErrorUsuario('Las cuentas del equipo no se borran desde aquí.', 403);
+  if (String(req.body?.confirmacion || '').trim().toLowerCase() !== u.email.toLowerCase()) throw new ErrorUsuario('Escriba su correo completo para confirmar.');
+  const yo = await db.uno('SELECT clave_hash FROM usuarios WHERE id = $1', [u.id]);
+  if (!verificarClave(String(req.body?.clave || ''), yo.clave_hash)) throw new ErrorUsuario('Su contraseña no es correcta.', 403);
+  if (rolEmpresa(u) === 'gerente' && (await db.uno('SELECT 1 AS hay FROM usuarios WHERE empresa_id = $1 AND id <> $2', [u.empresa_id, u.id]))) {
+    throw new ErrorUsuario('Antes de borrar su cuenta, pase la gerencia a otra persona en Mi empresa.', 409);
+  }
+  await borrarDatos({ email: u.email, confirmar: true });
+  res.setHeader('Set-Cookie', `${COOKIE}=; Max-Age=0; ${opcionesCookie(req)}`);
+  res.json({ ok: true });
 });
 
 rutas.post('/entrar', async (req, res) => {

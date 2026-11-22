@@ -27,6 +27,69 @@
 
 ---
 
+## 2026-11-22 (76) — Claude — T21 de PLAN_CORRECCIONES_SINESC: noticias, TRM y sector (última tarea del plan)
+- **Rama:** `cambios-sinesc`, solo en local, sin publicar.
+- **Estado:** `GET /api/noticias` (solo gerente) con la TRM (datos.gov.co, y euro/yuan con `api.frankfurter.dev`) y titulares de Google Noticias, con caché en memoria y fallos por fuente. `empresas.sector` se elige en Mi empresa y agrega un tema de regulación. Página `/noticias` en las dos vistas del gerente. **Con esto quedan hechas T15 a T21 de `docs/PLAN_CORRECCIONES_SINESC.md`.**
+- **Archivos tocados:** `server/noticias.js` (nuevo), `empresas.js`, `app.js`, `db.js`; web: `app/(app)/noticias/page.tsx`, `components/app/noticias.tsx`, `lib/sectores.ts` (nuevos), `empresa.tsx`, `marco.tsx`, `lib/tipos.ts`; `test/noticias.test.js` (nuevo); `CLAUDE.md`, `docs/ENTREGABLE_Y_APP.md` (fila 32).
+- **Base de datos:** `empresas.sector TEXT` (ALTER en `ESQUEMA`).
+- **Verificación:** `npm test` 241/241; `tsc --noEmit` sin errores; `npm run texto` sin hallazgos nuevos. Las tres fuentes se probaron con `curl` hoy y devolvieron lo esperado. **No se probó la pantalla en el navegador.**
+- **Siguiente paso exacto:** recorrer en el navegador los flujos de la sección "Verificación" de `docs/PLAN_CORRECCIONES_SINESC.md` (T16 a T21), con `NEXT_PUBLIC_WHATSAPP_VENTAS` puesta; después, decidir con el equipo cuándo publicar (T1 a T21 siguen sin publicar mientras el piloto de Alpha 0.2 esté abierto).
+- **Notas y bloqueos:** el RSS de Google Noticias es de uso no comercial según su propio texto: decidir con el equipo si se cambia de fuente antes de publicar (solo cambia `titulares()`). En Vercel la caché es por instancia. Variables nuevas del plan: `NEXT_PUBLIC_WHATSAPP_VENTAS` (T16).
+
+## 2026-11-22 (75) — Claude — T20 de PLAN_CORRECCIONES_SINESC: actividad del equipo (gerente)
+- **Rama:** `cambios-sinesc`, solo en local, sin publicar.
+- **Estado:** `GET /api/empresa/actividad?dias=` (solo gerente) lee `eventos` de las personas de su empresa (archivos con nombre, movimientos, pedidos con su número). Página `/actividad` con filtros (Todo, Archivos, Pedidos, Movimientos) y periodo (7, 30, 90 días); ítem "Actividad" en las dos vistas del gerente. **T21 puede reutilizar el patrón (ítem en `itemsDe`, página con `SoloRol permite={['gerente']}`).**
+- **Archivos tocados:** `server/empresas.js`; web: `app/(app)/actividad/page.tsx` y `components/app/actividad.tsx` (nuevos), `marco.tsx`; `test/empresas.test.js`; `CLAUDE.md`, `docs/ENTREGABLE_Y_APP.md` (fila 31).
+- **Base de datos:** nada.
+- **Verificación:** `npm test` 236/236; `tsc --noEmit` sin errores; `npm run texto` sin hallazgos nuevos. **No se probó en el navegador.**
+- **Siguiente paso exacto:** T21 (noticias, TRM y sector de la empresa).
+- **Notas y bloqueos:** sin paginación (300 máximo). Los eventos de pedidos viejos pueden no traer el número si el pedido se borró.
+
+## 2026-11-22 (74) — Claude — T19 de PLAN_CORRECCIONES_SINESC: precio por línea del pedido
+- **Rama:** `cambios-sinesc`, solo en local, sin publicar.
+- **Estado:** cada línea de `lista_final` puede llevar `costo` (precio negociado, solo de ese pedido). Sale en el PDF y el Excel, y el historial lo anota aparte de la cantidad (`pedido_cambios.campo = 'costo'`). La aceptación del piloto no cambia. Pantalla: columna "Precio unitario" editable en `pedido-preparar.tsx`.
+- **Archivos tocados:** `server/pedidos.js` (`costoDe`, `crearDesdeSugerido`, `/borrador/linea`, `lineasParaExportar`), `listas.js` (`revisarLista`), `trazas.js` (`diferencias`, `anotarCambios`, `historial`), `db.js`; web: `pedido-preparar.tsx`, `pedido-flujo.tsx`, `lib/tipos.ts`; `test/precio-linea.test.js` (nuevo); `CLAUDE.md`, `docs/modelo-rotacion.md` §4.4, `docs/ENTREGABLE_Y_APP.md` (fila 30).
+- **Base de datos:** `pedido_cambios.campo TEXT` (ALTER en `ESQUEMA`).
+- **Verificación:** `npm test` 235/235; `tsc --noEmit` sin errores; `npm run texto` sin hallazgos nuevos. **No se probó en el navegador** (falta ver la columna de precio y que los totales cambien al escribir).
+- **Siguiente paso exacto:** T20 (actividad del equipo, solo gerente).
+- **Notas y bloqueos:** el costo del catálogo solo entra al inventario por el archivo o por los movimientos (`catalogoDe`), no por `PUT /api/catalogo` en un inventario ya subido; no es de T19, pero explica por qué la prueba sube un CSV con costos. Los borradores abiertos antes de este cambio mostrarán una vez los precios como cambio en el historial.
+
+## 2026-11-22 (73) — Claude — T18 de PLAN_CORRECCIONES_SINESC: permisos del operador (movimientos y conteos)
+- **Rama:** `cambios-sinesc`, solo en local, sin publicar.
+- **Estado:** `usuarios.registra_movimientos` y `hace_conteos` (por defecto `false`), marcados en Mi empresa. `exigirPermisoMovimientos` (`server/movimientos.js`) los exige en `POST /`, anular e importar (importar: basta con uno). Web: `puedeRegistrar` e `inicioDe` en `vista.tsx`; menú, tipos, anular, importar y "Hacer un conteo" según permiso; el operador sin ninguno empieza en Existencias.
+- **Archivos tocados:** `server/db.js`, `cuentas.js`, `movimientos.js`, `empresas.js`; web: `lib/tipos.ts`, `vista.tsx`, `marco.tsx`, `solo-rol.tsx`, `movimientos.tsx`, `existencias.tsx`, `empresa.tsx`; pruebas (`empresas`, `inventario-al-dia`); `CLAUDE.md`, `docs/ENTREGABLE_Y_APP.md` (fila 29).
+- **Base de datos:** dos columnas BOOLEAN en `usuarios` (ALTER en `ESQUEMA`).
+- **Verificación:** `npm test` 233/233; `tsc --noEmit` sin errores; `npm run texto` sin hallazgos nuevos. **No se probó en el navegador.**
+- **Siguiente paso exacto:** T19 (precio por línea al preparar el pedido).
+- **Notas y bloqueos:** al publicar, los operadores existentes quedan sin permisos hasta que quien administra los marque. Se apartó del plan en importar (basta uno de los dos permisos, no solo `registra_movimientos`).
+
+## 2026-11-22 (72) — Claude — T17 de PLAN_CORRECCIONES_SINESC: borrar mi cuenta y pasar la gerencia
+- **Rama:** `cambios-sinesc`, solo en local, sin publicar.
+- **Estado:** `POST /api/cuenta/borrar` (correo + clave, límite 5/h) reutiliza `borrarDatos`; el gerente con miembros recibe 409. `PUT /api/empresa/gerente` pasa la gerencia (solo gerente). Web: "Pasar la gerencia" en Mi empresa y tarjeta "Eliminar mi cuenta" en Mi cuenta. Ruta POST bajo `/api/cuenta/borrar` (no `DELETE /api/cuenta` como decía el plan) para que pase el guardia de T16.
+- **Archivos tocados:** `server/cuentas.js`, `empresas.js`, `app.js`; web: `empresa.tsx`, `cuenta.tsx`; `test/empresas.test.js` (4 pruebas nuevas); `CLAUDE.md`, `docs/ENTREGABLE_Y_APP.md` (fila 28).
+- **Base de datos:** nada.
+- **Verificación:** `npm test` 232/232; `tsc --noEmit` sin errores; `npm run texto` sin hallazgos nuevos (los de tuteo restantes son SQL). **No se probó en el navegador.**
+- **Siguiente paso exacto:** T18 (permisos del operador: movimientos y conteos).
+- **Notas y bloqueos:** borrar no deja evento (se borra en cascada con la cuenta). Riesgo anotado en Cambios: quien se borra sale de la medición del piloto. La ventana de activación (T16) no tiene botón de borrar, aunque la ruta lo permite.
+
+## 2026-11-22 (71) — Claude — T16 de PLAN_CORRECCIONES_SINESC: código de acceso después del registro
+- **Rama:** `cambios-sinesc`, solo en local, sin publicar.
+- **Estado:** crear la cuenta no pide código; queda `pendiente_codigo` y solo ve la ventana `activar.tsx` hasta `POST /api/cuenta/activar`. Guardia 403 en `app.js` (todo menos `/api/cuenta/*`), boletín la salta, Cuentas la muestra "Esperando código". `/crear` aún acepta `codigo` opcional (solo lo usan las pruebas vía `conCodigo`).
+- **Archivos tocados:** `server/db.js`, `cuentas.js` (`consumirCodigo`, `/activar`, `publico`), `app.js`, `boletin.js`, `cuentas-equipo.js`; web: `activar.tsx` (nuevo), `marco-cuenta.tsx`, `cuenta-formularios.tsx`, `cuentas-equipo.tsx`, `lib/tipos.ts`; `test/activar.test.js` (nuevo), `test/cuentas-equipo.test.js` (la prueba de T10 ya no espera 400 sin código); `CLAUDE.md`, `README.md`, `docs/PUBLICAR.md`, `docs/ENTREGABLE_Y_APP.md` (fila 27).
+- **Base de datos:** `usuarios.pendiente_codigo BOOLEAN NOT NULL DEFAULT false` (ALTER en `ESQUEMA`).
+- **Verificación:** `npm test` 228/228; `tsc --noEmit` sin errores; `npm run texto` sin hallazgos nuevos. **No se probó en el navegador** (falta recorrer el flujo con `NEXT_PUBLIC_WHATSAPP_VENTAS`).
+- **Siguiente paso exacto:** T17 (borrar mi cuenta y pasar la gerencia); su `DELETE /api/cuenta` debe quedar bajo `/api/cuenta/*` para que una cuenta pendiente pueda borrarse.
+- **Notas y bloqueos:** variable nueva `NEXT_PUBLIC_WHATSAPP_VENTAS` (hay que ponerla en Vercel y redeploy). En una base nueva, la primera cuenta necesita un código generado a mano (comando en `CLAUDE.md`).
+
+## 2026-11-22 (70) — Claude — T15 de PLAN_CORRECCIONES_SINESC: precios y nombres en la página principal
+- **Rama:** `cambios-sinesc`, solo en local, sin publicar.
+- **Estado:** las tres tarjetas dicen Administrador ($82.500, un usuario), Equipo completo ($89.700, gerente + administrador + un operador, destacada) y Cada usuario adicional (+$9.800). La nota del código describe el flujo de T16 (cuenta primero, código por WhatsApp con un asesor); **hasta hacer T16 el registro todavía pide el código**, y la página y el registro no coinciden.
+- **Archivos tocados:** `components/landing/pricing-section.tsx`; `docs/ENTREGABLE_Y_APP.md` (fila 21 corregida). `CLAUDE.md` no menciona precios, no cambió.
+- **Base de datos:** nada.
+- **Verificación:** `npm test` 225/225; `tsc --noEmit` sin errores; `npm run texto` sin hallazgos nuevos (los de tuteo son SQL, ya existían). No se miró en el navegador.
+- **Siguiente paso exacto:** T16 (código de acceso después del registro). Ahí se hace verdad la nota de T15.
+- **Notas y bloqueos:** `docs/RESUMEN_CAMBIOS_SINESC.md` y `PLAN_CAMBIOS_SINESC.md` conservan los precios viejos a propósito (historia).
+
 ## 2026-11-21 (69) — Claude — T14: importadores y contenedores (última tarea del plan)
 - **Rama:** `cambios-sinesc`, solo en local, sin commit (T5 a T13 tampoco).
 - **Estado:** T14 hecha como **extensión opcional**: `ajustes.importaciones` (apagada por defecto, casilla discreta al final de Proveedores). Apagada, la ficha, el pedido y los productos se ven como siempre y el servidor no recorta nada. Encendida: `condiciones[prov].contenedores` + `tipoContenedor` (cada proveedor se marca nacional o internacional con `condiciones[prov].internacional`, a pedido del usuario; los nacionales no llevan contenedores ni medidas, y el servidor descarta los contenedores de uno que no sea internacional), medidas por producto en la ficha del proveedor (`productos.medidas_cm`, "40x30x20"), `server/contenedores.js` (`capacidadDe`, `volumenDe`, `ajustarAContenedores`), recorte en `crearDesdeSugerido` y "Ocupa X de N contenedores" en el grupo del pedido (rojo si pasa).

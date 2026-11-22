@@ -6,7 +6,7 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { HORIZONTES, NOMBRE_UNIDAD, horizonteTexto, type Unidad } from '@/lib/formato'
-import type { Perfil, RolEmpresa } from '@/lib/tipos'
+import type { Perfil, RolEmpresa, TipoMovimiento, Usuario } from '@/lib/tipos'
 import { useInventario } from './contexto'
 import { Pildoras } from './ui'
 
@@ -102,6 +102,19 @@ export function SelectorVistaGerente({ vista, cambiar }: { vista: VistaGerente; 
 
 // Dónde empieza cada rol: el operador, por lo que registra; los demás, por el panel.
 export const INICIO: Record<RolEmpresa, string> = { operador: '/movimientos', administrador: '/panel', gerente: '/panel' }
+
+// Un operador registra o hace conteos solo con la marca de quien administra (server/movimientos.js,
+// exigirPermisoMovimientos); los demás roles siempre. Sin usuario (la demo) se muestra todo.
+export function puedeRegistrar(u: Usuario | null, tipo: TipoMovimiento): boolean {
+  if (!u || u.rolEmpresa !== 'operador') return true
+  return tipo === 'conteo' ? u.haceConteos : u.registraMovimientos
+}
+
+// Dónde empieza una persona: un operador sin ningún permiso de movimientos no tiene qué registrar y empieza en Existencias.
+export function inicioDe(u: Usuario | null | undefined): string {
+  const rol = u?.rolEmpresa ?? 'administrador'
+  return rol === 'operador' && !u?.registraMovimientos && !u?.haceConteos ? '/existencias' : INICIO[rol]
+}
 
 const cerca = (a: number, b: number) => Math.abs(a - b) < 0.05
 

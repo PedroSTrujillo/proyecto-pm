@@ -484,8 +484,17 @@ async function resolverDesconocidos(empresaId, lineas, porClave, resolver) {
   return { parecidos, nuevos, errores };
 }
 
+// Un operador registra entradas, ventas, devoluciones y salidas, o hace conteos, solo si quien administra
+// se lo marcó (T18). Gerente y administrador no necesitan permiso.
+function exigirPermisoMovimientos(usuario, tipos) {
+  if (rolEmpresa(usuario) !== 'operador') return;
+  if (tipos.some((t) => t !== 'conteo') && !usuario.registra_movimientos) throw new ErrorUsuario('No tiene permiso para registrar movimientos. Pídaselo a quien administra su empresa.', 403);
+  if (tipos.includes('conteo') && !usuario.hace_conteos) throw new ErrorUsuario('No tiene permiso para hacer conteos. Pídaselo a quien administra su empresa.', 403);
+}
+
 rutas.post('/', async (req, res) => {
   const lineas = Array.isArray(req.body?.movimientos) ? req.body.movimientos : [];
+  exigirPermisoMovimientos(req.usuario, lineas.map((l) => l?.tipo));
   if (!lineas.length) throw new ErrorUsuario('Escriba al menos un movimiento.');
   if (lineas.length > MAX_LINEAS) throw new ErrorUsuario(`Son más de ${MAX_LINEAS} movimientos. Regístralos en partes.`);
   const empresaId = req.usuario.empresa_id;
@@ -584,6 +593,8 @@ rutas.post(
   '/importar',
   (req, res, next) => require('./pedidos').subida.single('archivo')(req, res, next),
   async (req, res) => {
+    // Solo se lee el archivo: lo que se guarda lo revisa POST /. Basta con tener alguno de los dos permisos.
+    if (rolEmpresa(req.usuario) === 'operador' && !req.usuario.registra_movimientos && !req.usuario.hace_conteos) exigirPermisoMovimientos(req.usuario, ['venta']);
     // Aquí y no arriba: pedidos.js usa este archivo.
     const { importarLista } = require('./pedidos');
     res.json(await importarLista(req, null));
@@ -591,6 +602,8 @@ rutas.post(
 );
 
 rutas.post('/:id/anular', async (req, res) => {
+  const previo = await db.uno('SELECT tipo FROM movimientos WHERE id = $1 AND empresa_id = $2', [Number(req.params.id), req.usuario.empresa_id]);
+  if (previo) exigirPermisoMovimientos(req.usuario, [previo.tipo]);
   const m = await db.uno(
     'UPDATE movimientos SET anulado_en = now() WHERE id = $1 AND empresa_id = $2 AND anulado_en IS NULL RETURNING id, tipo',
     [Number(req.params.id), req.usuario.empresa_id],

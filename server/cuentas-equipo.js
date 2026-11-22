@@ -31,8 +31,9 @@ function enmascarar(email) {
  * Cómo va una cuenta, de lo que hizo: 'equipo', 'sin_datos' (no ha subido nada ni pedido),
  * 'activa' (algo en los últimos 7 días), 'en_riesgo' (8 a 30 días) o 'inactiva' (más de 30).
  */
-function estadoCuenta({ rol, ultimaActividad, archivos, pedidos, movimientos }, ahora = Date.now()) {
+function estadoCuenta({ rol, pendienteCodigo, ultimaActividad, archivos, pedidos, movimientos }, ahora = Date.now()) {
   if (rol === 'equipo') return 'equipo';
+  if (pendienteCodigo) return 'esperando_codigo';
   if (!archivos && !pedidos && !movimientos) return 'sin_datos';
   const dias = ultimaActividad ? (ahora - new Date(ultimaActividad).getTime()) / MS_DIA : Infinity;
   if (dias <= DIAS_ACTIVA) return 'activa';
@@ -44,7 +45,7 @@ function estadoCuenta({ rol, ultimaActividad, archivos, pedidos, movimientos }, 
 async function listarCuentas() {
   const [usuarios, eventos, pedidos, archivos, movimientos, sesiones, exportes, invitaciones] = await Promise.all([
     db.query(
-      `SELECT u.id, u.nombre, u.email, u.rol, u.perfil, u.cargo, u.sistema, u.creado_en, u.suspendida_en, u.admin_empresa, u.aprueba, u.boletin,
+      `SELECT u.id, u.nombre, u.email, u.rol, u.perfil, u.cargo, u.sistema, u.creado_en, u.suspendida_en, u.pendiente_codigo, u.admin_empresa, u.aprueba, u.boletin,
               e.id AS empresa_id, e.nombre AS empresa, e.vacia,
               (SELECT count(*)::int FROM usuarios m WHERE m.empresa_id = u.empresa_id) AS miembros
          FROM usuarios u LEFT JOIN empresas e ON e.id = u.empresa_id ORDER BY u.creado_en DESC, u.id DESC`,
@@ -85,6 +86,7 @@ async function listarCuentas() {
       sistema: u.sistema || null,
       creadoEn: u.creado_en,
       suspendidaEn: u.suspendida_en || null,
+      pendienteCodigo: Boolean(u.pendiente_codigo),
       boletin: Boolean(u.boletin),
       empresa: u.empresa_id
         ? {
@@ -105,7 +107,7 @@ async function listarCuentas() {
     };
     return { ...c, estado: estadoCuenta(c) };
   });
-  const resumen = { total: 0, activa: 0, en_riesgo: 0, inactiva: 0, sin_datos: 0, equipo: 0 };
+  const resumen = { total: 0, activa: 0, en_riesgo: 0, inactiva: 0, sin_datos: 0, esperando_codigo: 0, equipo: 0 };
   for (const c of cuentas) {
     resumen[c.estado]++;
     if (c.estado !== 'equipo') resumen.total++;

@@ -189,14 +189,15 @@ test('cerrar las sesiones de una cuenta la deja afuera', async () => {
   assert.equal((await leo.get('/api/cuenta/yo')).usuario, null);
 });
 
-test('crear una cuenta pide un código de acceso de un solo uso, y el equipo los genera y los ve', async () => {
+test('un código de acceso es de un solo uso, y el equipo los genera y los ve', async () => {
   const { c: eq } = await cuenta('Equipo 5', 'equipo5@prueba.co');
   await db.query("UPDATE usuarios SET rol = 'equipo', es_equipo = true WHERE email = 'equipo5@prueba.co'");
   const { c: normal } = await cuenta('Normal', 'normal-codigo@prueba.co');
   assert.equal((await normal.get('/api/equipo/cuentas/codigos')).estado, 403);
 
   const datos = { nombre: 'Rita', email: 'rita@prueba.co', clave: 'clave-segura', empresa: 'Rita SAS' };
-  assert.equal((await cliente().post('/api/cuenta/crear', datos)).estado, 400, 'sin código');
+  // Sin código la cuenta se crea pero queda esperándolo (T16, test/activar.test.js).
+  assert.equal((await cliente().post('/api/cuenta/crear', { ...datos, email: 'sin-codigo@prueba.co' })).usuario.pendienteCodigo, true, 'sin código');
   assert.equal((await cliente().post('/api/cuenta/crear', { ...datos, codigo: 'ZZZZ-ZZZZ' })).estado, 400, 'código inventado');
 
   const { nuevos } = await eq.post('/api/equipo/cuentas/codigos', { cantidad: 2, nota: 'Rita' });

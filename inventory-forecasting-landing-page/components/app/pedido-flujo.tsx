@@ -23,7 +23,7 @@ import { PedidoPreparar } from './pedido-preparar'
 import { useAutoguardado } from './autoguardado'
 import type { Aprobacion, Clase, EntradaHistorial, Estado } from '@/lib/tipos'
 
-export type LineaGuardada = { codigo: string; nombre?: string; cantidad: number | string; proveedor?: string; nota?: string }
+export type LineaGuardada = { codigo: string; nombre?: string; cantidad: number | string; proveedor?: string; nota?: string; costo?: number | string }
 type Conteo = { agregadas: number; quitadas: number; cambiadas: number; total: number }
 // Una línea de la foto de lo sugerido que se guardó al crear el pedido (server/pedidos.js).
 export type LineaSugerida = { codigo: string; nombre: string; proveedor: string; cantidad: number; estado: Estado; semanas: number | null; costo: number | null; existencias: number; familia?: string | null; clase?: Clase | null }

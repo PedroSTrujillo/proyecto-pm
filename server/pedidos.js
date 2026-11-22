@@ -261,7 +261,15 @@ function lineasDelCuerpo(body) {
     cantidad: l && l.cantidad !== undefined && l.cantidad !== null ? (typeof l.cantidad === 'number' ? l.cantidad : String(l.cantidad).slice(0, 30)) : '',
     ...(l && l.proveedor ? { proveedor: String(l.proveedor).replace(/\s+/g, ' ').trim().slice(0, 80) } : {}),
     ...(l && l.nota ? { nota: String(l.nota).replace(/\s+/g, ' ').trim().slice(0, 200) } : {}),
+    ...costoDe(l),
   }));
+}
+
+// El precio unitario que la persona negoció para esta línea (T19). Vale solo para este pedido: no toca
+// el catálogo. Vacío o inválido se omite y la línea vuelve al costo del catálogo.
+function costoDe(l) {
+  const n = l && l.costo !== undefined && l.costo !== null && l.costo !== '' ? Number(l.costo) : NaN;
+  return Number.isFinite(n) && n >= 0 ? { costo: Math.round(n * 1e6) / 1e6 } : {};
 }
 
 // Lo que se escribe para quien recibe o aprueba el pedido. undefined si no vino (no se toca).
@@ -451,7 +459,7 @@ async function crearDesdeSugerido(usuario) {
   const base = await inventarioDeEmpresa(usuario.empresa_id);
   if (!base) throw new ErrorUsuario('Para preparar un pedido, primero suba el archivo de su programa contable en Datos o registre sus movimientos.', 403);
   const foto = recortarAContenedores(base.inv, fotoSugerido(base.inv));
-  const lista = foto.map(({ codigo, nombre, cantidad, proveedor }) => ({ codigo, nombre, cantidad, proveedor }));
+  const lista = foto.map(({ codigo, nombre, cantidad, proveedor, costo }) => ({ codigo, nombre, cantidad, proveedor, ...(costo > 0 ? { costo } : {}) }));
   const p = await db.uno(
     `INSERT INTO pedidos (usuario_id, empresa_id, modo, tipo, export_id, sugerido, lista_final, semanas_agota)
      VALUES ($1, $2, 'sugerido', 'real', $3, $4::jsonb, $5::jsonb, $6) RETURNING *`,
@@ -502,6 +510,7 @@ rutas.post('/borrador/linea', async (req, res) => {
       nombre: String(previa.nombre || deFoto.nombre || req.body?.nombre || '').slice(0, 200),
       cantidad: Math.round(cantidad * 1e6) / 1e6,
       ...(proveedor ? { proveedor } : {}),
+      ...(previa.costo === undefined && deFoto.costo > 0 ? { costo: deFoto.costo } : {}),
     };
     if (i >= 0) lineas[i] = linea;
     else lineas.push(linea);
@@ -1101,7 +1110,8 @@ async function lineasParaExportar(req, p) {
         codigo: String(l.codigo),
         nombre: l.nombre || d.nombre || '',
         cantidad: Math.max(0, Number(l.cantidad) || 0),
-        costo: d.costo > 0 ? d.costo : 0,
+        // El precio que se escribió en el pedido (T19) manda sobre el del catálogo.
+        costo: l.costo !== undefined ? l.costo : d.costo > 0 ? d.costo : 0,
         semanas: d.semanas ?? null,
         nota: l.nota || '',
       };

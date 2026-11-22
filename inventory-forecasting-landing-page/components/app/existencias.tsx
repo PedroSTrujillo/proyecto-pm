@@ -10,7 +10,8 @@ import { cn } from '@/lib/utils'
 import { api, textoErrores } from '@/lib/api'
 import { claveCodigo, dia, numero } from '@/lib/formato'
 import type { Existencias as TExistencias, Movimiento, ProductoCatalogo } from '@/lib/tipos'
-import { useInventario } from './contexto'
+import { useInventario, useSesion } from './contexto'
+import { puedeRegistrar } from './vista'
 import { TEXTO_TIPO } from './movimientos'
 import { Aviso, Boton, BotonEnlace, Cargando, ErrorLista, Tarjeta, Titulo, claseEntrada } from './ui'
 
@@ -24,6 +25,9 @@ const CONTEO = 'Si lo que hay en la bodega no coincide, haga un conteo: las exis
 
 export function Existencias() {
   const { inventario, recargar } = useInventario()
+  const { usuario } = useSesion()
+  const puedeContar = puedeRegistrar(usuario, 'conteo')
+  const puedeMovimientos = puedeContar || puedeRegistrar(usuario, 'venta')
   const [datos, setDatos] = useState<TExistencias | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [q, setQ] = useState('')
@@ -73,8 +77,8 @@ export function Existencias() {
         }
         acciones={
           <>
-            <BotonEnlace href="/movimientos" variante="primario">Registrar movimientos</BotonEnlace>
-            <Boton onClick={() => setContando((v) => !v)} aria-pressed={contando}><ClipboardCheck /> {contando ? 'Cancelar conteo' : 'Hacer un conteo'}</Boton>
+            {puedeMovimientos && <BotonEnlace href="/movimientos" variante="primario">Registrar movimientos</BotonEnlace>}
+            {puedeContar && <Boton onClick={() => setContando((v) => !v)} aria-pressed={contando}><ClipboardCheck /> {contando ? 'Cancelar conteo' : 'Hacer un conteo'}</Boton>}
           </>
         }
       >

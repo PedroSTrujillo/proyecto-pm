@@ -284,8 +284,15 @@ const ESQUEMA = [
   'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cargo TEXT',
   // Un operador solo sube el archivo de inventario si quien administra se lo marca (T4 de docs/PLAN_CAMBIOS_SINESC.md).
   'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS sube_datos BOOLEAN NOT NULL DEFAULT false',
+  // Un operador registra movimientos y hace conteos solo si quien administra se lo marca (T18).
+  'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS registra_movimientos BOOLEAN NOT NULL DEFAULT false',
+  'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS hace_conteos BOOLEAN NOT NULL DEFAULT false',
   // Cuenta suspendida por el equipo (T11): no entra ni recibe el boletín, pero sus datos se quedan.
   'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS suspendida_en TIMESTAMPTZ',
+  // Cuenta creada que aún no escribió su código de acceso (T16): solo ve la ventana para activarla.
+  'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS pendiente_codigo BOOLEAN NOT NULL DEFAULT false',
+  // A qué se dedica la empresa (T21): elige las noticias de regulación que ve el gerente (server/noticias.js).
+  'ALTER TABLE empresas ADD COLUMN IF NOT EXISTS sector TEXT',
   // El gerente (quien fundó la empresa) siempre es administrador y aprueba; nadie le cambia el rol.
   "UPDATE usuarios SET perfil = 'analista', aprueba = true WHERE admin_empresa AND (perfil <> 'analista' OR NOT aprueba)",
   'ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS enviado_en TIMESTAMPTZ',
@@ -310,6 +317,8 @@ const ESQUEMA = [
     creado_en TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,
   'CREATE INDEX IF NOT EXISTS pedido_cambios_pedido ON pedido_cambios(pedido_id, creado_en)',
+  // Qué cambió de la línea: NULL = la cantidad, 'costo' = el precio unitario del pedido (T19).
+  'ALTER TABLE pedido_cambios ADD COLUMN IF NOT EXISTS campo TEXT',
   // SP7: desde cuántas semanas de inventario sobra cada producto (NULL = las 12 de siempre). Se
   // aplica encima del reporte guardado, sin recalcularlo (server/inventario.js, conSobraPropia).
   // Las alertas del boletín van en usuarios.preferencias.alertas (server/alertas.js), sin columna.

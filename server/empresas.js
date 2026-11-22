@@ -17,7 +17,8 @@
 const crypto = require('crypto');
 const express = require('express');
 const db = require('./db');
-const { requiereUsuario, requiereAdminEmpresa, rolEmpresa, RANGO, registrarEvento, ErrorUsuario, hashToken, baseDe, leerCargo, DIAS_INVITACION } = require('./cuentas');
+const { SECTORES } = require('./noticias');
+const { requiereUsuario, requiereAdminEmpresa, requiereRol, rolEmpresa, RANGO, registrarEvento, ErrorUsuario, hashToken, baseDe, leerCargo, DIAS_INVITACION } = require('./cuentas');
 const { abrirImagen } = require('./pdf');
 
 // El logo va en el PDF y el Excel del pedido: PNG o JPG pequeño, para que el archivo no pese.
@@ -67,8 +68,8 @@ function leerRol(req, rol) {
 }
 
 async function vistaEmpresa(empresaId) {
-  const e = await db.uno('SELECT id, nombre, nit, vacia, creado_en, logo IS NOT NULL AS con_logo FROM empresas WHERE id = $1', [empresaId]);
-  const miembros = await db.query('SELECT aprueba, sube_datos, id, nombre, email, perfil, admin_empresa, cargo, creado_en FROM usuarios WHERE empresa_id = $1 ORDER BY creado_en', [empresaId]);
+  const e = await db.uno('SELECT id, nombre, nit, sector, vacia, creado_en, logo IS NOT NULL AS con_logo FROM empresas WHERE id = $1', [empresaId]);
+  const miembros = await db.query('SELECT aprueba, sube_datos, registra_movimientos, hace_conteos, id, nombre, email, perfil, admin_empresa, cargo, creado_en FROM usuarios WHERE empresa_id = $1 ORDER BY creado_en', [empresaId]);
   const invitaciones = await db.query(
     'SELECT email, creada_en, expira_en FROM invitaciones WHERE empresa_id = $1 AND usada_en IS NULL AND expira_en > now() ORDER BY creada_en DESC',
     [empresaId],
@@ -77,10 +78,11 @@ async function vistaEmpresa(empresaId) {
     id: e.id,
     nombre: e.nombre,
     nit: e.nit,
+    sector: SECTORES[e.sector] ? e.sector : null,
     vacia: e.vacia,
     creadoEn: e.creado_en,
     logo: Boolean(e.con_logo),
-    miembros: miembros.map((m) => ({ id: m.id, nombre: m.nombre, email: m.email, perfil: m.perfil, rol: rolEmpresa(m), admin: m.admin_empresa, aprueba: m.aprueba, subeDatos: m.sube_datos, cargo: m.cargo || '', desde: m.creado_en })),
+    miembros: miembros.map((m) => ({ id: m.id, nombre: m.nombre, email: m.email, perfil: m.perfil, rol: rolEmpresa(m), admin: m.admin_empresa, aprueba: m.aprueba, subeDatos: m.sube_datos, registraMovimientos: m.registra_movimientos, haceConteos: m.hace_conteos, cargo: m.cargo || '', desde: m.creado_en })),
     invitacionesAbiertas: invitaciones.map((i) => ({ email: i.email, creadaEn: i.creada_en, expiraEn: i.expira_en })),
   };
 }
@@ -93,7 +95,10 @@ rutas.put('/', requiereAdminEmpresa, async (req, res) => {
   const nombre = String(req.body?.nombre || '').trim().slice(0, 120);
   const nit = String(req.body?.nit || '').trim().slice(0, 30) || null;
   if (!nombre) throw new ErrorUsuario('Escriba el nombre de la empresa.');
-  await db.query('UPDATE empresas SET nombre = $1, nit = $2, vacia = false WHERE id = $3', [nombre, nit, req.usuario.empresa_id]);
+  // El sector solo cambia si viene; vacío lo quita.
+  const sector = req.body?.sector === undefined ? undefined : String(req.body.sector || '') || null;
+  if (sector && !SECTORES[sector]) throw new ErrorUsuario('Elija un sector de la lista.');
+  await db.query('UPDATE empresas SET nombre = $1, nit = $2, vacia = false, sector = CASE WHEN $4::boolean THEN $5 ELSE sector END WHERE id = $3', [nombre, nit, req.usuario.empresa_id, sector !== undefined, sector ?? null]);
   await registrarEvento(req.usuario.id, 'empresa_actualizada');
   res.json({ empresa: await vistaEmpresa(req.usuario.empresa_id) });
 });
@@ -130,16 +135,18 @@ rutas.post('/invitaciones', requiereAdminEmpresa, async (req, res) => {
 
 // El rol de cada persona (T1), quién aprueba pedidos (D11) y su cargo. Solo cambia lo que viene.
 rutas.put('/miembros/:id', requiereAdminEmpresa, async (req, res) => {
-  const m = await db.uno('SELECT aprueba, sube_datos, id, nombre, cargo, perfil, admin_empresa FROM usuarios WHERE id = $1 AND empresa_id = $2', [Number(req.params.id), req.usuario.empresa_id]);
+  const m = await db.uno('SELECT aprueba, sube_datos, registra_movimientos, hace_conteos, id, nombre, cargo, perfil, admin_empresa FROM usuarios WHERE id = $1 AND empresa_id = $2', [Number(req.params.id), req.usuario.empresa_id]);
   if (!m) throw new ErrorUsuario('Esa persona no está en su empresa.', 404);
   exigirRangoSobre(req, m);
   const rol = req.body?.rol === undefined ? rolEmpresa(m) : leerRol(req, req.body.rol);
   // Un operador no abre los pedidos, así que no aprueba; y solo sube el archivo de inventario si se le marca.
   const aprueba = rol === 'operador' ? false : typeof req.body?.aprueba === 'boolean' ? req.body.aprueba : m.aprueba;
   const subeDatos = typeof req.body?.subeDatos === 'boolean' ? req.body.subeDatos : m.sube_datos;
+  const registraMovimientos = typeof req.body?.registraMovimientos === 'boolean' ? req.body.registraMovimientos : m.registra_movimientos;
+  const haceConteos = typeof req.body?.haceConteos === 'boolean' ? req.body.haceConteos : m.hace_conteos;
   const cargo = req.body?.cargo === undefined ? m.cargo : leerCargo(req.body.cargo);
-  await db.query('UPDATE usuarios SET aprueba = $1, cargo = $2, perfil = $3, sube_datos = $4 WHERE id = $5', [aprueba, cargo, rol === 'administrador' ? 'analista' : 'operador', subeDatos, m.id]);
-  await registrarEvento(req.usuario.id, 'miembro_editado', { detalle: { usuario: m.id, antes: { aprueba: m.aprueba, subeDatos: m.sube_datos, cargo: m.cargo, rol: rolEmpresa(m) }, despues: { aprueba, subeDatos, cargo, rol } } });
+  await db.query('UPDATE usuarios SET aprueba = $1, cargo = $2, perfil = $3, sube_datos = $4, registra_movimientos = $5, hace_conteos = $6 WHERE id = $7', [aprueba, cargo, rol === 'administrador' ? 'analista' : 'operador', subeDatos, registraMovimientos, haceConteos, m.id]);
+  await registrarEvento(req.usuario.id, 'miembro_editado', { detalle: { usuario: m.id, antes: { aprueba: m.aprueba, subeDatos: m.sube_datos, registraMovimientos: m.registra_movimientos, haceConteos: m.hace_conteos, cargo: m.cargo, rol: rolEmpresa(m) }, despues: { aprueba, subeDatos, registraMovimientos, haceConteos, cargo, rol } } });
   res.json({ empresa: await vistaEmpresa(req.usuario.empresa_id) });
 });
 
@@ -185,6 +192,46 @@ rutas.delete('/miembros/:id', requiereAdminEmpresa, async (req, res) => {
     await t.query("UPDATE usuarios SET aprueba = true, perfil = 'analista', empresa_id = $1, admin_empresa = true WHERE id = $2", [rows[0].id, id]);
   });
   await registrarEvento(req.usuario.id, 'miembro_retirado', { detalle: { usuario: id } });
+  res.json({ empresa: await vistaEmpresa(req.usuario.empresa_id) });
+});
+
+// Qué hizo cada persona de la empresa (T20): archivos que subió, movimientos y pedidos, con el nombre del
+// archivo (son de la propia empresa del gerente; el equipo de SINESC no los ve, cuentas-equipo.js).
+const TIPOS_ACTIVIDAD = ['archivo_subido', 'export_reusado', 'movimientos_registrados', 'pedido_enviado', 'pedido_aprobado', 'pedido_devuelto', 'pedido_terminado'];
+
+rutas.get('/actividad', requiereRol('gerente'), async (req, res) => {
+  const pedido = Number(req.query.dias);
+  const dias = Number.isInteger(pedido) && pedido >= 1 && pedido <= 90 ? pedido : 30;
+  const filas = await db.query(
+    `SELECT e.tipo, e.detalle, e.creado_en, u.nombre, u.cargo,
+            CASE WHEN p.id IS NULL THEN NULL
+                 ELSE (SELECT count(*)::int FROM pedidos x WHERE x.usuario_id = p.usuario_id AND x.id <= p.id AND x.borrado_en IS NULL) END AS numero
+       FROM eventos e JOIN usuarios u ON u.id = e.usuario_id LEFT JOIN pedidos p ON p.id = e.pedido_id
+      WHERE u.empresa_id = $1 AND e.tipo = ANY($2::text[]) AND e.creado_en > now() - ($3 * interval '1 day')
+      ORDER BY e.creado_en DESC LIMIT 300`,
+    [req.usuario.empresa_id, TIPOS_ACTIVIDAD, dias],
+  );
+  res.json({
+    dias,
+    eventos: filas.map((f) => {
+      const d = f.detalle || {};
+      const archivo = Array.isArray(d.archivos) ? d.archivos.join(', ') : d.nombre || null;
+      return { quien: f.nombre, cargo: f.cargo || '', tipo: f.tipo, archivo, pedido: f.numero, cantidad: d.cantidad ?? d.lineas ?? null, fecha: f.creado_en };
+    }),
+  });
+});
+
+// Pasar la gerencia a mano (T17): quien la pasa queda como administrador. Sin ascenso automático.
+rutas.put('/gerente', requiereRol('gerente'), async (req, res) => {
+  const id = Number(req.body?.usuarioId);
+  if (id === req.usuario.id) throw new ErrorUsuario('Usted ya es el gerente.');
+  const m = await db.uno('SELECT id FROM usuarios WHERE id = $1 AND empresa_id = $2', [id, req.usuario.empresa_id]);
+  if (!m) throw new ErrorUsuario('Esa persona no está en su empresa.', 404);
+  await db.tx(async (t) => {
+    await t.query("UPDATE usuarios SET admin_empresa = true, perfil = 'analista', aprueba = true WHERE id = $1", [id]);
+    await t.query("UPDATE usuarios SET admin_empresa = false, perfil = 'analista' WHERE id = $1", [req.usuario.id]);
+  });
+  await registrarEvento(req.usuario.id, 'gerencia_pasada', { detalle: { usuario: id } });
   res.json({ empresa: await vistaEmpresa(req.usuario.empresa_id) });
 });
 
