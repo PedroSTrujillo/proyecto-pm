@@ -128,7 +128,7 @@ async function enviarBoletines({ hoy = fechaBogota(), soloUsuario = null, forzar
   const noRepetir = forzar ? '' : (params.push(hoy), `AND NOT EXISTS (SELECT 1 FROM boletines b WHERE b.usuario_id = u.id AND b.fecha = $${params.length})`);
   const usuarios = await db.query(
     `SELECT u.id, u.nombre, u.email, u.perfil, u.preferencias, u.empresa_id, u.aprueba, u.admin_empresa FROM usuarios u
-      WHERE u.empresa_id IS NOT NULL AND u.suspendida_en IS NULL AND ${filtro}
+      WHERE u.empresa_id IS NOT NULL AND u.suspendida_en IS NULL AND NOT u.pendiente_codigo AND ${filtro}
         ${noRepetir}
       ORDER BY u.empresa_id, u.id`,
     params,

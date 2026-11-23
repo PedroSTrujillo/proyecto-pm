@@ -10,6 +10,7 @@ const ejemplos = require('./ejemplos');
 const cuentasEquipo = require('./cuentas-equipo');
 const exportar = require('./exportar');
 const reportes = require('./reportes');
+const noticias = require('./noticias');
 const empresas = require('./empresas');
 const movimientos = require('./movimientos');
 const boletin = require('./boletin');
@@ -61,6 +62,8 @@ function crearApp({ web = null, dev = false } = {}) {
   const porCorreo = (req) => req.body && req.body.email;
   app.use('/api/cuenta/entrar', limitar({ max: 8, minutos: 15, clave: porCorreo, mensaje: 'Demasiados intentos para entrar. Espere 15 minutos o pida un enlace para cambiar su contraseña.' }));
   app.use('/api/cuenta/crear', limitar({ max: 10, minutos: 60 }));
+  app.use('/api/cuenta/borrar', limitar({ max: 5, minutos: 60, mensaje: 'Demasiados intentos. Espere una hora.' }));
+  app.use('/api/cuenta/activar', limitar({ max: 10, minutos: 60 }));
   app.use('/api/cuenta/olvide', limitar({ max: 5, minutos: 60, clave: porCorreo }));
   app.use('/api/cuenta/restablecer', limitar({ max: 10, minutos: 15 }));
   app.use('/api/empresa/invitaciones', limitar({ max: 30, minutos: 60 }));
@@ -68,6 +71,11 @@ function crearApp({ web = null, dev = false } = {}) {
 
   // Las rutas de la API cargan la sesión; las páginas y los archivos de Next no la necesitan.
   app.use('/api', cuentas.cargarUsuario);
+  // Una cuenta que espera su código solo puede usar /api/cuenta/* (yo, activar, salir…).
+  app.use('/api', (req, res, next) => {
+    if (!req.usuario?.pendiente_codigo || req.path.startsWith('/cuenta/')) return next();
+    res.status(403).json({ error: 'Active su cuenta con el código de acceso.', pendienteCodigo: true });
+  });
   app.use('/api/cuenta', cuentas.rutas);
   app.use('/api/pedidos', pedidos.rutas);
   app.use('/api/equipo/ejemplos', ejemplos.rutas);
@@ -82,6 +90,7 @@ function crearApp({ web = null, dev = false } = {}) {
   app.use('/api/boletin', boletin.baja);
   app.use('/api/exportar', exportar.rutas);
   app.use('/api/reportes', reportes.rutas);
+  app.use('/api/noticias', noticias.rutas);
   app.use('/api/encuesta', encuesta.rutas);
   app.use('/api/errores', errores.rutas);
 

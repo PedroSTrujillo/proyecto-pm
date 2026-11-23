@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { InventarioProvider, SesionProvider, useSesion } from './contexto'
+import { Activar } from './activar'
 import { Marco } from './marco'
 import { Cargando } from './ui'
 
@@ -14,6 +15,7 @@ function ConSesion({ children }: { children: ReactNode }) {
       </div>
     )
   }
+  if (usuario.pendienteCodigo) return <Activar />
   return (
     <InventarioProvider fuente={{ tipo: 'cuenta' }}>
       <Marco>{children}</Marco>

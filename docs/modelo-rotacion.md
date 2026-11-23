@@ -212,6 +212,8 @@ Ajustadas, quitadas y agregadas: C, Q y A de §4.1
 Aceptación del pedido = k ÷ s
 ```
 
+**El precio de la línea no entra (T19, 2026-11-22).** Quien prepara el pedido puede cambiar el precio unitario de cada línea (`lista_final[].costo`, se negocia con el proveedor). Vale solo para ese pedido, no cambia el costo del catálogo ni el dinero quieto, y la aceptación sigue midiendo solo cantidades: `compararListas` compara `cantidad`.
+
 Se guarda en `comparacion.aceptacion` al guardar la lista final. Si en la empresa alguien aprueba pedidos (SP6), se mide cuando quien prepara **envía** el pedido, porque es su decisión; lo que cambia después quien aprueba va aparte (`comparacion.aprobacion`, contra `pedidos.lista_enviada`) y no entra en la meta. Una línea agregada no baja k pero queda contada en A.
 
 **Por usuario**, en una ventana de 30 días (`PILOTO_DIAS`) desde el día de su primer pedido desde lo sugerido:

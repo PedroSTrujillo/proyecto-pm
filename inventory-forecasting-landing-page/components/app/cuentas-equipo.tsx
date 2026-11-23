@@ -13,7 +13,7 @@ import { useSesion } from './contexto'
 import { useConfirmar } from './confirmar'
 import { Aviso, Boton, Cargando, ErrorLista, Pildoras, Tarjeta, Titulo, claseEntrada, diasDesde } from './ui'
 
-type EstadoCuenta = 'activa' | 'en_riesgo' | 'inactiva' | 'sin_datos' | 'equipo'
+type EstadoCuenta = 'activa' | 'en_riesgo' | 'inactiva' | 'sin_datos' | 'esperando_codigo' | 'equipo'
 type Cuenta = {
   id: number
   nombre: string
@@ -61,6 +61,7 @@ const ESTADO: Record<EstadoCuenta, { texto: string; chip: string; descripcion: s
   en_riesgo: { texto: 'Sin volver', chip: 'bg-ambar-fondo text-ambar-texto border-ambar-borde', descripcion: 'Su última actividad fue hace 8 a 30 días' },
   inactiva: { texto: 'Inactiva', chip: 'bg-rojo-fondo text-rojo-texto border-rojo-borde', descripcion: 'Lleva más de 30 días sin entrar' },
   sin_datos: { texto: 'Sin datos', chip: 'bg-muted text-foreground/75 border-border', descripcion: 'Creó la cuenta, pero no ha subido archivos, pedidos ni movimientos' },
+  esperando_codigo: { texto: 'Esperando código', chip: 'bg-ambar-fondo text-ambar-texto border-ambar-borde', descripcion: 'Creó la cuenta y aún no escribe su código de acceso' },
   equipo: { texto: 'Equipo', chip: 'bg-azul-fondo text-azul-texto border-azul-borde', descripcion: 'Cuenta del equipo: no cuenta en los resultados' },
 }
 
@@ -139,7 +140,7 @@ type Filtro = 'todas' | EstadoCuenta
 
 type CodigoAcceso = { codigo: string; nota: string | null; creadoEn: string; usadoEn: string | null; usadoPor: { nombre: string | null; email: string | null } | null }
 
-// Sin código no se crea una cuenta (server/cuentas.js): el equipo genera uno por persona y se lo entrega.
+// Sin código no se activa una cuenta (server/cuentas.js): el equipo genera uno por persona y se lo entrega.
 function CodigosAcceso() {
   const [codigos, setCodigos] = useState<CodigoAcceso[] | null>(null)
   const [nota, setNota] = useState('')
@@ -277,6 +278,7 @@ export function CuentasEquipo() {
     { id: 'en_riesgo', texto: 'Sin volver', cuenta: r.en_riesgo },
     { id: 'inactiva', texto: 'Inactivas', cuenta: r.inactiva },
     { id: 'sin_datos', texto: 'Sin datos', cuenta: r.sin_datos },
+    { id: 'esperando_codigo', texto: 'Esperando código', cuenta: r.esperando_codigo },
     { id: 'equipo', texto: 'Equipo', cuenta: r.equipo },
   ]
 

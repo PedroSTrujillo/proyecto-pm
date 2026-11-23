@@ -35,7 +35,8 @@ type Fila = {
   estado: Estado | null
   semanas: number | null
   existencias: number | null
-  costo: number | null
+  costo: number | null // el del catálogo
+  precio: string // el de este pedido (T19): empieza en el del catálogo y se puede negociar
   familia: string | null
   clase: Clase | null
   ventaAlta: boolean
@@ -53,6 +54,15 @@ function etiquetas(p: Producto | undefined, foto?: { familia?: string | null; cl
 
 type FiltroEstado = 'todos' | 'agota' | 'pide' | 'otros'
 const MUCHAS_FILAS = 80 // con más, al entrar solo se abre el primer proveedor
+
+// El precio con el que arranca una línea: el que se guardó en el pedido o, si no, el del catálogo.
+const precioInicial = (guardado: number | string | undefined, base: number | null) => String(guardado ?? (base && base > 0 ? base : ''))
+
+// El precio escrito como número, o null si está vacío o no se entiende (entonces vale el del catálogo).
+const precioDe = (f: { precio: string }) => {
+  const n = f.precio.trim() === '' ? NaN : Number(f.precio.replace(',', '.'))
+  return Number.isFinite(n) && n >= 0 ? n : null
+}
 
 const cantidadDe = (t: string) => {
   const n = Number(String(t).replace(',', '.'))
@@ -82,12 +92,12 @@ export function PedidoPreparar({ pedido, alCambiar }: { pedido: Pedido; alCambia
     const deFoto: Fila[] = (pedido.sugerido || []).map((s) => {
       const clave = claveCodigo(s.codigo)
       const l = final.get(clave)
-      return { clave, codigo: s.codigo, nombre: s.nombre, proveedor: s.proveedor || 'Sin proveedor', sugerido: s.cantidad, estado: s.estado, semanas: s.semanas, existencias: s.existencias, costo: s.costo, ...etiquetas(productos.get(clave), s), cantidad: String(l ? l.cantidad : s.cantidad), nota: l?.nota || '', incluida: Boolean(l) }
+      return { clave, codigo: s.codigo, nombre: s.nombre, proveedor: s.proveedor || 'Sin proveedor', sugerido: s.cantidad, estado: s.estado, semanas: s.semanas, existencias: s.existencias, costo: s.costo, precio: precioInicial(l?.costo, s.costo), ...etiquetas(productos.get(clave), s), cantidad: String(l ? l.cantidad : s.cantidad), nota: l?.nota || '', incluida: Boolean(l) }
     })
     const enFoto = new Set(deFoto.map((f) => f.clave))
     const agregadas: Fila[] = (pedido.listaFinal || []).filter((l) => !enFoto.has(claveCodigo(l.codigo))).map((l) => {
       const p = productos.get(claveCodigo(l.codigo))
-      return { clave: claveCodigo(l.codigo), codigo: l.codigo, nombre: l.nombre || p?.nombre || '', proveedor: l.proveedor || p?.proveedor || 'Sin proveedor', sugerido: null, estado: p?.estado ?? null, semanas: p?.semanas ?? null, existencias: p?.existencias ?? null, costo: p?.costo ?? null, ...etiquetas(p), cantidad: String(l.cantidad), nota: l.nota || '', incluida: true }
+      return { clave: claveCodigo(l.codigo), codigo: l.codigo, nombre: l.nombre || p?.nombre || '', proveedor: l.proveedor || p?.proveedor || 'Sin proveedor', sugerido: null, estado: p?.estado ?? null, semanas: p?.semanas ?? null, existencias: p?.existencias ?? null, costo: p?.costo ?? null, precio: precioInicial(l.costo, p?.costo ?? null), ...etiquetas(p), cantidad: String(l.cantidad), nota: l.nota || '', incluida: true }
     })
     return [...deFoto, ...agregadas]
   })
@@ -107,7 +117,7 @@ export function PedidoPreparar({ pedido, alCambiar }: { pedido: Pedido; alCambia
   const [cerrando, setCerrando] = useState(false)
 
   const lineas = (fs: Fila[] = filas): LineaGuardada[] =>
-    fs.filter((f) => f.incluida).map((f) => ({ codigo: f.codigo, nombre: f.nombre, cantidad: f.cantidad, proveedor: f.proveedor === 'Sin proveedor' ? undefined : f.proveedor, ...(f.nota.trim() ? { nota: f.nota.trim() } : {}) }))
+    fs.filter((f) => f.incluida).map((f) => ({ codigo: f.codigo, nombre: f.nombre, cantidad: f.cantidad, proveedor: f.proveedor === 'Sin proveedor' ? undefined : f.proveedor, ...(f.nota.trim() ? { nota: f.nota.trim() } : {}), ...(precioDe(f) !== null ? { costo: precioDe(f)! } : {}) }))
   // El hook guarda con la versión de esta función del último dibujo: siempre lo más reciente.
   const auto = useAutoguardado(() => api('PUT', `/pedidos/${pedido.id}/lista-final`, { lineas: lineas(), observaciones }))
 
@@ -148,13 +158,13 @@ export function PedidoPreparar({ pedido, alCambiar }: { pedido: Pedido; alCambia
   const familias = [...new Set(filas.map((f) => f.familia).filter((x): x is string => Boolean(x)))].sort((a, b) => a.localeCompare(b, 'es'))
   const hayClases = vivas.some((f) => f.clase || f.ventaAlta || f.pedidoReciente)
 
-  const conCosto = filas.some((f) => f.costo && f.costo > 0)
+  const conCosto = filas.some((f) => (precioDe(f) ?? 0) > 0)
   const totales = (fs: Fila[]) => {
     const inc = fs.filter((f) => f.incluida)
     return {
       lineas: inc.length,
       unidades: inc.reduce((s, f) => s + (cantidadDe(f.cantidad) || 0), 0),
-      valor: inc.reduce((s, f) => s + (cantidadDe(f.cantidad) || 0) * (f.costo || 0), 0),
+      valor: inc.reduce((s, f) => s + (cantidadDe(f.cantidad) || 0) * (precioDe(f) ?? 0), 0),
     }
   }
   const total = totales(filas)
@@ -183,9 +193,9 @@ export function PedidoPreparar({ pedido, alCambiar }: { pedido: Pedido; alCambia
   }
 
   async function volverASugerido() {
-    const ok = await preguntar('¿Volver a lo sugerido?', 'Las cantidades vuelven a las que sugirió SINESC, se marcan todas las líneas sugeridas y se quitan las que agregó. Las notas se conservan.', 'Sí, volver')
+    const ok = await preguntar('¿Volver a lo sugerido?', 'Las cantidades y los precios vuelven a los que sugirió SINESC, se marcan todas las líneas sugeridas y se quitan las que agregó. Las notas se conservan.', 'Sí, volver')
     if (!ok) return
-    cambiarFilas((fs) => fs.filter((f) => f.sugerido !== null).map((f) => ({ ...f, cantidad: String(f.sugerido), incluida: true })))
+    cambiarFilas((fs) => fs.filter((f) => f.sugerido !== null).map((f) => ({ ...f, cantidad: String(f.sugerido), precio: precioInicial(undefined, f.costo), incluida: true })))
   }
 
   // Descargar desde el pedido guardado: primero se guarda lo pendiente.
@@ -275,7 +285,7 @@ export function PedidoPreparar({ pedido, alCambiar }: { pedido: Pedido; alCambia
   function agregar(codigo: string) {
     const p = productos.get(claveCodigo(codigo))
     if (!p) return
-    cambiarFilas((fs) => [...fs, { clave: claveCodigo(p.codigo), codigo: p.codigo, nombre: p.nombre, proveedor: p.proveedor || 'Sin proveedor', sugerido: null, estado: p.estado, semanas: p.semanas, existencias: p.existencias, costo: p.costo, ...etiquetas(p), cantidad: String(Math.max(p.sugerido ?? 0, 1)), nota: '', incluida: true }])
+    cambiarFilas((fs) => [...fs, { clave: claveCodigo(p.codigo), codigo: p.codigo, nombre: p.nombre, proveedor: p.proveedor || 'Sin proveedor', sugerido: null, estado: p.estado, semanas: p.semanas, existencias: p.existencias, costo: p.costo, precio: precioInicial(undefined, p.costo), ...etiquetas(p), cantidad: String(Math.max(p.sugerido ?? 0, 1)), nota: '', incluida: true }])
     setAbiertos((a) => new Set([...a, p.proveedor || 'Sin proveedor']))
     setBusca('')
   }
@@ -511,6 +521,8 @@ function Historial({ entradas }: { entradas: EntradaHistorial[] }) {
             <strong>{h.quien}</strong>{' '}
             {h.tipo === 'estado' ? (
               <>{h.texto.charAt(0).toLowerCase() + h.texto.slice(1)}{h.motivo ? `: «${h.motivo}»` : ''}</>
+            ) : h.campo === 'costo' ? (
+              <>cambió el precio de {h.nombre || h.codigo} ({h.codigo}) de {h.antes === null ? 'sin precio' : plata(h.antes)} a {h.despues === null ? 'sin precio' : plata(h.despues)}</>
             ) : h.antes === null ? (
               <>agregó {h.nombre || h.codigo} ({h.codigo}): {cant(h.despues)}</>
             ) : h.despues === null ? (
@@ -592,7 +604,18 @@ function TarjetasGrupo({ filas, cerrado, conCosto, alCambiar }: PropsGrupo) {
                   className={cn('mt-0.5 block h-11 w-28 rounded-lg border bg-card px-2 text-center text-cuerpo font-bold text-foreground tabular-nums focus:border-primary focus:outline-3 focus:outline-ring disabled:bg-muted', f.incluida && !(c > 0) ? 'border-rojo' : distinta ? 'border-highlight' : 'border-input')}
                 />
               </label>
-              {conCosto && <span className="pb-2.5 text-chico tabular-nums">{f.incluida && f.costo && c > 0 ? plata(c * f.costo) : ''}</span>}
+              <label className="text-nota text-muted-foreground">
+                Precio unitario
+                <input
+                  inputMode="decimal"
+                  value={f.precio}
+                  disabled={cerrado || !f.incluida}
+                  placeholder={cerrado ? '' : 'Sin precio'}
+                  onChange={(e) => alCambiar(f.clave, { precio: e.target.value.replace(/[^\d.,]/g, '') })}
+                  className={cn('mt-0.5 block h-11 w-32 rounded-lg border bg-card px-2 text-right text-cuerpo text-foreground tabular-nums focus:border-primary focus:outline-3 focus:outline-ring disabled:bg-muted', precioDe(f) !== null && precioDe(f) !== (f.costo ?? null) ? 'border-highlight' : 'border-input')}
+                />
+              </label>
+              {conCosto && <span className="pb-2.5 text-chico tabular-nums">{f.incluida && (precioDe(f) ?? 0) > 0 && c > 0 ? plata(c * precioDe(f)!) : ''}</span>}
             </div>
             <label className="mt-2 block pl-9 text-nota text-muted-foreground">
               Nota
@@ -615,7 +638,7 @@ function TarjetasGrupo({ filas, cerrado, conCosto, alCambiar }: PropsGrupo) {
 function TablaGrupoAncha({ filas, cerrado, conCosto, alCambiar }: PropsGrupo) {
   return (
     <div className="relative hidden overflow-x-auto sm:block">
-      <table className="w-full min-w-[720px] border-collapse text-cuerpo" data-privado>
+      <table className="w-full min-w-[820px] border-collapse text-cuerpo" data-privado>
         <thead>
           <tr className="text-left text-nota text-muted-foreground">
             <th scope="col" className="w-10 border-b border-border px-2 py-2 font-semibold"><span className="sr-only">Va en el pedido</span></th>
@@ -623,6 +646,7 @@ function TablaGrupoAncha({ filas, cerrado, conCosto, alCambiar }: PropsGrupo) {
             <th scope="col" className="border-b border-border px-2 py-2 text-right font-semibold">Alcanza para</th>
             <th scope="col" className="border-b border-border px-2 py-2 text-right font-semibold">Sugerido</th>
             <th scope="col" className="border-b border-border px-2 py-2 font-semibold">Cantidad</th>
+            <th scope="col" className="border-b border-border px-2 py-2 font-semibold">Precio unitario</th>
             {conCosto && <th scope="col" className="border-b border-border px-2 py-2 text-right font-semibold">Valor</th>}
             <th scope="col" className="border-b border-border px-2 py-2 font-semibold">Nota</th>
           </tr>
@@ -654,7 +678,18 @@ function TablaGrupoAncha({ filas, cerrado, conCosto, alCambiar }: PropsGrupo) {
                     className={cn('h-10 w-24 rounded-lg border bg-card px-2 text-center font-bold tabular-nums focus:border-primary focus:outline-3 focus:outline-ring disabled:bg-muted', f.incluida && !(c > 0) ? 'border-rojo' : distinta ? 'border-highlight' : 'border-input')}
                   />
                 </td>
-                {conCosto && <td className="border-b border-[#f0f1ee] px-2 py-2 text-right align-top whitespace-nowrap tabular-nums">{f.incluida && f.costo && c > 0 ? plata(c * f.costo) : '—'}</td>}
+                <td className="border-b border-[#f0f1ee] px-2 py-2 align-top">
+                  <input
+                    aria-label={`Precio unitario de ${f.nombre || f.codigo}`}
+                    inputMode="decimal"
+                    value={f.precio}
+                    disabled={cerrado || !f.incluida}
+                    placeholder={cerrado ? '' : 'Sin precio'}
+                    onChange={(e) => alCambiar(f.clave, { precio: e.target.value.replace(/[^\d.,]/g, '') })}
+                    className={cn('h-10 w-28 rounded-lg border bg-card px-2 text-right tabular-nums focus:border-primary focus:outline-3 focus:outline-ring disabled:bg-muted', precioDe(f) !== null && precioDe(f) !== (f.costo ?? null) ? 'border-highlight' : 'border-input')}
+                  />
+                </td>
+                {conCosto && <td className="border-b border-[#f0f1ee] px-2 py-2 text-right align-top whitespace-nowrap tabular-nums">{f.incluida && (precioDe(f) ?? 0) > 0 && c > 0 ? plata(c * precioDe(f)!) : '—'}</td>}
                 <td className="border-b border-[#f0f1ee] px-2 py-2 align-top">
                   <input
                     aria-label={`Nota de ${f.nombre || f.codigo}`}

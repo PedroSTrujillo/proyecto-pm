@@ -3,11 +3,14 @@
 // Mi cuenta: nombre, programa contable, contraseña, cómo usa la app (analista u operador, días,
 // semanas o meses) y el boletín diario con sus alertas (qué secciones trae y cada cuánto, SP7).
 
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useState, type FormEvent } from 'react'
 import { api, textoErrores } from '@/lib/api'
 import { SISTEMAS } from '@/lib/sistemas'
 import type { Frecuencia, TipoAlerta, Usuario } from '@/lib/tipos'
 import { cn } from '@/lib/utils'
+import { useConfirmar } from './confirmar'
 import { useSesion } from './contexto'
 import { Aviso, Boton, Campo, ErrorLista, Tarjeta, Titulo, claseEntrada } from './ui'
 import { SelectorTiempo, TEXTO_ROL } from './vista'
@@ -104,8 +107,49 @@ export function Cuenta() {
           {msgBoletin && <ErrorLista mensaje={msgBoletin.mensaje} lista={msgBoletin.lista} />}
           <TablaAlertas usuario={usuario} />
         </Tarjeta>
+        <EliminarCuenta usuario={usuario} />
       </div>
     </>
+  )
+}
+
+// --- Eliminar mi cuenta ---------------------------------------------------------------------------
+
+function EliminarCuenta({ usuario }: { usuario: Usuario }) {
+  const { fijar } = useSesion()
+  const router = useRouter()
+  const { ventana, preguntar } = useConfirmar()
+  const [error, setError] = useState<ReturnType<typeof textoErrores> | null>(null)
+
+  async function eliminar(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const d = Object.fromEntries(new FormData(e.currentTarget)) as Record<string, string>
+    const ok = await preguntar('¿Eliminar su cuenta?', 'Se borran sus pedidos y no se puede deshacer. El inventario de la empresa se queda con quienes siguen en ella.', 'Sí, eliminar mi cuenta', true)
+    if (!ok) return
+    setError(null)
+    try {
+      await api('POST', '/cuenta/borrar', { confirmacion: d.confirmacion, clave: d.clave })
+      fijar(null)
+      router.replace('/')
+    } catch (err) {
+      setError(textoErrores(err))
+    }
+  }
+
+  return (
+    <Tarjeta className="p-5 sm:p-6">
+      <h2 className="mb-1 text-xl font-bold">Eliminar mi cuenta</h2>
+      <p className="mb-4 text-chico text-muted-foreground">
+        Se borran su cuenta y sus pedidos. {usuario.rolEmpresa === 'gerente' && <>Si tiene personas en su empresa, primero <Link href="/empresa" className="font-semibold text-primary hover:text-primary-hover">pase la gerencia en Mi empresa</Link>.</>}
+      </p>
+      <form className="flex flex-col gap-4" onSubmit={eliminar} noValidate>
+        <Campo etiqueta="Escriba su correo para confirmar"><input className={claseEntrada} type="email" name="confirmacion" required autoComplete="off" placeholder={usuario.email} /></Campo>
+        <Campo etiqueta="Contraseña"><input className={claseEntrada} type="password" name="clave" required autoComplete="current-password" /></Campo>
+        {error && <ErrorLista mensaje={error.mensaje} lista={error.lista} />}
+        <Boton type="submit" variante="peligro" className="self-start">Eliminar mi cuenta</Boton>
+      </form>
+      {ventana}
+    </Tarjeta>
   )
 }
 

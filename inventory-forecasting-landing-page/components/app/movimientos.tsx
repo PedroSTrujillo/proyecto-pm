@@ -11,10 +11,11 @@ import { api, ErrorApi, textoErrores } from '@/lib/api'
 import { dia, numero } from '@/lib/formato'
 import type { Movimiento, ProductoCatalogo, TipoMovimiento } from '@/lib/tipos'
 import { useConfirmar } from './confirmar'
-import { useInventario } from './contexto'
+import { useInventario, useSesion } from './contexto'
 import { Aviso, Boton, BotonEnlace, Campo, Cargando, ErrorLista, Pildoras, Tarjeta, Titulo, claseEntrada } from './ui'
 import { Hoja, type HojaApi } from './hoja'
 import { ImportarLista } from './pedido-flujo'
+import { puedeRegistrar } from './vista'
 
 export const TIPOS: { id: TipoMovimiento; texto: string; ayuda: string; icono: ReactNode; signo: string }[] = [
   { id: 'venta', texto: 'Venta', ayuda: 'Lo que se vendió. Cuenta para el promedio de ventas.', icono: <ShoppingCart />, signo: '−' },
@@ -24,6 +25,12 @@ export const TIPOS: { id: TipoMovimiento; texto: string; ayuda: string; icono: R
   { id: 'conteo', texto: 'Conteo', ayuda: 'Se contó lo que hay: las existencias quedan en esa cantidad. Si no registra las ventas, lo que falte desde el conteo anterior se cuenta como vendido.', icono: <ClipboardCheck />, signo: '=' },
 ]
 export const TEXTO_TIPO = Object.fromEntries(TIPOS.map((t) => [t.id, t.texto])) as Record<TipoMovimiento, string>
+
+// Los tipos que esta persona puede registrar: un operador, según lo que quien administra le marcó.
+function useTipos() {
+  const { usuario } = useSesion()
+  return TIPOS.filter((t) => puedeRegistrar(usuario, t.id))
+}
 
 type Resultado = { guardados: number; creados?: string[]; avisos: string[]; en?: number }
 
@@ -65,6 +72,8 @@ function useCatalogo(q: string) {
 
 export function Movimientos() {
   const { recargar } = useInventario()
+  const { usuario } = useSesion()
+  const tipos = useTipos()
   const [hoy, setHoy] = useState<string | null>(null)
   const [fecha, setFecha] = useState<string>('')
   const [lista, setLista] = useState<Movimiento[] | null>(null)
@@ -110,6 +119,7 @@ export function Movimientos() {
   }
 
   async function anular(m: Movimiento) {
+    if (!puedeRegistrar(usuario, m.tipo)) return
     const ok = await preguntar(`¿Anular esta ${TEXTO_TIPO[m.tipo].toLowerCase()}?`, `${m.codigo} · ${numero(m.cantidad, 2)} el ${dia(m.fecha)}. No se borra: queda tachado en el historial y ya no cuenta en las existencias.`, 'Sí, anular', true)
     if (!ok) return
     await api('POST', `/movimientos/${m.id}/anular`)
@@ -118,6 +128,14 @@ export function Movimientos() {
   }
 
   if (!hoy) return errorLista ? <ErrorLista mensaje={errorLista} /> : <Cargando />
+  if (!tipos.length) {
+    return (
+      <>
+        <Titulo acciones={<BotonEnlace href="/existencias">Ver existencias</BotonEnlace>}>Movimientos</Titulo>
+        <Aviso tono="info">Todavía no tiene permiso para registrar movimientos ni hacer conteos. Pídaselo a quien administra su empresa en Mi empresa.</Aviso>
+      </>
+    )
+  }
 
   return (
     <>
@@ -191,7 +209,7 @@ export function Movimientos() {
                     <td className="border-b border-[#f0f1ee] px-2 py-2.5 text-right font-semibold tabular-nums">{TIPOS.find((t) => t.id === m.tipo)!.signo}{numero(m.cantidad, 2)}</td>
                     <td className="hidden border-b border-[#f0f1ee] px-2 py-2.5 text-sm text-muted-foreground sm:table-cell">{m.registro || '—'}</td>
                     <td className="border-b border-[#f0f1ee] px-2 py-2.5 text-right">
-                      {m.anulado ? <span className="text-sm no-underline">Anulado</span> : <Boton tamano="chico" variante="fantasma" onClick={() => anular(m)}><Undo2 /> Anular</Boton>}
+                      {m.anulado ? <span className="text-sm no-underline">Anulado</span> : !puedeRegistrar(usuario, m.tipo) ? null : <Boton tamano="chico" variante="fantasma" onClick={() => anular(m)}><Undo2 /> Anular</Boton>}
                     </td>
                   </tr>
                 ))}
@@ -206,10 +224,11 @@ export function Movimientos() {
 }
 
 function ElegirTipo({ valor, onCambio }: { valor: TipoMovimiento; onCambio: (t: TipoMovimiento) => void }) {
+  const tipos = useTipos()
   return (
     <div className="flex flex-col gap-1.5">
       <div role="radiogroup" aria-label="Tipo de movimiento" className="flex flex-wrap gap-2">
-        {TIPOS.map((t) => (
+        {tipos.map((t) => (
           <button
             key={t.id}
             type="button"
@@ -229,7 +248,7 @@ function ElegirTipo({ valor, onCambio }: { valor: TipoMovimiento; onCambio: (t: 
 
 // Un movimiento a la vez: tipo, producto, cantidad y Enter.
 function RegistroRapido({ fecha, hoy, cambiarFecha, alGuardar }: { fecha: string; hoy: string; cambiarFecha: (f: string) => void; alGuardar: (r: Resultado) => void }) {
-  const [tipo, setTipo] = useState<TipoMovimiento>('venta')
+  const [tipo, setTipo] = useState<TipoMovimiento>(useTipos()[0].id)
   const [codigo, setCodigo] = useState('')
   const [cantidad, setCantidad] = useState('')
   const [nota, setNota] = useState('')
@@ -370,7 +389,8 @@ function primeroDelMes(f: string) {
 
 function PegarVarios({ fecha, hoy, alGuardar }: { fecha: string; hoy: string; alGuardar: (r: Resultado) => void }) {
   const [forma, setForma] = useState<Forma>('dia')
-  const [tipo, setTipo] = useState<TipoMovimiento>('venta')
+  const { usuario } = useSesion()
+  const [tipo, setTipo] = useState<TipoMovimiento>(useTipos()[0].id)
   const [fechaLote, setFechaLote] = useState(fecha)
   const [desde, setDesde] = useState(() => primeroDelMes(hoy))
   const [hasta, setHasta] = useState(hoy)
@@ -446,7 +466,7 @@ function PegarVarios({ fecha, hoy, alGuardar }: { fecha: string; hoy: string; al
         etiqueta="Qué va a registrar"
         valor={forma}
         onCambio={(f) => { setForma(f); setError(null) }}
-        opciones={[{ id: 'dia', texto: 'Movimientos de un día' }, { id: 'periodo', texto: 'Ventas de un periodo' }]}
+        opciones={[{ id: 'dia', texto: 'Movimientos de un día' }, ...(puedeRegistrar(usuario, 'venta') ? [{ id: 'periodo' as const, texto: 'Ventas de un periodo' }] : [])]}
       />
       {periodo ? (
         <>

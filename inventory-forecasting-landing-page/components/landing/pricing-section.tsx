@@ -15,9 +15,9 @@ const incluye = [
 ]
 
 const planes = [
-  { nombre: 'Una persona', para: 'Gerente o administrador', precio: '$82.500', destacado: false },
-  { nombre: 'Con un operador', para: 'Gerente o administrador, y un operador', precio: '$90.000', destacado: true },
-  { nombre: 'Cada persona adicional', para: 'Sin importar su rol', precio: '+$10.000', destacado: false },
+  { nombre: 'Administrador', para: 'Un usuario', precio: '$82.500', destacado: false },
+  { nombre: 'Equipo completo', para: 'Gerente, administrador y un operador', precio: '$89.700', destacado: true },
+  { nombre: 'Cada usuario adicional', para: 'Sin importar su rol', precio: '+$9.800', destacado: false },
 ]
 
 export function PricingSection() {
@@ -68,8 +68,8 @@ export function PricingSection() {
             ))}
           </ul>
           <p className="mt-8 rounded-xl border border-border bg-card p-4 text-sm leading-relaxed text-muted-foreground">
-            Para crear cada cuenta se necesita un código de acceso de un solo uso, que le entrega el equipo de SINESC.
-            Cada persona lleva el suyo.
+            Cree su cuenta y un asesor le da su código de acceso por WhatsApp cuando confirme el pago.
+            Cada usuario lleva el suyo.
           </p>
         </div>
       </div>

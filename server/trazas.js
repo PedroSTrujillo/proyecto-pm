@@ -24,7 +24,8 @@ function cantidadDe(l) {
 
 /**
  * Las líneas que cambiaron entre dos listas, por código: [{ clave, codigo, nombre, antes, despues,
- * nota, cambioNota }]. antes/despues = null si la línea no estaba. Función pura.
+ * nota, cambioNota }]. antes/despues = null si la línea no estaba;
+ * campo = null (la cantidad) o 'costo' (el precio de la línea, T19). Función pura.
  */
 function diferencias(antes, despues) {
   const mapa = (ls) => new Map((ls || []).filter((l) => l && claveCodigo(l.codigo)).map((l) => [claveCodigo(l.codigo), l]));
@@ -39,9 +40,13 @@ function diferencias(antes, despues) {
     if (ca === undefined || cd === undefined) continue;
     const notaA = (la && la.nota) || '';
     const notaD = (ld && ld.nota) || '';
-    if (ca === cd && notaA === notaD) continue;
     const l = ld || la;
-    out.push({ clave, codigo: String(l.codigo).slice(0, 100), nombre: String(l.nombre || '').slice(0, 200), antes: ca, despues: cd, nota: notaD || null, cambioNota: notaA !== notaD });
+    const base = { clave, codigo: String(l.codigo).slice(0, 100), nombre: String(l.nombre || '').slice(0, 200) };
+    if (ca !== cd || notaA !== notaD) out.push({ ...base, campo: null, antes: ca, despues: cd, nota: notaD || null, cambioNota: notaA !== notaD });
+    // El precio de la línea (T19), solo si está en las dos listas: agregarla o quitarla ya lo dice la cantidad.
+    const pa = la && Number.isFinite(la.costo) ? la.costo : null;
+    const pd = ld && Number.isFinite(ld.costo) ? ld.costo : null;
+    if (la && ld && pa !== pd) out.push({ ...base, campo: 'costo', antes: pa, despues: pd, nota: null, cambioNota: false });
   }
   return out;
 }
@@ -58,20 +63,22 @@ async function anotarCambios(pedidoId, usuarioId, antes, despues, cliente = null
   if (!cambios.length) return 0;
   const q = cliente ? (s, p) => cliente.query(s, p).then((r) => r.rows) : db.query;
   const recientes = await q(
-    `SELECT id, codigo, antes, nota FROM pedido_cambios
+    `SELECT id, codigo, campo, antes, nota FROM pedido_cambios
       WHERE pedido_id = $1 AND usuario_id = $2 AND creado_en > now() - interval '${MINUTOS_JUNTAR} minutes'
       ORDER BY creado_en DESC`,
     [pedidoId, usuarioId],
   );
   const porClave = new Map();
-  for (const r of recientes) if (!porClave.has(claveCodigo(r.codigo))) porClave.set(claveCodigo(r.codigo), r);
+  // Una fila por código y por campo: la cantidad y el precio de una línea se anotan aparte.
+  const llave = (codigo, campo) => `${claveCodigo(codigo)}|${campo || ''}`;
+  for (const r of recientes) if (!porClave.has(llave(r.codigo, r.campo))) porClave.set(llave(r.codigo, r.campo), r);
   for (const c of cambios) {
-    const previa = porClave.get(c.clave);
+    const previa = porClave.get(llave(c.clave, c.campo));
     if (previa) {
       if (igual(previa.antes, c.despues) && !c.cambioNota && !previa.nota) await q('DELETE FROM pedido_cambios WHERE id = $1', [previa.id]);
       else await q('UPDATE pedido_cambios SET despues = $1, nota = $2, nombre = $3, creado_en = now() WHERE id = $4', [c.despues, c.nota, c.nombre, previa.id]);
     } else {
-      await q('INSERT INTO pedido_cambios (pedido_id, usuario_id, codigo, nombre, antes, despues, nota) VALUES ($1, $2, $3, $4, $5, $6, $7)', [pedidoId, usuarioId, c.codigo, c.nombre, c.antes, c.despues, c.nota]);
+      await q('INSERT INTO pedido_cambios (pedido_id, usuario_id, codigo, nombre, antes, despues, nota, campo) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)', [pedidoId, usuarioId, c.codigo, c.nombre, c.antes, c.despues, c.nota, c.campo]);
     }
   }
   return cambios.length;
@@ -97,7 +104,7 @@ const numeroO = (v) => (v === null || v === undefined ? null : Number(v));
  */
 async function historial(pedidoId) {
   const cambios = await db.query(
-    `SELECT c.creado_en, c.codigo, c.nombre, c.antes, c.despues, c.nota, u.nombre AS quien
+    `SELECT c.creado_en, c.codigo, c.campo, c.nombre, c.antes, c.despues, c.nota, u.nombre AS quien
        FROM pedido_cambios c LEFT JOIN usuarios u ON u.id = c.usuario_id
       WHERE c.pedido_id = $1 ORDER BY c.creado_en DESC LIMIT ${MAX_HISTORIAL}`,
     [pedidoId],
@@ -109,7 +116,7 @@ async function historial(pedidoId) {
     [pedidoId, Object.keys(EVENTOS)],
   );
   return [
-    ...cambios.map((c) => ({ en: c.creado_en, quien: c.quien || 'Alguien que ya no está', tipo: 'cambio', codigo: c.codigo, nombre: c.nombre, antes: numeroO(c.antes), despues: numeroO(c.despues), nota: c.nota || '' })),
+    ...cambios.map((c) => ({ en: c.creado_en, quien: c.quien || 'Alguien que ya no está', tipo: 'cambio', campo: c.campo || null, codigo: c.codigo, nombre: c.nombre, antes: numeroO(c.antes), despues: numeroO(c.despues), nota: c.nota || '' })),
     ...eventos.map((e) => ({ en: e.creado_en, quien: e.quien || 'Alguien que ya no está', tipo: 'estado', texto: EVENTOS[e.tipo], motivo: (e.detalle && e.detalle.motivo) || '' })),
   ]
     .sort((x, y) => new Date(y.en) - new Date(x.en))

@@ -8,7 +8,7 @@ import { useEffect, type ReactNode } from 'react'
 import type { RolEmpresa } from '@/lib/tipos'
 import { useSesion } from './contexto'
 import { Cargando } from './ui'
-import { INICIO } from './vista'
+import { inicioDe } from './vista'
 
 export function SoloRol({ permite, children }: { permite: RolEmpresa[]; children: ReactNode }) {
   const { usuario } = useSesion()
@@ -16,8 +16,8 @@ export function SoloRol({ permite, children }: { permite: RolEmpresa[]; children
   const rol = usuario?.rolEmpresa
   const permitido = Boolean(rol && permite.includes(rol))
   useEffect(() => {
-    if (rol && !permitido) router.replace(INICIO[rol])
-  }, [rol, permitido, router])
+    if (rol && !permitido) router.replace(inicioDe(usuario))
+  }, [rol, permitido, router, usuario])
   if (!permitido) return <Cargando />
   return <>{children}</>
 }

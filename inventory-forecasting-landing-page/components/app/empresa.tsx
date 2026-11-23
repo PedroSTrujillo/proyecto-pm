@@ -5,7 +5,7 @@
 // pedidos siguen siendo de cada quien, y quien aprueba ve los que le envían (SP6, D11).
 
 import { useEffect, useState, type FormEvent } from 'react'
-import { ImageUp, Trash2, UserMinus } from 'lucide-react'
+import { Crown, ImageUp, Trash2, UserMinus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { api, textoErrores } from '@/lib/api'
 import { fecha } from '@/lib/formato'
@@ -13,6 +13,7 @@ import type { Empresa as TEmpresa, RolEmpresa, Usuario } from '@/lib/tipos'
 import { useConfirmar } from './confirmar'
 import { useSesion } from './contexto'
 import { Aviso, Boton, Campo, Cargando, ErrorLista, Tarjeta, Titulo, claseEntrada } from './ui'
+import { SECTORES } from '@/lib/sectores'
 import { RANGO_ROL, TEXTO_ROL } from './vista'
 import { FormInvitar } from './invitar'
 
@@ -52,7 +53,7 @@ export function Empresa() {
   }
 
   // Quién aprueba pedidos y el cargo de cada quien. Si es la persona misma, la sesión también cambia.
-  async function cambiarMiembro(id: number, cambio: { aprueba?: boolean; subeDatos?: boolean; cargo?: string; rol?: RolEmpresa }) {
+  async function cambiarMiembro(id: number, cambio: { aprueba?: boolean; subeDatos?: boolean; registraMovimientos?: boolean; haceConteos?: boolean; cargo?: string; rol?: RolEmpresa }) {
     setErrorMiembro(null)
     try {
       const r = await api<{ empresa: TEmpresa }>('PUT', `/empresa/miembros/${id}`, cambio)
@@ -95,6 +96,19 @@ export function Empresa() {
     }
   }
 
+  async function pasarGerencia(id: number, nombre: string) {
+    const ok = await preguntar(`¿Pasar la gerencia a ${nombre}?`, `${nombre} queda como gerente de la empresa y usted como administrador. Solo ${nombre} podrá devolvérsela.`, 'Sí, pasar la gerencia', true)
+    if (!ok) return
+    try {
+      const r = await api<{ empresa: TEmpresa }>('PUT', '/empresa/gerente', { usuarioId: id })
+      setEmpresa(r.empresa)
+      // El rol de quien la pasó cambió: se recarga para que el menú y los permisos se ajusten.
+      fijar((await api<{ usuario: Usuario }>('GET', '/cuenta/yo')).usuario)
+    } catch (err) {
+      setErrorMiembro(textoErrores(err))
+    }
+  }
+
   async function sacar(id: number, nombre: string) {
     const ok = await preguntar(`¿Sacar a ${nombre} de la empresa?`, 'Conserva su cuenta y sus pedidos, pero deja de ver el inventario de la empresa.', 'Sí, sacar', true)
     if (!ok) return
@@ -118,6 +132,12 @@ export function Empresa() {
           <form className="flex flex-col gap-4" onSubmit={guardar} noValidate>
             <Campo etiqueta="Nombre"><input className={claseEntrada} name="nombre" required defaultValue={empresa.nombre} disabled={!admin} autoComplete="organization" /></Campo>
             <Campo etiqueta="NIT" nota="(opcional)"><input className={claseEntrada} name="nit" defaultValue={empresa.nit || ''} disabled={!admin} inputMode="numeric" /></Campo>
+            <Campo etiqueta="Sector" nota="(el gerente ve noticias de regulación de su sector)">
+              <select className={claseEntrada} name="sector" defaultValue={empresa.sector || ''} disabled={!admin}>
+                <option value="">Sin elegir</option>
+                {SECTORES.map((s) => <option key={s.id} value={s.id}>{s.etiqueta}</option>)}
+              </select>
+            </Campo>
             {msgDatos?.ok && <Aviso tono="ok">{msgDatos.ok}</Aviso>}
             {msgDatos?.error && <ErrorLista mensaje={msgDatos.error.mensaje} lista={msgDatos.error.lista} />}
             {admin ? <Boton type="submit" variante="primario" className="self-start">Guardar</Boton> : <p className="text-chico text-muted-foreground">Solo quien administra la empresa cambia estos datos.</p>}
@@ -179,7 +199,7 @@ export function Empresa() {
                 <span className="flex min-w-0 flex-col">
                   <strong className="truncate">{m.nombre}{m.id === usuario.id ? ' (usted)' : ''}</strong>
                   <span className="truncate text-chico text-muted-foreground">
-                    {m.email} · {TEXTO_ROL[m.rol].titulo}{!mio && m.cargo ? ` · ${m.cargo}` : ''}{!mio && m.aprueba ? ' · aprueba pedidos' : ''}{!mio && m.subeDatos ? ' · sube datos' : ''} · desde el {fecha(m.desde)}
+                    {m.email} · {TEXTO_ROL[m.rol].titulo}{!mio && m.cargo ? ` · ${m.cargo}` : ''}{!mio && m.aprueba ? ' · aprueba pedidos' : ''}{!mio && m.subeDatos ? ' · sube datos' : ''}{!mio && m.registraMovimientos ? ' · registra movimientos' : ''}{!mio && m.haceConteos ? ' · hace conteos' : ''} · desde el {fecha(m.desde)}
                   </span>
                 </span>
                 {mio && (
@@ -205,16 +225,27 @@ export function Empresa() {
                     />
                     {/* Un operador no abre los pedidos: no aprueba, y sube el archivo de inventario solo si se le marca. */}
                     {m.rol === 'operador' ? (
+                      <>
                       <label className="flex items-center gap-2 text-chico font-semibold">
                         <input type="checkbox" checked={m.subeDatos} onChange={(e) => cambiarMiembro(m.id, { subeDatos: e.target.checked })} className="size-5 accent-[var(--primary)]" />
                         Puede subir datos
                       </label>
+                      <label className="flex items-center gap-2 text-chico font-semibold">
+                        <input type="checkbox" checked={m.registraMovimientos} onChange={(e) => cambiarMiembro(m.id, { registraMovimientos: e.target.checked })} className="size-5 accent-[var(--primary)]" />
+                        Puede registrar movimientos
+                      </label>
+                      <label className="flex items-center gap-2 text-chico font-semibold">
+                        <input type="checkbox" checked={m.haceConteos} onChange={(e) => cambiarMiembro(m.id, { haceConteos: e.target.checked })} className="size-5 accent-[var(--primary)]" />
+                        Puede hacer conteos
+                      </label>
+                      </>
                     ) : (
                       <label className="flex items-center gap-2 text-chico font-semibold">
                         <input type="checkbox" checked={m.aprueba} onChange={(e) => cambiarMiembro(m.id, { aprueba: e.target.checked })} className="size-5 accent-[var(--primary)]" />
                         Puede aprobar pedidos
                       </label>
                     )}
+                    {usuario.rolEmpresa === 'gerente' && <Boton tamano="chico" onClick={() => pasarGerencia(m.id, m.nombre)}><Crown /> Pasar la gerencia</Boton>}
                     <Boton tamano="chico" variante="peligro" onClick={() => sacar(m.id, m.nombre)}><UserMinus /> Sacar</Boton>
                   </span>
                 )}

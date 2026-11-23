@@ -88,6 +88,7 @@ Abre http://localhost:3000. La página, la demo, las cuentas y la aplicación sa
 | `CRON_SECRET` | La clave con la que el Cron de Vercel llama `/api/tareas/boletin` (boletín diario). Sin ella la ruta responde 401. Vercel la manda sola en el encabezado `Authorization`. | una cadena larga al azar |
 | `BOLETIN_SECRETO` | Firma los enlaces "Dejar de recibirlo" del boletín. Si falta se usa `CRON_SECRET`. | una cadena larga al azar |
 | `NEXT_PUBLIC_POSTHOG_KEY` | Opcional. La clave del **proyecto** de PostHog (empieza por `phc_`, nunca la personal `phx_`). Sin ella no se carga nada. Se lee al compilar: después de ponerla hay que volver a desplegar. | `phc_…` |
+| `NEXT_PUBLIC_WHATSAPP_VENTAS` | Opcional. Número de WhatsApp del asesor, con código de país y sin `+` (la ventana de activación abre un chat con un mensaje ya escrito). Sin él, la ventana dice "escríbanos" sin enlace. Se lee al compilar. | `573001234567` |
 | `NEXT_PUBLIC_POSTHOG_REGION` | `eu` si el proyecto de PostHog está en Europa; si no, Estados Unidos. | `us` |
 | `NODE_ENV`, `PORT`, `DATA_DIR` | `production` exige HTTPS para la cookie de sesión; el puerto lo pone el hosting; `DATA_DIR=memory://` deja PGlite en memoria (lo usan las pruebas). | |
 

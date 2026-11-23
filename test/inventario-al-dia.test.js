@@ -46,6 +46,7 @@ function cliente() {
   return {
     get: (ruta) => pedir('GET', ruta),
     post: (ruta, cuerpo) => pedir('POST', ruta, cuerpo ?? {}),
+    put: (ruta, cuerpo) => pedir('PUT', ruta, cuerpo),
     subir: (ruta, archivos) => {
       const fd = new FormData();
       for (const [nombre, buf] of archivos) fd.append('archivos', new Blob([buf]), nombre);
@@ -107,7 +108,9 @@ test('cada movimiento que se guarda se ve en el panel, aunque el panel ya se hay
   const carla = cliente();
   assert.equal((await carla.post('/api/cuenta/crear', await conCodigo({ nombre: 'Carla', email: 'carla.dia@prueba.co', clave: 'clave-segura', invitacion: token }))).estado, 201);
   assert.equal(existenciasDe(await carla.get('/api/inventario'), 'TOR-0610'), 40);
-  // Y lo que ella registra lo ve Ana.
+  // Y lo que ella registra lo ve Ana (un operador registra cuando quien administra se lo marca, T18).
+  const idCarla = (await carla.get('/api/cuenta/yo')).usuario.id;
+  assert.equal((await ana.put(`/api/empresa/miembros/${idCarla}`, { registraMovimientos: true })).estado, 200);
   await carla.post('/api/movimientos', { movimientos: [{ codigo: 'TOR-0610', tipo: 'entrada', cantidad: 10, fecha: hoy }] });
   assert.equal(existenciasDe(await ana.get('/api/inventario'), 'TOR-0610'), 50);
 });

@@ -26,6 +26,8 @@ function revisarLista(lineas) {
     const nombre = l.nombre === null || l.nombre === undefined ? '' : String(l.nombre).trim().slice(0, 200);
     const proveedor = l.proveedor === null || l.proveedor === undefined ? '' : String(l.proveedor).replace(/\s+/g, ' ').trim().slice(0, 80);
     const nota = l.nota === null || l.nota === undefined ? '' : String(l.nota).replace(/\s+/g, ' ').trim().slice(0, 200);
+    // El precio de la línea (T19) ya viene validado de pedidos.js; aquí solo se conserva.
+    const costo = Number.isFinite(l.costo) && l.costo >= 0 ? l.costo : undefined;
     const bruto = l.cantidad === null || l.cantidad === undefined ? '' : String(l.cantidad).trim();
     if (!codigo && !bruto && !nombre) return;
     if (!codigo) { errores.push({ fila, mensaje: `La fila ${fila} no tiene código de producto.` }); return; }
@@ -43,8 +45,9 @@ function revisarLista(lineas) {
       if (!previa.nombre && nombre) previa.nombre = nombre;
       if (!previa.proveedor && proveedor) previa.proveedor = proveedor;
       if (!previa.nota && nota) previa.nota = nota;
+      if (previa.costo === undefined && costo !== undefined) previa.costo = costo;
     } else {
-      porClave.set(clave, { codigo, nombre, cantidad, proveedor, nota, filas: [fila] });
+      porClave.set(clave, { codigo, nombre, cantidad, proveedor, nota, costo, filas: [fila] });
     }
   });
 
@@ -56,7 +59,7 @@ function revisarLista(lineas) {
   if (enCero) avisos.push(`${enCero === 1 ? 'Una fila tiene' : `${enCero} filas tienen`} cantidad 0 y no ${enCero === 1 ? 'cuenta' : 'cuentan'} como parte del pedido.`);
 
   return {
-    lineas: [...porClave.values()].map(({ codigo, nombre, cantidad, proveedor, nota }) => ({ codigo, nombre, cantidad, ...(proveedor ? { proveedor } : {}), ...(nota ? { nota } : {}) })),
+    lineas: [...porClave.values()].map(({ codigo, nombre, cantidad, proveedor, nota, costo }) => ({ codigo, nombre, cantidad, ...(proveedor ? { proveedor } : {}), ...(nota ? { nota } : {}), ...(costo !== undefined ? { costo } : {}) })),
     errores,
     avisos,
   };

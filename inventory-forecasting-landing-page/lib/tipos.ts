@@ -177,6 +177,9 @@ export type Usuario = {
   cargo: string
   aprueba: boolean // aprueba los pedidos de su empresa (lo marca quien administra)
   subeDatos: boolean // un operador sube el archivo de inventario solo si quien administra se lo marcó
+  registraMovimientos: boolean // un operador registra entradas, ventas, devoluciones y salidas solo si quien administra se lo marcó
+  haceConteos: boolean // y hace conteos solo con su propia marca
+  pendienteCodigo: boolean // creó la cuenta y le falta el código de acceso: solo ve la ventana para activarla
   empresa: { id: number; nombre: string; vacia: boolean; admin: boolean } | null
 }
 
@@ -184,10 +187,11 @@ export type Empresa = {
   id: number
   nombre: string
   nit: string | null
+  sector: string | null
   vacia: boolean
   creadoEn: string
   logo: boolean
-  miembros: { id: number; nombre: string; email: string; perfil: Perfil; rol: RolEmpresa; admin: boolean; aprueba: boolean; subeDatos: boolean; cargo: string; desde: string }[]
+  miembros: { id: number; nombre: string; email: string; perfil: Perfil; rol: RolEmpresa; admin: boolean; aprueba: boolean; subeDatos: boolean; registraMovimientos: boolean; haceConteos: boolean; cargo: string; desde: string }[]
   invitacionesAbiertas: { email: string | null; creadaEn: string; expiraEn: string }[]
 }
 
@@ -252,5 +256,5 @@ export type Aprobacion = {
 
 // Una entrada del historial de un pedido (server/trazas.js).
 export type EntradaHistorial =
-  | { tipo: 'cambio'; en: string; quien: string; codigo: string; nombre: string; antes: number | null; despues: number | null; nota: string }
+  | { tipo: 'cambio'; campo: 'costo' | null; en: string; quien: string; codigo: string; nombre: string; antes: number | null; despues: number | null; nota: string }
   | { tipo: 'estado'; en: string; quien: string; texto: string; motivo: string }
