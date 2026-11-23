@@ -285,8 +285,13 @@ const ESQUEMA = [
   // Un operador solo sube el archivo de inventario si quien administra se lo marca (T4 de docs/PLAN_CAMBIOS_SINESC.md).
   'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS sube_datos BOOLEAN NOT NULL DEFAULT false',
   // Un operador registra movimientos y hace conteos solo si quien administra se lo marca (T18).
-  'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS registra_movimientos BOOLEAN NOT NULL DEFAULT false',
-  'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS hace_conteos BOOLEAN NOT NULL DEFAULT false',
+  // Las cuentas que ya existían al crear la columna quedan en true (antes de T18 todo operador registraba
+  // movimientos y conteos: con false, al publicarlo, los operadores del piloto dejaban de poder registrar de un día
+  // para otro). ADD COLUMN solo llena las filas de ese momento; el SET DEFAULT siguiente deja las cuentas nuevas en false.
+  'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS registra_movimientos BOOLEAN NOT NULL DEFAULT true',
+  'ALTER TABLE usuarios ALTER COLUMN registra_movimientos SET DEFAULT false',
+  'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS hace_conteos BOOLEAN NOT NULL DEFAULT true',
+  'ALTER TABLE usuarios ALTER COLUMN hace_conteos SET DEFAULT false',
   // Cuenta suspendida por el equipo (T11): no entra ni recibe el boletín, pero sus datos se quedan.
   'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS suspendida_en TIMESTAMPTZ',
   // Cuenta creada que aún no escribió su código de acceso (T16): solo ve la ventana para activarla.

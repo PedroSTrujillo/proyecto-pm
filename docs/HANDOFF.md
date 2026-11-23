@@ -27,6 +27,17 @@
 
 ---
 
+## 2026-11-23 (74) — Claude (David) — Publicación del PR 5 (T16 a T21) y permisos de los operadores que ya existían
+- **Rama:** `main`, con el PR 5 de Santiago y José (`cambios-sinesc`) más este ajuste.
+- **Estado:** entran el código después del registro con WhatsApp (T16), borrar la cuenta y pasar la gerencia (T17), permisos de movimientos y conteos (T18), precio por línea (T19), Actividad (T20) y Noticias (T21). Se revisó que siguen los arreglos de las entradas 70 a 73 (contador escribible, última semana al combinar, etiquetas vivas del pedido, gráficas de la ficha, pedido vacío, confirmación flotante, PostHog con errores). **Ajuste:** `registra_movimientos` y `hace_conteos` se creaban en `false` para todas las cuentas; al publicar, los operadores que hoy registran se quedaban sin poder hacerlo. Ahora la columna nace con `DEFAULT true` (llena las filas que existen) y luego `SET DEFAULT false` (las nuevas, como decidió el equipo). Comprobado en PGlite: la fila vieja queda en true, la nueva en false y un false puesto a mano no se pisa en el siguiente arranque.
+- **Archivos tocados:** `server/db.js`, `CLAUDE.md`.
+- **Base de datos:** las columnas del PR 5 (`pendiente_codigo`, `registra_movimientos`, `hace_conteos`, `empresas.sector`, `pedido_cambios.campo`) se crean solas al arrancar.
+- **Verificación:** `npm test` 242 de 242; `tsc` limpio; `npm run texto` 0 con tuteo.
+- **Siguiente paso exacto:** poner `NEXT_PUBLIC_WHATSAPP_VENTAS = 573168238193` en Vercel (Production) y hacer Redeploy: se lee al compilar, así que sin redeploy el botón dice "escríbanos" sin enlace. Después, crear una cuenta de prueba y ver que la ventana de activación abre el chat.
+- **Notas y bloqueos:** el RSS de Google Noticias (T21) dice ser de uso no comercial: decidirlo antes de cobrar. La cuenta de Uniandes en Chrome no ve el equipo PMC de Vercel; la variable la pone quien tenga acceso.
+
+---
+
 ## 2026-11-22 (80) — Claude — T21 de PLAN_CORRECCIONES_SINESC: noticias, TRM y sector (última tarea del plan)
 - **Rama:** `cambios-sinesc`, solo en local, sin publicar.
 - **Estado:** `GET /api/noticias` (solo gerente) con la TRM (datos.gov.co, y euro/yuan con `api.frankfurter.dev`) y titulares de Google Noticias, con caché en memoria y fallos por fuente. `empresas.sector` se elige en Mi empresa y agrega un tema de regulación. Página `/noticias` en las dos vistas del gerente. **Con esto quedan hechas T15 a T21 de `docs/PLAN_CORRECCIONES_SINESC.md`.**
