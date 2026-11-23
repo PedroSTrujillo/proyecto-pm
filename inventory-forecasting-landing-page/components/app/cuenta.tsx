@@ -140,7 +140,7 @@ export function EliminarCuenta({ usuario }: { usuario: Usuario }) {
     <Tarjeta className="p-5 sm:p-6">
       <h2 className="mb-1 text-xl font-bold">Eliminar mi cuenta</h2>
       <p className="mb-4 text-chico text-muted-foreground">
-        Se borran su cuenta y sus pedidos. {usuario.rolEmpresa === 'gerente' && <>Si tiene personas en su empresa, primero <Link href="/empresa" className="font-semibold text-primary hover:text-primary-hover">pase la gerencia en Mi empresa</Link>.</>}
+        Se borran su cuenta y sus pedidos. {/* Sin activar no hay Mi empresa a dónde ir (y nadie más en ella). */}{usuario.rolEmpresa === 'gerente' && !usuario.pendienteCodigo && <>Si tiene personas en su empresa, primero <Link href="/empresa" className="font-semibold text-primary hover:text-primary-hover">pase la gerencia en Mi empresa</Link>.</>}
       </p>
       <form className="flex flex-col gap-4" onSubmit={eliminar} noValidate>
         <Campo etiqueta="Escriba su correo para confirmar"><input className={claseEntrada} type="email" name="confirmacion" required autoComplete="off" placeholder={usuario.email} /></Campo>
