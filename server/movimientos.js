@@ -498,7 +498,7 @@ rutas.post('/', async (req, res) => {
   const lineas = Array.isArray(req.body?.movimientos) ? req.body.movimientos : [];
   exigirPermisoMovimientos(req.usuario, lineas.map((l) => l?.tipo));
   if (!lineas.length) throw new ErrorUsuario('Escriba al menos un movimiento.');
-  if (lineas.length > MAX_LINEAS) throw new ErrorUsuario(`Son más de ${MAX_LINEAS} movimientos. Regístralos en partes.`);
+  if (lineas.length > MAX_LINEAS) throw new ErrorUsuario(`Son más de ${MAX_LINEAS} movimientos. Regístrelos en partes.`);
   const empresaId = req.usuario.empresa_id;
   await asegurarCatalogo(empresaId);
   const claves = [...new Set(lineas.map((l) => claveCodigo(l && l.codigo)).filter(Boolean))];

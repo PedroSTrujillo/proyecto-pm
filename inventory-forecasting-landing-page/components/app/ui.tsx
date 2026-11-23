@@ -104,8 +104,8 @@ export function ChipsProducto({ p, className }: { p: Pick<Producto, 'clase' | 'v
   return (
     <span className={cn('flex flex-wrap gap-1', className)}>
       {p.enCamino && (
-        <span className={cn(chip, 'bg-ambar-fondo text-ambar-texto')} title="Ya se pidió y todavía no se ha registrado su llegada. Lo sugerido lo descuenta.">
-          En camino: {numero(p.enCamino.cantidad, 2)} · pedido el {fechaCorta(p.enCamino.fecha)}
+        <span className={cn(chip, 'bg-ambar-fondo text-ambar-texto')} title={`Pedido el ${fechaCorta(p.enCamino.fecha)}. Todavía no se ha registrado su llegada; lo sugerido lo descuenta.`}>
+          En camino: {numero(p.enCamino.cantidad, 2)} ({fechaCorta(p.enCamino.fecha)})
         </span>
       )}
       {p.pedidoReciente && !p.enCamino && dias !== null && (

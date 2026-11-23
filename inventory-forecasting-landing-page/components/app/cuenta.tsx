@@ -115,7 +115,7 @@ export function Cuenta() {
 
 // --- Eliminar mi cuenta ---------------------------------------------------------------------------
 
-function EliminarCuenta({ usuario }: { usuario: Usuario }) {
+export function EliminarCuenta({ usuario }: { usuario: Usuario }) {
   const { fijar } = useSesion()
   const router = useRouter()
   const { ventana, preguntar } = useConfirmar()

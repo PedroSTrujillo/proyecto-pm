@@ -638,17 +638,16 @@ function TarjetasGrupo({ filas, cerrado, conCosto, alCambiar }: PropsGrupo) {
 function TablaGrupoAncha({ filas, cerrado, conCosto, alCambiar }: PropsGrupo) {
   return (
     <div className="relative hidden overflow-x-auto sm:block">
-      <table className="w-full min-w-[820px] border-collapse text-cuerpo" data-privado>
+      {/* En un portátil (1280 px) a la tabla le quedan unos 580: con siete columnas pedía 912 y Cantidad, Precio y
+          Nota quedaban fuera. Lo que se compara (sugerido, cantidad, precio) va junto; lo demás, debajo del nombre. */}
+      <table className="w-full min-w-[520px] border-collapse text-cuerpo" data-privado>
         <thead>
           <tr className="text-left text-nota text-muted-foreground">
             <th scope="col" className="w-10 border-b border-border px-2 py-2 font-semibold"><span className="sr-only">Va en el pedido</span></th>
             <th scope="col" className="border-b border-border px-2 py-2 font-semibold">Producto</th>
-            <th scope="col" className="border-b border-border px-2 py-2 text-right font-semibold">Alcanza para</th>
             <th scope="col" className="border-b border-border px-2 py-2 text-right font-semibold">Sugerido</th>
             <th scope="col" className="border-b border-border px-2 py-2 font-semibold">Cantidad</th>
             <th scope="col" className="border-b border-border px-2 py-2 font-semibold">Precio unitario</th>
-            {conCosto && <th scope="col" className="border-b border-border px-2 py-2 text-right font-semibold">Valor</th>}
-            <th scope="col" className="border-b border-border px-2 py-2 font-semibold">Nota</th>
           </tr>
         </thead>
         <tbody>
@@ -665,8 +664,17 @@ function TablaGrupoAncha({ filas, cerrado, conCosto, alCambiar }: PropsGrupo) {
                   <span className={cn('font-semibold', f.incluida && 'text-foreground', !f.incluida && 'line-through')}>{f.nombre || f.codigo}</span>
                   {f.estado && <span className="mt-1 block"><ChipEstado estado={f.estado} existencias={f.existencias} /></span>}
                   <ChipsProducto p={f} className="mt-1" />
+                  {!(f.semanas === null && f.estado === null) && <span className="mt-1 block text-nota text-muted-foreground">Alcanza para {alcance(f.semanas, true)}</span>}
+                  <input
+                    aria-label={`Nota de ${f.nombre || f.codigo}`}
+                    value={f.nota}
+                    maxLength={200}
+                    disabled={cerrado || !f.incluida}
+                    placeholder={cerrado ? '' : 'Nota (opcional)'}
+                    onChange={(e) => alCambiar(f.clave, { nota: e.target.value })}
+                    className={cn('mt-1.5 h-8 w-full max-w-72 rounded-md border bg-card px-2 text-chico focus:border-primary focus:outline-3 focus:outline-ring disabled:bg-muted', f.nota ? 'border-input' : 'border-transparent hover:border-input')}
+                  />
                 </td>
-                <td className="border-b border-[#f0f1ee] px-2 py-2 text-right align-top whitespace-nowrap tabular-nums">{f.semanas === null && f.estado === null ? '—' : alcance(f.semanas, true)}</td>
                 <td className="border-b border-[#f0f1ee] px-2 py-2 text-right align-top tabular-nums">{f.sugerido === null ? '—' : numero(f.sugerido, 2)}</td>
                 <td className="border-b border-[#f0f1ee] px-2 py-2 align-top">
                   <input
@@ -686,20 +694,9 @@ function TablaGrupoAncha({ filas, cerrado, conCosto, alCambiar }: PropsGrupo) {
                     disabled={cerrado || !f.incluida}
                     placeholder={cerrado ? '' : 'Sin precio'}
                     onChange={(e) => alCambiar(f.clave, { precio: e.target.value.replace(/[^\d.,]/g, '') })}
-                    className={cn('h-10 w-28 rounded-lg border bg-card px-2 text-right tabular-nums focus:border-primary focus:outline-3 focus:outline-ring disabled:bg-muted', precioDe(f) !== null && precioDe(f) !== (f.costo ?? null) ? 'border-highlight' : 'border-input')}
+                    className={cn('h-10 w-24 rounded-lg border bg-card px-2 text-right tabular-nums focus:border-primary focus:outline-3 focus:outline-ring disabled:bg-muted', precioDe(f) !== null && precioDe(f) !== (f.costo ?? null) ? 'border-highlight' : 'border-input')}
                   />
-                </td>
-                {conCosto && <td className="border-b border-[#f0f1ee] px-2 py-2 text-right align-top whitespace-nowrap tabular-nums">{f.incluida && (precioDe(f) ?? 0) > 0 && c > 0 ? plata(c * precioDe(f)!) : '—'}</td>}
-                <td className="border-b border-[#f0f1ee] px-2 py-2 align-top">
-                  <input
-                    aria-label={`Nota de ${f.nombre || f.codigo}`}
-                    value={f.nota}
-                    maxLength={200}
-                    disabled={cerrado || !f.incluida}
-                    placeholder={cerrado ? '' : 'Opcional'}
-                    onChange={(e) => alCambiar(f.clave, { nota: e.target.value })}
-                    className="h-10 w-full min-w-40 rounded-lg border border-input bg-card px-2.5 text-chico focus:border-primary focus:outline-3 focus:outline-ring disabled:bg-muted"
-                  />
+                  {conCosto && f.incluida && (precioDe(f) ?? 0) > 0 && c > 0 && <span className="mt-1 block text-right text-nota text-muted-foreground tabular-nums">{plata(c * precioDe(f)!)}</span>}
                 </td>
               </tr>
             )

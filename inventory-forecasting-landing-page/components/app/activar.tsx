@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import { Marca } from './marco'
 import { useSesion } from './contexto'
 import { Aviso, Boton, Campo, claseEntrada } from './ui'
+import { EliminarCuenta } from './cuenta'
 
 const WHATSAPP = process.env.NEXT_PUBLIC_WHATSAPP_VENTAS
 
@@ -76,6 +77,14 @@ export function Activar() {
           </form>
           <Boton variante="secundario" onClick={salir}>Salir</Boton>
         </div>
+        {/* La API ya dejaba borrar una cuenta que espera su código (/api/cuenta/borrar está bajo /cuenta), pero esta
+            ventana no lo ofrecía: quien se equivocó de correo o ya no la quería se quedaba sin salida. */}
+        {usuario && (
+          <details className="group text-chico">
+            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">¿Se equivocó de correo o ya no la necesita? Eliminar esta cuenta</summary>
+            <div className="mt-3"><EliminarCuenta usuario={usuario} /></div>
+          </details>
+        )}
       </main>
     </div>
   )

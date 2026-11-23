@@ -27,6 +27,18 @@
 
 ---
 
+## 2026-11-23 (82) — Claude (David) — Prueba en producción del PR 5 y ajustes
+- **Rama:** `main`.
+- **Probado en producción** (cuenta de prueba creada con permiso de David, sin boletín): la ventana de activación aparece sola al crear la cuenta; el botón de WhatsApp apunta a `wa.me/573168238193` con el correo de la cuenta en el mensaje (no se abrió ni se envió nada); sin código, la API responde 403 `pendienteCodigo` en inventario, pedidos, movimientos, empresa, noticias y reportes y deja `/api/cuenta/yo`; un código inválido o vacío da su mensaje; entrar por la dirección a otra página vuelve a la ventana.
+- **Probado en local** (cuentas activas): Actividad, Noticias (TRM y titulares), Mi empresa con permisos por persona y "Pasar la gerencia", precio por línea guardado en `lista_final.costo`.
+- **Ajustes:** (1) la ventana de activación no ofrecía eliminar la cuenta aunque la API lo permite a quien espera su código: se agregó "¿Se equivocó de correo o ya no la necesita? Eliminar esta cuenta" (`EliminarCuenta` de `cuenta.tsx`, ahora exportado), probado de punta a punta en local; (2) la tabla de Preparar pedido con la columna de precio pedía 912 px y a 1280 había 580 (Cantidad, Precio y Nota quedaban fuera): "Alcanza para" y la nota pasan a la celda del producto, el valor debajo del precio, y la etiqueta "En camino" se acorta a "En camino: 145 (21 nov)" (la fecha completa en el `title`); ya cabe en 580; (3) tuteo "Regístralos en partes" → "Regístrelos".
+- **Archivos tocados:** `activar.tsx`, `cuenta.tsx`, `pedido-preparar.tsx`, `ui.tsx`, `server/movimientos.js`.
+- **Verificación:** `npm test` 242 de 242; `tsc` limpio; `npm run texto` 0 con tuteo.
+- **Siguiente paso exacto:** borrar la cuenta de prueba de producción (prueba.equipo.20261123@ejemplo.test) con el enlace nuevo de la ventana de activación: pide el correo y la contraseña que David escribió.
+- **Notas y bloqueos:** quien entra por invitación ve "Pida su código de acceso a quien lo invitó", pero los códigos solo los genera el equipo de SINESC en Cuentas: el gerente tiene que pedírselo al asesor. Decidir si el texto lo dice así.
+
+---
+
 ## 2026-11-23 (81) — Claude (David) — Publicación del PR 5 (T16 a T21) y permisos de los operadores que ya existían
 - **Rama:** `main`, con el PR 5 de Santiago y José (`cambios-sinesc`) más este ajuste.
 - **Estado:** entran el código después del registro con WhatsApp (T16), borrar la cuenta y pasar la gerencia (T17), permisos de movimientos y conteos (T18), precio por línea (T19), Actividad (T20) y Noticias (T21). Se revisó que siguen los arreglos de las entradas 70 a 73 (contador escribible, última semana al combinar, etiquetas vivas del pedido, gráficas de la ficha, pedido vacío, confirmación flotante, PostHog con errores). **Ajuste:** `registra_movimientos` y `hace_conteos` se creaban en `false` para todas las cuentas; al publicar, los operadores que hoy registran se quedaban sin poder hacerlo. Ahora la columna nace con `DEFAULT true` (llena las filas que existen) y luego `SET DEFAULT false` (las nuevas, como decidió el equipo). Comprobado en PGlite: la fila vieja queda en true, la nueva en false y un false puesto a mano no se pisa en el siguiente arranque.
