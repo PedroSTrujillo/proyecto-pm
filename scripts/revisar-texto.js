@@ -72,6 +72,8 @@ function fragmentos(fuente) {
     // Lo que parece código (flechas, operadores, llamadas a métodos) no es texto.
     // Las consultas SQL tampoco: "aprueba" o "sube_datos" son columnas, no tuteo.
     if (/^(SELECT|UPDATE|INSERT|DELETE|ALTER|CREATE|WITH)\b|^'::/.test(t)) continue;
+    // Ni las listas de columnas (u.id, u.email, u.aprueba…): tres o más "tabla.columna" son SQL.
+    if ((t.match(/\b[a-z]\.[a-z_]+\b/g) || []).length >= 3) continue;
     if (/\p{L}{2,}/u.test(t) && !/^[\w.@/-]+$/.test(t) && !/=>|&&|\|\||\.\w+\(/.test(t)) out.push(t);
   }
   return out;
