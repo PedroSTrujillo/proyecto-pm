@@ -9,10 +9,10 @@ import { descargar } from '@/lib/descargar'
 import { cn } from '@/lib/utils'
 import { alcance, alcancePartes, claveCodigo, duracion, fecha, fechaCorta, horizonteTexto, mesAnio, numero, plata, plural, porcentaje, sumarDias, ventasSemana, tarda } from '@/lib/formato'
 import type { Clase, Estado, Inventario, Producto } from '@/lib/tipos'
-import { useInventario } from './contexto'
+import { useInventario, useSesion } from './contexto'
 import { BarraRiesgo, GraficoAlcance, GraficoMeses, Sparkline, proyectarExistencias, ventasPorMes } from './graficos'
 import { Boton, BotonEnlace, CLASES, Cargando, ChipEstado, ChipsProducto, ESTADOS, ErrorLista, Pildoras, Tarjeta, Titulo, claseEntrada, diasDesde } from './ui'
-import { CatalogoEnLote, ComoSeCalcula, EditarCatalogo } from './catalogo'
+import { CatalogoEnLote, EditarCatalogo } from './catalogo'
 import { SelectorTiempo } from './vista'
 import { SinInventario } from './sin-inventario'
 import { VentaUnica } from './pedido-flujo'
@@ -123,7 +123,7 @@ function ProductosCon({ inv }: { inv: Inventario }) {
 
   return (
     <>
-      <Titulo sub="Ordenados por lo que se acaba primero. Toque un producto para ver su ficha." acciones={inv.sugerencias && inv.vista !== 'operador' ? <DescargarMinimos inv={inv} /> : undefined}>Productos</Titulo>
+      <Titulo sub="Ordenados por lo que se acaba primero. Seleccione un producto para ver su ficha." acciones={inv.sugerencias && inv.vista !== 'operador' ? <DescargarMinimos inv={inv} /> : undefined}>Productos</Titulo>
       <SelectorTiempo conHorizonte={pronostica} className="-mt-3" />
 
       <div className="flex flex-col gap-3">
@@ -167,7 +167,7 @@ function ProductosCon({ inv }: { inv: Inventario }) {
             <select className={cn(claseEntrada, 'text-cuerpo sm:w-auto')} value={orden} onChange={(e) => setOrden(e.target.value as Orden)}>
               <option value="semanas">Lo que se acaba primero</option>
               {inv.alcance !== 'prueba' && <option value="riesgo">Mayor riesgo</option>}
-              <option value="valor">{inv.resumen.tieneCostos ? 'Más plata en inventario' : 'Más unidades'}</option>
+              <option value="valor">{inv.resumen.tieneCostos ? 'Mayor valor en inventario' : 'Más unidades'}</option>
               <option value="ventas">Más vendidos</option>
             </select>
           </label>
@@ -277,7 +277,7 @@ function ProductosCon({ inv }: { inv: Inventario }) {
 
 function consejo(p: Producto, inv: Inventario) {
   const u = inv.umbrales.seAgota
-  if (p.ventaUnica) return `Venta única: ${numero(p.ventaUnica.vendido)} en la semana del ${fecha(p.ventaUnica.desde)} y nada más. Parece un proyecto; no se sugiere pedirlo.`
+  if (p.ventaUnica) return `Venta única: ${numero(p.ventaUnica.vendido)} en la semana del ${fecha(p.ventaUnica.desde)} y ninguna otra. Corresponde probablemente a un proyecto, por lo que no se sugiere pedirlo.`
   if (p.existencias <= 0 && p.ventasSemana > 0) return `Agotado. Vende unas ${ventasSemana(p.ventasSemana)} por semana. ${inv.sugerencias && p.sugerido ? `Sugerido para este pedido: ${numero(p.sugerido)}.` : 'Inclúyalo en este pedido.'}`
   if (p.estado === 'agota' && (inv.alcance === 'prueba' || inv.vista === 'operador')) return `Se agota en menos de ${duracion(u)} al ritmo actual. Revíselo en su pedido.`
   // Sin sugerido y con algo en camino, lo que cubre es el pedido que ya se hizo: decirlo, o parece que se contradice con "se agota".
@@ -313,6 +313,7 @@ function resumenAlcance(p: Producto, pr: ReturnType<typeof proyectarExistencias>
 
 function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: () => void }) {
   const { pedido, ponerEnPedido, rutas, fuente } = useInventario()
+  const { usuario } = useSesion()
   const e = ESTADOS[p.estado]
   const horizonte = Math.max(p.entrega, inv.umbrales.seAgota)
   const prox4 = p.pronostico?.slice(0, 4) ?? []
@@ -450,25 +451,17 @@ function Ficha({ p, inv, alCerrar }: { p: Producto; inv: Inventario; alCerrar: (
           <>
             <dt className="text-muted-foreground">Costo por unidad</dt>
             <dd className="text-right font-semibold tabular-nums">{plata(p.costo)}</dd>
-            <dt className="text-muted-foreground">Plata en este producto</dt>
+            <dt className="text-muted-foreground">Valor en inventario</dt>
             <dd className="text-right font-semibold tabular-nums">{plata(p.valor)}</dd>
           </>
         )}
       </dl>
 
-      {inv.alcance !== 'prueba' && inv.vista !== 'operador' && <CambiarProveedor p={p} inv={inv} />}
+      {inv.alcance !== 'prueba' && (inv.vista !== 'operador' || usuario?.manejaProveedores) && <CambiarProveedor p={p} inv={inv} />}
       {fuente.tipo === 'cuenta' && inv.vista !== 'operador' && <EditarCatalogo p={p} />}
 
-      <ComoSeCalcula p={p} inv={inv}>
-        <div className="mt-3 flex flex-col gap-2 text-chico text-muted-foreground">
-          {p.minimo !== null && p.maximo !== null && (
-            <p>Mínimo y máximo para su programa contable: el mínimo es lo que se vende mientras llega un pedido, en 9 de cada 10 casos ({numero(p.minimo)}). Cuando tenga eso o menos, pida hasta llegar al máximo ({numero(p.maximo)}), que cubre la entrega y {duracion(inv.ajustes.cadaCuanto)} más.</p>
-          )}
-          {p.riesgo !== null && (
-            <p>El riesgo y el rango salen de lo que vende este producto y de cuánto varían sus ventas cada semana{inv.temporada ? ' y la temporada de su negocio' : ''}.</p>
-          )}
-        </div>
-      </ComoSeCalcula>
+      {/* Correcciones finales: el paso a paso del cálculo ("Cómo se calcula") no se entendía y se quitó. Queda solo esta aclaración general. */}
+      <p className="text-nota text-muted-foreground">Las cifras de SINESC se calculan con modelos estadísticos a partir del historial de ventas y existencias de su empresa.</p>
 
       {inv.sugerencias && p.ventaUnica && <VentaUnica v={p.ventaUnica} existencias={p.existencias} />}
       {inv.sugerencias && p.sugerido !== null && !p.ventaUnica && (

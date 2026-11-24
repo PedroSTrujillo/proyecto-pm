@@ -349,6 +349,8 @@ Además del archivo del programa contable, la empresa puede registrar cada día 
 
 El modelo sigue en semanas: S, los umbrales (2 y 12 semanas), el tiempo de entrega y cada cuánto pide. Cada persona elige si lo ve en días (S × 7), semanas o meses (S × 7 ÷ 30,44). Menos de una semana se dice siempre en días. También elige el horizonte de "venderás en…" (de media semana a 26 semanas; 4 si no elige): es la predictiva de §7.2 con h igual al horizonte, no la suma de los rangos de cada semana. Los reportes guardados no cambian.
 
+Desde el 2026-11-24 (Correcciones finales) la unidad se elige por área (Panel, Productos, Datos…): cambiarla en una no cambia las otras, y la de Mi cuenta es la general, que vuelve a valer para todas al cambiarla. Solo cambia cómo se dice.
+
 Desde el SP4 (2026-10-29), "cada cuánto pide" y el umbral de "se agota" se escriben en esa unidad y se guardan en semanas (cada cuánto pide con 3 decimales; el umbral sigue en semanas enteras, porque `pedidos.semanas_agota` es entero).
 
 ## 9. Catálogo y motor de reabastecimiento (SP4, 2026-10-29)
@@ -397,6 +399,8 @@ Cada producto trae lo pedido en los últimos 14 días, o lo que tarda su proveed
 
 ### 9.6 Cómo se calcula
 
+> **Quitado de la pantalla el 2026-11-24** (Correcciones finales): el paso a paso no se entendía y el equipo pidió dejar solo una aclaración general ("las cifras se calculan con modelos estadísticos"). `detalleSugerido` se sigue guardando; lo de abajo describe lo que mostraba.
+
 La ficha de cada producto, y el paso 3 si el inventario es el mismo archivo del reporte, explican el sugerido en orden con los números del producto: venta por semana con sus ajustes (y lo que no se contó por proyectos), para cuánto alcanza, temporada, lo que se puede vender en las semanas que cubre el pedido (el rango de 8 de cada 10) y el sugerido al 90 % con su redondeo a caja o al mínimo.
 
 ## 10. Entradas, salidas y datos al día (SP5, 2026-10-29)
@@ -415,7 +419,9 @@ Un pedido no cambia las existencias ni deja nada por marcar: SINESC informa, no 
 - **El riesgo de agotarse** sigue calculado con E solamente (no se sabe si llega a tiempo).
 - **Límite conocido:** si la mercancía entra solo por un archivo de inventario nuevo, sin registrar la entrada, el pedido sigue contando hasta que venza la ventana.
 
-### 10.2 Ventas de un periodo en Movimientos
+### 10.2 Movimientos de un periodo
+
+Desde el 2026-11-24 (Correcciones finales) cualquier movimiento puede ser el total de un periodo, no solo las ventas. Una entrada o salida de un periodo cambia las existencias completas el último día. Una devolución de un periodo se reparte entre sus días como la venta, en negativo. Un conteo de un periodo es lo que había el último día: no se reparte ni se recorta en proporción, y si de él se deducen ventas (§8.1), se reparten desde `desde` y no desde el conteo anterior.
 
 Una venta con `desde` es el total de un periodo (desde → fecha, como mucho un año). Para el promedio se reparte por partes iguales entre sus días, igual que un archivo con el total de un periodo; las existencias bajan completas el último día. Si el periodo empieza el día del archivo base o antes y termina después, se cuenta la parte proporcional a los días siguientes (de 30 días con 10 ya en el archivo, 20/30 de la cantidad), con aviso. El kardex cuenta lo mismo.
 

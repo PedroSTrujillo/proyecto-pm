@@ -19,8 +19,8 @@ export const TEXTO_PERFIL: Record<Perfil, { titulo: string; corto: string }> = {
 export const RANGO_ROL: Record<RolEmpresa, number> = { operador: 1, administrador: 2, gerente: 3 }
 
 export const TEXTO_ROL: Record<RolEmpresa, { titulo: string; corto: string }> = {
-  gerente: { titulo: 'Gerente', corto: 'Quien fundó la empresa. Ve y maneja todo, y su rol no se puede cambiar.' },
-  administrador: { titulo: 'Administrador', corto: 'Ve el detalle, maneja proveedores y datos, e invita a operadores.' },
+  gerente: { titulo: 'Gerente', corto: 'Dirige la empresa: ve y maneja todo, incluidas la actividad del equipo y las noticias. Hay uno solo por empresa.' },
+  administrador: { titulo: 'Administrador', corto: 'Maneja el inventario, los pedidos, los proveedores y los datos, e invita a operadores.' },
   operador: { titulo: 'Operador', corto: 'Se ocupa de registrar entradas y salidas y de ver lo que se agota.' },
 }
 
@@ -118,8 +118,11 @@ export function inicioDe(u: Usuario | null | undefined): string {
 
 const cerca = (a: number, b: number) => Math.abs(a - b) < 0.05
 
-export function SelectorTiempo({ conHorizonte = false, className }: { conHorizonte?: boolean; className?: string }) {
-  const { unidad, horizonte, cambiarTiempo } = useInventario()
+// En un área (Panel, Productos, Datos…) cambia solo la unidad de esa área. Con general (Mi cuenta),
+// cambia la de todas.
+export function SelectorTiempo({ conHorizonte = false, general = false, className }: { conHorizonte?: boolean; general?: boolean; className?: string }) {
+  const { unidad: unidadArea, unidadGeneral, area, horizonte, cambiarTiempo } = useInventario()
+  const unidad = general ? unidadGeneral : unidadArea
   const opciones = HORIZONTES[unidad]
   return (
     <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-2', className)}>
@@ -129,7 +132,7 @@ export function SelectorTiempo({ conHorizonte = false, className }: { conHorizon
         onCambio={(u) => {
           // El horizonte se acomoda a una opción de la nueva unidad (la más cercana).
           const h = HORIZONTES[u].reduce((m, x) => (Math.abs(x - horizonte) < Math.abs(m - horizonte) ? x : m), HORIZONTES[u][0])
-          cambiarTiempo({ unidad: u, ...(conHorizonte ? { horizonte: Math.round(h * 100) / 100 } : {}) })
+          cambiarTiempo({ unidad: u, ...(!general && area ? { area } : {}), ...(conHorizonte ? { horizonte: Math.round(h * 100) / 100 } : {}) })
         }}
         opciones={(['dias', 'semanas', 'meses'] as const).map((u) => ({ id: u, texto: NOMBRE_UNIDAD[u] }))}
       />

@@ -149,7 +149,7 @@ function PanelCon({ inv }: { inv: Inventario }) {
               tono="text-azul"
               etiqueta="text-azul-texto"
               valor={r.tieneCostos ? plata(r.dineroQuieto) : numero(r.sobran)}
-              detalle={r.tieneCostos ? `en ${numero(r.sobran)} productos que sobran` : `productos con más de ${duracion(inv.umbrales.sobra)}. Si su archivo trae el costo, aquí verá cuánta plata es.`}
+              detalle={r.tieneCostos ? `en ${numero(r.sobran)} productos que sobran` : `productos con más de ${duracion(inv.umbrales.sobra)}. Si su archivo incluye el costo, aquí verá cuánto dinero representa.`}
               ayuda={`Valor a costo del inventario por encima de ${duracion(inv.umbrales.sobra)} de venta, más lo que no se vendió en el periodo.`}
               href={`${rutas.productos}?filtro=sobra`}
             />

@@ -92,7 +92,9 @@ function ventasDeConteos({ inicial = {}, hastaBase = null, movimientos }) {
       const faltan = redondear(e.saldo - Number(m.cantidad));
       // Sin archivo ni conteo antes, no hay con qué comparar el primero.
       if (faltan > 0 && !e.conVentas && e.contado) {
-        out.push({ codigo: m.codigo, nombre: m.nombre || '', tipo: 'venta', cantidad: faltan, fecha: m.fecha, desde: e.desde !== null && e.desde + 1 < dia ? textoDia(e.desde + 1) : undefined, deConteo: true });
+        // Un conteo de un periodo dice desde cuándo se vendió lo que falta; si no, desde el conteo anterior.
+        const ini = m.desde ? diaDeFecha(m.desde) : e.desde !== null ? e.desde + 1 : null;
+        out.push({ codigo: m.codigo, nombre: m.nombre || '', tipo: 'venta', cantidad: faltan, fecha: m.fecha, desde: ini !== null && ini < dia ? textoDia(ini) : undefined, deConteo: true });
       }
       Object.assign(e, { saldo: Number(m.cantidad), desde: dia, conVentas: false, contado: true });
     } else {
@@ -113,6 +115,8 @@ function recortarAlArchivo(m, hastaBase) {
   const ini = diaDeFecha(m.desde);
   const fin = diaDeFecha(m.fecha);
   if (ini > hastaBase || fin <= hastaBase) return m;
+  // Un conteo es lo que había el último día: no se reparte, solo se corre su comienzo.
+  if (m.tipo === 'conteo') return { ...m, desde: textoDia(hastaBase + 1) };
   const parte = (fin - hastaBase) / (fin - ini + 1);
   return { ...m, desde: textoDia(hastaBase + 1), cantidad: redondear(Number(m.cantidad) * parte), recortado: true };
 }

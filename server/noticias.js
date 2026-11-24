@@ -15,6 +15,10 @@ const MIN = 60 * 1000;
 const HORAS_TITULARES = 6;
 const ESPERA_MS = 5000;
 const MAX_TITULARES = 5;
+// Las noticias más viejas que esto ya no sirven para decidir (Correcciones finales: había titulares de
+// años atrás). 6 meses es provisional: el plazo lo confirma Santiago con el equipo.
+const MESES_NOTICIAS = 6;
+const DIAS_NOTICIAS = Math.round(MESES_NOTICIAS * 30.44);
 
 const SIC = { texto: 'SIC: reglamentos técnicos', url: 'https://www.sic.gov.co/reglamentos-tecnicos' };
 const MINCIT = { texto: 'MinCIT', url: 'https://www.mincit.gov.co/' };
@@ -56,8 +60,12 @@ const etiqueta = (xml, nombre) => {
   return m ? decodificar(m[1]) : '';
 };
 
-/** Los primeros titulares de un RSS: [{ titulo, enlace, fuente, fecha }]. Solo texto y enlaces https. */
-function leerRss(xml) {
+/**
+ * Los primeros titulares de un RSS: [{ titulo, enlace, fuente, fecha }]. Solo texto y enlaces https,
+ * y nada publicado hace más de MESES_NOTICIAS (los que no traen fecha ya vienen filtrados por la búsqueda).
+ */
+function leerRss(xml, ahora = Date.now()) {
+  const limite = ahora - DIAS_NOTICIAS * 24 * 60 * MIN;
   const out = [];
   for (const m of String(xml).matchAll(/<item>([\s\S]*?)<\/item>/g)) {
     const item = m[1];
@@ -69,6 +77,7 @@ function leerRss(xml) {
     if (fuente && titulo.endsWith(` - ${fuente}`)) titulo = titulo.slice(0, -(fuente.length + 3));
     if (!titulo) continue;
     const t = new Date(etiqueta(item, 'pubDate'));
+    if (t.getTime() < limite) continue;
     out.push({ titulo: titulo.slice(0, 300), enlace, fuente: fuente.slice(0, 80), fecha: Number.isNaN(t.getTime()) ? null : t.toISOString() });
     if (out.length >= MAX_TITULARES) break;
   }
@@ -122,7 +131,8 @@ async function trm() {
 
 async function titulares(consulta) {
   return conCache(`rss:${consulta}`, () => HORAS_TITULARES * 60 * MIN, async () => {
-    const url = `https://news.google.com/rss/search?q=${encodeURIComponent(consulta)}&hl=es-419&gl=CO&ceid=CO:es-419`;
+    // when:Nd le pide a Google solo lo de los últimos N días; leerRss lo vuelve a revisar por la fecha.
+    const url = `https://news.google.com/rss/search?q=${encodeURIComponent(`${consulta} when:${DIAS_NOTICIAS}d`)}&hl=es-419&gl=CO&ceid=CO:es-419`;
     const r = await fetch(url, { signal: AbortSignal.timeout(ESPERA_MS), headers: { Accept: 'application/rss+xml, application/xml', 'User-Agent': 'Mozilla/5.0 (compatible; SINESC)' } });
     if (!r.ok) throw new Error(`Google Noticias respondió ${r.status}`);
     return leerRss(await r.text());
@@ -151,4 +161,4 @@ function vaciarCache() {
   cache.clear();
 }
 
-module.exports = { rutas, SECTORES, leerRss, convertir, trm, titulares, vaciarCache };
+module.exports = { rutas, SECTORES, MESES_NOTICIAS, leerRss, convertir, trm, titulares, vaciarCache };

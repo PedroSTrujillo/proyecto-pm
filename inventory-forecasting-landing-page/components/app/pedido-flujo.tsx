@@ -753,7 +753,7 @@ function Recordatorio({ pedidoId }: { pedidoId: number }) {
   if (activo && deEste) {
     cuerpo = (
       <>
-        <p><strong>Listo.</strong> {d.correo === 'enviado' ? `Le enviamos la invitación a ${d.email}. ` : ''}{d.correo === 'fallo' ? 'No pudimos enviarle el correo, pero puede descargar el archivo. ' : ''}Descargue el archivo y ábralo: su calendario (Google Calendar, Outlook o el del celular) le avisará. El primer recordatorio es el {dia(respuesta!.primerAviso)}.</p>
+        <p><strong>Recordatorio creado.</strong> {d.correo === 'enviado' ? `Le enviamos la invitación a ${d.email}. ` : ''}{d.correo === 'fallo' ? 'No pudimos enviarle el correo, pero puede descargar el archivo. ' : ''}Descargue el archivo y ábralo: su calendario (Google Calendar, Outlook o el del celular) le avisará. El primer recordatorio es el {dia(respuesta!.primerAviso)}.</p>
         <div className="flex flex-wrap gap-2">{descargar}<Boton tamano="chico" onClick={() => responder(false)} disabled={enviando}>Ya no lo quiero</Boton></div>
       </>
     )
@@ -1070,7 +1070,7 @@ function Paso4({ pedido, ir }: { pedido: Pedido; ir: (n: number) => void }) {
         if (f.semanasInventario === null) return { texto: 'sin ventas', clase: 'text-azul' }
         const e = estadoDeFila(f)
         if (f.existencias <= 0) return { texto: 'Agotado', clase: 'font-bold text-rojo' }
-        const sub = e === 'agota' ? (f.existencias <= 0 ? 'agotado' : 'se va a agotar') : e === 'sobra' ? 'sobrestock' : 'bien'
+        const sub = e === 'agota' ? (f.existencias <= 0 ? 'agotado' : 'se agota') : e === 'sobra' ? 'sobrestock' : 'bien'
         return { texto: textoSem(f.semanasInventario), sub, clase: cn('tabular-nums font-semibold', e === 'agota' && 'text-rojo', e === 'sobra' && 'text-azul'), claseSub: e === 'agota' ? 'font-semibold text-rojo-texto' : e === 'sobra' ? 'text-azul-texto' : 'text-verde' }
       },
     },
@@ -1259,7 +1259,7 @@ function Paso5({ pedido, recargar }: { pedido: Pedido; recargar: () => Promise<v
     <Tarjeta className="flex flex-col gap-5 p-5 sm:p-6">
       <div>
         <h2 className="text-xl font-bold">Su pedido</h2>
-        <p className="mt-1 text-muted-foreground">{pedido.terminado ? 'Listo para enviar a sus proveedores.' : 'Termínelo para llevarse la orden de compra.'}</p>
+        <p className="mt-1 text-muted-foreground">{pedido.terminado ? 'Listo para enviar a sus proveedores.' : 'Termínelo para descargar la orden de compra.'}</p>
       </div>
       <Desplegable titulo="Qué cambió frente a lo que iba a pedir">
         <p className="text-chico text-muted-foreground">
@@ -1327,7 +1327,7 @@ function OrdenDeCompra({ pedido }: { pedido: Pedido }) {
     try {
       // El servidor lo arma con el pedido guardado: el nombre de la empresa, el número y la fecha del pedido.
       await bajarArchivo(`/pedidos/${pedido.id}/pedido.${tipo}`, `pedido-${pedido.numero}.${tipo}`)
-      setAviso(tipo === 'pdf' ? 'Listo: el PDF trae el pedido, los totales y el espacio para la firma.' : 'Listo: el Excel trae un resumen y una hoja por proveedor.')
+      setAviso(tipo === 'pdf' ? 'El PDF incluye el pedido, los totales y el espacio para la firma.' : 'El Excel incluye un resumen y una hoja por proveedor.')
     } catch (e) {
       setAviso(e instanceof Error ? e.message : 'No pudimos armar el archivo.')
     }

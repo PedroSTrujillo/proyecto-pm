@@ -125,7 +125,7 @@ export function Existencias() {
                           <button type="button" className="text-left" onClick={() => setAbierto(p.codigo)}>
                             <strong>{p.codigo}</strong> <span className="text-muted-foreground">{p.nombre}</span>
                           </button>
-                          {inv && inv.estado === 'agota' && <span className="block text-nota font-semibold text-rojo-texto">{inv.existencias <= 0 ? 'Agotado' : 'Se va a agotar'}</span>}
+                          {inv && inv.estado === 'agota' && <span className="block text-nota font-semibold text-rojo-texto">{inv.existencias <= 0 ? 'Agotado' : 'Se agota'}</span>}
                           {(inv?.enCamino || inv?.pedidoReciente) && <span className="block text-nota text-muted-foreground sm:hidden">{inv.enCamino ? `En camino: ${numero(inv.enCamino.cantidad, 2)}` : `Pedido: ${numero(inv.pedidoReciente!.cantidad, 2)} (ya entró)`}</span>}
                         </td>
                         <td className={cn('border-b border-[#f0f1ee] px-2 py-2.5 text-right font-semibold tabular-nums', p.existencias < 0 && 'text-rojo')}>{numero(p.existencias, 2)}{p.unidad ? <span className="ml-1 text-sm font-normal text-muted-foreground">{p.unidad}</span> : null}</td>

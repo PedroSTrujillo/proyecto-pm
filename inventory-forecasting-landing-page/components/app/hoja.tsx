@@ -146,6 +146,19 @@ export const Hoja = forwardRef<HojaApi, Props>(function Hoja({ inicial, soloLect
     alCambiar?.()
   }
 
+  // Las filas marcadas con error (las que devolvió el servidor) se guardan por posición. Al quitar una
+  // fila, las de abajo suben una: la marca sube con ellas y la de la fila quitada desaparece
+  // (Correcciones finales: antes la marca se quedaba en su lugar y pintaba de rojo la fila que subía).
+  function quitarFila(i: number) {
+    setErrores((s) => (s.size ? new Set([...s].filter((k) => k !== i).map((k) => (k > i ? k - 1 : k))) : s))
+    cambiar(filas.filter((_, k) => k !== i))
+  }
+
+  // Una fila que se corrige deja de estar marcada.
+  function desmarcar(desde: number, hasta = desde) {
+    setErrores((s) => ([...s].some((k) => k >= desde && k <= hasta) ? new Set([...s].filter((k) => k < desde || k > hasta)) : s))
+  }
+
   function enfocar(i: number, col: number) {
     requestAnimationFrame(() => {
       const input = tabla.current?.querySelector<HTMLInputElement>(`tr[data-i="${i}"] input[data-col="${col}"]`)
@@ -203,6 +216,7 @@ export const Hoja = forwardRef<HojaApi, Props>(function Hoja({ inicial, soloLect
       }
       sig[d] = f
     })
+    desmarcar(i, i + bloque.length - 1)
     cambiar(sig)
     enfocar(Math.min(i + bloque.length, sig.length - 1), col)
   }
@@ -280,7 +294,7 @@ export const Hoja = forwardRef<HojaApi, Props>(function Hoja({ inicial, soloLect
                           onChange={(e) => {
                             const sig = filas.slice()
                             sig[i] = { ...sig[i], [c]: e.target.value }
-                            setErrores((s) => { if (!s.has(i)) return s; const n = new Set(s); n.delete(i); return n })
+                            desmarcar(i)
                             cambiar(sig)
                           }}
                           onKeyDown={(e) => alTeclear(e, i, col)}
@@ -298,7 +312,7 @@ export const Hoja = forwardRef<HojaApi, Props>(function Hoja({ inicial, soloLect
                         aria-label={`Quitar fila ${i + 1}`}
                         title="Quitar fila"
                         className="inline-flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
-                        onClick={() => cambiar(filas.filter((_, k) => k !== i))}
+                        onClick={() => quitarFila(i)}
                       >
                         <X className="size-4" />
                       </button>

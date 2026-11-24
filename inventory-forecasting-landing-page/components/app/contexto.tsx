@@ -7,7 +7,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { usePathname, useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
 import { fijarUnidad, type Unidad } from '@/lib/formato'
-import type { Condiciones, Inventario, Perfil, RespuestaInventario, Usuario } from '@/lib/tipos'
+import type { AreaTiempo, Condiciones, Inventario, Perfil, RespuestaInventario, Usuario } from '@/lib/tipos'
 
 export type Fuente = { tipo: 'demo'; sector: string } | { tipo: 'cuenta' }
 
@@ -17,6 +17,16 @@ export function rutasDe(fuente: Fuente) {
     return { panel: b, productos: `${b}/productos`, pedido: `${b}/pedido`, datos: `${b}/datos` }
   }
   return { panel: '/panel', productos: '/productos', pedido: '/pedidos', datos: '/datos' }
+}
+
+// El área de la app en la que está la persona, para la unidad de tiempo de cada área. En la demo,
+// la página del negocio es el panel. Mi cuenta y las páginas sin área usan la unidad general.
+const AREAS: AreaTiempo[] = ['panel', 'productos', 'existencias', 'movimientos', 'pedidos', 'datos', 'proveedores', 'reportes']
+export function areaDe(ruta: string): AreaTiempo | null {
+  const partes = ruta.split('/').filter(Boolean)
+  const tramo = partes[0] === 'demo' ? (partes[2] ?? 'panel') : partes[0]
+  const a = tramo === 'pedido' ? 'pedidos' : tramo
+  return AREAS.includes(a as AreaTiempo) ? (a as AreaTiempo) : null
 }
 
 // --- Sesión ---------------------------------------------------------------------------------
@@ -40,6 +50,25 @@ export function SesionProvider({ children, exigir = false }: { children: ReactNo
       vivo = false
     }
   }, [])
+
+  // El rol y los permisos los cambia otra persona (Mi empresa). El servidor los revisa en cada petición;
+  // la pantalla los vuelve a pedir al cambiar de página y al volver a la pestaña, así el menú y los
+  // botones quedan al día sin recargar (Correcciones finales). Solo se reemplaza si algo cambió.
+  const primera = useRef(true)
+  useEffect(() => {
+    if (primera.current) { primera.current = false; return }
+    refrescar()
+  }, [ruta])
+  useEffect(() => {
+    const alVolver = () => { if (document.visibilityState === 'visible') refrescar() }
+    document.addEventListener('visibilitychange', alVolver)
+    return () => document.removeEventListener('visibilitychange', alVolver)
+  }, [])
+  function refrescar() {
+    api<{ usuario: Usuario | null }>('GET', '/cuenta/yo')
+      .then((r) => setUsuario((antes) => (JSON.stringify(antes) === JSON.stringify(r.usuario) ? antes : r.usuario)))
+      .catch(() => {})
+  }
 
   useEffect(() => {
     if (exigir && !cargando && !usuario) router.replace(`/entrar?volver=${encodeURIComponent(ruta)}`)
@@ -93,10 +122,14 @@ type EstadoInventario = {
   // Analista u operador, la unidad de tiempo y el horizonte del pronóstico. En la cuenta se
   // guardan en el servidor; en la demo, en este navegador.
   perfil: Perfil
+  // La unidad del área en la que está (o la general, fuera de un área). unidadGeneral: la de Mi cuenta.
   unidad: Unidad
+  unidadGeneral: Unidad
+  area: AreaTiempo | null
   horizonte: number
   cambiarPerfil: (p: Perfil) => Promise<void>
-  cambiarTiempo: (t: { unidad?: Unidad; horizonte?: number }) => Promise<void>
+  // Con area, cambia solo esa área; sin area, la general, que vuelve a valer en cada área.
+  cambiarTiempo: (t: { unidad?: Unidad; horizonte?: number; area?: AreaTiempo }) => Promise<void>
 }
 
 export type Ajustes = Partial<{ entregas: Record<string, number>; entregasDias: Record<string, number>; entregaPorDefecto: number; entregaPorDefectoDias: number | null; cadaCuanto: number; semanasAgota: number; asignaciones: Record<string, string>; prefijos: { prefijo: string; proveedor: string }[]; condiciones: Record<string, Condiciones>; cadaCuantoProv: Record<string, number>; importaciones: boolean }>
@@ -112,8 +145,8 @@ function leerGuardado<T = Record<string, number>>(llave: string): T | null {
   }
 }
 
-type Vista = { perfil: Perfil; unidad: Unidad; horizonte: number }
-const VISTA_INICIAL: Vista = { perfil: 'analista', unidad: 'semanas', horizonte: 4 }
+type Vista = { perfil: Perfil; unidad: Unidad; unidades: Partial<Record<AreaTiempo, Unidad>>; horizonte: number }
+const VISTA_INICIAL: Vista = { perfil: 'analista', unidad: 'semanas', unidades: {}, horizonte: 4 }
 
 export function InventarioProvider({ fuente, children }: { fuente: Fuente; children: ReactNode }) {
   const { usuario, fijar } = useSesion()
@@ -122,10 +155,14 @@ export function InventarioProvider({ fuente, children }: { fuente: Fuente; child
   useEffect(() => {
     if (llaveVista) setVistaDemo({ ...VISTA_INICIAL, ...(leerGuardado<Partial<Vista>>(llaveVista) || {}) })
   }, [llaveVista])
-  const vista: Vista = fuente.tipo === 'cuenta' && usuario
-    ? { perfil: usuario.perfil, unidad: usuario.preferencias.unidad, horizonte: usuario.preferencias.horizonte }
+  const guardada: Vista = fuente.tipo === 'cuenta' && usuario
+    ? { perfil: usuario.perfil, unidad: usuario.preferencias.unidad, unidades: usuario.preferencias.unidades ?? {}, horizonte: usuario.preferencias.horizonte }
     : vistaDemo
-  // Las funciones de lib/formato.ts dicen las duraciones en esta unidad.
+  const area = areaDe(usePathname() ?? '')
+  const unidadArea: Unidad = (area && guardada.unidades[area]) || guardada.unidad
+  const vista = { perfil: guardada.perfil, unidad: unidadArea, unidadGeneral: guardada.unidad, area, horizonte: guardada.horizonte }
+  // Las funciones de lib/formato.ts dicen las duraciones en esta unidad: la del área en la que está.
+  // Solo este proveedor la fija, y se vuelve a dibujar al cambiar de página (usePathname).
   fijarUnidad(vista.unidad)
 
   const [respuesta, setRespuesta] = useState<RespuestaInventario | null>(null)
@@ -136,7 +173,8 @@ export function InventarioProvider({ fuente, children }: { fuente: Fuente; child
   const cargadoPara = useRef<string | null>(null)
   const llave = fuente.tipo === 'demo' ? `sinesc-pedido-demo-${fuente.sector}` : ''
   const llaveAjustes = fuente.tipo === 'demo' ? `sinesc-ajustes-demo-${fuente.sector}` : ''
-  const clave = `${fuente.tipo === 'demo' ? fuente.sector : 'cuenta'}|${vista.perfil}|${vista.horizonte}`
+  // El rol y el permiso de subir datos cambian lo que responde /inventario: si cambian, se vuelve a pedir.
+  const clave = `${fuente.tipo === 'demo' ? fuente.sector : 'cuenta'}|${vista.perfil}|${vista.horizonte}|${usuario?.rolEmpresa ?? ''}|${usuario?.subeDatos ?? ''}`
   const negocio = fuente.tipo === 'demo' ? fuente.sector : 'cuenta'
   const rutaDemo = (ajustes: Ajustes | null) => {
     const q = new URLSearchParams({ horizonte: String(vista.horizonte), ...(vista.perfil === 'operador' ? { perfil: 'operador' } : {}), ...(ajustes ? { ajustes: JSON.stringify(ajustes) } : {}) })
@@ -248,18 +286,24 @@ export function InventarioProvider({ fuente, children }: { fuente: Fuente; child
         if (fuente.tipo === 'demo') guardarVistaDemo({ perfil })
       },
       cambiarTiempo: async (t) => {
-        if (fuente.tipo === 'demo') return guardarVistaDemo(t)
+        if (fuente.tipo === 'demo') {
+          const { area: a, unidad: u, horizonte: h } = t
+          return guardarVistaDemo((prev) => ({
+            ...(h !== undefined ? { horizonte: h } : {}),
+            ...(u && a ? { unidades: { ...prev.unidades, [a]: u } } : u ? { unidad: u, unidades: {} } : {}),
+          }))
+        }
         const r = await api<{ usuario: Usuario }>('PUT', '/cuenta/preferencias', t)
         fijar(r.usuario)
       },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [fuente, respuesta, cargando, error, pedido, guardar, llaveAjustes, vista.perfil, vista.unidad, vista.horizonte, fijar],
+    [fuente, respuesta, cargando, error, pedido, guardar, llaveAjustes, vista.perfil, vista.unidad, vista.unidadGeneral, vista.area, vista.horizonte, fijar],
   )
 
-  function guardarVistaDemo(cambio: Partial<Vista>) {
+  function guardarVistaDemo(cambio: Partial<Vista> | ((prev: Vista) => Partial<Vista>)) {
     setVistaDemo((prev) => {
-      const sig = { ...prev, ...cambio }
+      const sig = { ...prev, ...(typeof cambio === 'function' ? cambio(prev) : cambio) }
       try {
         window.localStorage.setItem(llaveVista, JSON.stringify(sig))
       } catch {

@@ -10,11 +10,13 @@ import { useSesion } from './contexto'
 import { Cargando } from './ui'
 import { inicioDe } from './vista'
 
-export function SoloRol({ permite, children }: { permite: RolEmpresa[]; children: ReactNode }) {
+// conPermiso: además deja pasar a quien tiene esa marca aunque su rol no esté en permite (un operador
+// con permiso de proveedores).
+export function SoloRol({ permite, conPermiso, children }: { permite: RolEmpresa[]; conPermiso?: 'manejaProveedores'; children: ReactNode }) {
   const { usuario } = useSesion()
   const router = useRouter()
   const rol = usuario?.rolEmpresa
-  const permitido = Boolean(rol && permite.includes(rol))
+  const permitido = Boolean(rol && (permite.includes(rol) || (conPermiso && usuario?.[conPermiso])))
   useEffect(() => {
     if (rol && !permitido) router.replace(inicioDe(usuario))
   }, [rol, permitido, router, usuario])

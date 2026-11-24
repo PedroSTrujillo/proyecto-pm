@@ -19,8 +19,8 @@ const db = require('./db');
 async function borrarDatos({ email = null, todos = false, confirmar = false }) {
   if (!email && !todos) throw new Error('Di qué borrar: un correo o todas las cuentas de prueba.');
   const usuarios = email
-    ? await db.query("SELECT id, email, empresa_id FROM usuarios WHERE email = $1 AND rol <> 'equipo'", [String(email).trim().toLowerCase()])
-    : await db.query("SELECT id, email, empresa_id FROM usuarios WHERE rol <> 'equipo'");
+    ? await db.query("SELECT id, email, empresa_id, admin_empresa FROM usuarios WHERE email = $1 AND rol <> 'equipo'", [String(email).trim().toLowerCase()])
+    : await db.query("SELECT id, email, empresa_id, admin_empresa FROM usuarios WHERE rol <> 'equipo'");
   const ids = usuarios.map((u) => u.id);
   const contar = async (tabla) => (ids.length ? (await db.uno(`SELECT count(*)::int AS n FROM ${tabla} WHERE usuario_id = ANY($1::int[])`, [ids])).n : 0);
   const herederos = await herederosDe(usuarios);
@@ -54,7 +54,12 @@ async function borrarDatos({ email = null, todos = false, confirmar = false }) {
 // salen (quien administra, o la persona más antigua) y si hay que nombrarla administradora.
 async function herederosDe(usuarios) {
   const porEmpresa = new Map();
-  for (const u of usuarios) if (u.empresa_id) porEmpresa.set(u.empresa_id, [...(porEmpresa.get(u.empresa_id) || []), u.id]);
+  const saleGerente = new Set();
+  for (const u of usuarios) {
+    if (!u.empresa_id) continue;
+    porEmpresa.set(u.empresa_id, [...(porEmpresa.get(u.empresa_id) || []), u.id]);
+    if (u.admin_empresa) saleGerente.add(u.empresa_id);
+  }
   const out = [];
   for (const [empresaId, salen] of porEmpresa) {
     const queda = await db.uno(
@@ -62,7 +67,9 @@ async function herederosDe(usuarios) {
         ORDER BY admin_empresa DESC, creado_en, id LIMIT 1`,
       [empresaId, salen],
     );
-    if (queda) out.push({ empresaId, salen, queda: queda.id, nuevoAdmin: !queda.admin_empresa });
+    // Solo se nombra gerente si salió el que había: una empresa que fundó un administrador puede no
+    // tener gerente, y que se vaya otra persona no le pone uno.
+    if (queda) out.push({ empresaId, salen, queda: queda.id, nuevoAdmin: saleGerente.has(empresaId) && !queda.admin_empresa });
   }
   return out;
 }

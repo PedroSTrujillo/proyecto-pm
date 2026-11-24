@@ -87,7 +87,8 @@ function esEmailDeEquipo(email) {
 
 // Lo que se sabe de un usuario en cada petición: sus datos, su empresa y sus preferencias.
 const COLUMNAS_USUARIO = `u.id, u.email, u.nombre, u.rol, u.sistema, u.empresa_id, u.admin_empresa, u.perfil,
-  u.preferencias, u.boletin, u.aprueba, u.sube_datos, u.registra_movimientos, u.hace_conteos, u.pendiente_codigo, u.cargo, e.nombre AS empresa_nombre, e.vacia AS empresa_vacia`;
+  u.preferencias, u.boletin, u.aprueba, u.sube_datos, u.registra_movimientos, u.hace_conteos, u.maneja_proveedores, u.pendiente_codigo, u.cargo, e.nombre AS empresa_nombre, e.vacia AS empresa_vacia,
+  EXISTS (SELECT 1 FROM usuarios o WHERE o.empresa_id = u.empresa_id AND o.id <> u.id) AS con_equipo`;
 
 async function usuarioPorId(id) {
   return db.uno(`SELECT ${COLUMNAS_USUARIO} FROM usuarios u LEFT JOIN empresas e ON e.id = u.empresa_id WHERE u.id = $1`, [id]);
@@ -150,14 +151,29 @@ function rolEmpresa(u) {
 function requiereRol(...roles) {
   return (req, _res, next) => {
     if (!req.usuario) return next(new ErrorUsuario('Su sesión se cerró. Vuelva a iniciar sesión.', 401));
-    if (!roles.includes(rolEmpresa(req.usuario))) return next(new ErrorUsuario('Solo quien administra la empresa puede hacer esto.', 403));
+    if (!roles.includes(rolEmpresa(req.usuario))) return next(new ErrorUsuario('Solo el administrador de la empresa puede realizar esta acción.', 403));
     next();
   };
 }
 
 const requiereAdminEmpresa = requiereRol('gerente', 'administrador');
 
+// Proveedores (tiempos, asignaciones, condiciones y el paquete de cada producto): gerente y
+// administrador, y el operador al que uno de ellos le dio permiso (basta con uno: es una sola marca).
+function puedeProveedores(u) {
+  return rolEmpresa(u) !== 'operador' || Boolean(u.maneja_proveedores);
+}
+function requiereProveedores(req, _res, next) {
+  if (!req.usuario) return next(new ErrorUsuario('Su sesión se cerró. Vuelva a iniciar sesión.', 401));
+  if (!puedeProveedores(req.usuario)) return next(new ErrorUsuario('No tiene permiso para modificar proveedores. Consulte al administrador de su empresa.', 403));
+  next();
+}
+
 const UNIDADES = ['dias', 'semanas', 'meses'];
+// Cada área de la app puede mostrar el tiempo en su propia unidad (Correcciones finales): cambiarla en
+// una no cambia las demás. La unidad general (Mi cuenta) vale donde no se eligió otra y, al cambiarla,
+// vuelve a valer para todas.
+const AREAS_TIEMPO = ['panel', 'productos', 'existencias', 'movimientos', 'pedidos', 'datos', 'proveedores', 'reportes'];
 const UNIDAD_CUENTA_NUEVA = 'dias';
 const HORIZONTE_POR_DEFECTO = 4; // semanas: lo de "Venta en 4 semanas"
 const HORIZONTE_MAXIMO = 26;
@@ -165,11 +181,17 @@ const HORIZONTE_MAXIMO = 26;
 // Cómo quiere ver el tiempo: en días, semanas o meses, y cuántas semanas pronosticar. El cálculo
 // sigue en semanas (docs/modelo-rotacion.md, "Unidades al mostrar"): esto solo cambia cómo se dice.
 // alertas: solo lo que la persona cambió de la tabla del boletín (server/alertas.js); lo demás sigue su perfil.
+function limpiarUnidades(u) {
+  if (!u || typeof u !== 'object') return {};
+  return Object.fromEntries(Object.entries(u).filter(([a, v]) => AREAS_TIEMPO.includes(a) && UNIDADES.includes(v)));
+}
+
 function leerPreferencias(p) {
   const pref = p && typeof p === 'object' ? p : {};
   const h = Number(pref.horizonte);
   return {
     unidad: UNIDADES.includes(pref.unidad) ? pref.unidad : 'semanas',
+    unidades: limpiarUnidades(pref.unidades),
     horizonte: Number.isFinite(h) && h >= 0.5 && h <= HORIZONTE_MAXIMO ? Math.round(h * 100) / 100 : HORIZONTE_POR_DEFECTO,
     alertas: limpiarAlertas(pref.alertas),
   };
@@ -194,6 +216,11 @@ function publico(u) {
     subeDatos: Boolean(u.sube_datos),
     registraMovimientos: Boolean(u.registra_movimientos),
     haceConteos: Boolean(u.hace_conteos),
+    // Un operador maneja Proveedores solo con la marca de un superior; gerente y administrador siempre.
+    manejaProveedores: rolEmpresa(u) !== 'operador' || Boolean(u.maneja_proveedores),
+    // Hay más personas en su empresa. Una cuenta que espera su código y está sola es quien fundó la
+    // empresa (paga con un asesor); si no, llegó por invitación (pide el código a quien lo invitó).
+    conEquipo: Boolean(u.con_equipo),
     // Creó la cuenta pero falta su código de acceso: la web le muestra solo la ventana para activarla.
     pendienteCodigo: Boolean(u.pendiente_codigo),
     empresa: u.empresa_id ? { id: u.empresa_id, nombre: u.empresa_nombre || '', vacia: Boolean(u.empresa_vacia), admin: Boolean(u.admin_empresa) } : null,
@@ -271,9 +298,11 @@ rutas.post('/crear', async (req, res) => {
   const conCodigo = Boolean(req.body?.codigo);
   const id = await db.tx(async (t) => {
     let empresaId;
-    // Quien funda la empresa es su gerente y aprueba; quien entra por invitación toma el rol de la
-    // invitación (sin rol, el más bajo), nunca uno que mande el formulario.
-    let admin = true;
+    // Quien funda la empresa elige si es su gerente o su administrador (Correcciones finales: el ICP es
+    // un administrador, y hasta entonces todos quedaban de gerente); sin elección, gerente, como antes.
+    // En los dos casos aprueba. Quien entra por invitación toma el rol de la invitación (sin rol, el más
+    // bajo), nunca uno que mande el formulario.
+    let admin = req.body?.rolFundador !== 'administrador';
     let perfil = 'analista';
     let aprueba = true;
     if (invitacion) {
@@ -285,9 +314,14 @@ rutas.post('/crear', async (req, res) => {
       );
       if (!rows[0]) throw new ErrorUsuario('Este enlace de invitación ya se usó, se venció o es para otro correo. Pida uno nuevo a quien lo invitó.');
       empresaId = rows[0].empresa_id;
-      admin = false;
-      aprueba = false;
-      perfil = rows[0].rol === 'administrador' ? 'analista' : 'operador';
+      // Un administrador que fundó la empresa sin gerente puede invitar uno (empresas.js, leerRol). Una
+      // empresa tiene a lo sumo un gerente: si otra invitación ya lo dio, esta no sirve.
+      admin = rows[0].rol === 'gerente';
+      if (admin && (await t.query('SELECT 1 FROM usuarios WHERE empresa_id = $1 AND admin_empresa', [empresaId])).rows[0]) {
+        throw new ErrorUsuario('Esta empresa ya tiene gerente. Pida una invitación nueva a quien lo invitó.', 409);
+      }
+      aprueba = admin;
+      perfil = rows[0].rol === 'operador' ? 'operador' : 'analista';
     } else {
       const { rows } = await t.query('INSERT INTO empresas (nombre, nit) VALUES ($1, $2) RETURNING id', [nombreEmpresa, nit]);
       empresaId = rows[0].id;
@@ -334,6 +368,18 @@ rutas.post('/borrar', requiereUsuario, async (req, res) => {
   if (!verificarClave(String(req.body?.clave || ''), yo.clave_hash)) throw new ErrorUsuario('Su contraseña no es correcta.', 403);
   if (rolEmpresa(u) === 'gerente' && (await db.uno('SELECT 1 AS hay FROM usuarios WHERE empresa_id = $1 AND id <> $2', [u.empresa_id, u.id]))) {
     throw new ErrorUsuario('Antes de borrar su cuenta, pase la gerencia a otra persona en Mi empresa.', 409);
+  }
+  // En una empresa sin gerente, el último administrador no deja solos a los operadores: nadie podría
+  // invitar, dar permisos ni preparar pedidos.
+  if (rolEmpresa(u) === 'administrador') {
+    const quedan = await db.uno(
+      `SELECT count(*) FILTER (WHERE admin_empresa OR perfil <> 'operador')::int AS mandan, count(*)::int AS personas
+         FROM usuarios WHERE empresa_id = $1 AND id <> $2`,
+      [u.empresa_id, u.id],
+    );
+    if (quedan.personas > 0 && quedan.mandan === 0) {
+      throw new ErrorUsuario('Antes de borrar su cuenta, dé el rol de administrador a otra persona o invite a un gerente en Mi empresa.', 409);
+    }
   }
   await borrarDatos({ email: u.email, confirmar: true });
   res.setHeader('Set-Cookie', `${COOKIE}=; Max-Age=0; ${opcionesCookie(req)}`);
@@ -397,7 +443,18 @@ rutas.put('/preferencias', requiereUsuario, async (req, res) => {
     }
     alertas = { ...alertas, ...pedidas };
   }
-  const pref = leerPreferencias({ ...guardadas, ...cuerpo, alertas });
+  // { area, unidad } cambia solo esa área; { unidad } sin área es la general y borra las de cada área.
+  let unidades = guardadas.unidades;
+  let general = {};
+  if (cuerpo.area !== undefined) {
+    if (!AREAS_TIEMPO.includes(cuerpo.area)) throw new ErrorUsuario('Esa sección no existe.');
+    if (cuerpo.unidad === undefined) throw new ErrorUsuario('Elija días, semanas o meses.');
+    unidades = { ...unidades, [cuerpo.area]: cuerpo.unidad };
+  } else if (cuerpo.unidad !== undefined) {
+    unidades = {};
+    general = { unidad: cuerpo.unidad };
+  }
+  const pref = leerPreferencias({ ...guardadas, ...(cuerpo.horizonte !== undefined ? { horizonte: cuerpo.horizonte } : {}), ...general, alertas, unidades });
   await db.query('UPDATE usuarios SET preferencias = $1::jsonb WHERE id = $2', [JSON.stringify(pref), req.usuario.id]);
   res.json({ usuario: await publicoPorId(req.usuario.id) });
 });
@@ -464,6 +521,8 @@ module.exports = {
   requiereUsuario,
   requiereEquipo,
   requiereAdminEmpresa,
+  requiereProveedores,
+  puedeProveedores,
   requiereRol,
   rolEmpresa,
   RANGO,

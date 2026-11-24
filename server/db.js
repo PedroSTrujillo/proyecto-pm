@@ -292,6 +292,8 @@ const ESQUEMA = [
   'ALTER TABLE usuarios ALTER COLUMN registra_movimientos SET DEFAULT false',
   'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS hace_conteos BOOLEAN NOT NULL DEFAULT true',
   'ALTER TABLE usuarios ALTER COLUMN hace_conteos SET DEFAULT false',
+  // Un operador entra a Proveedores solo si un gerente o un administrador se lo marca (Correcciones finales).
+  'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS maneja_proveedores BOOLEAN NOT NULL DEFAULT false',
   // Cuenta suspendida por el equipo (T11): no entra ni recibe el boletín, pero sus datos se quedan.
   'ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS suspendida_en TIMESTAMPTZ',
   // Cuenta creada que aún no escribió su código de acceso (T16): solo ve la ventana para activarla.

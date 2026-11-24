@@ -175,15 +175,58 @@ test('Movimientos registra ventas de un periodo y rechaza periodos mal escritos'
 
   const malos = await carla.post('/api/movimientos', {
     movimientos: [
-      { codigo, tipo: 'entrada', cantidad: 1, desde: ini, fecha: fin },
+      { codigo, tipo: 'entrada', cantidad: 1, desde: '2026-13-40', fecha: fin },
       { codigo, tipo: 'venta', cantidad: 1, desde: fin, fecha: ini },
       { codigo, tipo: 'venta', cantidad: 1, desde: '2020-01-01', fecha: fin },
     ],
   });
   assert.equal(malos.estado, 400);
-  assert.match(malos.errores[0], /Fila 1: solo las ventas/);
+  assert.match(malos.errores[0], /Fila 1: la fecha de inicio del periodo no es válida/);
   assert.match(malos.errores[1], /Fila 2: el periodo empieza después/);
   assert.match(malos.errores[2], /Fila 3/);
+});
+
+// Correcciones finales: movimientos de un día y movimientos de un periodo, de cualquier tipo.
+test('Movimientos registra entradas, devoluciones, salidas y conteos de un periodo', async () => {
+  const fin = hoy();
+  const ini = new Date(Date.parse(`${fin}T12:00:00Z`) - 6 * 86400000).toISOString().slice(0, 10);
+  const codigo = pedido.listaFinal[2].codigo;
+  const r = await carla.post('/api/movimientos', {
+    movimientos: ['entrada', 'devolucion', 'salida', 'conteo'].map((tipo) => ({ codigo, tipo, cantidad: 5, desde: ini, fecha: fin })),
+  });
+  assert.equal(r.estado, 201, r.error);
+  const guardados = (await carla.get('/api/movimientos')).movimientos.filter((x) => x.desde === ini && x.tipo !== 'venta');
+  assert.deepEqual(guardados.map((m) => m.tipo).sort(), ['conteo', 'devolucion', 'entrada', 'salida']);
+  assert.ok(guardados.every((m) => m.fecha === fin));
+});
+
+test('una devolución de un periodo se reparte como la venta, y una entrada cambia las existencias el último día', () => {
+  const v = S.ventasDeMovimientos([mov(1, 'A', 'devolucion', 10, '2026-09-10', { desde: '2026-09-01' })]);
+  assert.equal(v.length, 10);
+  assert.ok(v.every((x) => Math.abs(x.cantidad + 1) < 1e-9));
+  assert.equal(S.saldos({ base: { A: 5 }, movimientos: [mov(1, 'A', 'entrada', 20, '2026-09-30', { desde: '2026-09-01' })] }).get('A'), 25);
+});
+
+test('un conteo de un periodo que empieza antes del archivo no se reparte: es lo que había el último día', () => {
+  const baseArchivo = { ventas: [], existencias: [{ codigo: 'A', nombre: '', existencias: 100 }], hasta: S.diaDeFecha('2026-09-10') };
+  const c = S.combinar({ base: baseArchivo, movimientos: [mov(1, 'A', 'conteo', 70, '2026-09-30', { desde: '2026-09-01' })] });
+  assert.equal(c.existencias[0].existencias, 70);
+  // Lo que falta (30) se cuenta como vendido desde el día después del archivo, no desde el 1.
+  const deducidas = c.ventas;
+  assert.equal(deducidas.length, 20);
+  assert.equal(deducidas[0].dia, S.diaDeFecha('2026-09-11'));
+  assert.ok(Math.abs(deducidas.reduce((s, x) => s + x.cantidad, 0) - 30) < 1e-9);
+});
+
+test('un conteo de un periodo dice desde cuándo se vendió lo que falta', () => {
+  const v = S.ventasDeConteos({
+    inicial: { A: 50 },
+    hastaBase: S.diaDeFecha('2026-08-31'),
+    movimientos: [mov(1, 'A', 'conteo', 40, '2026-09-30', { desde: '2026-09-21' })],
+  });
+  assert.equal(v.length, 1);
+  assert.equal(v[0].cantidad, 10);
+  assert.equal(v[0].desde, '2026-09-21');
 });
 
 test('importar movimientos de un archivo devuelve las filas sin guardar nada', async () => {

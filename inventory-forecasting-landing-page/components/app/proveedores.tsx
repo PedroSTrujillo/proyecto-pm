@@ -104,7 +104,7 @@ function Proveedores({ inv, alVer }: { inv: Inventario; alVer: (nombre: string) 
     cadaCuantoProv: a.cadaCuantoProv,
   })
 
-  async function guardar(extra: Partial<{ prefijos: Prefijo[] }> = {}, mensaje = 'Listo: el panel y el pedido ya usan estos tiempos.') {
+  async function guardar(extra: Partial<{ prefijos: Prefijo[] }> = {}, mensaje = 'Cambios guardados. El panel y el pedido ya usan estos tiempos.') {
     setGuardando(true)
     try {
       await guardarAjustes({ ...enviar(aj), ...extra })
@@ -211,7 +211,7 @@ function Proveedores({ inv, alVer }: { inv: Inventario; alVer: (nombre: string) 
             setGuardando(true)
             try {
               await guardarAjustes({ ...enviar(nuevo), prefijos })
-              setGuardado(prefijo ? `Listo: los códigos que empiezan por "${prefijo}" son de ${nombre}.` : `Listo: ${nombre} agregado. Entre a su ficha para asignarle productos.`)
+              setGuardado(prefijo ? `Regla guardada: los códigos que empiezan por "${prefijo}" son de ${nombre}.` : `Proveedor agregado: ${nombre}. Abra su ficha para asignarle productos.`)
               setAgregando(false)
             } finally {
               setGuardando(false)
@@ -230,7 +230,7 @@ function Proveedores({ inv, alVer }: { inv: Inventario; alVer: (nombre: string) 
                   type="button"
                   aria-label={`Quitar la regla ${x.prefijo}`}
                   className="inline-flex size-6 items-center justify-center rounded-full hover:bg-card"
-                  onClick={() => guardar({ prefijos: inv.ajustes.prefijos.filter((y) => y.prefijo !== x.prefijo) }, 'Listo: regla quitada.')}
+                  onClick={() => guardar({ prefijos: inv.ajustes.prefijos.filter((y) => y.prefijo !== x.prefijo) }, 'La regla se eliminó.')}
                 >
                   <Minus className="size-3.5" />
                 </button>
@@ -324,7 +324,7 @@ function FichaProveedor({ inv, nombre, alVolver }: { inv: Inventario; nombre: st
     setGuardandoCat(true)
     try {
       await api('POST', '/catalogo/lote', { filas: pendientes.map((p) => ({ codigo: p.codigo, multiplo: cambios[p.codigo].multiplo, minimo: cambios[p.codigo].minimo, ...(internacional ? { medidas: cambios[p.codigo].medidas } : {}) })) })
-      setAviso({ ok: true, texto: `Listo: ${plural(pendientes.length, 'producto actualizado', 'productos actualizados')}. Lo sugerido ya los tiene en cuenta.` })
+      setAviso({ ok: true, texto: `Cambios guardados: ${plural(pendientes.length, 'producto actualizado', 'productos actualizados')}. Las sugerencias ya los tienen en cuenta.` })
       setCambios({})
       recargar()
     } catch (e) {
@@ -352,7 +352,7 @@ function FichaProveedor({ inv, nombre, alVolver }: { inv: Inventario; nombre: st
       const asignaciones = { ...inv.ajustes.asignaciones }
       for (const p of elegidos) asignaciones[claveCodigo(p.codigo)] = nombre
       await guardarAjustes({ asignaciones })
-      setAviso({ ok: true, texto: `Listo: ${plural(elegidos.length, 'producto', 'productos')} ${elegidos.length === 1 ? 'ahora es' : 'ahora son'} de ${nombre}${cambiados ? ` (${cambiados} cambiaron de proveedor)` : ''}.` })
+      setAviso({ ok: true, texto: `Cambios guardados: ${plural(elegidos.length, 'producto', 'productos')} ${elegidos.length === 1 ? 'quedó asignado' : 'quedaron asignados'} a ${nombre}${cambiados ? ` (${cambiados} cambiaron de proveedor)` : ''}.` })
       setMarcados(new Set())
       setAgregando(false)
     } catch {
@@ -531,7 +531,7 @@ function CondicionesProveedor({ inv, nombre }: { inv: Inventario; nombre: string
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <Boton variante="primario" onClick={guardar} disabled={!cambiado || guardando}>{guardando ? 'Guardando…' : 'Guardar'}</Boton>
-        {guardado && <span className="aparecer text-chico font-semibold text-verde">Listo.</span>}
+        {guardado && <span className="aparecer text-chico font-semibold text-verde">Guardado.</span>}
       </div>
     </Tarjeta>
   )

@@ -18,7 +18,10 @@ export function Activar() {
   const { usuario, fijar, salir } = useSesion()
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const esGerente = usuario?.rolEmpresa === 'gerente'
+  // Quien fundó la empresa (gerente o administrador, Correcciones finales) paga con un asesor; quien llegó
+  // por invitación pide su código a quien lo invitó. Mientras espera el código nadie más puede entrar a
+  // su empresa, así que estar solo en ella es haberla fundado.
+  const esFundador = Boolean(usuario && !usuario.conEquipo)
   const mensaje = `Hola, creé mi cuenta en SINESC con el correo ${usuario?.email}. Quiero pagar para recibir mi código de acceso.`
 
   async function activar(e: FormEvent<HTMLFormElement>) {
@@ -44,7 +47,7 @@ export function Activar() {
           <p className="text-muted-foreground">Su cuenta está creada. Falta su código de acceso para empezar.</p>
         </div>
         <div className="flex flex-col gap-5 rounded-2xl border border-border bg-card p-6">
-          {esGerente ? (
+          {esFundador ? (
             <>
               <ol className="list-decimal space-y-1.5 pl-5 text-cuerpo">
                 <li>Escriba a un asesor.</li>
@@ -66,7 +69,7 @@ export function Activar() {
               )}
             </>
           ) : (
-            <p className="text-cuerpo">Pida su código de acceso a quien lo invitó a la empresa. Cada persona lleva el suyo.</p>
+            <p className="text-cuerpo">Solicite su código de acceso a quien lo invitó a la empresa. Cada persona tiene el suyo.</p>
           )}
           <form className="flex flex-col gap-4" onSubmit={activar} noValidate>
             <Campo etiqueta="Código de acceso">

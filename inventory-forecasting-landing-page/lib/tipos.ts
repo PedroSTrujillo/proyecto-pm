@@ -163,6 +163,9 @@ export type RolEmpresa = 'gerente' | 'administrador' | 'operador'
 export type TipoAlerta = 'pideYa' | 'seAgota' | 'enCero' | 'porAprobar' | 'dineroQuieto' | 'sobran' | 'sinDatos'
 export type Frecuencia = 'diario' | 'semanal' | 'mensual' | 'nunca'
 
+// Áreas que eligen su propia unidad de tiempo (AREAS_TIEMPO en server/cuentas.js).
+export type AreaTiempo = 'panel' | 'productos' | 'existencias' | 'movimientos' | 'pedidos' | 'datos' | 'proveedores' | 'reportes'
+
 export type Usuario = {
   id: number
   email: string
@@ -172,13 +175,16 @@ export type Usuario = {
   perfil: Perfil
   rolEmpresa: RolEmpresa
   // alertas: la tabla completa del boletín (lo que eligió encima de lo de su perfil, server/alertas.js).
-  preferencias: { unidad: 'dias' | 'semanas' | 'meses'; horizonte: number; alertas: Record<TipoAlerta, Frecuencia>; alertasPropias: boolean }
+  // unidad: la general (Mi cuenta); unidades: la que eligió en cada área, encima de la general.
+  preferencias: { unidad: 'dias' | 'semanas' | 'meses'; unidades: Partial<Record<AreaTiempo, 'dias' | 'semanas' | 'meses'>>; horizonte: number; alertas: Record<TipoAlerta, Frecuencia>; alertasPropias: boolean }
   boletin: boolean
   cargo: string
   aprueba: boolean // aprueba los pedidos de su empresa (lo marca quien administra)
   subeDatos: boolean // un operador sube el archivo de inventario solo si quien administra se lo marcó
   registraMovimientos: boolean // un operador registra entradas, ventas, devoluciones y salidas solo si quien administra se lo marcó
   haceConteos: boolean // y hace conteos solo con su propia marca
+  manejaProveedores: boolean // gerente y administrador siempre; un operador, solo si un superior se lo marcó
+  conEquipo: boolean // hay más personas en su empresa
   pendienteCodigo: boolean // creó la cuenta y le falta el código de acceso: solo ve la ventana para activarla
   empresa: { id: number; nombre: string; vacia: boolean; admin: boolean } | null
 }
@@ -191,8 +197,9 @@ export type Empresa = {
   vacia: boolean
   creadoEn: string
   logo: boolean
-  miembros: { id: number; nombre: string; email: string; perfil: Perfil; rol: RolEmpresa; admin: boolean; aprueba: boolean; subeDatos: boolean; registraMovimientos: boolean; haceConteos: boolean; cargo: string; desde: string }[]
+  miembros: { id: number; nombre: string; email: string; perfil: Perfil; rol: RolEmpresa; admin: boolean; aprueba: boolean; subeDatos: boolean; registraMovimientos: boolean; haceConteos: boolean; manejaProveedores: boolean; cargo: string; desde: string }[]
   invitacionesAbiertas: { email: string | null; creadaEn: string; expiraEn: string }[]
+  tieneGerente: boolean // sin gerente (la fundó un administrador), un administrador puede invitarlo
 }
 
 export type TipoMovimiento = 'entrada' | 'venta' | 'devolucion' | 'salida' | 'conteo'

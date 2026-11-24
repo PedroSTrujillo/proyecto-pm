@@ -3,13 +3,12 @@
 // Lo que la empresa escribe en su catálogo y cambia el sugerido (SP4 de docs/PLAN_ALPHA_02.md):
 // familia, múltiplo de empaque, mínimo de pedido y, desde el SP7, desde cuántas semanas sobra; uno
 // por uno en la ficha o pegados desde Excel.
-// Y "Cómo se calcula": el sugerido explicado en orden con los números del propio producto.
 
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { api, textoErrores } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import { alcance, duracion, numero, plural, ventasSemana } from '@/lib/formato'
-import type { Inventario, Producto } from '@/lib/tipos'
+import { numero, plural } from '@/lib/formato'
+import type { Producto } from '@/lib/tipos'
 import { useInventario } from './contexto'
 import { Aviso, Boton, Campo, Desplegable, ErrorLista, claseEntrada } from './ui'
 
@@ -113,7 +112,7 @@ export function CatalogoEnLote() {
     setListo(null)
     try {
       const r = await api<{ guardados: number }>('POST', '/catalogo/lote', { filas })
-      setListo(`Listo: ${plural(r.guardados, 'producto actualizado', 'productos actualizados')}. Lo sugerido ya los tiene en cuenta.`)
+      setListo(`Cambios guardados: ${plural(r.guardados, 'producto actualizado', 'productos actualizados')}. Las sugerencias ya los tienen en cuenta.`)
       setTexto('')
       recargar()
     } catch (e) {
@@ -164,71 +163,6 @@ export function CatalogoEnLote() {
         </Boton>
         <p className="text-nota text-muted-foreground">Si una fila tiene un error, no se guarda ninguna: corríjala y guarde de nuevo.</p>
       </div>
-    </Desplegable>
-  )
-}
-
-// --- Cómo se calcula ---------------------------------------------------------------------------
-
-// Con un decimal solo lo pequeño: "1,4 unidades" sí, "625,6 unidades" no.
-const n1 = (x: number | null | undefined) => (Math.abs(x ?? 0) < 10 ? numero(x ?? 0, 1) : numero(Math.round(x ?? 0)))
-
-// El sugerido de un producto, en el orden en que se calcula y con sus propios números (pedido de
-// Jose en las pruebas: que se entienda de dónde sale cada cifra).
-export function ComoSeCalcula({ p, inv, titulo = 'Cómo se calcula', children }: { p: Producto; inv: Inventario; titulo?: string; children?: ReactNode }) {
-  const x = p.explicacion
-  const d = p.detalleSugerido
-  const totales = inv.fuente.totales
-  const conDoble = !totales && x.vendidoReciente > 0 && x.semanasRecientes > 0
-  return (
-    <Desplegable titulo={titulo}>
-      <ol className="flex list-decimal flex-col gap-2.5 pl-5 text-chico text-foreground/85">
-        <li>
-          <strong>Venta por semana.</strong>{' '}
-          {p.semanas === null && !(p.ventasSemana > 0) ? (
-            'No tiene ventas en el periodo del archivo, así que no hay promedio.'
-          ) : totales ? (
-            <>Vendió {n1(x.vendido)} en {n1(inv.fuente.semanas)} semanas: {n1(x.vendido)} ÷ {n1(inv.fuente.semanas)} = <strong>{ventasSemana(p.ventasSemana)}</strong> por semana.</>
-          ) : conDoble ? (
-            <>
-              Vendió {n1(x.vendidoAjustado)} en {n1(x.semanasProducto)} semanas, y lo de los últimos 3 meses ({n1(x.vendidoReciente)} en {n1(x.semanasRecientes)} semanas) cuenta doble:
-              ({n1(x.vendidoAjustado)} + {n1(x.vendidoReciente)}) ÷ ({n1(x.semanasProducto)} + {n1(x.semanasRecientes)}) = <strong>{ventasSemana(p.ventasSemana)}</strong> por semana.
-            </>
-          ) : (
-            <>Vendió {n1(x.vendidoAjustado)} en {n1(x.semanasProducto)} semanas: <strong>{ventasSemana(p.ventasSemana)}</strong> por semana.</>
-          )}
-          {p.pico && <> Un mes con una venta fuera de lo normal se contó como 3 veces lo normal ({numero(p.pico.contado)} en vez de {numero(p.pico.vendido)}).</>}
-          {p.senales.includes('producto_nuevo') && <> Como empezó a venderse hace poco, se promedia desde su primera venta.</>}
-          {(x.vendidoProyecto ?? 0) > 0 && <> No se cuentan {n1(x.vendidoProyecto)} unidades vendidas para proyectos: bajaron las existencias, pero no se repiten.</>}
-        </li>
-        {p.semanas !== null && (
-          <li>
-            <strong>Para cuánto alcanza.</strong> Hay {numero(p.existencias, 2)}: {numero(Math.max(p.existencias, 0), 2)} ÷ {ventasSemana(p.ventasSemana)} = <strong>{alcance(p.semanas)}</strong>.
-          </li>
-        )}
-        {p.ventaUnica ? (
-          <li><strong>Sin sugerido.</strong> Todo lo vendido cayó en una o dos semanas: parece un proyecto, y repetirlo no es lo normal.</li>
-        ) : d ? (
-          <>
-            <li>
-              <strong>Temporada.</strong>{' '}
-              {inv.temporada ? 'Su negocio vende más en unos meses que en otros: las próximas semanas se ajustan con la temporada de todo su catálogo.' : 'Con menos de 18 meses de ventas no se ajusta por temporada: se supone que las próximas semanas se venden como las de ahora.'}
-            </li>
-            <li>
-              <strong>Lo que se puede vender.</strong> El pedido tiene que cubrir {duracion(d.semanasCubrir)}: lo que tarda {p.proveedor === 'Sin proveedor' ? 'el proveedor' : p.proveedor} ({p.entregaDias != null ? `${plural(p.entregaDias, 'día hábil', 'días hábiles')}` : duracion(p.entrega)}) más {duracion(p.cadaCuanto ?? inv.ajustes.cadaCuanto)} hasta el siguiente pedido.
-              Lo más probable es vender {n1(d.media)}{d.bajo !== undefined ? `; en 8 de cada 10 casos, entre ${n1(d.bajo)} y ${n1(d.alto)}` : ''}.
-            </li>
-            <li>
-              <strong>Sugerido.</strong> Para que alcance en 9 de cada 10 casos hacen falta {n1(d.alto)}. Hay {numero(Math.max(p.existencias, 0), 2)}, así que faltan {numero(d.falta ?? Math.max(0, Math.ceil(d.alto - p.existencias)), 2)}.
-              {d.loteOrigen === 'catalogo' && d.lote && d.lote !== 1 ? <> Redondeado a cajas de {numero(d.lote, 2)}.</> : null}
-              {d.loteOrigen === 'ventas' && d.lote && d.lote > 1 ? <> Siempre se vende de a {numero(d.lote)}: redondeado a paquetes completos.</> : null}
-              {d.minimoPedido ? <> Quedaba por debajo del mínimo de pedido ({numero(d.minimoPedido, 2)}), así que pasa al mínimo.</> : null}
-              {p.estado === 'sobra' ? <> Pero alcanza para más de {duracion(inv.umbrales.sobra)}: no se sugiere pedir.</> : <> Resultado: <strong>{numero(p.sugerido ?? 0, 2)}</strong>.</>}
-            </li>
-          </>
-        ) : null}
-      </ol>
-      {children}
     </Desplegable>
   )
 }

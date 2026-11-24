@@ -21,7 +21,7 @@
 
 const express = require('express');
 const db = require('./db');
-const { requiereUsuario, requiereAdminEmpresa, rolEmpresa, registrarEvento, ErrorUsuario } = require('./cuentas');
+const { requiereUsuario, requiereAdminEmpresa, requiereProveedores, rolEmpresa, registrarEvento, ErrorUsuario } = require('./cuentas');
 const { calcularRotacion } = require('./rotacion');
 const { seriesSemanales } = require('./series');
 const { leerAjustes } = require('./inventario');
@@ -32,7 +32,7 @@ const { productosParecidos } = require('./parecidos');
 
 const MAX_LINEAS = 2000;
 const DIAS_ATRAS = 730; // no se registra nada de hace más de dos años
-const DIAS_PERIODO = 366; // una venta de un periodo cubre como mucho un año
+const DIAS_PERIODO = 366; // un movimiento de un periodo cubre como mucho un año
 const TEXTO_TIPO = { entrada: 'entrada', venta: 'venta', devolucion: 'devolución', salida: 'salida', conteo: 'conteo' };
 
 const texto = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -348,8 +348,15 @@ catalogo.put('/:id', requiereAdminEmpresa, async (req, res) => {
 // Todo o nada.
 const CAMPOS_LOTE = { familia: 'familia', multiplo: 'multiplo', minimo: 'minimo_pedido', sobra: 'sobra_semanas', medidas: 'medidas_cm' };
 
-catalogo.post('/lote', requiereAdminEmpresa, async (req, res) => {
+// Un operador con permiso de proveedores llega aquí desde la ficha de un proveedor: solo el paquete,
+// el mínimo y las medidas de cada producto.
+const CAMPOS_LOTE_PROVEEDORES = ['codigo', 'multiplo', 'minimo', 'medidas'];
+
+catalogo.post('/lote', requiereProveedores, async (req, res) => {
   const filas = Array.isArray(req.body?.filas) ? req.body.filas : [];
+  if (rolEmpresa(req.usuario) === 'operador' && filas.some((f) => f && Object.keys(f).some((k) => !CAMPOS_LOTE_PROVEEDORES.includes(k)))) {
+    throw new ErrorUsuario('Usted solo puede cambiar el paquete, el mínimo y las medidas de los productos desde Proveedores.', 403);
+  }
   if (!filas.length) throw new ErrorUsuario('Escriba al menos un producto.');
   if (filas.length > MAX_LINEAS) throw new ErrorUsuario(`Son más de ${MAX_LINEAS} productos. Péguelos en partes.`);
   const empresaId = req.usuario.empresa_id;
@@ -435,10 +442,11 @@ function revisarMovimientos(lineas, porClave) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || Number.isNaN(Date.parse(`${fecha}T12:00:00Z`))) return errores.push(`Fila ${fila}: la fecha no es válida.`);
     if (fecha > hoy) return errores.push(`Fila ${fila}: la fecha es después de hoy.`);
     if (fecha < minimo) return errores.push(`Fila ${fila}: la fecha es de hace más de dos años.`);
-    // Una venta puede ser el total de un periodo (desde → fecha): se reparte entre sus días (server/saldos.js).
+    // Cualquier movimiento puede ser el total de un periodo (desde → fecha; Correcciones finales: antes
+    // solo las ventas). Las ventas y devoluciones se reparten entre sus días para el promedio; las
+    // existencias cambian el último día; un conteo es lo que había al terminar el periodo (server/saldos.js).
     let desde = null;
     if (l.desde && String(l.desde).trim() !== fecha) {
-      if (tipo !== 'venta') return errores.push(`Fila ${fila}: solo las ventas pueden ser de un periodo.`);
       desde = String(l.desde).trim();
       if (!/^\d{4}-\d{2}-\d{2}$/.test(desde) || Number.isNaN(Date.parse(`${desde}T12:00:00Z`))) return errores.push(`Fila ${fila}: la fecha de inicio del periodo no es válida.`);
       if (desde > fecha) return errores.push(`Fila ${fila}: el periodo empieza después de terminar.`);
@@ -490,8 +498,8 @@ async function resolverDesconocidos(empresaId, lineas, porClave, resolver) {
 // se lo marcó (T18). Gerente y administrador no necesitan permiso.
 function exigirPermisoMovimientos(usuario, tipos) {
   if (rolEmpresa(usuario) !== 'operador') return;
-  if (tipos.some((t) => t !== 'conteo') && !usuario.registra_movimientos) throw new ErrorUsuario('No tiene permiso para registrar movimientos. Pídaselo a quien administra su empresa.', 403);
-  if (tipos.includes('conteo') && !usuario.hace_conteos) throw new ErrorUsuario('No tiene permiso para hacer conteos. Pídaselo a quien administra su empresa.', 403);
+  if (tipos.some((t) => t !== 'conteo') && !usuario.registra_movimientos) throw new ErrorUsuario('No tiene permiso para registrar movimientos. Consulte al administrador de su empresa.', 403);
+  if (tipos.includes('conteo') && !usuario.hace_conteos) throw new ErrorUsuario('No tiene permiso para hacer conteos. Consulte al administrador de su empresa.', 403);
 }
 
 rutas.post('/', async (req, res) => {
@@ -555,8 +563,9 @@ rutas.post('/', async (req, res) => {
   if (estado.base) {
     const viejos = revision.limpias.filter((m) => m.fecha <= estado.base.hasta).length;
     if (viejos) avisos.push(`${viejos === 1 ? '1 movimiento es' : `${viejos} movimientos son`} del ${estado.base.hasta} o antes: ese día ya está en el archivo que subieron, así que no cambia las existencias.`);
-    const cruzan = revision.limpias.filter((m) => m.desde && m.desde <= estado.base.hasta && m.fecha > estado.base.hasta).length;
-    if (cruzan) avisos.push(`${cruzan === 1 ? '1 venta del periodo empieza' : `${cruzan} ventas del periodo empiezan`} antes del ${estado.base.hasta}, el último día del archivo que subieron: se cuenta solo la parte de los días siguientes.`);
+    // Un conteo no se reparte (es lo que había el último día): no entra en este aviso.
+    const cruzan = revision.limpias.filter((m) => m.tipo !== 'conteo' && m.desde && m.desde <= estado.base.hasta && m.fecha > estado.base.hasta).length;
+    if (cruzan) avisos.push(`${cruzan === 1 ? '1 movimiento del periodo empieza' : `${cruzan} movimientos del periodo empiezan`} antes del ${estado.base.hasta}, el último día del archivo que subieron: se cuenta solo la parte de los días siguientes.`);
   }
   const tocados = new Set(revision.limpias.map((m) => m.producto.clave));
   for (const p of estado.productos) {

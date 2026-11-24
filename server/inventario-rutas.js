@@ -16,7 +16,7 @@
 
 const express = require('express');
 const db = require('./db');
-const { requiereUsuario, requiereAdminEmpresa, rolEmpresa, registrarEvento, ErrorUsuario, leerPreferencias } = require('./cuentas');
+const { requiereUsuario, requiereAdminEmpresa, requiereProveedores, rolEmpresa, registrarEvento, ErrorUsuario, leerPreferencias } = require('./cuentas');
 const { procesarExport, leerPeriodo, leerMapeoManual, subida, archivoSubido, leerDocumentos, leerCanales, mapeosDe } = require('./pedidos');
 const { DIAS_PRUEBA } = require('./equipo');
 const { leerExport } = require('./lector');
@@ -191,9 +191,14 @@ async function inventarioDeEmpresa(empresaId) {
 
 // Se mezcla con lo guardado: cambiar un tiempo de entrega no borra los proveedores asignados, y al revés.
 // Son de la empresa: lo que cambie una persona lo ven las demás.
-rutas.put('/ajustes', requiereAdminEmpresa, async (req, res) => {
+// Lo que se cambia desde Proveedores. Un operador con permiso de proveedores solo cambia esto; lo
+// demás que mande (la pantalla manda todos los ajustes juntos) se deja como estaba.
+const AJUSTES_PROVEEDORES = ['entregas', 'entregasDias', 'entregaPorDefecto', 'entregaPorDefectoDias', 'cadaCuanto', 'cadaCuantoProv', 'asignaciones', 'prefijos', 'condiciones', 'unidades', 'importaciones'];
+
+rutas.put('/ajustes', requiereProveedores, async (req, res) => {
   const e = await db.uno('SELECT inventario FROM empresas WHERE id = $1', [req.usuario.empresa_id]);
-  const cuerpo = req.body && typeof req.body === 'object' ? { ...req.body } : {};
+  let cuerpo = req.body && typeof req.body === 'object' ? { ...req.body } : {};
+  if (rolEmpresa(req.usuario) === 'operador') cuerpo = Object.fromEntries(Object.entries(cuerpo).filter(([k]) => AJUSTES_PROVEEDORES.includes(k)));
   const guardados = (e && e.inventario) || {};
   // Las pantallas que todavía escriben el tiempo de entrega en semanas (el paso 4 de un pedido):
   // lo que cambien pasa a días hábiles, para que no lo tape lo que estaba guardado en días.

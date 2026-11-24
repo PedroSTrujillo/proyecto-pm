@@ -3,7 +3,7 @@ import { SoloRol } from '@/components/app/solo-rol'
 
 export default function Page() {
   return (
-    <SoloRol permite={['gerente', 'administrador']}>
+    <SoloRol permite={['gerente', 'administrador']} conPermiso="manejaProveedores">
       <ProveedoresPantalla />
     </SoloRol>
   )

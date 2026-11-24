@@ -9,7 +9,8 @@ import { api, textoErrores } from '@/lib/api'
 import type { Usuario } from '@/lib/tipos'
 import { cn } from '@/lib/utils'
 import { Marca } from './marco'
-import { Aviso, Boton, Campo, ErrorLista, claseEntrada } from './ui'
+import { Aviso, Boton, Campo, ErrorLista, Pildoras, claseEntrada } from './ui'
+import { TEXTO_ROL } from './vista'
 
 const LEMA = 'Suba lo que exporta de su programa contable y vea, en semanas de inventario, qué productos se agotan primero y cuáles sobran.'
 
@@ -67,7 +68,7 @@ export function Entrar() {
       titulo="Entre a su cuenta"
       pie={
         <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5">
-          <p><strong>¿Es su primera vez?</strong> Necesita una cuenta. Es gratis y toma un minuto.</p>
+          <p><strong>¿Es su primera vez?</strong> Necesita una cuenta.</p>
           <div className="flex flex-wrap gap-2.5">
             <Link href={`/crear-cuenta${params.get('volver') ? `?volver=${encodeURIComponent(params.get('volver')!)}` : ''}`} className="presionable inline-flex min-h-10 items-center rounded-xl border border-input bg-card px-4 font-semibold hover:bg-muted">Crear una cuenta</Link>
             <Link href="/demo" className="inline-flex min-h-10 items-center px-2 font-semibold text-primary hover:text-primary-hover">Ver un ejemplo</Link>
@@ -95,6 +96,9 @@ export function CrearCuenta() {
   const { enviando, error, enviar } = useEnvio()
   const [invitada, setInvitada] = useState<{ empresa: string; email: string | null } | null>(null)
   const [errorInvitacion, setErrorInvitacion] = useState<string | null>(null)
+  // Quien funda la empresa elige su rol: casi siempre es quien administra el inventario; el gerente
+  // puede llegar después por invitación.
+  const [rolFundador, setRolFundador] = useState<'administrador' | 'gerente'>('administrador')
 
   useEffect(() => {
     if (!invitacion) return
@@ -107,7 +111,7 @@ export function CrearCuenta() {
     e.preventDefault()
     const d = Object.fromEntries(new FormData(e.currentTarget)) as Record<string, string>
     enviar(async () => {
-      const r = await api<{ usuario: Usuario }>('POST', '/cuenta/crear', { ...d, boletin: d.boletin === 'on', ...(invitacion ? { invitacion } : {}) })
+      const r = await api<{ usuario: Usuario }>('POST', '/cuenta/crear', { ...d, boletin: d.boletin === 'on', ...(invitacion ? { invitacion } : { rolFundador }) })
       // El rol viene de la invitación: quien entra como operador empieza por lo que registra.
       router.replace(r.usuario.perfil === 'operador' ? '/movimientos' : destino(params))
     })
@@ -128,6 +132,18 @@ export function CrearCuenta() {
             <>
               <Campo etiqueta="Nombre de su empresa"><input className={claseEntrada} type="text" name="empresa" required autoComplete="organization" autoFocus /></Campo>
               <Campo etiqueta="NIT" nota="(opcional)"><input className={claseEntrada} type="text" name="nit" inputMode="numeric" /></Campo>
+              <div className="flex flex-col gap-1.5">
+                <span className="text-cuerpo font-semibold">Su rol en la empresa</span>
+                <Pildoras
+                  etiqueta="Su rol en la empresa"
+                  opciones={(['administrador', 'gerente'] as const).map((id) => ({ id, texto: TEXTO_ROL[id].titulo }))}
+                  valor={rolFundador}
+                  onCambio={setRolFundador}
+                />
+                <span className="text-nota text-muted-foreground">
+                  {TEXTO_ROL[rolFundador].corto}{rolFundador === 'administrador' ? ' Si lo necesita, después puede invitar al gerente de la empresa.' : ''}
+                </span>
+              </div>
             </>
           )}
           <Campo etiqueta="Su nombre"><input className={claseEntrada} type="text" name="nombre" required autoComplete="name" autoFocus={Boolean(invitacion)} /></Campo>
@@ -136,7 +152,7 @@ export function CrearCuenta() {
           <Campo etiqueta="Contraseña" nota="(mínimo 8 caracteres)"><input className={claseEntrada} type="password" name="clave" required minLength={8} autoComplete="new-password" /></Campo>
           <label className="flex items-start gap-2.5 text-cuerpo">
             <input type="checkbox" name="boletin" defaultChecked className="mt-0.5 size-5 shrink-0 accent-[var(--primary)]" />
-            <span>Recibir cada mañana un correo con el estado del inventario. <span className="text-muted-foreground">Se da de baja con un clic.</span></span>
+            <span>Recibir cada mañana un correo con el estado del inventario. <span className="text-muted-foreground">Puede cancelar la suscripción cuando quiera.</span></span>
           </label>
           {error && <ErrorLista mensaje={error.mensaje} lista={error.lista} />}
           <Boton type="submit" variante="primario" disabled={enviando || Boolean(invitacion && !invitada)}>{enviando ? 'Creando…' : 'Crear cuenta'}</Boton>

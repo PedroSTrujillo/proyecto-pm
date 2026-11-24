@@ -204,7 +204,7 @@ export function PedidoPreparar({ pedido, alCambiar }: { pedido: Pedido; alCambia
     try {
       await auto.ahora()
       await bajar(`/pedidos/${pedido.id}/pedido.${tipo}${delProveedor ? `?proveedor=${encodeURIComponent(delProveedor)}` : ''}`, `pedido-${pedido.numero}.${tipo}`)
-      setAviso(tipo === 'pdf' ? 'Listo: el PDF trae el pedido por proveedor, los totales y el espacio para la firma.' : 'Listo: el Excel trae un resumen y una hoja por proveedor.')
+      setAviso(tipo === 'pdf' ? 'El PDF incluye el pedido por proveedor, los totales y el espacio para la firma.' : 'El Excel incluye un resumen y una hoja por proveedor.')
     } catch (e) {
       setAviso(e instanceof Error ? e.message : 'No pudimos armar el archivo.')
     }

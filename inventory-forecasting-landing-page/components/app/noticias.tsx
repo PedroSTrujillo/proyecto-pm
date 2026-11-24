@@ -42,7 +42,7 @@ export function Noticias() {
 
   return (
     <>
-      <Titulo sub="La TRM de hoy y lo que dicen las noticias sobre aranceles, importaciones y la regulación de su sector.">Noticias</Titulo>
+      <Titulo sub="La TRM de hoy y las noticias de los últimos 6 meses sobre aranceles, importaciones y la regulación de su sector.">Noticias</Titulo>
       <section aria-labelledby="t-trm" className="flex flex-col gap-3">
         <h2 id="t-trm" className="text-xl font-bold">Tasa de cambio en pesos{datos.trm?.fecha ? ` · ${dia(datos.trm.fecha)}` : ''}</h2>
         {datos.trm ? (

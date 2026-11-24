@@ -60,7 +60,7 @@ export function Titulo({ children, sub, acciones, etiqueta }: { children: ReactN
 }
 
 export const ESTADOS: Record<Estado, { texto: string; chip: string; numero: string; barra: string; descripcion: string }> = {
-  agota: { texto: 'Se va a agotar', chip: 'bg-rojo-fondo text-rojo-texto', numero: 'text-rojo', barra: 'bg-rojo', descripcion: 'Alcanza para menos de las semanas elegidas para el aviso (2 si no se cambió).' },
+  agota: { texto: 'Se agota', chip: 'bg-rojo-fondo text-rojo-texto', numero: 'text-rojo', barra: 'bg-rojo', descripcion: 'Alcanza para menos de las semanas elegidas para el aviso (2 si no se cambió).' },
   pide: { texto: 'Pedir ya', chip: 'bg-ambar-fondo text-ambar-texto', numero: 'text-ambar', barra: 'bg-ambar', descripcion: 'No alcanza para lo que tarda en llegar un pedido, más una semana de margen.' },
   // En verde: en las pruebas se pedían colores con significado (Juan Camilo Solano, semana 12), y en
   // gris "Bien" se leía como algo apagado.
@@ -69,7 +69,7 @@ export const ESTADOS: Record<Estado, { texto: string; chip: string; numero: stri
   sin_ventas: { texto: 'Sin ventas', chip: 'bg-azul-fondo text-azul-texto', numero: 'text-muted-foreground', barra: 'bg-muted-foreground', descripcion: 'No se vendió en el periodo del archivo.' },
 }
 
-// existencias: si ya no hay nada y se vende, dice "Agotado" (no "se va a agotar").
+// existencias: si ya no hay nada y se vende, dice "Agotado" (no "se agota").
 export function textoEstado(estado: Estado, existencias?: number | null) {
   if (estado === 'agota' && existencias !== undefined && existencias !== null && existencias <= 0) return 'Agotado'
   return ESTADOS[estado].texto

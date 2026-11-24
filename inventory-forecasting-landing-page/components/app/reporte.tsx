@@ -11,8 +11,6 @@ import { SelectorTiempo } from './vista'
 import { alcance, duracion, mesAnio, numero, plural, semanas, ventasSemana } from '@/lib/formato'
 import type { Estado } from '@/lib/tipos'
 import { Boton, ChipEstado, Desplegable, ESTADOS, Pildoras, claseEntrada } from './ui'
-import { useInventario } from './contexto'
-import { ComoSeCalcula } from './catalogo'
 
 export type FilaReporte = {
   codigo: string
@@ -86,11 +84,6 @@ export function Reporte({ r, compacto = false }: { r: ReporteRotacion; compacto?
   }, [r, q, filtro])
   const e = r.ejemplo
   const conAjustes = Boolean(r.ajustes) && !r.periodo.totales
-  // El cálculo completo (promedio, temporada, rango y sugerido) con el producto de ejemplo, si el
-  // inventario de la empresa es el mismo archivo de este reporte: si no, los números no cuadrarían.
-  const { inventario } = useInventario()
-  const delEjemplo = e && inventario && r.subidoEn && inventario.fuente.fecha === r.subidoEn ? inventario.productos.find((p) => p.codigo === e.codigo) : null
-  const comoSeCalcula = delEjemplo && inventario ? <ComoSeCalcula p={delEjemplo} inv={inventario} titulo={`Cómo se calcula lo sugerido, con ${delEjemplo.codigo}`} /> : null
 
   const importantes = (r.avisos || []).filter((a) => AVISO_IMPORTANTE.test(a))
   // Varias hojas o archivos con las mismas columnas se describen una sola vez.
@@ -109,7 +102,6 @@ export function Reporte({ r, compacto = false }: { r: ReporteRotacion; compacto?
         <div className="rounded-2xl border border-azul-borde bg-azul-fondo p-4"><strong className="font-display text-[1.8rem] text-azul tabular-nums">{numero(r.resumen.sobran)}</strong><span className="block text-sm text-azul-texto">sobran: más de {duracion(u.sobra)} o sin ventas</span></div>
       </div>
 
-      {comoSeCalcula}
       <Desplegable titulo="¿De dónde sale el número?">
         <p><strong>Semanas de inventario = existencias ÷ ventas por semana.</strong>{e ? ` Por ejemplo, ${e.codigo} vende ${ventasSemana(e.promedioSemanal)} por semana y hay ${numero(e.existencias)}: alcanza para ${semanas(e.semanasInventario)} semanas${alcance(e.semanasInventario) !== `${semanas(e.semanasInventario)} semanas` ? ` (${alcance(e.semanasInventario)})` : ''}.` : ''}</p>
         <p className="mt-1 text-chico text-muted-foreground">

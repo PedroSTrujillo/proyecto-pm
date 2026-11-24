@@ -14,15 +14,19 @@ import { TEXTO_ROL } from './vista'
 
 type Invitacion = { enlace: string; dias: number; enviado: boolean; email: string }
 
-export function FormInvitar({ deshabilitado = false, alInvitar }: { deshabilitado?: boolean; alInvitar?: (empresa: Empresa) => void }) {
+// sinGerente: la empresa la fundó un administrador y no tiene gerente; ese administrador puede invitarlo.
+export function FormInvitar({ deshabilitado = false, sinGerente = false, alInvitar }: { deshabilitado?: boolean; sinGerente?: boolean; alInvitar?: (empresa: Empresa) => void }) {
   const [invitacion, setInvitacion] = useState<Invitacion | null>(null)
   const [error, setError] = useState<ReturnType<typeof textoErrores> | null>(null)
   const [copiado, setCopiado] = useState(false)
   const [enviando, setEnviando] = useState(false)
-  const [rol, setRol] = useState<'administrador' | 'operador'>('operador')
+  const [rol, setRol] = useState<'gerente' | 'administrador' | 'operador'>('operador')
   const { usuario } = useSesion()
-  // El administrador solo invita operadores; el gerente elige (el servidor lo vuelve a revisar).
-  const puedeElegirRol = usuario?.rolEmpresa === 'gerente'
+  // El gerente invita operadores o administradores; el administrador, operadores y, si la empresa no
+  // tiene gerente, también a su gerente (el servidor lo vuelve a revisar).
+  const rolesQueDa: ('gerente' | 'administrador' | 'operador')[] =
+    usuario?.rolEmpresa === 'gerente' ? ['operador', 'administrador'] : usuario?.rolEmpresa === 'administrador' && sinGerente ? ['operador', 'gerente'] : ['operador']
+  const puedeElegirRol = rolesQueDa.length > 1
 
   async function invitar(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -31,7 +35,7 @@ export function FormInvitar({ deshabilitado = false, alInvitar }: { deshabilitad
     setCopiado(false)
     setEnviando(true)
     try {
-      const r = await api<{ enlace: string; dias: number; enviado: boolean; empresa: Empresa }>('POST', '/empresa/invitaciones', { email, rol: puedeElegirRol ? rol : 'operador' })
+      const r = await api<{ enlace: string; dias: number; enviado: boolean; empresa: Empresa }>('POST', '/empresa/invitaciones', { email, rol: rolesQueDa.includes(rol) ? rol : 'operador' })
       setInvitacion({ enlace: r.enlace, dias: r.dias, enviado: r.enviado, email })
       alInvitar?.(r.empresa)
     } catch (err) {
@@ -61,7 +65,7 @@ export function FormInvitar({ deshabilitado = false, alInvitar }: { deshabilitad
             <span className="text-cuerpo font-semibold">Rol de la persona</span>
             <Pildoras
               etiqueta="Rol de la persona"
-              opciones={[{ id: 'operador', texto: TEXTO_ROL.operador.titulo }, { id: 'administrador', texto: TEXTO_ROL.administrador.titulo }]}
+              opciones={rolesQueDa.map((id) => ({ id, texto: TEXTO_ROL[id].titulo }))}
               valor={rol}
               onCambio={setRol}
             />
@@ -100,7 +104,7 @@ export function TarjetaInvitar() {
   const { usuario } = useSesion()
   const [mostrar, setMostrar] = useState(false)
   const [invito, setInvito] = useState(false)
-  const puede = Boolean(usuario?.empresa?.admin && !usuario.empresa.vacia)
+  const puede = Boolean(usuario?.empresa && usuario.rolEmpresa !== 'operador' && !usuario.empresa.vacia)
 
   useEffect(() => {
     if (!puede) return
@@ -139,7 +143,7 @@ export function TarjetaInvitar() {
         </p>
       </div>
       <div className="flex-1">
-        <FormInvitar alInvitar={() => setInvito(true)} />
+        <FormInvitar sinGerente={usuario?.rolEmpresa === 'administrador'} alInvitar={() => setInvito(true)} />
         {invito && <p className="mt-2 text-nota text-muted-foreground">Cuando entre, la verá en Mi empresa. Ahí también decide quién aprueba los pedidos.</p>}
       </div>
     </Tarjeta>

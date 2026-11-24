@@ -53,7 +53,7 @@ export function Empresa() {
   }
 
   // Quién aprueba pedidos y el cargo de cada quien. Si es la persona misma, la sesión también cambia.
-  async function cambiarMiembro(id: number, cambio: { aprueba?: boolean; subeDatos?: boolean; registraMovimientos?: boolean; haceConteos?: boolean; cargo?: string; rol?: RolEmpresa }) {
+  async function cambiarMiembro(id: number, cambio: { aprueba?: boolean; subeDatos?: boolean; registraMovimientos?: boolean; haceConteos?: boolean; manejaProveedores?: boolean; cargo?: string; rol?: RolEmpresa }) {
     setErrorMiembro(null)
     try {
       const r = await api<{ empresa: TEmpresa }>('PUT', `/empresa/miembros/${id}`, cambio)
@@ -81,7 +81,7 @@ export function Empresa() {
     try {
       setEmpresa((await api<{ empresa: TEmpresa }>('PUT', '/empresa/logo', { datos })).empresa)
       setVersionLogo((v) => v + 1)
-      setMsgLogo({ ok: 'Listo: el logo ya sale en el PDF y el Excel de los pedidos.' })
+      setMsgLogo({ ok: 'Logo guardado. Aparecerá en el PDF y el Excel de los pedidos.' })
     } catch (err) {
       setMsgLogo({ error: textoErrores(err).mensaje })
     }
@@ -140,7 +140,7 @@ export function Empresa() {
             </Campo>
             {msgDatos?.ok && <Aviso tono="ok">{msgDatos.ok}</Aviso>}
             {msgDatos?.error && <ErrorLista mensaje={msgDatos.error.mensaje} lista={msgDatos.error.lista} />}
-            {admin ? <Boton type="submit" variante="primario" className="self-start">Guardar</Boton> : <p className="text-chico text-muted-foreground">Solo quien administra la empresa cambia estos datos.</p>}
+            {admin ? <Boton type="submit" variante="primario" className="self-start">Guardar</Boton> : <p className="text-chico text-muted-foreground">Solo el administrador de la empresa puede modificar estos datos.</p>}
           </form>
           <div className="mt-6 flex flex-col gap-3 border-t border-border pt-5">
             <h3 className="text-lg font-bold">Logo</h3>
@@ -169,10 +169,10 @@ export function Empresa() {
           <h2 className="text-xl font-bold">Invitar a alguien</h2>
           {admin ? (
             <>
-              <FormInvitar deshabilitado={empresa.vacia} alInvitar={setEmpresa} />
+              <FormInvitar deshabilitado={empresa.vacia} sinGerente={!empresa.tieneGerente} alInvitar={setEmpresa} />
             </>
           ) : (
-            <p className="text-muted-foreground">Para invitar a alguien, pídale a quien administra la empresa que le envíe el enlace.</p>
+            <p className="text-muted-foreground">Para invitar a alguien, solicite el enlace al administrador de la empresa.</p>
           )}
           {empresa.invitacionesAbiertas.length > 0 && (
             <p className="text-nota text-muted-foreground">
@@ -199,7 +199,7 @@ export function Empresa() {
                 <span className="flex min-w-0 flex-col">
                   <strong className="truncate">{m.nombre}{m.id === usuario.id ? ' (usted)' : ''}</strong>
                   <span className="truncate text-chico text-muted-foreground">
-                    {m.email} · {TEXTO_ROL[m.rol].titulo}{!mio && m.cargo ? ` · ${m.cargo}` : ''}{!mio && m.aprueba ? ' · aprueba pedidos' : ''}{!mio && m.subeDatos ? ' · sube datos' : ''}{!mio && m.registraMovimientos ? ' · registra movimientos' : ''}{!mio && m.haceConteos ? ' · hace conteos' : ''} · desde el {fecha(m.desde)}
+                    {m.email} · {TEXTO_ROL[m.rol].titulo}{!mio && m.cargo ? ` · ${m.cargo}` : ''}{!mio && m.aprueba ? ' · aprueba pedidos' : ''}{!mio && m.subeDatos ? ' · sube datos' : ''}{!mio && m.registraMovimientos ? ' · registra movimientos' : ''}{!mio && m.haceConteos ? ' · hace conteos' : ''}{!mio && m.rol === 'operador' && m.manejaProveedores ? ' · maneja proveedores' : ''} · desde el {fecha(m.desde)}
                   </span>
                 </span>
                 {mio && (
@@ -237,6 +237,10 @@ export function Empresa() {
                       <label className="flex items-center gap-2 text-chico font-semibold">
                         <input type="checkbox" checked={m.haceConteos} onChange={(e) => cambiarMiembro(m.id, { haceConteos: e.target.checked })} className="size-5 accent-[var(--primary)]" />
                         Puede hacer conteos
+                      </label>
+                      <label className="flex items-center gap-2 text-chico font-semibold">
+                        <input type="checkbox" checked={m.manejaProveedores} onChange={(e) => cambiarMiembro(m.id, { manejaProveedores: e.target.checked })} className="size-5 accent-[var(--primary)]" />
+                        Puede manejar proveedores
                       </label>
                       </>
                     ) : (

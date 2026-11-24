@@ -131,7 +131,7 @@ async function cuentaPorId(id) {
   const n = Number(id);
   if (!Number.isInteger(n) || n <= 0) throw new ErrorUsuario('No encontramos esa cuenta.', 404);
   const u = await db.uno(
-    `SELECT u.id, u.nombre, u.email, u.rol, u.empresa_id, u.clave_hash, e.nombre AS empresa
+    `SELECT u.id, u.nombre, u.email, u.rol, u.empresa_id, u.admin_empresa, u.clave_hash, e.nombre AS empresa
        FROM usuarios u LEFT JOIN empresas e ON e.id = u.empresa_id WHERE u.id = $1`,
     [n],
   );

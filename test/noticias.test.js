@@ -85,7 +85,7 @@ async function cuenta(nombre, email, extra = {}) {
 }
 
 test('leerRss: solo texto y enlaces https, los 5 primeros, con las entidades decodificadas', () => {
-  const t = N.leerRss(RSS);
+  const t = N.leerRss(RSS, Date.parse('2026-11-24T12:00:00Z'));
   assert.equal(t.length, 5);
   assert.deepEqual(t[0], { titulo: 'Aranceles & más: la UE sube cuotas', enlace: 'https://news.google.com/rss/articles/a1?oc=5', fuente: 'El Espectador', fecha: '2026-10-26T10:00:00.000Z' });
   assert.ok(t.every((x) => x.enlace.startsWith('https://')), 'los http y javascript se descartan');
@@ -94,6 +94,17 @@ test('leerRss: solo texto y enlaces https, los 5 primeros, con las entidades dec
   assert.equal(t[1].titulo, "Hola <script>alert(1)</script> l'arancel");
   assert.equal(t[1].fuente, 'Fuente B');
   assert.equal(t[2].fecha, null);
+});
+
+test('leerRss: deja fuera lo publicado hace más de MESES_NOTICIAS', () => {
+  const xml = `<rss><channel>
+<item><title>Vieja</title><link>https://example.com/v</link><pubDate>Tue, 03 Mar 2020 10:00:00 GMT</pubDate></item>
+<item><title>Hace 7 meses</title><link>https://example.com/7m</link><pubDate>Fri, 24 Apr 2026 10:00:00 GMT</pubDate></item>
+<item><title>Hace 2 meses</title><link>https://example.com/2m</link><pubDate>Thu, 24 Sep 2026 10:00:00 GMT</pubDate></item>
+</channel></rss>`;
+  assert.equal(N.MESES_NOTICIAS, 6);
+  const t = N.leerRss(xml, Date.parse('2026-11-24T12:00:00Z'));
+  assert.deepEqual(t.map((x) => x.titulo), ['Hace 2 meses']);
 });
 
 test('convertir: el euro y el yuan salen de la TRM y del cambio del día', () => {

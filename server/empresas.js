@@ -67,9 +67,24 @@ function leerRol(req, rol) {
   return rol;
 }
 
+async function tieneGerente(empresaId) {
+  return Boolean(await db.uno('SELECT 1 AS hay FROM usuarios WHERE empresa_id = $1 AND admin_empresa', [empresaId]));
+}
+
+// Al invitar, además: en una empresa sin gerente (la fundó un administrador), un administrador puede
+// invitar a su gerente (Correcciones finales). Es la única vez que se da un rol mayor al propio.
+async function leerRolInvitado(req, rol) {
+  if (rol === 'gerente') {
+    if (rolEmpresa(req.usuario) !== 'administrador') throw new ErrorUsuario('Una empresa tiene un solo gerente. Para cambiarlo, use "Pasar la gerencia".', 403);
+    if (await tieneGerente(req.usuario.empresa_id)) throw new ErrorUsuario('Su empresa ya tiene gerente.', 409);
+    return rol;
+  }
+  return leerRol(req, rol);
+}
+
 async function vistaEmpresa(empresaId) {
   const e = await db.uno('SELECT id, nombre, nit, sector, vacia, creado_en, logo IS NOT NULL AS con_logo FROM empresas WHERE id = $1', [empresaId]);
-  const miembros = await db.query('SELECT aprueba, sube_datos, registra_movimientos, hace_conteos, id, nombre, email, perfil, admin_empresa, cargo, creado_en FROM usuarios WHERE empresa_id = $1 ORDER BY creado_en', [empresaId]);
+  const miembros = await db.query('SELECT aprueba, sube_datos, registra_movimientos, hace_conteos, maneja_proveedores, id, nombre, email, perfil, admin_empresa, cargo, creado_en FROM usuarios WHERE empresa_id = $1 ORDER BY creado_en', [empresaId]);
   const invitaciones = await db.query(
     'SELECT email, creada_en, expira_en FROM invitaciones WHERE empresa_id = $1 AND usada_en IS NULL AND expira_en > now() ORDER BY creada_en DESC',
     [empresaId],
@@ -82,7 +97,9 @@ async function vistaEmpresa(empresaId) {
     vacia: e.vacia,
     creadoEn: e.creado_en,
     logo: Boolean(e.con_logo),
-    miembros: miembros.map((m) => ({ id: m.id, nombre: m.nombre, email: m.email, perfil: m.perfil, rol: rolEmpresa(m), admin: m.admin_empresa, aprueba: m.aprueba, subeDatos: m.sube_datos, registraMovimientos: m.registra_movimientos, haceConteos: m.hace_conteos, cargo: m.cargo || '', desde: m.creado_en })),
+    // Sin gerente (la fundó un administrador), un administrador puede invitarlo.
+    tieneGerente: miembros.some((m) => m.admin_empresa),
+    miembros: miembros.map((m) => ({ id: m.id, nombre: m.nombre, email: m.email, perfil: m.perfil, rol: rolEmpresa(m), admin: m.admin_empresa, aprueba: m.aprueba, subeDatos: m.sube_datos, registraMovimientos: m.registra_movimientos, haceConteos: m.hace_conteos, manejaProveedores: m.maneja_proveedores, cargo: m.cargo || '', desde: m.creado_en })),
     invitacionesAbiertas: invitaciones.map((i) => ({ email: i.email, creadaEn: i.creada_en, expiraEn: i.expira_en })),
   };
 }
@@ -110,7 +127,7 @@ rutas.post('/invitaciones', requiereAdminEmpresa, async (req, res) => {
   if (email && (await db.uno('SELECT id FROM usuarios WHERE email = $1', [email]))) {
     throw new ErrorUsuario('Ya hay una cuenta con ese correo. Por ahora una cuenta no se puede pasar de una empresa a otra.');
   }
-  const rol = leerRol(req, req.body?.rol ?? 'operador');
+  const rol = await leerRolInvitado(req, req.body?.rol ?? 'operador');
   const token = crypto.randomBytes(24).toString('base64url');
   await db.query(
     `INSERT INTO invitaciones (token_hash, empresa_id, creada_por, email, rol, expira_en)
@@ -135,7 +152,7 @@ rutas.post('/invitaciones', requiereAdminEmpresa, async (req, res) => {
 
 // El rol de cada persona (T1), quién aprueba pedidos (D11) y su cargo. Solo cambia lo que viene.
 rutas.put('/miembros/:id', requiereAdminEmpresa, async (req, res) => {
-  const m = await db.uno('SELECT aprueba, sube_datos, registra_movimientos, hace_conteos, id, nombre, cargo, perfil, admin_empresa FROM usuarios WHERE id = $1 AND empresa_id = $2', [Number(req.params.id), req.usuario.empresa_id]);
+  const m = await db.uno('SELECT aprueba, sube_datos, registra_movimientos, hace_conteos, maneja_proveedores, id, nombre, cargo, perfil, admin_empresa FROM usuarios WHERE id = $1 AND empresa_id = $2', [Number(req.params.id), req.usuario.empresa_id]);
   if (!m) throw new ErrorUsuario('Esa persona no está en su empresa.', 404);
   exigirRangoSobre(req, m);
   const rol = req.body?.rol === undefined ? rolEmpresa(m) : leerRol(req, req.body.rol);
@@ -144,9 +161,10 @@ rutas.put('/miembros/:id', requiereAdminEmpresa, async (req, res) => {
   const subeDatos = typeof req.body?.subeDatos === 'boolean' ? req.body.subeDatos : m.sube_datos;
   const registraMovimientos = typeof req.body?.registraMovimientos === 'boolean' ? req.body.registraMovimientos : m.registra_movimientos;
   const haceConteos = typeof req.body?.haceConteos === 'boolean' ? req.body.haceConteos : m.hace_conteos;
+  const manejaProveedores = typeof req.body?.manejaProveedores === 'boolean' ? req.body.manejaProveedores : m.maneja_proveedores;
   const cargo = req.body?.cargo === undefined ? m.cargo : leerCargo(req.body.cargo);
-  await db.query('UPDATE usuarios SET aprueba = $1, cargo = $2, perfil = $3, sube_datos = $4, registra_movimientos = $5, hace_conteos = $6 WHERE id = $7', [aprueba, cargo, rol === 'administrador' ? 'analista' : 'operador', subeDatos, registraMovimientos, haceConteos, m.id]);
-  await registrarEvento(req.usuario.id, 'miembro_editado', { detalle: { usuario: m.id, antes: { aprueba: m.aprueba, subeDatos: m.sube_datos, registraMovimientos: m.registra_movimientos, haceConteos: m.hace_conteos, cargo: m.cargo, rol: rolEmpresa(m) }, despues: { aprueba, subeDatos, registraMovimientos, haceConteos, cargo, rol } } });
+  await db.query('UPDATE usuarios SET aprueba = $1, cargo = $2, perfil = $3, sube_datos = $4, registra_movimientos = $5, hace_conteos = $6, maneja_proveedores = $7 WHERE id = $8', [aprueba, cargo, rol === 'administrador' ? 'analista' : 'operador', subeDatos, registraMovimientos, haceConteos, manejaProveedores, m.id]);
+  await registrarEvento(req.usuario.id, 'miembro_editado', { detalle: { usuario: m.id, antes: { aprueba: m.aprueba, subeDatos: m.sube_datos, registraMovimientos: m.registra_movimientos, haceConteos: m.hace_conteos, manejaProveedores: m.maneja_proveedores, cargo: m.cargo, rol: rolEmpresa(m) }, despues: { aprueba, subeDatos, registraMovimientos, haceConteos, manejaProveedores, cargo, rol } } });
   res.json({ empresa: await vistaEmpresa(req.usuario.empresa_id) });
 });
 

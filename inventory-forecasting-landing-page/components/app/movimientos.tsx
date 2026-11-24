@@ -132,7 +132,7 @@ export function Movimientos() {
     return (
       <>
         <Titulo acciones={<BotonEnlace href="/existencias">Ver existencias</BotonEnlace>}>Movimientos</Titulo>
-        <Aviso tono="info">Todavía no tiene permiso para registrar movimientos ni hacer conteos. Pídaselo a quien administra su empresa en Mi empresa.</Aviso>
+        <Aviso tono="info">Todavía no tiene permiso para registrar movimientos ni hacer conteos. Consulte al administrador de su empresa, que puede asignarlo en Mi empresa.</Aviso>
       </>
     )
   }
@@ -372,9 +372,10 @@ function ProductosNoEncontrados({ pendiente, guardando, alGuardar, alCancelar }:
 }
 
 // Varias líneas a la vez, en una hoja como la de Excel (código, nombre y cantidad): escritas, pegadas
-// desde Excel o importadas de un archivo. "Del día" registra un tipo de movimiento en una fecha; "Ventas
-// de un periodo" registra lo vendido entre dos fechas (por ejemplo, el total del mes) y se reparte
-// entre esos días para el promedio.
+// desde Excel o importadas de un archivo. "De un día" registra un tipo de movimiento en una fecha; "De un
+// periodo" registra el total entre dos fechas (por ejemplo, lo vendido o lo que entró en el mes), de
+// cualquier tipo (Correcciones finales: antes solo ventas). Ventas y devoluciones se reparten entre esos
+// días para el promedio; un conteo es lo que había el último día.
 type Forma = 'dia' | 'periodo'
 
 const CAMPOS_MOVIMIENTOS = [
@@ -383,13 +384,21 @@ const CAMPOS_MOVIMIENTOS = [
   { campo: 'nombre', nombre: 'Nombre (opcional)' },
 ]
 
+// Qué significa el total de un periodo en cada tipo de movimiento (server/saldos.js).
+const AYUDA_PERIODO: Record<TipoMovimiento, string> = {
+  venta: 'Lo vendido entre dos fechas, por ejemplo el total del mes que le da su programa. Se reparte por partes iguales entre esos días para el promedio de venta, y las existencias bajan el último día.',
+  entrada: 'Lo que entró entre dos fechas, por ejemplo todo lo recibido en el mes. Las existencias suben el último día.',
+  devolucion: 'Lo que devolvieron los clientes entre dos fechas. Se resta de las ventas de esos días, repartido por partes iguales, y las existencias suben el último día.',
+  salida: 'Lo que salió sin venderse entre dos fechas (daños, consumo propio o traslados). Las existencias bajan el último día.',
+  conteo: 'Lo que había al terminar el periodo. Si no registró ventas, lo que falte se cuenta como vendido entre esas dos fechas.',
+}
+
 function primeroDelMes(f: string) {
   return `${f.slice(0, 8)}01`
 }
 
 function PegarVarios({ fecha, hoy, alGuardar }: { fecha: string; hoy: string; alGuardar: (r: Resultado) => void }) {
   const [forma, setForma] = useState<Forma>('dia')
-  const { usuario } = useSesion()
   const [tipo, setTipo] = useState<TipoMovimiento>(useTipos()[0].id)
   const [fechaLote, setFechaLote] = useState(fecha)
   const [desde, setDesde] = useState(() => primeroDelMes(hoy))
@@ -416,14 +425,18 @@ function PegarVarios({ fecha, hoy, alGuardar }: { fecha: string; hoy: string; al
   )
 
   async function guardar(resolver?: Record<string, string>) {
-    const lineas = (hoja.current?.lineas() || []).filter((l) => l.codigo || l.cantidad)
+    // Las filas vacías del medio no se mandan: posicion[k] es la fila de la hoja de la línea k, para que
+    // "Fila 3" del servidor marque y nombre la fila que la persona ve.
+    const todas = hoja.current?.lineas() || []
+    const posicion = todas.map((l, i) => (l.codigo || l.cantidad ? i + 1 : 0)).filter((n) => n > 0)
+    const lineas = todas.filter((l) => l.codigo || l.cantidad)
     setGuardando(true)
     setError(null)
     if (!resolver) setPendiente(null)
     try {
       // El nombre va para reconocer el producto si el código no está en el catálogo, o para crearlo.
       const movimientos = lineas.map((l) => (periodo
-        ? { codigo: l.codigo, nombre: l.nombre, cantidad: l.cantidad, tipo: 'venta', desde, fecha: hasta }
+        ? { codigo: l.codigo, nombre: l.nombre, cantidad: l.cantidad, tipo, desde, fecha: hasta }
         : { codigo: l.codigo, nombre: l.nombre, cantidad: l.cantidad, tipo, fecha: fechaLote }))
       const r = await api<Resultado>('POST', '/movimientos', { movimientos, resolver })
       alGuardar(r)
@@ -436,9 +449,10 @@ function PegarVarios({ fecha, hoy, alGuardar }: { fecha: string; hoy: string; al
       if (p) setPendiente(p)
       else {
         const t = textoErrores(err)
-        setError(t)
+        const enHoja = (n: number) => posicion[n - 1] ?? n
+        setError({ ...t, lista: t.lista.map((x) => x.replace(/^Fila (\d+)/, (_, n) => `Fila ${enHoja(Number(n))}`)) })
         // "Fila 3: …": se marca esa fila en la hoja.
-        hoja.current?.marcarErrores(t.lista.map((x) => Number(/^Fila (\d+)/.exec(x)?.[1])).filter((n) => n > 0))
+        hoja.current?.marcarErrores(t.lista.map((x) => Number(/^Fila (\d+)/.exec(x)?.[1])).filter((n) => n > 0).map(enHoja))
       }
     } finally {
       setGuardando(false)
@@ -466,11 +480,12 @@ function PegarVarios({ fecha, hoy, alGuardar }: { fecha: string; hoy: string; al
         etiqueta="Qué va a registrar"
         valor={forma}
         onCambio={(f) => { setForma(f); setError(null) }}
-        opciones={[{ id: 'dia', texto: 'Movimientos de un día' }, ...(puedeRegistrar(usuario, 'venta') ? [{ id: 'periodo' as const, texto: 'Ventas de un periodo' }] : [])]}
+        opciones={[{ id: 'dia', texto: 'Movimientos de un día' }, { id: 'periodo', texto: 'Movimientos de un periodo' }]}
       />
       {periodo ? (
         <>
-          <p className="text-nota text-muted-foreground">Lo vendido entre dos fechas, por ejemplo el total del mes que le da su programa. Se reparte por partes iguales entre esos días para el promedio de venta, y las existencias bajan el último día.</p>
+          <ElegirTipo valor={tipo} onCambio={setTipo} />
+          <p className="text-nota text-muted-foreground">{AYUDA_PERIODO[tipo]}</p>
           <div className="grid max-w-lg gap-3 sm:grid-cols-2">
             <Campo etiqueta="Desde"><input type="date" className={claseEntrada} value={desde} max={hasta || hoy} onChange={(e) => setDesde(e.target.value)} /></Campo>
             <Campo etiqueta="Hasta"><input type="date" className={claseEntrada} value={hasta} max={hoy} onChange={(e) => setHasta(e.target.value)} /></Campo>
@@ -482,7 +497,7 @@ function PegarVarios({ fecha, hoy, alGuardar }: { fecha: string; hoy: string; al
           <Campo etiqueta="Fecha"><input type="date" className={cn(claseEntrada, 'max-w-48')} value={fechaLote} max={hoy} onChange={(e) => e.target.value && setFechaLote(e.target.value)} /></Campo>
         </>
       )}
-      <Hoja key={version} ref={hoja} inicial={[]} alCambiar={contar} tituloCantidad={periodo ? 'Vendido' : tipo === 'conteo' ? 'Conteo' : 'Cantidad'} />
+      <Hoja key={version} ref={hoja} inicial={[]} alCambiar={contar} tituloCantidad={tipo === 'conteo' ? 'Conteo' : periodo && tipo === 'venta' ? 'Vendido' : 'Cantidad'} />
       {error && <ErrorLista mensaje={error.mensaje} lista={error.lista} />}
       {pendiente ? (
         <ProductosNoEncontrados pendiente={pendiente} guardando={guardando} alGuardar={guardar} alCancelar={() => setPendiente(null)} />

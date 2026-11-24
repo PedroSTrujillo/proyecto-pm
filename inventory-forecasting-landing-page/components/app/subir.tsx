@@ -511,7 +511,7 @@ function PreguntaDocumentos({ documentos, alEnviar }: { documentos: NonNullable<
         ))}
       </ul>
       {falta && <Aviso tono="error">Marque al menos un tipo como venta.</Aviso>}
-      <Boton type="submit" variante="primario" className="self-start">Listo</Boton>
+      <Boton type="submit" variante="primario" className="self-start">Continuar</Boton>
     </form>
   )
 }
@@ -537,7 +537,7 @@ function PreguntaCanal({ canal, alEnviar }: { canal: NonNullable<Resultado['cana
           </li>
         ))}
       </ul>
-      <Boton type="submit" variante="primario" className="self-start">{marcados.size ? `Listo: ${plural(marcados.size, 'es de proyecto', 'son de proyecto')}` : 'Listo: ninguna es de proyecto'}</Boton>
+      <Boton type="submit" variante="primario" className="self-start">{marcados.size ? `Continuar: ${plural(marcados.size, 'es de proyecto', 'son de proyecto')}` : 'Continuar: ninguna es de proyecto'}</Boton>
     </form>
   )
 }

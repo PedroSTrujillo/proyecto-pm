@@ -18,7 +18,7 @@ export function SinInventario() {
           Aún no hay ventas ni existencias. Súbalas una vez, tal como salen de su programa contable: el panel, los productos y el pedido sugerido salen de ahí. Después puede registrar lo que entra y sale cada día en Movimientos.
         </p>
         <p className="text-chico text-muted-foreground">
-          Lo que sugiere SINESC es tan bueno como sus datos: con las ventas y las entradas al día, las existencias y lo sugerido también lo están.
+          La calidad de las sugerencias de SINESC depende de sus datos: con las ventas y las entradas al día, las existencias y las sugerencias también estarán actualizadas.
         </p>
         <div className="flex flex-wrap items-center gap-3">
           <BotonEnlace href="/datos" variante="primario">Subir mis archivos</BotonEnlace>

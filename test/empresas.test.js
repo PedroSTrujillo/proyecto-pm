@@ -431,7 +431,7 @@ test('boletín diario: solo con CRON_SECRET, uno por persona y día, según el p
   const c = correos[0];
   assert.equal(c.to[0].email, 'ana@prueba.co');
   assert.match(c.subject, /· Ferretería Ana$/);
-  assert.match(c.htmlContent, /Se van a agotar \(1\)/);
+  assert.match(c.htmlContent, /Se agotan \(1\)/);
   assert.match(c.headers['List-Unsubscribe'], /\/api\/boletin\/baja\?u=\d+&f=/);
   assert.match(c.textContent, /Ver el panel/, 'Ana es analista');
 

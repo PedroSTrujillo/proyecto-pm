@@ -153,7 +153,7 @@ async function pedidoEditable(req) {
     return pedidoParaAprobar(req);
   }
   exigirListaFinalEditable(p);
-  if (p.enviado_en && !req.usuario.aprueba) throw new ErrorUsuario('Este pedido está esperando aprobación y ya no se puede cambiar. Si hace falta, pídale a quien lo aprueba que se lo devuelva.', 409);
+  if (p.enviado_en && !req.usuario.aprueba) throw new ErrorUsuario('Este pedido está esperando aprobación y ya no se puede cambiar. Si es necesario, solicite a quien lo aprueba que se lo devuelva.', 409);
   return p;
 }
 

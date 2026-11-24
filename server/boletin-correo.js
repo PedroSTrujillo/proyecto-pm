@@ -137,7 +137,7 @@ function asuntoDe(secciones, empresa) {
   const textos = {
     enCero: () => `En cero: ${contar(n, 'producto', 'productos')}`,
     pideYa: () => `Pedir ya: ${contar(n, 'producto', 'productos')}`,
-    seAgota: () => `Se van a agotar: ${contar(n, 'producto', 'productos')}`,
+    seAgota: () => `Se agotan: ${contar(n, 'producto', 'productos')}`,
     porAprobar: () => `Por aprobar: ${contar(n, 'pedido', 'pedidos')}`,
     sinDatos: () => `Sin movimientos hace ${numero(n)} días hábiles`,
     sobran: () => `Sobran: ${contar(n, 'producto', 'productos')}`,
@@ -174,7 +174,7 @@ function bloques(s, { analista, unidad, url, cambios }) {
 
   if (s.tipo === 'enCero' || s.tipo === 'seAgota') {
     return {
-      titulo: s.tipo === 'enCero' ? `En cero (${numero(s.n)})` : `Se van a agotar (${numero(s.n)})`,
+      titulo: s.tipo === 'enCero' ? `En cero (${numero(s.n)})` : `Se agotan (${numero(s.n)})`,
       parrafos: [...nuevos('producto', 'productos'), ...resto(s.n, MAX_LISTA, 'producto', 'productos')],
       tabla: tablaProductos(s.productos, analista),
       enlaces: [{ texto: 'Ver en Productos', url: ir('/productos?estado=agota') }],

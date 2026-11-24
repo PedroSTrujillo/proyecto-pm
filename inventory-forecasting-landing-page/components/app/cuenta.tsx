@@ -91,7 +91,7 @@ export function Cuenta() {
           <h2 className="text-xl font-bold">Cómo ve el tiempo</h2>
           <div className="flex flex-col gap-2">
             <span className="text-cuerpo font-semibold">Para cuánto alcanza, en</span>
-            <SelectorTiempo conHorizonte />
+            <SelectorTiempo conHorizonte general />
             <p className="text-nota text-muted-foreground">El cálculo es el mismo; solo cambia cómo se dice. 2 semanas son 14 días o medio mes.</p>
           </div>
         </Tarjeta>
@@ -157,11 +157,11 @@ export function EliminarCuenta({ usuario }: { usuario: Usuario }) {
 
 const ALERTAS: { tipo: TipoAlerta; texto: string; descripcion: string }[] = [
   { tipo: 'pideYa', texto: 'Pedir ya', descripcion: 'Lo que hay que pedir hoy para que llegue a tiempo.' },
-  { tipo: 'seAgota', texto: 'Se van a agotar', descripcion: 'Lo que alcanza para menos de lo elegido para el aviso.' },
+  { tipo: 'seAgota', texto: 'Se agotan', descripcion: 'Lo que alcanza para menos de lo elegido para el aviso.' },
   { tipo: 'enCero', texto: 'En cero', descripcion: 'Productos sin existencias.' },
   { tipo: 'porAprobar', texto: 'Pedidos por aprobar', descripcion: 'Los que le enviaron para aprobar.' },
   { tipo: 'sobran', texto: 'Sobrestock', descripcion: 'Lo que alcanza para más de 12 semanas, o lo que diga la ficha de cada producto.' },
-  { tipo: 'dineroQuieto', texto: 'Dinero quieto', descripcion: 'Cuánta plata hay en lo que sobra. Solo si el archivo trae costos.' },
+  { tipo: 'dineroQuieto', texto: 'Dinero quieto', descripcion: 'Cuánto dinero hay en lo que sobra. Solo si el archivo incluye costos.' },
   { tipo: 'sinDatos', texto: 'Datos sin actualizar', descripcion: 'Cuando pasan más de 3 días hábiles sin movimientos ni archivos.' },
 ]
 

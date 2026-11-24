@@ -71,7 +71,7 @@ function Navegacion({ items, alElegir }: { items: Item[]; alElegir?: () => void 
 }
 
 // Cada rol ve lo suyo (T3 de docs/PLAN_CAMBIOS_SINESC.md). La demo, sin cuenta, sigue el perfil que elige quien la prueba.
-function itemsDe(demo: boolean, rutas: ReturnType<typeof useInventario>['rutas'], equipo: boolean, perfil: Perfil, rol: RolEmpresa | undefined, vista: VistaGerente, conMovimientos: boolean): Item[] {
+function itemsDe(demo: boolean, rutas: ReturnType<typeof useInventario>['rutas'], equipo: boolean, perfil: Perfil, rol: RolEmpresa | undefined, vista: VistaGerente, conMovimientos: boolean, conProveedores = false): Item[] {
   const panel: Item = { href: rutas.panel, texto: perfil === 'operador' ? 'Resumen' : 'Panel', icono: <LayoutDashboard />, exacto: true }
   const diario: Item[] = demo ? [] : [
     { href: '/movimientos', texto: 'Movimientos', icono: <ArrowLeftRight /> },
@@ -91,7 +91,7 @@ function itemsDe(demo: boolean, rutas: ReturnType<typeof useInventario>['rutas']
   const noticias: Item = { href: '/noticias', texto: 'Noticias', icono: <Newspaper /> }
   let base: Item[]
   if (demo) base = perfil === 'operador' ? [panel, ...resto] : [panel, productos, pedidos, datos]
-  else if (rol === 'operador') base = conMovimientos ? [productos, movimientos, existencias, datos] : [productos, existencias, datos]
+  else if (rol === 'operador') base = [productos, ...(conMovimientos ? [movimientos] : []), existencias, ...(conProveedores ? [proveedores] : []), datos]
   else if (rol === 'gerente' && vista === 'principal') base = [panel, productos, pedidos, reportes, actividad, noticias, empresa]
   else base = [panel, productos, pedidos, proveedores, reportes, movimientos, existencias, datos, empresa, ...(rol === 'gerente' ? [actividad, noticias] : [])]
   if (!demo && equipo) base.push({ href: '/ejemplos', texto: 'Ejemplos', icono: <FlaskConical /> }, { href: '/cuentas', texto: 'Cuentas', icono: <ShieldCheck /> })
@@ -118,7 +118,7 @@ export function Marco({ children }: { children: ReactNode }) {
     setVistaGerente(v)
     try { localStorage.setItem(CLAVE_VISTA_GERENTE, v) } catch {}
   }
-  const items = itemsDe(demo, rutas, usuario?.rol === 'equipo', perfil, usuario?.rolEmpresa, vistaGerente, Boolean(usuario?.registraMovimientos || usuario?.haceConteos)).map((it) => (it.href === '/pedidos' ? { ...it, cuenta: porAprobar } : it))
+  const items = itemsDe(demo, rutas, usuario?.rol === 'equipo', perfil, usuario?.rolEmpresa, vistaGerente, Boolean(usuario?.registraMovimientos || usuario?.haceConteos), Boolean(usuario?.manejaProveedores)).map((it) => (it.href === '/pedidos' ? { ...it, cuenta: porAprobar } : it))
   const [abierto, setAbierto] = useState(false)
   const ruta = usePathname()!
   const aprueba = !demo && Boolean(usuario?.aprueba) && usuario?.rolEmpresa !== 'operador'

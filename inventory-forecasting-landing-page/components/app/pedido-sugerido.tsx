@@ -82,7 +82,7 @@ function PedidoCon({ inv, encabezado }: { inv: Inventario; encabezado: boolean }
       a.download = `pedido-${new Date().toLocaleDateString('en-CA')}.xlsx`
       a.click()
       URL.revokeObjectURL(url)
-      setAviso('Listo: el Excel trae una hoja por proveedor y un resumen para aprobar.')
+      setAviso('El Excel incluye una hoja por proveedor y un resumen para aprobar.')
     } catch (e) {
       setAviso(e instanceof Error ? e.message : 'No pudimos armar el archivo.')
     }
@@ -96,7 +96,7 @@ function PedidoCon({ inv, encabezado }: { inv: Inventario; encabezado: boolean }
         cadaCuanto: duracion(inv.ajustes.cadaCuanto),
         lineas: enPedido.map(({ p, cantidad }) => ({ proveedor: p.proveedor, codigo: p.codigo, nombre: p.nombre, cantidad, costo: p.costo, semanas: p.semanas })),
       }, `pedido-para-aprobar-${new Date().toLocaleDateString('en-CA')}.pdf`)
-      setAviso('Listo: el PDF trae el pedido por proveedor, los totales y el espacio para la firma.')
+      setAviso('El PDF incluye el pedido por proveedor, los totales y el espacio para la firma.')
     } catch (e) {
       setAviso(e instanceof Error ? e.message : 'No pudimos armar el PDF.')
     }
@@ -143,7 +143,7 @@ function PedidoCon({ inv, encabezado }: { inv: Inventario; encabezado: boolean }
               />
             )}
           </div>
-          <p className="mb-3 text-cuerpo text-muted-foreground">Incluye lo que se agota y lo que hay que pedir ya. Para sumar otro producto, toque su número sugerido.</p>
+          <p className="mb-3 text-cuerpo text-muted-foreground">Incluye lo que se agota y lo que hay que pedir ya. Para agregar otro producto, seleccione su cantidad sugerida.</p>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] border-collapse">
               <thead>

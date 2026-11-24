@@ -11,6 +11,7 @@ import { nombrePrograma } from '@/lib/sistemas'
 import type { Inventario, RevisionCodigos } from '@/lib/tipos'
 import { useInventario, useSesion } from './contexto'
 import { CodigosQueNoCoinciden, GuiaSistema, SelectorSistema, SubirArchivos } from './subir'
+import { SelectorTiempo } from './vista'
 import { Aviso, Boton, Cargando, Contador, ErrorLista, Tarjeta, Titulo, claseEntrada } from './ui'
 
 export function Datos() {
@@ -31,10 +32,11 @@ function DatosCon({ inv }: { inv: Inventario | null }) {
 
   return (
     <>
-      <Titulo sub="El inventario es de su empresa y queda guardado. Súbalo de nuevo cuando quiera ponerlo al día.">Datos</Titulo>
+      <Titulo sub="El inventario es de su empresa y queda guardado. Súbalo de nuevo cuando quiera actualizarlo.">Datos</Titulo>
+      {inv && <SelectorTiempo className="-mt-3" />}
       {!demo && (
         <Aviso tono="info" titulo="Dos formas de llevar el inventario, y se combinan">
-          Suba el archivo de su programa contable (cada mes o cuando quiera) o registre las entradas y salidas de cada día en <Link href="/movimientos" className="font-semibold underline underline-offset-2">Movimientos</Link>. Lo registrado después de la fecha del archivo se suma encima. Lo que sugiere SINESC es tan bueno como sus datos: si pasan días sin registrar ventas ni entradas, las existencias y lo sugerido se quedan atrás.
+          Suba el archivo de su programa contable (cada mes o cuando quiera) o registre las entradas y salidas de cada día en <Link href="/movimientos" className="font-semibold underline underline-offset-2">Movimientos</Link>. Lo registrado después de la fecha del archivo se suma encima. La calidad de las sugerencias de SINESC depende de sus datos: si pasan días sin registrar ventas ni entradas, las existencias y las sugerencias se desactualizan.
         </Aviso>
       )}
 
@@ -44,7 +46,7 @@ function DatosCon({ inv }: { inv: Inventario | null }) {
         <Tarjeta aria-labelledby="t-subir" className="flex min-w-0 flex-col gap-5 p-5 sm:p-6">
           <h2 id="t-subir" className="text-xl font-bold">{inv ? 'Actualizar datos' : 'Suba su inventario'}</h2>
           {demo ? <SubirDemo inv={inv} /> : !puedeSubir ? (
-            <p className="text-cuerpo text-muted-foreground">Pídale a quien administra la empresa que le dé permiso para subir datos. Mientras tanto puede registrar las entradas y salidas del día en <Link href="/movimientos" className="font-semibold text-primary underline underline-offset-2">Movimientos</Link>.</p>
+            <p className="text-cuerpo text-muted-foreground">Para subir datos necesita permiso: consulte al administrador de la empresa. Mientras tanto puede registrar las entradas y salidas del día en <Link href="/movimientos" className="font-semibold text-primary underline underline-offset-2">Movimientos</Link>.</p>
           ) : (
             <>
               {listo && <Aviso tono="ok">{listo}</Aviso>}
@@ -54,7 +56,7 @@ function DatosCon({ inv }: { inv: Inventario | null }) {
                 usuario={usuario}
                 alGuardarSistema={fijar}
                 alTerminar={(r) => {
-                  setListo(`Listo: leímos ${plural(r.resumen?.productos ?? 0, 'producto', 'productos')}. El panel ya está al día.`)
+                  setListo(`Archivo procesado: se leyeron ${plural(r.resumen?.productos ?? 0, 'producto', 'productos')}. El panel está actualizado.`)
                   setCodigos(r.codigos ?? null)
                   recargar()
                 }}
@@ -65,8 +67,8 @@ function DatosCon({ inv }: { inv: Inventario | null }) {
         {inv && perfil === 'operador' && (
           <Tarjeta className="flex min-w-0 flex-col gap-2 p-5 sm:p-6">
             <h2 className="text-xl font-bold">Ajustes de su empresa</h2>
-            <p className="text-cuerpo">Un producto se va a agotar si alcanza para menos de <strong>{duracion(inv.umbrales.seAgota)}</strong>. Si el proveedor no está dicho, se asume que tarda <strong>{tarda(inv.ajustes.entregaPorDefecto)}</strong>, y se pide cada <strong>{duracion(inv.ajustes.cadaCuanto)}</strong>.</p>
-            <p className="text-chico text-muted-foreground">Los tiempos de cada proveedor y estos ajustes los cambia quien administra la empresa.</p>
+            <p className="text-cuerpo">Un producto se agota si alcanza para menos de <strong>{duracion(inv.umbrales.seAgota)}</strong>. Si no hay datos del proveedor, se asume que tarda <strong>{tarda(inv.ajustes.entregaPorDefecto)}</strong>, y se pide cada <strong>{duracion(inv.ajustes.cadaCuanto)}</strong>.</p>
+            <p className="text-chico text-muted-foreground">Los tiempos de cada proveedor y estos ajustes los modifica el administrador de la empresa.</p>
           </Tarjeta>
         )}
         {inv && perfil !== 'operador' && (
@@ -147,7 +149,7 @@ function UmbralAgota({ inv }: { inv: Inventario }) {
     setGuardando(true)
     try {
       await guardarAjustes({ semanasAgota: valor })
-      setGuardado('Listo: el panel ya usa este número.')
+      setGuardado('Cambio guardado. El panel ya usa este valor.')
     } finally {
       setGuardando(false)
     }
